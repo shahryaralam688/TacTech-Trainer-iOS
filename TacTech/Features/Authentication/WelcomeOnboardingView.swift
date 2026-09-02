@@ -23,31 +23,31 @@ struct WelcomeOnboardingView: View {
             id: 1,
             imageName: "OnboardingPlans",
             title: "Personalized\nFitness Plans",
-            subtitle: "Choose your own fitness journey with AI. 🏋️‍♀️"
+            subtitle: "Choose your own fitness journey with AI."
         ),
         OnboardingPage(
             id: 2,
             imageName: "OnboardingMetrics",
             title: "Health Metrics &\nFitness Analytics",
-            subtitle: "Monitor your health profile with ease. 📈"
+            subtitle: "Monitor your health profile with ease."
         ),
         OnboardingPage(
             id: 3,
             imageName: "OnboardingWorkouts",
             title: "Extensive Workout\nLibraries",
-            subtitle: "Explore ~100K exercises made for you! 💪"
+            subtitle: "Explore ~100K exercises made for you!"
         ),
         OnboardingPage(
             id: 4,
             imageName: "OnboardingCoach",
             title: "Virtual AI Coach\nMentoring",
-            subtitle: "Say goodbye to manual coaching! 👋"
+            subtitle: "Say goodbye to manual coaching!"
         ),
         OnboardingPage(
             id: 5,
             imageName: "OnboardingNutrition",
             title: "Nutrition &\nDiet Guidance",
-            subtitle: "Lose weight and get fit with TacTech! 🥬"
+            subtitle: "Lose weight and get fit with TacTech!"
         )
     ]
 
@@ -137,7 +137,7 @@ private struct OnboardingSlideView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal, 28)
-                .padding(.bottom, 120)
+                .padding(.bottom, 240)
             }
         }
         .ignoresSafeArea()

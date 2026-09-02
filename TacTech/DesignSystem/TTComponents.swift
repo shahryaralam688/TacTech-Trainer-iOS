@@ -288,3 +288,111 @@ struct TTEmptyState: View {
         .padding(.vertical, 28)
     }
 }
+
+struct TTDropPicker<Value: Hashable>: View {
+    var title: String = ""
+    @Binding var selection: Value
+    let options: [Value]
+    var format: (Value) -> String = { "\($0)" }
+
+    @State private var showSheet = false
+
+    private var resolvedOptions: [Value] {
+        options.contains(selection) ? options : [selection] + options
+    }
+
+    private var usesSheet: Bool { resolvedOptions.count > 14 }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if !title.isEmpty {
+                Text(title.uppercased())
+                    .font(TTFont.caption(10))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            Group {
+                if usesSheet {
+                    Button { showSheet = true } label: { chip }
+                } else {
+                    Menu {
+                        ForEach(resolvedOptions, id: \.self) { option in
+                            Button {
+                                selection = option
+                            } label: {
+                                if option == selection {
+                                    Label(format(option), systemImage: "checkmark")
+                                } else {
+                                    Text(format(option))
+                                }
+                            }
+                        }
+                    } label: {
+                        chip
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showSheet) {
+            TTDropPickerSheet(
+                title: title.isEmpty ? "Select" : title,
+                selection: $selection,
+                options: resolvedOptions,
+                format: format
+            )
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var chip: some View {
+        HStack(spacing: 6) {
+            Text(format(selection))
+                .font(TTFont.heading(14))
+                .foregroundStyle(TTColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 2)
+            Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(TTColor.inkMuted)
+        }
+        .padding(.horizontal, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: 42)
+        .background(TTColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(TTColor.line, lineWidth: 1)
+        )
+    }
+}
+
+private struct TTDropPickerSheet<Value: Hashable>: View {
+    let title: String
+    @Binding var selection: Value
+    let options: [Value]
+    var format: (Value) -> String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Picker(title, selection: $selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(format(option)).tag(option)
+                }
+            }
+            .pickerStyle(.wheel)
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .font(TTFont.heading(16))
+                        .foregroundStyle(TTColor.brand)
+                }
+            }
+        }
+    }
+}

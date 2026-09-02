@@ -284,9 +284,12 @@ struct SessionEditor: View {
                     DatePicker("", selection: $draft.time, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
-                labeled("Minutes") {
-                    Stepper("\(draft.duration)", value: $draft.duration, in: 20...120, step: 5)
-                }
+                TTDropPicker(
+                    title: "Minutes",
+                    selection: $draft.duration,
+                    options: Array(stride(from: 20, through: 120, by: 5)),
+                    format: { "\($0) min" }
+                )
             }
             labeled("Where") {
                 Picker("Location", selection: $draft.location) {
@@ -348,46 +351,69 @@ struct ExerciseDraftEditor: View {
                 .font(TTFont.caption(12))
                 .foregroundStyle(TTColor.inkMuted)
 
-            HStack {
-                stepper("Sets", value: $draft.sets, range: 1...8)
+            HStack(spacing: 8) {
+                TTDropPicker(title: "Sets", selection: $draft.sets, options: Array(1...8))
                     .onChange(of: draft.sets) { _, _ in draft.syncSetCount() }
-                stepper("Reps", value: $draft.reps, range: 3...20)
-                    .onChange(of: draft.reps) { _, value in
-                        for index in draft.setRows.indices { draft.setRows[index].reps = value }
+                TTDropPicker(
+                    title: "Reps",
+                    selection: $draft.reps,
+                    options: Array(1...30),
+                    format: { "\($0)" }
+                )
+                .onChange(of: draft.reps) { _, value in
+                    for index in draft.setRows.indices { draft.setRows[index].reps = value }
+                }
+                TTDropPicker(
+                    title: "Rest",
+                    selection: $draft.rest,
+                    options: [20, 30, 45, 60, 75, 90, 120, 150, 180, 210, 240],
+                    format: { "\($0)s" }
+                )
+            }
+
+            TTDropPicker(
+                title: "Working weight",
+                selection: $draft.weight,
+                options: PlanPickValues.weights,
+                format: { "\($0.cleanKg) kg" }
+            )
+            .onChange(of: draft.weight) { _, value in
+                for index in draft.setRows.indices { draft.setRows[index].weight = value }
+            }
+
+            VStack(spacing: 8) {
+                ForEach($draft.setRows) { $row in
+                    HStack(spacing: 8) {
+                        Text("Set \(row.setNumber)")
+                            .font(TTFont.heading(13))
+                            .foregroundStyle(TTColor.ink)
+                            .frame(width: 52, alignment: .leading)
+                        TTDropPicker(
+                            selection: $row.reps,
+                            options: Array(1...30),
+                            format: { "\($0) reps" }
+                        )
+                        TTDropPicker(
+                            selection: $row.weight,
+                            options: PlanPickValues.weights,
+                            format: { "\($0.cleanKg) kg" }
+                        )
                     }
-                stepper("Rest s", value: $draft.rest, range: 20...240, step: 15)
-            }
-
-            labeled("Working weight (kg)") {
-                HStack {
-                    Slider(value: $draft.weight, in: 0...200, step: 2.5)
-                    Text("\(draft.weight.cleanKg)")
-                        .font(TTFont.heading(14))
-                        .frame(width: 48, alignment: .trailing)
-                }
-                .onChange(of: draft.weight) { _, value in
-                    for index in draft.setRows.indices { draft.setRows[index].weight = value }
                 }
             }
 
-            ForEach($draft.setRows) { $row in
-                HStack {
-                    Text("Set \(row.setNumber)")
-                        .font(TTFont.heading(13))
-                        .frame(width: 52, alignment: .leading)
-                    Stepper("\(row.reps) reps", value: $row.reps, in: 1...30)
-                    Stepper("\(row.weight.cleanKg) kg", value: $row.weight, in: 0...220, step: 2.5)
-                }
-                .font(TTFont.caption(13))
-            }
-
-            labeled("Tempo") { TextField("3-1-1-0", text: $draft.tempo) }
-            labeled("RPE") {
-                HStack {
-                    Slider(value: $draft.rpe, in: 5...10, step: 0.5)
-                    Text(String(format: "%.1f", draft.rpe))
-                        .font(TTFont.heading(14))
-                }
+            HStack(spacing: 8) {
+                TTDropPicker(
+                    title: "Tempo",
+                    selection: $draft.tempo,
+                    options: ["3-1-1-0", "2-0-2-0", "3-0-1-0", "4-1-1-0", "2-1-1-0", "1-0-X-0", "Explosive"]
+                )
+                TTDropPicker(
+                    title: "RPE",
+                    selection: $draft.rpe,
+                    options: PlanPickValues.rpe,
+                    format: { String(format: "%g", $0) }
+                )
             }
             labeled("How to perform") {
                 TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
@@ -397,17 +423,6 @@ struct ExerciseDraftEditor: View {
         .padding(12)
         .background(TTColor.canvas)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func stepper(_ title: String, value: Binding<Int>, range: ClosedRange<Int>, step: Int = 1) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(TTFont.caption(10))
-                .foregroundStyle(TTColor.inkSubtle)
-            Stepper("\(value.wrappedValue)", value: value, in: range, step: step)
-                .font(TTFont.caption(13))
-        }
-        .frame(maxWidth: .infinity)
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -451,6 +466,11 @@ struct ExerciseLibrarySheet: View {
             }
         }
     }
+}
+
+enum PlanPickValues {
+    static let weights: [Double] = stride(from: 0.0, through: 220.0, by: 2.5).map { $0 }
+    static let rpe: [Double] = stride(from: 5.0, through: 10.0, by: 0.5).map { $0 }
 }
 
 extension Date {

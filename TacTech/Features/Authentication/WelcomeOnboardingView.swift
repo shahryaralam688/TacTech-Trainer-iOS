@@ -69,10 +69,10 @@ struct WelcomeOnboardingView: View {
                 Spacer()
 
                 HStack(spacing: 10) {
-                    OnboardingArrowButton(systemName: "arrow.left", enabled: pageIndex > 0) {
+                    OnboardingArrowButton(imageName: "OnboardingArrowLeft", label: "Back", enabled: pageIndex > 0) {
                         go(to: pageIndex - 1)
                     }
-                    OnboardingArrowButton(systemName: "arrow.right", enabled: true) {
+                    OnboardingArrowButton(imageName: "OnboardingArrowRight", label: "Next", enabled: true) {
                         advance()
                     }
                 }
@@ -171,23 +171,27 @@ private struct OnboardingProgressBar: View {
 }
 
 private struct OnboardingArrowButton: View {
-    let systemName: String
+    let imageName: String
+    let label: String
     var enabled: Bool = true
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 22, weight: .light))
+            Image(imageName)
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 22, height: 20)
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity)
                 .frame(height: 58)
                 .background(Color.white)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
         .opacity(enabled ? 1 : 0.38)
         .disabled(!enabled)
-        .accessibilityLabel(systemName == "arrow.left" ? "Back" : "Next")
+        .accessibilityLabel(label)
     }
 }

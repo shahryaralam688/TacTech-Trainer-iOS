@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "SandowFillScissors.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "SandowFillScissors@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "SandowFillScissors@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

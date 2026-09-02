@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "SandowFillChevronDoubleLeft.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "SandowFillChevronDoubleLeft@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "SandowFillChevronDoubleLeft@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

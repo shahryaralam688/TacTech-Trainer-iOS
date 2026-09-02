@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "SandowFillMagnifyingGlassPlus.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "SandowFillMagnifyingGlassPlus@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "SandowFillMagnifyingGlassPlus@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

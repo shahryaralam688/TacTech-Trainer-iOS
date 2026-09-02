@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "SandowFillSortDescending.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "SandowFillSortDescending@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "SandowFillSortDescending@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

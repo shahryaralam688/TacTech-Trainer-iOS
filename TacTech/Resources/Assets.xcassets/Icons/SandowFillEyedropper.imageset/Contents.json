@@ -1,0 +1,26 @@
+{
+  "images": [
+    {
+      "filename": "SandowFillEyedropper.png",
+      "idiom": "universal",
+      "scale": "1x"
+    },
+    {
+      "filename": "SandowFillEyedropper@2x.png",
+      "idiom": "universal",
+      "scale": "2x"
+    },
+    {
+      "filename": "SandowFillEyedropper@3x.png",
+      "idiom": "universal",
+      "scale": "3x"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  },
+  "properties": {
+    "template-rendering-intent": "template"
+  }
+}

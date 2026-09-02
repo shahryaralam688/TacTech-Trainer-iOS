@@ -36,6 +36,7 @@
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
 		C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */; };
+		C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CD7D2571D7A03D718A7699 /* AuthScreens.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
 /* End PBXBuildFile section */
 
@@ -59,6 +60,7 @@
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
 		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
+		89CD7D2571D7A03D718A7699 /* AuthScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreens.swift; sourceTree = "<group>"; };
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
 		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
@@ -196,6 +198,7 @@
 			isa = PBXGroup;
 			children = (
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
+				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
 			path = Authentication;
@@ -292,6 +295,7 @@
 				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
+				C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */,
 				55D77098DF165235690581BC /* CreatePlanView.swift in Sources */,
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,

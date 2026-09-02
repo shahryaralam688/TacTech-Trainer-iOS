@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "AuthMachine.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

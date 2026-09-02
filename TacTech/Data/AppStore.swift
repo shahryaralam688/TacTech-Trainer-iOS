@@ -75,6 +75,12 @@ final class AppStore {
         try await refreshSession()
     }
 
+    func requestPasswordReset(email: String) async throws {
+        let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
+        try await api.requestPasswordReset(email: normalized)
+    }
+
     func logout() async {
         let refresh = TokenStore.refreshToken()
         if let refresh {

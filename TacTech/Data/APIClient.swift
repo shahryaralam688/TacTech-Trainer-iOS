@@ -127,6 +127,10 @@ struct LoginBody: Encodable {
     var password: String
 }
 
+struct ForgotPasswordBody: Encodable {
+    var email: String
+}
+
 struct RefreshBody: Encodable {
     var refreshToken: String
 }
@@ -295,6 +299,15 @@ actor APIClient {
 
     func signup(_ body: SignupBody) async throws -> AuthResponse {
         try await sendUnauthenticated(path: "/auth/signup", method: .post, body: body)
+    }
+
+    func requestPasswordReset(email: String) async throws {
+        _ = try await raw(
+            path: "/auth/forgot-password",
+            method: .post,
+            body: ForgotPasswordBody(email: email),
+            authorized: false
+        )
     }
 
     func me() async throws -> MeResponse {

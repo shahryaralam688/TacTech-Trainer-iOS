@@ -4,6 +4,7 @@ enum AuthRoute: Hashable {
     case login
     case signup
     case role(SignupDraft)
+    case resetPassword(String)
 }
 
 struct SignupDraft: Hashable {
@@ -35,13 +36,19 @@ struct AuthFlowView: View {
             .navigationDestination(for: AuthRoute.self) { route in
                 switch route {
                 case .login:
-                    LoginView()
+                    LoginView(
+                        onSignUp: { path.append(.signup) },
+                        onForgot: { path.append(.resetPassword($0)) }
+                    )
                 case .signup:
-                    SignupView { draft in
-                        path.append(.role(draft))
-                    }
+                    SignupView(
+                        onSignIn: { path = [.login] },
+                        onContinue: { path.append(.role($0)) }
+                    )
                 case .role(let draft):
                     RoleSelectionView(draft: draft)
+                case .resetPassword(let email):
+                    ResetPasswordView(email: email)
                 }
             }
         }
@@ -141,108 +148,25 @@ struct WelcomeView: View {
     }
 }
 
-struct LoginView: View {
-    @Environment(AppStore.self) private var store
-    @State private var email = ""
-    @State private var password = ""
-    @State private var error: String?
-    @State private var isLoading = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                TTScreenHeader(eyebrow: "Welcome back", title: "Sign in")
-                VStack(spacing: 16) {
-                    TTTextField(title: "Email", icon: "envelope", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    TTTextField(title: "Password", icon: "lock", isSecure: true, text: $password)
-                }
-                if let error {
-                    Text(error)
-                        .font(TTFont.caption(13))
-                        .foregroundStyle(TTColor.danger)
-                }
-                TTButton(title: "Continue", isLoading: isLoading) {
-                    Task { await signIn() }
-                }
-            }
-            .padding(24)
-        }
-        .ttScreenBackground()
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func signIn() async {
-        isLoading = true
-        error = nil
-        defer { isLoading = false }
-        do {
-            try await store.login(email: email, password: password)
-        } catch {
-            self.error = error.localizedDescription
-        }
-    }
-}
-
-struct SignupView: View {
-    let onContinue: (SignupDraft) -> Void
-    @State private var name = ""
-    @State private var email = ""
-    @State private var password = ""
-    @State private var error: String?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 24) {
-                TTScreenHeader(eyebrow: "New member", title: "Create account")
-                VStack(spacing: 16) {
-                    TTTextField(title: "Full name", icon: "person", text: $name)
-                    TTTextField(title: "Email", icon: "envelope", text: $email)
-                        .textInputAutocapitalization(.never)
-                        .keyboardType(.emailAddress)
-                    TTTextField(title: "Password", icon: "lock", isSecure: true, text: $password)
-                }
-                if let error {
-                    Text(error)
-                        .font(TTFont.caption(13))
-                        .foregroundStyle(TTColor.danger)
-                }
-                TTButton(title: "Choose your role") {
-                    guard name.trimmingCharacters(in: .whitespaces).count > 1 else {
-                        error = "Enter your full name."
-                        return
-                    }
-                    guard email.contains("@") else {
-                        error = "Enter a valid email."
-                        return
-                    }
-                    guard password.count >= 6 else {
-                        error = "Password must be at least 6 characters."
-                        return
-                    }
-                    onContinue(SignupDraft(name: name, email: email, password: password))
-                }
-            }
-            .padding(24)
-        }
-        .ttScreenBackground()
-        .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
 struct RoleSelectionView: View {
     @Environment(AppStore.self) private var store
     let draft: SignupDraft
+    @State private var name: String
     @State private var role: UserRole = .trainee
     @State private var inviteCode = ""
     @State private var error: String?
     @State private var isLoading = false
 
+    init(draft: SignupDraft) {
+        self.draft = draft
+        _name = State(initialValue: draft.name)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 TTScreenHeader(eyebrow: "How will you use TacTech?", title: "Select role")
+                TTTextField(title: "Full name", icon: "person", text: $name)
                 VStack(spacing: 12) {
                     ForEach(UserRole.allCases) { option in
                         Button {
@@ -303,7 +227,7 @@ struct RoleSelectionView: View {
         defer { isLoading = false }
         do {
             try await store.signup(
-                name: draft.name,
+                name: name,
                 email: draft.email,
                 password: draft.password,
                 role: role,

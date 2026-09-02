@@ -540,7 +540,7 @@ private struct AuthLabeledField<Trailing: View>: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .stroke(border, lineWidth: isFocused || isError ? 1.5 : 0)
-            }
+            )
             .shadow(color: glow, radius: isFocused || isError ? 8 : 0)
         }
     }

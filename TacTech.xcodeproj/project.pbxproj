@@ -32,6 +32,7 @@
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
 		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
+		2F8D14B6C0E5471A9B3D7E21 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
@@ -51,6 +52,7 @@
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
+		7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 			children = (
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
+				7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
 			path = Authentication;
@@ -305,6 +308,7 @@
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
+				2F8D14B6C0E5471A9B3D7E21 /* SplashView.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,

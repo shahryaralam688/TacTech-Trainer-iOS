@@ -1,0 +1,506 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
+		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
+		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
+		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
+		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
+		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
+		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
+		5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */; };
+		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
+		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
+		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
+		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
+		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
+		87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */; };
+		8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE907B791C2450F8D414132 /* TrainerProfileView.swift */; };
+		8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95304A4367FC245D3A00DF7F /* TrainerRootView.swift */; };
+		90D61686645F7482E317416A /* TacTechApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587AE07BF381E435AE227C43 /* TacTechApp.swift */; };
+		9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */; };
+		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
+		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
+		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
+		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
+		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
+		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
+		C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */; };
+		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0174D61D79D430362B65F837 /* TrainerProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgressView.swift; sourceTree = "<group>"; };
+		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
+		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
+		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
+		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
+		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
+		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
+		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
+		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
+		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
+		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
+		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
+		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
+		9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDetailView.swift; sourceTree = "<group>"; };
+		AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodRecognizer.swift; sourceTree = "<group>"; };
+		AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodScannerView.swift; sourceTree = "<group>"; };
+		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
+		C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseAnalyzer.swift; sourceTree = "<group>"; };
+		DF1D3D88CBBC904995027746 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViews.swift; sourceTree = "<group>"; };
+		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
+		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
+		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		038473BFC514A3ACFC1BE220 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0ED25703147A11C67180D88E /* TacTech.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2A23B3A3CC9ACF04C627257C /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
+				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		76F9161D16057FCF6BDE6856 /* Data */ = {
+			isa = PBXGroup;
+			children = (
+				3F487A7AA8D964BA49DD8EDB /* AppStore.swift */,
+				179A188E828A8873F4505090 /* SeedData.swift */,
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		8162B5B3D519838E25B79AEE /* TacTech */ = {
+			isa = PBXGroup;
+			children = (
+				64AE96CE9682FE6E0A9BD1D8 /* Info.plist */,
+				587AE07BF381E435AE227C43 /* TacTechApp.swift */,
+				EE6090405D7B0A799ABE4DAA /* App */,
+				8F069CAF2CA49BC7A3FF0596 /* Core */,
+				76F9161D16057FCF6BDE6856 /* Data */,
+				2A23B3A3CC9ACF04C627257C /* DesignSystem */,
+				A1B0FFD5E9FB389C2071F3FD /* Features */,
+				D4625652EBF91AE0A8825CE0 /* Models */,
+				A5E3A8F74BD148BDFCF6746E /* Resources */,
+			);
+			path = TacTech;
+			sourceTree = "<group>";
+		};
+		8596D174B6340A5D06225B64 /* AI */ = {
+			isa = PBXGroup;
+			children = (
+				AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */,
+				C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */,
+			);
+			path = AI;
+			sourceTree = "<group>";
+		};
+		87BB1621256BE6F8852AAD3F /* Trainee */ = {
+			isa = PBXGroup;
+			children = (
+				AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */,
+				1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */,
+				DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */,
+				E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */,
+				8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */,
+				B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */,
+				FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */,
+				5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */,
+			);
+			path = Trainee;
+			sourceTree = "<group>";
+		};
+		8F069CAF2CA49BC7A3FF0596 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				8596D174B6340A5D06225B64 /* AI */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A1B0FFD5E9FB389C2071F3FD /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				E5531C3C532CF30EC9303934 /* Authentication */,
+				87BB1621256BE6F8852AAD3F /* Trainee */,
+				D6590ACEA3AE5DCB37129869 /* Trainer */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		A5E3A8F74BD148BDFCF6746E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		D4625652EBF91AE0A8825CE0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				DF1D3D88CBBC904995027746 /* Models.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		D6590ACEA3AE5DCB37129869 /* Trainer */ = {
+			isa = PBXGroup;
+			children = (
+				0404164478DA064625F44D7D /* MyTraineesView.swift */,
+				9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */,
+				2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */,
+				4CE907B791C2450F8D414132 /* TrainerProfileView.swift */,
+				0174D61D79D430362B65F837 /* TrainerProgressView.swift */,
+				95304A4367FC245D3A00DF7F /* TrainerRootView.swift */,
+				6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */,
+			);
+			path = Trainer;
+			sourceTree = "<group>";
+		};
+		E5531C3C532CF30EC9303934 /* Authentication */ = {
+			isa = PBXGroup;
+			children = (
+				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
+			);
+			path = Authentication;
+			sourceTree = "<group>";
+		};
+		EE6090405D7B0A799ABE4DAA /* App */ = {
+			isa = PBXGroup;
+			children = (
+				206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		FF29E835D8A4CD5D00B3EFF3 = {
+			isa = PBXGroup;
+			children = (
+				8162B5B3D519838E25B79AEE /* TacTech */,
+				038473BFC514A3ACFC1BE220 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		9DF553A43CA27081C301A067 /* TacTech */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 421EBC7848DFC223048AF8A8 /* Build configuration list for PBXNativeTarget "TacTech" */;
+			buildPhases = (
+				0B8CF43BCBF79B3E51C2A0DB /* Sources */,
+				155224CB017C8F41EA3039BD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TacTech;
+			packageProductDependencies = (
+			);
+			productName = TacTech;
+			productReference = 0ED25703147A11C67180D88E /* TacTech.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		57A713B3B812021EDED392CF /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					9DF553A43CA27081C301A067 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = BA8CB1472F37C27902FA3E7A /* Build configuration list for PBXProject "TacTech" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = FF29E835D8A4CD5D00B3EFF3;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 038473BFC514A3ACFC1BE220 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9DF553A43CA27081C301A067 /* TacTech */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		155224CB017C8F41EA3039BD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		0B8CF43BCBF79B3E51C2A0DB /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
+				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
+				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
+				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
+				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
+				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
+				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,
+				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
+				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
+				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
+				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
+				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
+				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
+				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
+				87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */,
+				C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */,
+				9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */,
+				C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */,
+				25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */,
+				5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */,
+				8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */,
+				C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */,
+				8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */,
+				A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */,
+				867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		117A206FA745D9849ED69ACD /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		5370B2799E62706E24B4F932 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		E2D4E95DAACA0A68D3047105 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TacTech/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for live form correction and food scanning.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tactech.trainer;
+				PRODUCT_NAME = TacTech;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		F5B8D59D97488C4F26DF1232 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = TacTech/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for live form correction and food scanning.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tactech.trainer;
+				PRODUCT_NAME = TacTech;
+				SDKROOT = iphoneos;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		421EBC7848DFC223048AF8A8 /* Build configuration list for PBXNativeTarget "TacTech" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F5B8D59D97488C4F26DF1232 /* Debug */,
+				E2D4E95DAACA0A68D3047105 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		BA8CB1472F37C27902FA3E7A /* Build configuration list for PBXProject "TacTech" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				5370B2799E62706E24B4F932 /* Debug */,
+				117A206FA745D9849ED69ACD /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 57A713B3B812021EDED392CF /* Project object */;
+}

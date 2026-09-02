@@ -66,6 +66,50 @@ struct Exercise: Identifiable, Codable, Hashable {
     var icon: String
 }
 
+enum Weekday: String, Codable, CaseIterable, Identifiable {
+    case monday, tuesday, wednesday, thursday, friday, saturday, sunday
+
+    var id: String { rawValue }
+
+    var title: String { rawValue.capitalized }
+    var short: String {
+        switch self {
+        case .monday: "Mon"
+        case .tuesday: "Tue"
+        case .wednesday: "Wed"
+        case .thursday: "Thu"
+        case .friday: "Fri"
+        case .saturday: "Sat"
+        case .sunday: "Sun"
+        }
+    }
+
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(String.self).lowercased()
+        self = Weekday(rawValue: raw) ?? .monday
+    }
+
+    static func from(date: Date, calendar: Calendar = .current) -> Weekday {
+        switch calendar.component(.weekday, from: date) {
+        case 1: .sunday
+        case 2: .monday
+        case 3: .tuesday
+        case 4: .wednesday
+        case 5: .thursday
+        case 6: .friday
+        default: .saturday
+        }
+    }
+}
+
+struct PrescribedSet: Identifiable, Codable, Hashable {
+    var id: String
+    var setNumber: Int
+    var reps: Int
+    var weightKg: Double?
+    var rpe: Double?
+}
+
 struct WorkoutExercise: Identifiable, Codable, Hashable {
     var id: String
     var exerciseId: String
@@ -73,6 +117,85 @@ struct WorkoutExercise: Identifiable, Codable, Hashable {
     var reps: Int
     var restSeconds: Int
     var recommendedWeightKg: Double?
+    var tempo: String?
+    var rpe: Double?
+    var notes: String?
+    var side: String?
+    var prescribedSets: [PrescribedSet]
+
+    init(
+        id: String,
+        exerciseId: String,
+        sets: Int,
+        reps: Int,
+        restSeconds: Int,
+        recommendedWeightKg: Double? = nil,
+        tempo: String? = nil,
+        rpe: Double? = nil,
+        notes: String? = nil,
+        side: String? = nil,
+        prescribedSets: [PrescribedSet] = []
+    ) {
+        self.id = id
+        self.exerciseId = exerciseId
+        self.sets = sets
+        self.reps = reps
+        self.restSeconds = restSeconds
+        self.recommendedWeightKg = recommendedWeightKg
+        self.tempo = tempo
+        self.rpe = rpe
+        self.notes = notes
+        self.side = side
+        self.prescribedSets = prescribedSets
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        exerciseId = try c.decode(String.self, forKey: .exerciseId)
+        sets = try c.decode(Int.self, forKey: .sets)
+        reps = try c.decode(Int.self, forKey: .reps)
+        restSeconds = try c.decode(Int.self, forKey: .restSeconds)
+        recommendedWeightKg = try c.decodeIfPresent(Double.self, forKey: .recommendedWeightKg)
+        tempo = try c.decodeIfPresent(String.self, forKey: .tempo)
+        rpe = try c.decodeIfPresent(Double.self, forKey: .rpe)
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        side = try c.decodeIfPresent(String.self, forKey: .side)
+        prescribedSets = try c.decodeIfPresent([PrescribedSet].self, forKey: .prescribedSets) ?? []
+    }
+
+    var workingSets: [PrescribedSet] {
+        if !prescribedSets.isEmpty { return prescribedSets.sorted { $0.setNumber < $1.setNumber } }
+        return (1...max(sets, 1)).map {
+            PrescribedSet(id: "\(id)-\($0)", setNumber: $0, reps: reps, weightKg: recommendedWeightKg, rpe: rpe)
+        }
+    }
+
+    var prescriptionLine: String {
+        var parts = ["\(sets)×\(reps)"]
+        if let kg = recommendedWeightKg { parts.append("\(kg.cleanKg) kg") }
+        parts.append("\(restSeconds)s rest")
+        if let tempo, !tempo.isEmpty { parts.append("tempo \(tempo)") }
+        return parts.joined(separator: " · ")
+    }
+}
+
+struct PlanDay: Identifiable, Codable, Hashable {
+    var id: String
+    var weekday: Weekday
+    var startTime: String?
+    var title: String
+    var focus: String
+    var durationMinutes: Int
+    var location: String?
+    var warmup: String?
+    var cooldown: String?
+    var coachNotes: String?
+    var exercises: [WorkoutExercise]
+
+    var timeLabel: String {
+        startTime?.clockDisplay ?? "Time TBD"
+    }
 }
 
 struct WorkoutPlan: Identifiable, Codable, Hashable {
@@ -84,6 +207,107 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var level: String
     var daysPerWeek: Int
     var exercises: [WorkoutExercise]
+    var notes: String?
+    var days: [PlanDay]
+
+    init(
+        id: String,
+        trainerId: String,
+        title: String,
+        focus: String,
+        durationMinutes: Int,
+        level: String,
+        daysPerWeek: Int,
+        exercises: [WorkoutExercise],
+        notes: String? = nil,
+        days: [PlanDay] = []
+    ) {
+        self.id = id
+        self.trainerId = trainerId
+        self.title = title
+        self.focus = focus
+        self.durationMinutes = durationMinutes
+        self.level = level
+        self.daysPerWeek = daysPerWeek
+        self.exercises = exercises
+        self.notes = notes
+        self.days = days
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        trainerId = try c.decode(String.self, forKey: .trainerId)
+        title = try c.decode(String.self, forKey: .title)
+        focus = try c.decode(String.self, forKey: .focus)
+        durationMinutes = try c.decode(Int.self, forKey: .durationMinutes)
+        level = try c.decode(String.self, forKey: .level)
+        daysPerWeek = try c.decode(Int.self, forKey: .daysPerWeek)
+        exercises = try c.decodeIfPresent([WorkoutExercise].self, forKey: .exercises) ?? []
+        notes = try c.decodeIfPresent(String.self, forKey: .notes)
+        days = try c.decodeIfPresent([PlanDay].self, forKey: .days) ?? []
+    }
+
+    var scheduledDays: [PlanDay] {
+        days.sorted { $0.weekday.sortIndex < $1.weekday.sortIndex }
+    }
+
+    func session(on date: Date) -> PlanDay? {
+        let weekday = Weekday.from(date: date)
+        return days.first { $0.weekday == weekday }
+    }
+
+    func nextSession(from date: Date = .now) -> PlanDay? {
+        if let today = session(on: date) { return today }
+        let start = Weekday.from(date: date).sortIndex
+        return scheduledDays.min { lhs, rhs in
+            let left = (lhs.weekday.sortIndex - start + 7) % 7
+            let right = (rhs.weekday.sortIndex - start + 7) % 7
+            return left < right
+        }
+    }
+
+    var allExercises: [WorkoutExercise] {
+        if !days.isEmpty { return days.flatMap(\.exercises) }
+        return exercises
+    }
+
+    var scheduleLine: String {
+        if scheduledDays.isEmpty { return "\(daysPerWeek)x / week" }
+        return scheduledDays.map { "\($0.weekday.short) \($0.timeLabel)" }.joined(separator: " · ")
+    }
+}
+
+extension Weekday {
+    var sortIndex: Int {
+        switch self {
+        case .monday: 0
+        case .tuesday: 1
+        case .wednesday: 2
+        case .thursday: 3
+        case .friday: 4
+        case .saturday: 5
+        case .sunday: 6
+        }
+    }
+}
+
+extension String {
+    var clockDisplay: String {
+        let parts = split(separator: ":")
+        guard parts.count >= 2, let hour = Int(parts[0]), let minute = Int(parts[1]) else { return self }
+        var components = DateComponents()
+        components.hour = hour
+        components.minute = minute
+        let date = Calendar.current.date(from: components) ?? Date()
+        return date.formatted(date: .omitted, time: .shortened)
+    }
+}
+
+extension Double {
+    var cleanKg: String {
+        truncatingRemainder(dividingBy: 1) == 0 ? String(Int(self)) : String(format: "%.1f", self)
+    }
 }
 
 struct PlanAssignment: Identifiable, Codable, Hashable {

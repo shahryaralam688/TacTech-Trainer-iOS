@@ -177,12 +177,37 @@ struct FormReportBody: Encodable {
     var createdAt: Date?
 }
 
+struct PrescribedSetBody: Encodable {
+    var setNumber: Int
+    var reps: Int
+    var weightKg: Double?
+    var rpe: Double?
+}
+
 struct PlanExerciseBody: Encodable {
     var exerciseId: String
     var sets: Int
     var reps: Int
     var restSeconds: Int
     var recommendedWeightKg: Double?
+    var tempo: String?
+    var rpe: Double?
+    var notes: String?
+    var side: String?
+    var prescribedSets: [PrescribedSetBody]
+}
+
+struct PlanDayBody: Encodable {
+    var weekday: String
+    var startTime: String?
+    var title: String
+    var focus: String
+    var durationMinutes: Int
+    var location: String?
+    var warmup: String?
+    var cooldown: String?
+    var coachNotes: String?
+    var exercises: [PlanExerciseBody]
 }
 
 struct PlanBody: Encodable {
@@ -191,7 +216,52 @@ struct PlanBody: Encodable {
     var durationMinutes: Int
     var level: String
     var daysPerWeek: Int
+    var notes: String?
     var exercises: [PlanExerciseBody]
+    var days: [PlanDayBody]
+
+    init(plan: WorkoutPlan) {
+        title = plan.title
+        focus = plan.focus
+        durationMinutes = plan.durationMinutes
+        level = plan.level
+        daysPerWeek = plan.daysPerWeek
+        notes = plan.notes
+        exercises = (plan.exercises.isEmpty ? plan.allExercises : plan.exercises).map(PlanExerciseBody.init)
+        days = plan.days.map(PlanDayBody.init)
+    }
+}
+
+extension PlanExerciseBody {
+    init(_ exercise: WorkoutExercise) {
+        exerciseId = exercise.exerciseId
+        sets = exercise.sets
+        reps = exercise.reps
+        restSeconds = exercise.restSeconds
+        recommendedWeightKg = exercise.recommendedWeightKg
+        tempo = exercise.tempo
+        rpe = exercise.rpe
+        notes = exercise.notes
+        side = exercise.side
+        prescribedSets = exercise.workingSets.map {
+            PrescribedSetBody(setNumber: $0.setNumber, reps: $0.reps, weightKg: $0.weightKg, rpe: $0.rpe)
+        }
+    }
+}
+
+extension PlanDayBody {
+    init(_ day: PlanDay) {
+        weekday = day.weekday.rawValue
+        startTime = day.startTime
+        title = day.title
+        focus = day.focus
+        durationMinutes = day.durationMinutes
+        location = day.location
+        warmup = day.warmup
+        cooldown = day.cooldown
+        coachNotes = day.coachNotes
+        exercises = day.exercises.map(PlanExerciseBody.init)
+    }
 }
 
 enum HTTPMethod: String {

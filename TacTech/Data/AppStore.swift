@@ -118,42 +118,33 @@ final class AppStore {
         assignments.append(PlanAssignment(id: UUID().uuidString, planId: planId, traineeId: traineeId, assignedAt: .now))
     }
 
+    func createPlan(_ draft: WorkoutPlan) async throws {
+        let created = try await api.createPlan(PlanBody(plan: draft))
+        if var created {
+            if created.days.isEmpty { created.days = draft.days }
+            if created.notes == nil { created.notes = draft.notes }
+            upsert(created)
+        } else if currentTrainer != nil {
+            upsert(draft)
+            let remote = (try? await api.trainerPlans()) ?? []
+            if !remote.isEmpty { plans = remote }
+        }
+    }
+
     func createPlan(title: String, focus: String, duration: Int, level: String, days: Int, exerciseDrafts: [WorkoutExercise]) async throws {
-        let created = try await api.createPlan(
-            PlanBody(
+        guard let trainer = currentTrainer else { return }
+        try await createPlan(
+            WorkoutPlan(
+                id: UUID().uuidString,
+                trainerId: trainer.id,
                 title: title,
                 focus: focus,
                 durationMinutes: duration,
                 level: level,
                 daysPerWeek: days,
-                exercises: exerciseDrafts.map {
-                    PlanExerciseBody(
-                        exerciseId: $0.exerciseId,
-                        sets: $0.sets,
-                        reps: $0.reps,
-                        restSeconds: $0.restSeconds,
-                        recommendedWeightKg: $0.recommendedWeightKg
-                    )
-                }
+                exercises: exerciseDrafts
             )
         )
-        if let created {
-            upsert(created)
-        } else if let trainer = currentTrainer {
-            upsert(
-                WorkoutPlan(
-                    id: UUID().uuidString,
-                    trainerId: trainer.id,
-                    title: title,
-                    focus: focus,
-                    durationMinutes: duration,
-                    level: level,
-                    daysPerWeek: days,
-                    exercises: exerciseDrafts
-                )
-            )
-            plans = (try? await api.trainerPlans()) ?? plans
-        }
     }
 
     func linkTrainee(toInviteCode code: String) async throws {

@@ -17,6 +17,7 @@
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
 		4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1AE7E841FCF90D57066534 /* APIConfig.swift */; };
 		5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */; };
+		55D77098DF165235690581BC /* CreatePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */; };
 		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
 		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
@@ -30,6 +31,7 @@
 		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
+		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
@@ -44,8 +46,10 @@
 		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
+		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
@@ -176,6 +180,7 @@
 		D6590ACEA3AE5DCB37129869 /* Trainer */ = {
 			isa = PBXGroup;
 			children = (
+				24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */,
 				0404164478DA064625F44D7D /* MyTraineesView.swift */,
 				9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */,
 				2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */,
@@ -191,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
+				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
 			path = Authentication;
 			sourceTree = "<group>";
@@ -286,6 +292,7 @@
 				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
+				55D77098DF165235690581BC /* CreatePlanView.swift in Sources */,
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
@@ -306,6 +313,7 @@
 				8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */,
 				C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */,
 				8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */,
+				AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */,
 				A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */,
 				867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */,
 			);

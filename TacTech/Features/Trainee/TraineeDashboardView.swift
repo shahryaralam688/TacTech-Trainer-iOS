@@ -36,24 +36,34 @@ struct TraineeDashboardView: View {
 
     private var hero: some View {
         let plan = store.currentTrainee.flatMap { store.assignedPlan(for: $0) }
+        let session = plan?.session(on: selectedDay) ?? plan?.nextSession(from: selectedDay)
         return VStack(alignment: .leading, spacing: 12) {
-            Text("TODAY'S PLAN")
+            Text(plan?.session(on: selectedDay) == nil && session != nil ? "NEXT SESSION" : "TODAY'S PLAN")
                 .font(TTFont.caption(11))
                 .tracking(0.8)
                 .foregroundStyle(TTColor.brand)
-            Text(plan?.title ?? "No plan assigned")
+            Text(session?.title ?? plan?.title ?? "No plan assigned")
                 .font(TTFont.title(24))
                 .foregroundStyle(TTColor.ink)
-            Text(plan?.focus ?? "Ask your trainer to assign a workout.")
+            Text(session.map { "\($0.weekday.title) · \($0.timeLabel) · \($0.durationMinutes) min · \($0.location ?? "Gym")" } ?? plan?.focus ?? "Ask your trainer to assign a workout.")
                 .font(TTFont.body(14))
                 .foregroundStyle(TTColor.inkMuted)
+            if let how = session?.coachNotes, !how.isEmpty {
+                Text(how)
+                    .font(TTFont.body(14))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
             HStack {
-                if let plan {
+                if let session {
+                    Text("\(session.exercises.count) exercises")
+                    if let first = session.exercises.first?.recommendedWeightKg {
+                        Text("·")
+                        Text("from \(first.cleanKg) kg")
+                    }
+                } else if let plan {
                     Text("\(plan.durationMinutes) min")
                     Text("·")
                     Text(plan.level)
-                    Text("·")
-                    Text("\(plan.exercises.count) exercises")
                 }
             }
             .font(TTFont.caption(13))

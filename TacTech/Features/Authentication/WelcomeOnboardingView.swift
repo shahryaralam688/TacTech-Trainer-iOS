@@ -64,11 +64,11 @@ struct WelcomeOnboardingView: View {
 
             VStack(spacing: 0) {
                 OnboardingProgressBar(count: pages.count, current: pageIndex)
-                    .padding(.top, 12)
+                    .padding(.top, 10)
 
                 Spacer()
 
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     OnboardingArrowButton(systemName: "arrow.left", enabled: pageIndex > 0) {
                         go(to: pageIndex - 1)
                     }
@@ -76,10 +76,11 @@ struct WelcomeOnboardingView: View {
                         advance()
                     }
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 6)
             }
-            .safeAreaPadding(.vertical)
+            .safeAreaPadding(.top)
+            .safeAreaPadding(.bottom)
         }
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
@@ -137,7 +138,7 @@ private struct OnboardingSlideView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal, 28)
-                .padding(.bottom, 240)
+                .padding(.bottom, 118)
             }
         }
         .ignoresSafeArea()
@@ -148,15 +149,24 @@ private struct OnboardingProgressBar: View {
     let count: Int
     let current: Int
 
+    private var progress: CGFloat {
+        guard count > 0 else { return 0 }
+        return CGFloat(current + 1) / CGFloat(count)
+    }
+
     var body: some View {
-        HStack(spacing: 5) {
-            ForEach(0..<count, id: \.self) { index in
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(index <= current ? 1 : 0.32))
-                    .frame(height: 3.5)
+                    .fill(Color.white.opacity(0.34))
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: max(geo.size.width * progress, geo.size.height))
             }
         }
-        .frame(maxWidth: 168)
+        .frame(width: 152, height: 4)
+        .frame(maxWidth: .infinity)
+        .animation(.easeInOut(duration: 0.28), value: current)
     }
 }
 
@@ -168,12 +178,12 @@ private struct OnboardingArrowButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 20, weight: .medium))
+                .font(.system(size: 22, weight: .light))
                 .foregroundStyle(.black)
                 .frame(maxWidth: .infinity)
-                .frame(height: 68)
+                .frame(height: 58)
                 .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                .clipShape(Capsule())
         }
         .buttonStyle(.plain)
         .opacity(enabled ? 1 : 0.38)

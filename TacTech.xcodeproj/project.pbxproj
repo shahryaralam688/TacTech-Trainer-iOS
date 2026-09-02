@@ -13,7 +13,9 @@
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
 		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
+		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
+		4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1AE7E841FCF90D57066534 /* APIConfig.swift */; };
 		5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */; };
 		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
 		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
@@ -45,11 +47,13 @@
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
+		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
+		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
@@ -87,6 +91,8 @@
 		76F9161D16057FCF6BDE6856 /* Data */ = {
 			isa = PBXGroup;
 			children = (
+				73FE3D8BD9971500A55153A0 /* APIClient.swift */,
+				4F1AE7E841FCF90D57066534 /* APIConfig.swift */,
 				3F487A7AA8D964BA49DD8EDB /* AppStore.swift */,
 				179A188E828A8873F4505090 /* SeedData.swift */,
 			);
@@ -275,6 +281,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */,
+				4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */,
 				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,

@@ -42,3 +42,8 @@ targets:
         NSCameraUsageDescription: TacTech uses the camera for live form correction and food scanning.
         NSPhotoLibraryUsageDescription: TacTech uses your photos to estimate nutrition from meals.
         UIUserInterfaceStyle: Automatic
+        NSAppTransportSecurity:
+          NSExceptionDomains:
+            sheryl-biocellate-sympathizingly.ngrok-free.dev:
+              NSIncludesSubdomains: true
+              NSExceptionRequiresForwardSecrecy: false

@@ -33,6 +33,11 @@ struct NutritionView: View {
             .sheet(isPresented: $showManual) {
                 ManualMealView(day: selectedDay)
             }
+            .task(id: selectedDay) {
+                if let trainee = store.currentTrainee {
+                    await store.refreshDay(for: trainee.id, on: selectedDay)
+                }
+            }
         }
     }
 
@@ -140,6 +145,11 @@ struct ManualMealView: View {
                     TextField("Food name", text: $name)
                         .onChange(of: name) { _, value in
                             selectedFood = store.lookupFood(query: value)
+                            Task {
+                                if let remote = await store.searchFood(query: value) {
+                                    selectedFood = remote
+                                }
+                            }
                         }
                     Slider(value: $grams, in: 50...600, step: 10) {
                         Text("Portion")
@@ -168,19 +178,21 @@ struct ManualMealView: View {
                     Button {
                         guard let trainee = store.currentTrainee else { return }
                         let food = selectedFood ?? FoodKnowledge(name: name, keywords: [], per100g: .init(calories: 120, protein: 8, carbs: 10, fat: 5))
-                        store.saveMeal(
-                            Meal(
-                                id: UUID().uuidString,
-                                traineeId: trainee.id,
-                                name: food.name,
-                                eatenAt: day,
-                                portionGrams: grams,
-                                macros: scaled(food),
-                                source: "log",
-                                isEstimate: true
+                        Task {
+                            try? await store.saveMeal(
+                                Meal(
+                                    id: UUID().uuidString,
+                                    traineeId: trainee.id,
+                                    name: food.name,
+                                    eatenAt: day,
+                                    portionGrams: grams,
+                                    macros: scaled(food),
+                                    source: "log",
+                                    isEstimate: true
+                                )
                             )
-                        )
-                        dismiss()
+                            dismiss()
+                        }
                     } label: {
                         Image(systemName: "checkmark")
                     }

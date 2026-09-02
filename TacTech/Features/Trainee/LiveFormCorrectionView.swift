@@ -55,17 +55,19 @@ struct LiveFormCorrectionView: View {
                     Button("Save for trainer") {
                         guard let trainee = store.currentTrainee else { return }
                         let snap = analyzer.snapshotReport()
-                        store.saveFormReport(
-                            FormReport(
-                                id: UUID().uuidString,
-                                traineeId: trainee.id,
-                                exerciseId: exerciseId,
-                                createdAt: .now,
-                                score: snap.score,
-                                cues: snap.cues,
-                                repCount: snap.reps
+                        Task {
+                            try? await store.saveFormReport(
+                                FormReport(
+                                    id: UUID().uuidString,
+                                    traineeId: trainee.id,
+                                    exerciseId: exerciseId,
+                                    createdAt: .now,
+                                    score: snap.score,
+                                    cues: snap.cues,
+                                    repCount: snap.reps
+                                )
                             )
-                        )
+                        }
                     }
                     .font(TTFont.heading(14))
                     .foregroundStyle(TTColor.brand)

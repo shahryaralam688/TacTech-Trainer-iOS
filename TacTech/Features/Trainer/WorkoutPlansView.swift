@@ -139,7 +139,7 @@ struct WorkoutPlanDetailView: View {
                     }
                     .pickerStyle(.menu)
                     TTButton(title: "Assign this plan") {
-                        store.assign(planId: plan.id, to: selectedTraineeId)
+                        Task { try? await store.assign(planId: plan.id, to: selectedTraineeId) }
                     }
                 }
             }
@@ -215,8 +215,10 @@ struct CreatePlanView: View {
                         let drafts = selectedExerciseIds.map {
                             WorkoutExercise(id: UUID().uuidString, exerciseId: $0, sets: 3, reps: 10, restSeconds: 75, recommendedWeightKg: nil)
                         }
-                        store.createPlan(title: title, focus: focus, duration: duration, level: level, days: days, exerciseDrafts: drafts)
-                        dismiss()
+                        Task {
+                            try? await store.createPlan(title: title, focus: focus, duration: duration, level: level, days: days, exerciseDrafts: drafts)
+                            dismiss()
+                        }
                     } label: {
                         Image(systemName: "checkmark")
                     }

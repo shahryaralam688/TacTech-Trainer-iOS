@@ -25,6 +25,9 @@ struct TraineeDetailView: View {
         .onAppear {
             selectedPlanId = store.assignedPlan(for: trainee)?.id ?? store.plans.first?.id ?? ""
         }
+        .task(id: selectedDay) {
+            await store.refreshDay(for: trainee.id, on: selectedDay)
+        }
     }
 
     private var profileCard: some View {
@@ -71,7 +74,7 @@ struct TraineeDetailView: View {
             .pickerStyle(.menu)
             .tint(TTColor.brand)
             TTButton(title: "Assign to trainee", icon: "arrow.right.square") {
-                store.assign(planId: selectedPlanId, to: trainee.id)
+                Task { try? await store.assign(planId: selectedPlanId, to: trainee.id) }
             }
         }
         .ttCard()
@@ -194,17 +197,20 @@ struct TraineeDetailView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             TTButton(title: "Send feedback", icon: "paperplane.fill") {
                 guard let trainer = store.currentTrainer, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                store.saveFeedback(
-                    TrainerFeedback(
-                        id: UUID().uuidString,
-                        trainerId: trainer.id,
-                        traineeId: trainee.id,
-                        message: note,
-                        createdAt: .now,
-                        relatedExerciseId: nil
-                    )
-                )
+                let text = note
                 note = ""
+                Task {
+                    try? await store.saveFeedback(
+                        TrainerFeedback(
+                            id: UUID().uuidString,
+                            trainerId: trainer.id,
+                            traineeId: trainee.id,
+                            message: text,
+                            createdAt: .now,
+                            relatedExerciseId: nil
+                        )
+                    )
+                }
             }
         }
         .ttCard()

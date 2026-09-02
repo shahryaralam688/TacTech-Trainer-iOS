@@ -90,6 +90,7 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var error: String?
+    @State private var isLoading = false
 
     var body: some View {
         ScrollView {
@@ -106,18 +107,25 @@ struct LoginView: View {
                         .font(TTFont.caption(13))
                         .foregroundStyle(TTColor.danger)
                 }
-                TTButton(title: "Continue") {
-                    do {
-                        try store.login(email: email, password: password)
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
+                TTButton(title: "Continue", isLoading: isLoading) {
+                    Task { await signIn() }
                 }
             }
             .padding(24)
         }
         .ttScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func signIn() async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            try await store.login(email: email, password: password)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }
 
@@ -173,6 +181,7 @@ struct RoleSelectionView: View {
     @State private var role: UserRole = .trainee
     @State private var inviteCode = ""
     @State private var error: String?
+    @State private var isLoading = false
 
     var body: some View {
         ScrollView {
@@ -222,23 +231,30 @@ struct RoleSelectionView: View {
                         .foregroundStyle(TTColor.danger)
                 }
 
-                TTButton(title: "Enter TacTech") {
-                    do {
-                        try store.signup(
-                            name: draft.name,
-                            email: draft.email,
-                            password: draft.password,
-                            role: role,
-                            inviteCode: inviteCode.isEmpty ? nil : inviteCode
-                        )
-                    } catch {
-                        self.error = error.localizedDescription
-                    }
+                TTButton(title: "Enter TacTech", isLoading: isLoading) {
+                    Task { await createAccount() }
                 }
             }
             .padding(24)
         }
         .ttScreenBackground()
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func createAccount() async {
+        isLoading = true
+        error = nil
+        defer { isLoading = false }
+        do {
+            try await store.signup(
+                name: draft.name,
+                email: draft.email,
+                password: draft.password,
+                role: role,
+                inviteCode: inviteCode.isEmpty ? nil : inviteCode
+            )
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
 }

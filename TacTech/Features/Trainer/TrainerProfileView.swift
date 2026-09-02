@@ -11,7 +11,7 @@ struct TrainerProfileView: View {
                     profileCard
                     inviteCard
                     TTButton(title: "Sign out", style: .secondary) {
-                        store.logout()
+                        Task { await store.logout() }
                     }
                 }
                 .padding(20)

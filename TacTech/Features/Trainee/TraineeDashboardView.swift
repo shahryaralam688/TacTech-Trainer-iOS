@@ -18,6 +18,11 @@ struct TraineeDashboardView: View {
             }
             .ttScreenBackground()
             .navigationBarTitleDisplayMode(.inline)
+            .task(id: selectedDay) {
+                if let trainee = store.currentTrainee {
+                    await store.refreshDay(for: trainee.id, on: selectedDay)
+                }
+            }
         }
     }
 

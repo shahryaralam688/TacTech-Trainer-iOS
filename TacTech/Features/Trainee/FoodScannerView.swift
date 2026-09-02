@@ -99,19 +99,25 @@ struct FoodScannerView: View {
                 .foregroundStyle(TTColor.inkSubtle)
             TTButton(title: saved ? "Saved" : "Save meal", icon: "checkmark") {
                 guard let trainee = store.currentTrainee else { return }
-                store.saveMeal(
-                    Meal(
-                        id: UUID().uuidString,
-                        traineeId: trainee.id,
-                        name: result.food.name,
-                        eatenAt: .now,
-                        portionGrams: grams,
-                        macros: macros,
-                        source: "scan",
-                        isEstimate: true
-                    )
-                )
-                saved = true
+                Task {
+                    do {
+                        try await store.saveMeal(
+                            Meal(
+                                id: UUID().uuidString,
+                                traineeId: trainee.id,
+                                name: result.food.name,
+                                eatenAt: .now,
+                                portionGrams: grams,
+                                macros: macros,
+                                source: "scan",
+                                isEstimate: true
+                            )
+                        )
+                        saved = true
+                    } catch {
+                        saved = false
+                    }
+                }
             }
         }
         .ttCard()

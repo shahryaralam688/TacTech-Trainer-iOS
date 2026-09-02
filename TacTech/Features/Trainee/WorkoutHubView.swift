@@ -202,17 +202,19 @@ struct ActiveWorkoutView: View {
 
                 TTButton(title: "Finish workout", icon: "checkmark") {
                     guard let trainee = store.currentTrainee else { return }
-                    store.saveWorkoutLog(
-                        WorkoutLog(
-                            id: UUID().uuidString,
-                            traineeId: trainee.id,
-                            planId: plan.id,
-                            completedAt: .now,
-                            durationMinutes: max(elapsed / 60, 1),
-                            sets: logs
+                    Task {
+                        try? await store.saveWorkoutLog(
+                            WorkoutLog(
+                                id: UUID().uuidString,
+                                traineeId: trainee.id,
+                                planId: plan.id,
+                                completedAt: .now,
+                                durationMinutes: max(elapsed / 60, 1),
+                                sets: logs
+                            )
                         )
-                    )
-                    dismiss()
+                        dismiss()
+                    }
                 }
             }
             .padding(20)

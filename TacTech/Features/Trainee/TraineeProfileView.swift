@@ -14,7 +14,7 @@ struct TraineeProfileView: View {
                     MyTrainerCard()
                     joinCard
                     TTButton(title: "Sign out", style: .secondary) {
-                        store.logout()
+                        Task { await store.logout() }
                     }
                 }
                 .padding(20)
@@ -56,11 +56,13 @@ struct TraineeProfileView: View {
                     .foregroundStyle(TTColor.inkMuted)
             }
             TTButton(title: "Link trainer", style: .secondary) {
-                do {
-                    try store.linkTrainee(toInviteCode: invite)
-                    message = "Trainer linked."
-                } catch {
-                    message = error.localizedDescription
+                Task {
+                    do {
+                        try await store.linkTrainee(toInviteCode: invite)
+                        message = "Trainer linked."
+                    } catch {
+                        message = error.localizedDescription
+                    }
                 }
             }
         }

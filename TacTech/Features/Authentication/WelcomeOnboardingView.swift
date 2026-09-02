@@ -10,7 +10,7 @@ struct OnboardingPage: Identifiable, Equatable {
 struct WelcomeOnboardingView: View {
     let onFinished: () -> Void
 
-    @State private var pageIndex = 0
+    @State private var pageIndex: Int? = 0
 
     private let pages: [OnboardingPage] = [
         OnboardingPage(
@@ -51,50 +51,74 @@ struct WelcomeOnboardingView: View {
         )
     ]
 
+    private var currentIndex: Int {
+        min(max(pageIndex ?? 0, 0), pages.count - 1)
+    }
+
     var body: some View {
         ZStack {
-            TabView(selection: $pageIndex) {
-                ForEach(pages) { page in
-                    OnboardingSlideView(page: page)
-                        .tag(page.id)
+            GeometryReader { geo in
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 0) {
+                        ForEach(pages) { page in
+                            OnboardingSlideView(page: page)
+                                .frame(width: geo.size.width, height: geo.size.height)
+                                .id(page.id)
+                        }
+                    }
+                    .scrollTargetLayout()
                 }
+                .scrollTargetBehavior(.paging)
+                .scrollPosition(id: $pageIndex)
+                .scrollIndicators(.hidden)
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                OnboardingProgressBar(count: pages.count, current: pageIndex)
+                OnboardingProgressBar(count: pages.count, current: currentIndex)
                     .padding(.top, 10)
+                    .allowsHitTesting(false)
 
-                Spacer()
+                Color.clear
+                    .allowsHitTesting(false)
 
                 HStack(spacing: 10) {
-                    OnboardingArrowButton(imageName: "OnboardingArrowLeft", label: "Back", enabled: pageIndex > 0) {
-                        go(to: pageIndex - 1)
+                    OnboardingArrowButton(
+                        imageName: "OnboardingArrowLeft",
+                        label: "Back",
+                        enabled: currentIndex > 0
+                    ) {
+                        go(to: currentIndex - 1)
                     }
-                    OnboardingArrowButton(imageName: "OnboardingArrowRight", label: "Next", enabled: true) {
+                    OnboardingArrowButton(
+                        imageName: "OnboardingArrowRight",
+                        label: "Next",
+                        enabled: true
+                    ) {
                         advance()
                     }
                 }
                 .padding(.horizontal, 20)
                 .padding(.bottom, 6)
+                .contentShape(Rectangle())
             }
             .safeAreaPadding(.top)
             .safeAreaPadding(.bottom)
         }
         .preferredColorScheme(.dark)
         .toolbar(.hidden, for: .navigationBar)
-        .animation(.easeInOut(duration: 0.28), value: pageIndex)
     }
 
     private func go(to index: Int) {
         guard pages.indices.contains(index) else { return }
-        pageIndex = index
+        withAnimation(.easeInOut(duration: 0.28)) {
+            pageIndex = index
+        }
     }
 
     private func advance() {
-        if pageIndex < pages.count - 1 {
-            pageIndex += 1
+        if currentIndex < pages.count - 1 {
+            go(to: currentIndex + 1)
         } else {
             onFinished()
         }
@@ -190,6 +214,7 @@ private struct OnboardingArrowButton: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .buttonStyle(.plain)
+        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .opacity(enabled ? 1 : 0.38)
         .disabled(!enabled)
         .accessibilityLabel(label)

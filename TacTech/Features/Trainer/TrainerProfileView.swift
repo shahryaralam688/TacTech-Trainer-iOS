@@ -10,9 +10,24 @@ struct TrainerProfileView: View {
                     TTScreenHeader(eyebrow: "Account", title: "Profile")
                     profileCard
                     inviteCard
-                    TTButton(title: "Sign out", style: .secondary) {
-                        Task { await store.logout() }
+
+                    NavigationLink {
+                        AccountSettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gearshape.fill")
+                            Text("Account Settings & Help")
+                                .font(.system(size: 16, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 54)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(20)
             }
@@ -40,6 +55,12 @@ struct TrainerProfileView: View {
                 labeled("Experience", "\(store.currentTrainer?.yearsExperience ?? 0) yrs")
                 labeled("Role", "Trainer")
                 labeled("Clients", "\(store.currentTrainer.map { store.trainees(for: $0).count } ?? 0)")
+            }
+            if let gender = store.currentTrainer?.gender, !gender.isEmpty {
+                labeled("Gender", gender)
+            }
+            if let location = store.currentTrainer?.location, !location.isEmpty {
+                labeled("Location", location)
             }
         }
         .ttCard()

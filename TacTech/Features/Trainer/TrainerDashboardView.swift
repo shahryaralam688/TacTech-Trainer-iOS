@@ -4,50 +4,251 @@ struct TrainerDashboardView: View {
     @Environment(AppStore.self) private var store
     @State private var selectedDay = Date()
 
+    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+    private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
+    private let green = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
-                    header
-                    TTWeekStrip(selected: $selectedDay)
-                    metrics
-                    todaysFocus
-                    recentForm
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    darkHeader
+                    VStack(alignment: .leading, spacing: 22) {
+                        weekStrip
+                        coachingMetrics
+                        featuredRoster
+                        coachWorkflow
+                        recentForm
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
+                    .padding(.bottom, 28)
                 }
-                .padding(20)
             }
-            .ttScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
+            .background(Color.white.ignoresSafeArea())
+            .ignoresSafeArea(edges: .top)
+            .navigationBarHidden(true)
         }
     }
 
-    private var header: some View {
-        TTScreenHeader(
-            eyebrow: greeting,
-            title: store.currentUser?.name.components(separatedBy: " ").first ?? "Coach",
-            trailing: AnyView(TTAvatar(name: store.currentUser?.name ?? "T", size: 48))
-        )
+    // MARK: - Header (same system as trainee home)
+
+    private var darkHeader: some View {
+        ZStack(alignment: .bottom) {
+            charcoal
+                .clipShape(TrainerHomeHeaderCurve())
+                .ignoresSafeArea(edges: .top)
+
+            VStack(alignment: .leading, spacing: 18) {
+                HStack {
+                    Label(headerDate, systemImage: "calendar")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.72))
+                        .textCase(.uppercase)
+                    Spacer()
+                    ZStack(alignment: .topTrailing) {
+                        Image(systemName: "bell.fill")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 40, height: 40)
+                            .background(Color.white.opacity(0.12))
+                            .clipShape(Circle())
+                        if clients.count > 0 {
+                            Text("\(min(clients.count, 9))")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 2)
+                                .background(orange)
+                                .clipShape(Capsule())
+                                .offset(x: 4, y: -2)
+                        }
+                    }
+                }
+
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.15))
+                            .frame(width: 58, height: 58)
+                        Text(String(firstName.prefix(1)).uppercased())
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 2))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 6) {
+                            Text("Hello, \(firstName)!")
+                                .font(.system(size: 26, weight: .bold))
+                                .foregroundStyle(.white)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.55))
+                        }
+                        HStack(spacing: 14) {
+                            Label("\(clients.count) Trainees", systemImage: "person.2.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(orange)
+                            Label("Coach", systemImage: "star.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(blue)
+                        }
+                    }
+                    Spacer(minLength: 0)
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 58)
+            .padding(.bottom, 36)
+        }
+        .frame(height: 210)
     }
 
-    private var metrics: some View {
-        let clients = store.currentTrainer.map { store.trainees(for: $0) } ?? []
-        let activeToday = clients.filter { trainee in
-            store.logs(for: trainee.id).contains { Calendar.current.isDate($0.completedAt, inSameDayAs: selectedDay) }
-        }.count
-        let reports = clients.flatMap { store.formReports(for: $0.id) }
-        let avgScore = reports.isEmpty ? 0 : reports.map(\.score).reduce(0, +) / reports.count
+    // MARK: - Week strip
 
-        return LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-            TTMetricCard(title: "Trainees", value: "\(clients.count)", subtitle: "Active roster", icon: "person.2.fill", tint: TTColor.brand)
-            TTMetricCard(title: "Trained today", value: "\(activeToday)", subtitle: selectedDay.formatted(.dateTime.weekday(.wide)), icon: "checkmark.seal.fill", tint: TTColor.success)
-            TTMetricCard(title: "Plans", value: "\(store.plans.filter { $0.trainerId == store.currentTrainer?.id }.count)", subtitle: "Ready to assign", icon: "list.clipboard.fill", tint: TTColor.sleep)
-            TTMetricCard(title: "Form avg", value: avgScore == 0 ? "—" : "\(avgScore)", subtitle: "AI analysis", icon: "camera.viewfinder", tint: TTColor.energy)
+    private var weekStrip: some View {
+        let days = weekDays()
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(days, id: \.self) { day in
+                    let on = Calendar.current.isDate(day, inSameDayAs: selectedDay)
+                    Button {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            selectedDay = day
+                        }
+                    } label: {
+                        VStack(spacing: 6) {
+                            Text(day.formatted(.dateTime.weekday(.narrow)))
+                                .font(.system(size: 12, weight: .semibold))
+                            Text(day.formatted(.dateTime.day()))
+                                .font(.system(size: 18, weight: .bold))
+                        }
+                        .foregroundStyle(on ? .white : .black)
+                        .frame(width: 48, height: 64)
+                        .background(on ? orange : Color(white: 0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
         }
     }
 
-    private var todaysFocus: some View {
+    // MARK: - Metrics (color cards like trainee home)
+
+    private var coachingMetrics: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Coaching Metrics")
+                    .font(.system(size: 20, weight: .bold))
+                Spacer()
+                Text("See All")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    metricCard(title: "Trainees", value: "\(clients.count)", icon: "person.2.fill", tint: orange, subtitle: "Active roster")
+                    metricCard(title: "Today", value: "\(trainedToday)", icon: "checkmark.seal.fill", tint: green, subtitle: selectedDay.formatted(.dateTime.weekday(.wide)))
+                    metricCard(title: "Plans", value: "\(planCount)", icon: "list.clipboard.fill", tint: blue, subtitle: "Ready to assign")
+                    metricCard(title: "Form avg", value: formAvgLabel, icon: "camera.viewfinder", tint: Color(white: 0.28), subtitle: "AI analysis")
+                }
+            }
+        }
+    }
+
+    private func metricCard(title: String, value: String, icon: String, tint: Color, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .bold))
+            }
+            Text(value)
+                .font(.system(size: 32, weight: .bold))
+            Text(subtitle)
+                .font(.system(size: 12, weight: .medium))
+                .opacity(0.85)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(16)
+        .frame(width: 148, height: 148, alignment: .topLeading)
+        .background(tint)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    }
+
+    // MARK: - Featured roster card
+
+    private var featuredRoster: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Today’s focus")
+                    .font(.system(size: 20, weight: .bold))
+                Spacer()
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(white: 0.35))
+            }
+
+            ZStack(alignment: .bottomLeading) {
+                Image("OnboardingCoach")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 180)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.65)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        focusPill(icon: "person.2.fill", text: "\(clients.count) roster")
+                        focusPill(icon: "flame.fill", text: "\(trainedToday) trained")
+                    }
+                    Text(clients.isEmpty ? "Invite trainees to start coaching" : "Keep athletes moving today")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(store.currentTrainer?.specialty ?? "Personal coaching")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
+                .padding(16)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        }
+    }
+
+    private func focusPill(icon: String, text: String) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .bold))
+            Text(text)
+                .font(.system(size: 12, weight: .bold))
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(Color.black.opacity(0.45))
+        .clipShape(Capsule())
+    }
+
+    // MARK: - Workflow
+
+    private var coachWorkflow: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TTSectionHeader(title: "Coach workflow")
+            Text("Coach workflow")
+                .font(.system(size: 20, weight: .bold))
+
             VStack(spacing: 10) {
                 workflowRow("Manage", "Review your roster and assignments", "person.crop.rectangle.stack")
                 workflowRow("Assign", "Push the right plan to each athlete", "arrow.right.square")
@@ -60,34 +261,46 @@ struct TrainerDashboardView: View {
     private func workflowRow(_ title: String, _ subtitle: String, _ icon: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .foregroundStyle(TTColor.brand)
-                .frame(width: 40, height: 40)
-                .background(TTColor.brandSoft)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .foregroundStyle(orange)
+                .frame(width: 44, height: 44)
+                .background(Color(red: 255 / 255, green: 240 / 255, blue: 224 / 255))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(TTFont.heading(15))
-                    .foregroundStyle(TTColor.ink)
+                    .font(.system(size: 16, weight: .bold))
                 Text(subtitle)
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(white: 0.45))
             }
             Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color(white: 0.55))
         }
-        .ttCard()
+        .padding(14)
+        .background(Color(white: 0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    // MARK: - Form reviews
+
     private var recentForm: some View {
-        let clients = store.currentTrainer.map { store.trainees(for: $0) } ?? []
         let reports = clients.flatMap { trainee in
             store.formReports(for: trainee.id).map { (trainee, $0) }
         }.sorted { $0.1.createdAt > $1.1.createdAt }.prefix(3)
 
         return VStack(alignment: .leading, spacing: 12) {
-            TTSectionHeader(title: "Latest form reviews")
+            Text("Latest form reviews")
+                .font(.system(size: 20, weight: .bold))
+
             if reports.isEmpty {
-                TTEmptyState(icon: "camera.viewfinder", title: "No form reports yet", message: "When trainees use live form correction, results land here.")
-                    .ttCard()
+                Text("When trainees use live form correction, results land here.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color(white: 0.45))
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(white: 0.96))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             } else {
                 ForEach(Array(reports), id: \.1.id) { pair in
                     NavigationLink {
@@ -97,18 +310,20 @@ struct TrainerDashboardView: View {
                             TTAvatar(name: store.user(forTrainee: pair.0)?.name ?? "T", size: 42)
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(store.user(forTrainee: pair.0)?.name ?? "Trainee")
-                                    .font(TTFont.heading(15))
-                                    .foregroundStyle(TTColor.ink)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(.black)
                                 Text(store.exercise(id: pair.1.exerciseId)?.name ?? "Exercise")
-                                    .font(TTFont.caption(12))
-                                    .foregroundStyle(TTColor.inkMuted)
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(Color(white: 0.45))
                             }
                             Spacer()
                             Text("\(pair.1.score)")
-                                .font(TTFont.heading(18))
-                                .foregroundStyle(pair.1.score >= 80 ? TTColor.success : TTColor.brand)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundStyle(pair.1.score >= 80 ? green : orange)
                         }
-                        .ttCard()
+                        .padding(14)
+                        .background(Color(white: 0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -116,10 +331,58 @@ struct TrainerDashboardView: View {
         }
     }
 
-    private var greeting: String {
-        let hour = Calendar.current.component(.hour, from: Date())
-        if hour < 12 { return "Good morning" }
-        if hour < 17 { return "Good afternoon" }
-        return "Good evening"
+    // MARK: - Data
+
+    private var firstName: String {
+        store.currentUser?.name.components(separatedBy: " ").first ?? "Coach"
+    }
+
+    private var headerDate: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d, yyyy"
+        return formatter.string(from: Date()).uppercased()
+    }
+
+    private var clients: [TraineeProfile] {
+        store.currentTrainer.map { store.trainees(for: $0) } ?? []
+    }
+
+    private var trainedToday: Int {
+        clients.filter { trainee in
+            store.logs(for: trainee.id).contains {
+                Calendar.current.isDate($0.completedAt, inSameDayAs: selectedDay)
+            }
+        }.count
+    }
+
+    private var planCount: Int {
+        store.plans.filter { $0.trainerId == store.currentTrainer?.id }.count
+    }
+
+    private var formAvgLabel: String {
+        let reports = clients.flatMap { store.formReports(for: $0.id) }
+        guard !reports.isEmpty else { return "—" }
+        return "\(reports.map(\.score).reduce(0, +) / reports.count)"
+    }
+
+    private func weekDays() -> [Date] {
+        let cal = Calendar.current
+        let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDay)) ?? selectedDay
+        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
+    }
+}
+
+private struct TrainerHomeHeaderCurve: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: .zero)
+        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - 28))
+        path.addQuadCurve(
+            to: CGPoint(x: 0, y: rect.maxY - 28),
+            control: CGPoint(x: rect.midX, y: rect.maxY + 18)
+        )
+        path.closeSubpath()
+        return path
     }
 }

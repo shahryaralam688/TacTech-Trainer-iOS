@@ -19,6 +19,8 @@ final class AppStore {
     var formReports: [FormReport] = []
     var foodCatalog: [FoodKnowledge] = SeedData.foodCatalog
     var isRestoringSession = true
+    var assessmentCompleted = false
+    var profileSetupCompleted = false
     private var macrosByKey: [String: MacroEstimate] = [:]
 
     var currentUser: User? {
@@ -44,6 +46,7 @@ final class AppStore {
         guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
         do {
             try await refreshSession()
+            refreshAssessmentFlag()
         } catch {
             clearLocalSession()
         }
@@ -55,6 +58,7 @@ final class AppStore {
         let response = try await api.login(email: normalized, password: password)
         apply(auth: response)
         try await refreshSession()
+        refreshAssessmentFlag()
     }
 
     func signup(name: String, email: String, password: String, role: UserRole, inviteCode: String?) async throws {
@@ -73,6 +77,129 @@ final class AppStore {
         )
         apply(auth: response)
         try await refreshSession()
+        refreshAssessmentFlag()
+    }
+
+    /// Apply profile-setup fields collected at signup (role-specific).
+    func applyProfileSetup(
+        gender: String,
+        location: String,
+        heightCm: Int?,
+        weightKg: Double?
+    ) {
+        let trimmedGender = gender.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedLocation = location.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if var trainee = currentTrainee {
+            if !trimmedGender.isEmpty { trainee.gender = trimmedGender }
+            if !trimmedLocation.isEmpty { trainee.location = trimmedLocation }
+            if let heightCm { trainee.heightCm = heightCm }
+            if let weightKg { trainee.weightKg = weightKg }
+            upsert(trainee)
+        }
+        if var trainer = currentTrainer {
+            if !trimmedGender.isEmpty { trainer.gender = trimmedGender }
+            if !trimmedLocation.isEmpty { trainer.location = trimmedLocation }
+            upsert(trainer)
+        }
+
+        guard let userId = session?.userId else { return }
+        var payload: [String: Any] = [
+            "gender": trimmedGender,
+            "location": trimmedLocation
+        ]
+        if let heightCm { payload["heightCm"] = heightCm }
+        if let weightKg { payload["weightKg"] = weightKg }
+        UserDefaults.standard.set(payload, forKey: "profile.setup.\(userId)")
+    }
+
+    func updateCurrentUserName(_ name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, var user = currentUser else { return }
+        user.name = trimmed
+        upsert(user)
+    }
+
+    func submitAssessment(_ draft: FitnessAssessment) async throws {
+        do {
+            try await api.submitAssessment(AssessmentBody(draft))
+        } catch let error as AppError where error.isNotFound {
+            persistAssessment(draft)
+        }
+        if var trainee = currentTrainee {
+            trainee.goal = draft.goal
+            trainee.weightKg = draft.weightKg
+            trainee.dailyCalorieTarget = draft.calorieGoal
+            upsert(trainee)
+        }
+        markAssessmentCompleted()
+        persistAssessment(draft)
+    }
+
+    func submitTrainerAssessment(_ draft: TrainerAssessment) async throws {
+        do {
+            try await api.submitTrainerAssessment(TrainerAssessmentBody(draft))
+        } catch let error as AppError where error.isNotFound {
+            persistTrainerAssessment(draft)
+        }
+        if var trainer = currentTrainer {
+            trainer.specialty = draft.specialty.isEmpty ? draft.coachingFocus : draft.specialty
+            trainer.yearsExperience = draft.yearsExperience
+            trainer.bio = composedTrainerBio(draft)
+            upsert(trainer)
+        }
+        markAssessmentCompleted()
+        persistTrainerAssessment(draft)
+    }
+
+    func persistAssessment(_ draft: FitnessAssessment) {
+        guard let userId = session?.userId,
+              let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: "assessment.payload.\(userId)")
+    }
+
+    func persistTrainerAssessment(_ draft: TrainerAssessment) {
+        guard let userId = session?.userId,
+              let data = try? JSONEncoder().encode(draft) else { return }
+        UserDefaults.standard.set(data, forKey: "trainer.assessment.payload.\(userId)")
+    }
+
+    func markAssessmentCompleted() {
+        guard let userId = session?.userId else { return }
+        UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
+        assessmentCompleted = true
+    }
+
+    func markProfileSetupCompleted() {
+        guard let userId = session?.userId else { return }
+        UserDefaults.standard.set(true, forKey: "profile.setup.completed.\(userId)")
+        profileSetupCompleted = true
+    }
+
+    func refreshAssessmentFlag() {
+        guard let userId = session?.userId else {
+            assessmentCompleted = false
+            profileSetupCompleted = false
+            return
+        }
+        // Both trainer and trainee must complete their role-specific assessment once.
+        assessmentCompleted = UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)")
+        profileSetupCompleted = UserDefaults.standard.bool(forKey: "profile.setup.completed.\(userId)")
+    }
+
+    private func composedTrainerBio(_ draft: TrainerAssessment) -> String {
+        var parts: [String] = []
+        let bio = draft.bio.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !bio.isEmpty { parts.append(bio) }
+        let philosophy = draft.philosophy.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !philosophy.isEmpty { parts.append(philosophy) }
+        if !draft.certifications.isEmpty {
+            parts.append("Certifications: \(draft.certifications.joined(separator: ", "))")
+        }
+        if !draft.sessionStyle.isEmpty {
+            parts.append("Session style: \(draft.sessionStyle)")
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     func requestPasswordReset(email: String) async throws {
@@ -501,6 +628,8 @@ final class AppStore {
         formReports = []
         macrosByKey = [:]
         foodCatalog = SeedData.foodCatalog
+        assessmentCompleted = false
+        profileSetupCompleted = false
     }
 }
 

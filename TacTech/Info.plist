@@ -20,33 +20,32 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>NSCameraUsageDescription</key>
-	<string>TacTech uses the camera for live form correction and food scanning.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>TacTech uses your photos to estimate nutrition from meals.</string>
-	<key>UILaunchScreen</key>
-	<dict>
-		<key>UIColorName</key>
-		<string>SplashBackground</string>
-	</dict>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>UIUserInterfaceStyle</key>
-	<string>Automatic</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSExceptionDomains</key>
 		<dict>
 			<key>sheryl-biocellate-sympathizingly.ngrok-free.dev</key>
 			<dict>
-				<key>NSIncludesSubdomains</key>
-				<true/>
 				<key>NSExceptionRequiresForwardSecrecy</key>
 				<false/>
+				<key>NSIncludesSubdomains</key>
+				<true/>
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>TacTech uses the camera for body assessment, live form correction, and food scanning.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TacTech uses the microphone for vocal fitness assessment.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TacTech uses your photos to estimate nutrition from meals.</string>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Automatic</string>
 </dict>
 </plist>

@@ -13,9 +13,24 @@ struct TraineeProfileView: View {
                     identity
                     MyTrainerCard()
                     joinCard
-                    TTButton(title: "Sign out", style: .secondary) {
-                        Task { await store.logout() }
+
+                    NavigationLink {
+                        AccountSettingsView()
+                    } label: {
+                        HStack {
+                            Image(systemName: "gearshape.fill")
+                            Text("Account Settings & Help")
+                                .font(.system(size: 16, weight: .semibold))
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 54)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
                 .padding(20)
             }
@@ -41,6 +56,15 @@ struct TraineeProfileView: View {
                 labeled("Height", "\(store.currentTrainee?.heightCm ?? 0) cm")
                 labeled("Target", "\(store.currentTrainee?.dailyCalorieTarget ?? 0)")
             }
+            if let gender = store.currentTrainee?.gender, !gender.isEmpty {
+                labeled("Gender", gender)
+            }
+            if let location = store.currentTrainee?.location, !location.isEmpty {
+                labeled("Location", location)
+            }
+            Text("Role · Trainee")
+                .font(TTFont.caption(12))
+                .foregroundStyle(TTColor.brand)
         }
         .ttCard()
     }

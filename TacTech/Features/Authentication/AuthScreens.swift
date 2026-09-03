@@ -250,16 +250,8 @@ struct ResetPasswordView: View {
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 0) {
-                Button { dismiss() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(AuthPalette.ink)
-                        .frame(width: 40, height: 40)
-                        .background(Color(white: 0.94))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.bottom, 22)
+                TTBackButton { dismiss() }
+                    .padding(.bottom, 22)
 
                 Text("Reset Password")
                     .font(.system(size: 32, weight: .bold))

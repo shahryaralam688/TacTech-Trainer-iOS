@@ -14,9 +14,9 @@ struct AppRootView: View {
                 if let session = store.session {
                     switch session.role {
                     case .trainer:
-                        TrainerRootView()
+                        trainerDestination
                     case .trainee:
-                        TraineeRootView()
+                        traineeDestination
                     }
                 } else if !store.isRestoringSession {
                     AuthFlowView()
@@ -31,9 +31,33 @@ struct AppRootView: View {
         }
         .animation(.easeInOut(duration: 0.45), value: showsSplash)
         .animation(.easeInOut(duration: 0.25), value: store.session?.userId)
+        .animation(.easeInOut(duration: 0.25), value: store.assessmentCompleted)
+        .animation(.easeInOut(duration: 0.25), value: store.profileSetupCompleted)
         .task {
             try? await Task.sleep(for: .milliseconds(2600))
             splashElapsed = true
+        }
+    }
+
+    @ViewBuilder
+    private var trainerDestination: some View {
+        if !store.assessmentCompleted {
+            TrainerAssessmentFlowView()
+        } else if !store.profileSetupCompleted {
+            ProfileCompletionFlowView()
+        } else {
+            TrainerRootView()
+        }
+    }
+
+    @ViewBuilder
+    private var traineeDestination: some View {
+        if !store.assessmentCompleted {
+            FitnessAssessmentFlowView()
+        } else if !store.profileSetupCompleted {
+            ProfileCompletionFlowView()
+        } else {
+            TraineeRootView()
         }
     }
 }

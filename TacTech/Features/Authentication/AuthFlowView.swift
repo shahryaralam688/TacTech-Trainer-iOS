@@ -211,7 +211,7 @@ struct RoleSelectionView: View {
                         .foregroundStyle(TTColor.danger)
                 }
 
-                TTButton(title: "Enter TacTech", isLoading: isLoading) {
+                TTButton(title: "Continue to assessment", isLoading: isLoading) {
                     Task { await createAccount() }
                 }
             }

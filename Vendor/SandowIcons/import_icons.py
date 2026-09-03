@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parent
 PROJECT = ROOT.parent.parent
 ASSET_ROOT = PROJECT / "TacTech" / "Resources" / "Assets.xcassets" / "Icons"
 CATALOG = ROOT / "catalog.json"
+RESVG = shutil.which("resvg") or "/opt/homebrew/bin/resvg"
 
 
 def pascal(stem: str) -> str:
@@ -47,30 +48,25 @@ def write_imageset(name: str, png_1x: Path, png_2x: Path, png_3x: Path) -> None:
 
 
 def convert_svg(svg: Path, work: Path) -> tuple[Path, Path, Path]:
+    """Rasterize SVG with resvg so glyphs keep real alpha (qlmanage made white squares)."""
     work.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["qlmanage", "-t", "-s", "72", str(svg), "-o", str(work)],
-        check=True,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-    preview = work / f"{svg.name}.png"
-    if not preview.exists():
-        matches = list(work.glob("*.png"))
-        if not matches:
-            raise FileNotFoundError(f"qlmanage produced no PNG for {svg}")
-        preview = matches[0]
     p3 = work / "icon@3x.png"
     p2 = work / "icon@2x.png"
     p1 = work / "icon.png"
-    shutil.copyfile(preview, p3)
-    subprocess.run(["sips", "-z", "48", "48", str(p3), "--out", str(p2)], check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["sips", "-z", "24", "24", str(p3), "--out", str(p1)], check=True, stdout=subprocess.DEVNULL)
-    subprocess.run(["sips", "-z", "72", "72", str(p3)], check=True, stdout=subprocess.DEVNULL)
+    for size, out in ((72, p3), (48, p2), (24, p1)):
+        subprocess.run(
+            [RESVG, "-w", str(size), "-h", str(size), str(svg), str(out)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     return p1, p2, p3
 
 
 def main() -> None:
+    if not Path(RESVG).exists():
+        raise SystemExit(f"resvg not found at {RESVG}. brew install resvg")
+
     ASSET_ROOT.mkdir(parents=True, exist_ok=True)
     catalog: list[dict] = []
     work_root = Path("/tmp/sandow-icon-import")
@@ -89,13 +85,7 @@ def main() -> None:
             except Exception as error:
                 print(f"FAIL {svg.name}: {error}")
                 continue
-            catalog.append(
-                {
-                    "style": style,
-                    "slug": svg.stem,
-                    "asset": name,
-                }
-            )
+            catalog.append({"style": style, "slug": svg.stem, "asset": name})
             if index % 100 == 0:
                 print(f"  {style} {index}/{len(svgs)}")
 

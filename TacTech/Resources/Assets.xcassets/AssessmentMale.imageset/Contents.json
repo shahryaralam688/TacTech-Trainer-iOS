@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "AssessmentMale.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

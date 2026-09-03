@@ -44,6 +44,8 @@ struct TrainerProfile: Identifiable, Codable, Hashable {
     var specialty: String
     var yearsExperience: Int
     var bio: String
+    var gender: String? = nil
+    var location: String? = nil
 }
 
 struct TraineeProfile: Identifiable, Codable, Hashable {
@@ -54,6 +56,8 @@ struct TraineeProfile: Identifiable, Codable, Hashable {
     var heightCm: Int
     var weightKg: Double
     var dailyCalorieTarget: Int
+    var gender: String? = nil
+    var location: String? = nil
 }
 
 struct Exercise: Identifiable, Codable, Hashable {

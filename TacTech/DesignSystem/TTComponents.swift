@@ -1,5 +1,46 @@
 import SwiftUI
 
+/// Shared navigation back control — Sandow chevron in a rounded square.
+struct TTBackButton: View {
+    enum Style {
+        /// Dark icon on light gray (auth, assessment, light headers).
+        case onLight
+        /// White icon on charcoal (dark headers like Account Settings).
+        case onDark
+    }
+
+    static let size: CGFloat = 40
+
+    var style: Style = .onLight
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            TTIcon(icon: .chevronLeft, size: 16)
+                .foregroundStyle(foreground)
+                .frame(width: Self.size, height: Self.size)
+                .background(background)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Back")
+    }
+
+    private var foreground: Color {
+        switch style {
+        case .onLight: TTColor.ink
+        case .onDark: .white
+        }
+    }
+
+    private var background: Color {
+        switch style {
+        case .onLight: Color(white: 0.94)
+        case .onDark: Color(white: 0.28)
+        }
+    }
+}
+
 struct TTButton: View {
     enum Style { case primary, secondary, ghost }
 

@@ -11,15 +11,21 @@
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
 		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
+		18594AEEA468D728FACE4737 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A70DAFDFB21AC3A620021 /* SplashView.swift */; };
 		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
 		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
+		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
+		490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */; };
+		49EC3A1501EF2F496437C2DE /* TrainerAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */; };
 		4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1AE7E841FCF90D57066534 /* APIConfig.swift */; };
 		5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */; };
 		55D77098DF165235690581BC /* CreatePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */; };
+		572287442B3248F7E68E53A6 /* FitnessAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */; };
 		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
 		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
+		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
 		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
@@ -32,27 +38,35 @@
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
 		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
-		2F8D14B6C0E5471A9B3D7E21 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
 		C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */; };
 		C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CD7D2571D7A03D718A7699 /* AuthScreens.swift */; };
+		DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */; };
+		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
+		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		0174D61D79D430362B65F837 /* TrainerProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgressView.swift; sourceTree = "<group>"; };
 		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
-		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCompletionFlowView.swift; sourceTree = "<group>"; };
+		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessment.swift; sourceTree = "<group>"; };
 		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
+		1B9A70DAFDFB21AC3A620021 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
+		26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
+		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
-		7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentSteps.swift; sourceTree = "<group>"; };
+		4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessment.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
@@ -61,6 +75,7 @@
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
 		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessmentFlowView.swift; sourceTree = "<group>"; };
 		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
 		89CD7D2571D7A03D718A7699 /* AuthScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreens.swift; sourceTree = "<group>"; };
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -71,6 +86,7 @@
 		AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodScannerView.swift; sourceTree = "<group>"; };
 		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
 		C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseAnalyzer.swift; sourceTree = "<group>"; };
+		D0E7B31ACC360641D9625359 /* SandowIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandowIcons.swift; sourceTree = "<group>"; };
 		DF1D3D88CBBC904995027746 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViews.swift; sourceTree = "<group>"; };
 		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
@@ -90,6 +106,7 @@
 		2A23B3A3CC9ACF04C627257C /* DesignSystem */ = {
 			isa = PBXGroup;
 			children = (
+				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
 			);
@@ -135,6 +152,8 @@
 		87BB1621256BE6F8852AAD3F /* Trainee */ = {
 			isa = PBXGroup;
 			children = (
+				3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */,
+				48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */,
 				AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */,
 				1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */,
 				DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */,
@@ -176,7 +195,9 @@
 		D4625652EBF91AE0A8825CE0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */,
 				DF1D3D88CBBC904995027746 /* Models.swift */,
+				135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -187,6 +208,7 @@
 				24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */,
 				0404164478DA064625F44D7D /* MyTraineesView.swift */,
 				9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */,
+				7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */,
 				2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */,
 				4CE907B791C2450F8D414132 /* TrainerProfileView.swift */,
 				0174D61D79D430362B65F837 /* TrainerProgressView.swift */,
@@ -199,9 +221,11 @@
 		E5531C3C532CF30EC9303934 /* Authentication */ = {
 			isa = PBXGroup;
 			children = (
+				26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */,
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
-				7C3A91E4B2D0468F9E15A0C8 /* SplashView.swift */,
+				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
+				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
 			path = Authentication;
@@ -295,11 +319,15 @@
 			files = (
 				29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */,
 				4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */,
+				490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */,
 				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
 				C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */,
 				55D77098DF165235690581BC /* CreatePlanView.swift in Sources */,
+				DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */,
+				572287442B3248F7E68E53A6 /* FitnessAssessmentFlowView.swift in Sources */,
+				DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */,
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
@@ -307,8 +335,10 @@
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
+				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,
+				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
-				2F8D14B6C0E5471A9B3D7E21 /* SplashView.swift in Sources */,
+				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
@@ -317,6 +347,8 @@
 				9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */,
 				C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */,
 				25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */,
+				49EC3A1501EF2F496437C2DE /* TrainerAssessment.swift in Sources */,
+				64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */,
 				5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */,
 				8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */,
 				C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */,
@@ -456,11 +488,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
-				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for live form correction and food scanning.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for body assessment, live form correction, and food scanning.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -484,11 +516,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
-				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for live form correction and food scanning.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for body assessment, live form correction, and food scanning.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

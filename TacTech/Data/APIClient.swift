@@ -131,6 +131,76 @@ struct ForgotPasswordBody: Encodable {
     var email: String
 }
 
+struct AssessmentBody: Encodable {
+    var goal: String
+    var gender: String
+    var weightKg: Double
+    var age: Int
+    var hasExperience: Bool?
+    var fitnessLevel: Int
+    var limitations: [String]
+    var diet: String
+    var daysPerWeek: Int
+    var exercisePreferences: [String]
+    var takesSupplements: Bool?
+    var supplements: [String]
+    var calorieGoal: Int
+    var sleepQuality: String
+    var bodyScanCaptured: Bool
+    var voiceCaptured: Bool
+    var concerns: String
+
+    init(_ assessment: FitnessAssessment) {
+        goal = assessment.goal
+        gender = assessment.gender
+        weightKg = assessment.weightKg
+        age = assessment.age
+        hasExperience = assessment.hasExperience
+        fitnessLevel = assessment.fitnessLevel
+        limitations = assessment.limitations
+        diet = assessment.diet
+        daysPerWeek = assessment.daysPerWeek
+        exercisePreferences = assessment.exercisePreferences
+        takesSupplements = assessment.takesSupplements
+        supplements = assessment.supplements
+        calorieGoal = assessment.calorieGoal
+        sleepQuality = assessment.sleepQuality
+        bodyScanCaptured = assessment.bodyScanCaptured
+        voiceCaptured = assessment.voiceCaptured
+        concerns = assessment.concerns
+    }
+}
+
+struct TrainerAssessmentBody: Encodable {
+    var coachingFocus: String
+    var yearsExperience: Int
+    var certifications: [String]
+    var specialty: String
+    var clientTypes: [String]
+    var maxClients: Int
+    var sessionStyle: String
+    var daysPerWeek: Int
+    var trainingModes: [String]
+    var gender: String
+    var bio: String
+    var philosophy: String
+
+    init(_ assessment: TrainerAssessment) {
+        coachingFocus = assessment.coachingFocus
+        yearsExperience = assessment.yearsExperience
+        certifications = assessment.certifications
+        specialty = assessment.specialty
+        clientTypes = assessment.clientTypes
+        maxClients = assessment.maxClients
+        sessionStyle = assessment.sessionStyle
+        daysPerWeek = assessment.daysPerWeek
+        trainingModes = assessment.trainingModes
+        gender = assessment.gender
+        bio = assessment.bio
+        philosophy = assessment.philosophy
+    }
+}
+
 struct RefreshBody: Encodable {
     var refreshToken: String
 }
@@ -372,6 +442,14 @@ actor APIClient {
 
     func sendFeedback(_ body: FeedbackBody) async throws -> TrainerFeedback? {
         try await sendOptional(path: "/trainer/feedback", method: .post, body: body)
+    }
+
+    func submitAssessment(_ body: AssessmentBody) async throws {
+        try await sendVoid(path: "/trainee/assessment", method: .post, body: body)
+    }
+
+    func submitTrainerAssessment(_ body: TrainerAssessmentBody) async throws {
+        try await sendVoid(path: "/trainer/assessment", method: .post, body: body)
     }
 
     func linkTrainer(inviteCode: String) async throws {

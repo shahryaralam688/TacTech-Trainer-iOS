@@ -3,17 +3,17 @@ import SwiftUI
 struct TrainerDashboardView: View {
     @Environment(AppStore.self) private var store
     @State private var selectedDay = Date()
+    @State private var headerHeight: CGFloat = 160
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let green = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let canvas = Color.white
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    darkHeader
+            ZStack(alignment: .top) {
+                ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 22) {
                         weekStrip
                         coachingMetrics
@@ -22,88 +22,128 @@ struct TrainerDashboardView: View {
                         recentForm
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 10)
+                    .padding(.top, headerHeight + 10)
                     .padding(.bottom, 28)
                 }
+
+                darkHeader
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: TrainerHeaderHeightKey.self, value: geo.size.height)
+                        }
+                    )
             }
-            .background(Color.white.ignoresSafeArea())
-            .ignoresSafeArea(edges: .top)
-            .navigationBarHidden(true)
+            .onPreferenceChange(TrainerHeaderHeightKey.self) { headerHeight = $0 }
+            .background(canvas.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
-    // MARK: - Header (same system as trainee home)
+    // MARK: - Static header (Figma: black rectangle, bottom corners rounded)
 
     private var darkHeader: some View {
-        ZStack(alignment: .bottom) {
-            charcoal
-                .clipShape(TrainerHomeHeaderCurve())
-                .ignoresSafeArea(edges: .top)
-
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Label(headerDate, systemImage: "calendar")
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .center) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .textCase(.uppercase)
-                    Spacer()
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
-                        if clients.count > 0 {
-                            Text("\(min(clients.count, 9))")
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 2)
-                                .background(orange)
-                                .clipShape(Capsule())
-                                .offset(x: 4, y: -2)
-                        }
-                    }
+                    Text(headerDate)
+                        .font(.system(size: 12, weight: .semibold))
+                        .tracking(0.8)
                 }
+                .foregroundStyle(Color.white.opacity(0.72))
 
-                HStack(spacing: 14) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.white.opacity(0.15))
-                            .frame(width: 58, height: 58)
-                        Text(String(firstName.prefix(1)).uppercased())
-                            .font(.system(size: 22, weight: .bold))
+                Spacer()
+
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    if clients.count > 0 {
+                        Text("\(min(clients.count, 9))")
+                            .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(orange)
+                            .clipShape(Circle())
+                            .offset(x: 4, y: -4)
                     }
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 2))
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Text("Hello, \(firstName)!")
-                                .font(.system(size: 26, weight: .bold))
-                                .foregroundStyle(.white)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.55))
-                        }
-                        HStack(spacing: 14) {
-                            Label("\(clients.count) Trainees", systemImage: "person.2.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(orange)
-                            Label("Coach", systemImage: "star.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(blue)
-                        }
-                    }
-                    Spacer(minLength: 0)
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 58)
-            .padding(.bottom, 36)
+
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.14))
+                        .frame(width: 58, height: 58)
+                    Text(String(firstName.prefix(1)).uppercased())
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5)
+                )
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("Hello, \(firstName)!")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(orange)
+                        Text("\(clients.count) Trainees")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+
+                        Circle()
+                            .fill(Color.white.opacity(0.35))
+                            .frame(width: 3, height: 3)
+                            .padding(.horizontal, 2)
+
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundStyle(blue)
+                        Text("Coach")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.white)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                TTIcon(icon: .chevronRight, size: 18)
+                    .foregroundStyle(.white.opacity(0.75))
+            }
         }
-        .frame(height: 210)
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+        .padding(.bottom, 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                Color.black
+                TrainerHeaderBands()
+                    .fill(Color.white.opacity(0.05))
+            }
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 56,
+                    bottomTrailingRadius: 56,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+            )
+            .ignoresSafeArea(edges: .top)
+        }
+        .zIndex(1)
     }
 
     // MARK: - Week strip
@@ -372,16 +412,29 @@ struct TrainerDashboardView: View {
     }
 }
 
-private struct TrainerHomeHeaderCurve: Shape {
+private struct TrainerHeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 160
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+private struct TrainerHeaderBands: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: .zero)
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - 28))
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: rect.maxY - 28),
-            control: CGPoint(x: rect.midX, y: rect.maxY + 18)
-        )
+        path.move(to: CGPoint(x: -40, y: 20))
+        path.addQuadCurve(to: CGPoint(x: 120, y: -10), control: CGPoint(x: 40, y: -30))
+        path.addQuadCurve(to: CGPoint(x: -20, y: 90), control: CGPoint(x: 70, y: 40))
+        path.closeSubpath()
+
+        path.move(to: CGPoint(x: -30, y: 50))
+        path.addQuadCurve(to: CGPoint(x: 90, y: 10), control: CGPoint(x: 30, y: 0))
+        path.addQuadCurve(to: CGPoint(x: -10, y: 110), control: CGPoint(x: 50, y: 55))
+        path.closeSubpath()
+
+        path.move(to: CGPoint(x: rect.maxX + 30, y: rect.maxY - 10))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - 130, y: rect.maxY + 20), control: CGPoint(x: rect.maxX - 40, y: rect.maxY + 40))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX + 10, y: rect.maxY - 80), control: CGPoint(x: rect.maxX - 60, y: rect.maxY - 30))
         path.closeSubpath()
         return path
     }

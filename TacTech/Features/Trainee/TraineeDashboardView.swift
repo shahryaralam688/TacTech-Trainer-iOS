@@ -3,108 +3,163 @@ import SwiftUI
 struct TraineeDashboardView: View {
     @Environment(AppStore.self) private var store
     @State private var selectedDay = Date()
+    @State private var activityRange: ActivityRange = .week
+    @State private var showProfile = false
+    @State private var showProgress = false
+    @State private var showNutrition = false
+    @State private var showWorkouts = false
+
+    @State private var headerHeight: CGFloat = 160
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let canvas = Color(white: 0.98)
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-                darkHeader
-                VStack(alignment: .leading, spacing: 22) {
-                    fitnessMetrics
-                    workoutsSection
-                    trainerNotes
+        NavigationStack {
+            ZStack(alignment: .top) {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 24) {
+                        fitnessMetrics
+                        workoutsSection
+                        dietSection
+                        activitiesSection
+                        coachSection
+                        formInsightsSection
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, headerHeight + 10)
+                    .padding(.bottom, 36)
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 8)
-                .padding(.bottom, 28)
+
+                darkHeader
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: HomeHeaderHeightKey.self, value: geo.size.height)
+                        }
+                    )
             }
-        }
-        .background(Color.white.ignoresSafeArea())
-        .ignoresSafeArea(edges: .top)
-        .task(id: selectedDay) {
-            if let trainee = store.currentTrainee {
-                await store.refreshDay(for: trainee.id, on: selectedDay)
+            .onPreferenceChange(HomeHeaderHeightKey.self) { headerHeight = $0 }
+            .background(canvas.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+            .task(id: selectedDay) {
+                if let trainee = store.currentTrainee {
+                    await store.refreshDay(for: trainee.id, on: selectedDay)
+                }
             }
+            .sheet(isPresented: $showProfile) { TraineeProfileView() }
+            .sheet(isPresented: $showProgress) { TraineeProgressView() }
+            .sheet(isPresented: $showNutrition) { NutritionView() }
+            .sheet(isPresented: $showWorkouts) { WorkoutHubView() }
         }
     }
 
-    // MARK: - Dark curved header
+    // MARK: - Header
+    // Static black card — bottom corners only rounded. Content scrolls below.
 
     private var darkHeader: some View {
-        ZStack(alignment: .bottom) {
-            charcoal
-                .clipShape(HomeHeaderCurve())
-                .ignoresSafeArea(edges: .top)
-
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    Label(headerDate, systemImage: "calendar")
+        VStack(alignment: .leading, spacing: 22) {
+            HStack(alignment: .center) {
+                HStack(spacing: 6) {
+                    Image(systemName: "calendar")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.72))
-                        .textCase(.uppercase)
+                    Text(headerDate)
+                        .font(.system(size: 12, weight: .semibold))
+                        .tracking(0.8)
+                }
+                .foregroundStyle(Color.white.opacity(0.72))
 
-                    Spacer()
+                Spacer()
 
-                    ZStack(alignment: .topTrailing) {
-                        Image(systemName: "bell.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .frame(width: 40, height: 40)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Circle())
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 42, height: 42)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-                        Text("\(notificationCount)")
+                    if notificationCount > 0 {
+                        Text("\(min(notificationCount, 9))")
                             .font(.system(size: 10, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
+                            .frame(width: 18, height: 18)
                             .background(orange)
-                            .clipShape(Capsule())
-                            .offset(x: 4, y: -2)
+                            .clipShape(Circle())
+                            .offset(x: 4, y: -4)
                     }
                 }
+            }
 
+            Button {
+                showProfile = true
+            } label: {
                 HStack(spacing: 14) {
                     avatarView
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack(spacing: 6) {
-                            Text("Hello, \(firstName)!")
-                                .font(.system(size: 26, weight: .bold))
-                                .foregroundStyle(.white)
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.white.opacity(0.55))
-                        }
+                    VStack(alignment: .leading, spacing: 7) {
+                        Text("Hello, \(firstName)!")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.white)
 
-                        HStack(spacing: 14) {
-                            Label("\(healthScore)% Healthy", systemImage: "plus")
-                                .font(.system(size: 13, weight: .semibold))
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(orange)
+                            Text("\(healthScore)% Healthy")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white)
 
-                            Label("Pro", systemImage: "star.fill")
-                                .font(.system(size: 13, weight: .semibold))
+                            Circle()
+                                .fill(Color.white.opacity(0.35))
+                                .frame(width: 3, height: 3)
+                                .padding(.horizontal, 2)
+
+                            Image(systemName: "star.fill")
+                                .font(.system(size: 11, weight: .bold))
                                 .foregroundStyle(blue)
+                            Text("Pro")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.white)
                         }
                     }
 
                     Spacer(minLength: 0)
+
+                    TTIcon(icon: .chevronRight, size: 18)
+                        .foregroundStyle(.white.opacity(0.75))
                 }
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 58)
-            .padding(.bottom, 36)
+            .buttonStyle(.plain)
         }
-        .frame(height: 210)
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+        .padding(.bottom, 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background {
+            ZStack {
+                Color.black
+                HomeHeaderBands()
+                    .fill(Color.white.opacity(0.05))
+            }
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 0,
+                    bottomLeadingRadius: 56,
+                    bottomTrailingRadius: 56,
+                    topTrailingRadius: 0,
+                    style: .continuous
+                )
+            )
+            .ignoresSafeArea(edges: .top)
+        }
+        .zIndex(1)
     }
 
     private var avatarView: some View {
         ZStack {
             Circle()
-                .fill(Color.white.opacity(0.15))
+                .fill(Color.white.opacity(0.14))
                 .frame(width: 58, height: 58)
             if let symbol = avatarSymbol {
                 Image(systemName: symbol)
@@ -116,46 +171,27 @@ struct TraineeDashboardView: View {
                     .foregroundStyle(.white)
             }
         }
-        .overlay(Circle().strokeBorder(Color.white.opacity(0.25), lineWidth: 2))
+        .overlay(
+            Circle()
+                .strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5)
+        )
     }
 
     // MARK: - Fitness Metrics
 
     private var fitnessMetrics: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Fitness Metrics")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.black)
-                Spacer()
-                Text("See All")
+            sectionHeader("Fitness Metrics") {
+                Button("See All") { showProgress = true }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    metricCard(
-                        title: "Score",
-                        value: "\(healthScore)%",
-                        icon: "plus",
-                        tint: orange,
-                        chart: .bars
-                    )
-                    metricCard(
-                        title: "Hydration",
-                        value: "\(hydrationMl) ml",
-                        icon: "drop.fill",
-                        tint: blue,
-                        chart: .wave
-                    )
-                    metricCard(
-                        title: "Calories",
-                        value: "\(caloriesToday)",
-                        icon: "flame.fill",
-                        tint: Color(white: 0.28),
-                        chart: .dots
-                    )
+                    metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .bars)
+                    metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
+                    metricCard(title: "Calories", value: "\(caloriesToday)", icon: "flame.fill", tint: Color(white: 0.28), chart: .dots)
                 }
             }
         }
@@ -223,28 +259,32 @@ struct TraineeDashboardView: View {
         let session = plan?.session(on: selectedDay) ?? plan?.nextSession(from: selectedDay)
         let minutes = session?.durationMinutes ?? plan?.durationMinutes ?? 25
         let kcal = max(minutes * 12, 180)
+        let series = session?.exercises.count ?? plan?.allExercises.count ?? 0
+        let level = plan?.level ?? "Training"
 
         return VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Workouts (\(workoutCount))")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(.black)
-                Spacer()
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(white: 0.35))
+            sectionHeader("Workouts (\(workoutCount))") {
+                Button {
+                    showWorkouts = true
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(white: 0.35))
+                        .frame(width: 32, height: 32)
+                }
+                .buttonStyle(.plain)
             }
 
             ZStack(alignment: .topLeading) {
                 Image("OnboardingWorkouts")
                     .resizable()
                     .scaledToFill()
-                    .frame(height: 210)
+                    .frame(height: 220)
                     .frame(maxWidth: .infinity)
                     .clipped()
 
                 LinearGradient(
-                    colors: [.black.opacity(0.35), .clear, .black.opacity(0.45)],
+                    colors: [.black.opacity(0.25), .clear, .black.opacity(0.72)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -257,17 +297,43 @@ struct TraineeDashboardView: View {
 
                 VStack {
                     Spacer()
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: 6) {
                             Text(session?.title ?? plan?.title ?? "Today’s training")
-                                .font(.system(size: 18, weight: .bold))
-                            Text(session.map { "\($0.weekday.title) · \($0.timeLabel)" } ?? plan?.focus ?? "Ask your trainer for a plan")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.85))
+                                .font(.system(size: 22, weight: .bold))
+                                .foregroundStyle(.white)
+
+                            HStack(spacing: 8) {
+                                Text(series > 0 ? "\(series) Series Workout" : (plan?.focus ?? "Ask your trainer for a plan"))
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(.white.opacity(0.88))
+
+                                Text(level.lowercased())
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(orange)
+                                    .clipShape(Capsule())
+                            }
                         }
-                        Spacer()
+
+                        Spacer(minLength: 8)
+
+                        if let plan {
+                            NavigationLink {
+                                ActiveWorkoutView(plan: plan, day: session)
+                            } label: {
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 48, height: 48)
+                                    .background(orange)
+                                    .clipShape(Circle())
+                                    .shadow(color: orange.opacity(0.4), radius: 8, y: 4)
+                            }
+                        }
                     }
-                    .foregroundStyle(.white)
                     .padding(16)
                 }
             }
@@ -289,39 +355,374 @@ struct TraineeDashboardView: View {
         .clipShape(Capsule())
     }
 
-    // MARK: - Trainer notes (kept, restyled)
+    // MARK: - Diet & Nutrition
 
-    private var trainerNotes: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Trainer notes")
-                .font(.system(size: 20, weight: .bold))
+    private var dietSection: some View {
+        let meals = store.currentTrainee.map { store.meals(for: $0.id, on: selectedDay) } ?? []
 
-            if let trainee = store.currentTrainee {
-                let notes = store.feedback(for: trainee.id)
-                if notes.isEmpty {
-                    Text("No feedback yet — notes appear after your trainer reviews a session.")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(Color(white: 0.45))
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.96))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                } else {
-                    ForEach(notes.prefix(2)) { item in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(item.message)
-                                .font(.system(size: 14, weight: .medium))
-                            Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(Color(white: 0.45))
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionHeader("Diet & Nutrition") {
+                Button("See All") { showNutrition = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    if meals.isEmpty {
+                        mealCard(
+                            name: "Log your first meal",
+                            protein: 0,
+                            fat: 0,
+                            calories: 0,
+                            minutes: 0,
+                            empty: true
+                        )
+                    } else {
+                        ForEach(meals.prefix(6)) { meal in
+                            mealCard(
+                                name: meal.name,
+                                protein: Int(meal.macros.protein.rounded()),
+                                fat: Int(meal.macros.fat.rounded()),
+                                calories: meal.macros.calories,
+                                minutes: max(Int(meal.portionGrams / 25), 5),
+                                empty: false
+                            )
                         }
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.96))
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                 }
             }
+        }
+    }
+
+    private func mealCard(
+        name: String,
+        protein: Int,
+        fat: Int,
+        calories: Int,
+        minutes: Int,
+        empty: Bool
+    ) -> some View {
+        Button {
+            showNutrition = true
+        } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                ZStack(alignment: .topLeading) {
+                    Image("OnboardingNutrition")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(height: 128)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+
+                    if !empty {
+                        HStack(spacing: 6) {
+                            mealStatPill("\(protein)g Protein")
+                            mealStatPill("\(fat)g Fat")
+                        }
+                        .padding(10)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(name)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.black)
+                        .lineLimit(2)
+
+                    HStack {
+                        if empty {
+                            Label("Scan or add a meal", systemImage: "fork.knife")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color(white: 0.45))
+                        } else {
+                            Label("\(calories)kcal", systemImage: "flame.fill")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color(white: 0.45))
+                            Label("\(minutes)min", systemImage: "clock")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(Color(white: 0.45))
+                        }
+
+                        Spacer(minLength: 0)
+
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 28, height: 28)
+                            .background(orange)
+                            .clipShape(Circle())
+                    }
+                }
+                .padding(12)
+            }
+            .frame(width: 220)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func mealStatPill(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.black.opacity(0.55))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    }
+
+    // MARK: - Activities
+
+    private var activitiesSection: some View {
+        let points = activityPoints
+        let total = points.reduce(0) { $0 + $1.value }
+        let peak = points.map(\.value).max() ?? 0
+        let delta = activityDelta
+        let suggestions = cueSuggestionCount
+
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionHeader("Activities") {
+                Button("See All") { showProgress = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
+            }
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(spacing: 6) {
+                    ForEach(ActivityRange.allCases) { range in
+                        Button {
+                            activityRange = range
+                        } label: {
+                            Text(range.label)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(activityRange == range ? .white : Color(white: 0.35))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
+                                .background(activityRange == range ? Color.black : Color.clear)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(4)
+                .background(Color(white: 0.94))
+                .clipShape(Capsule())
+
+                ZStack(alignment: .topTrailing) {
+                    ActivityLineChart(points: points.map(\.value), tint: orange)
+                        .frame(height: 120)
+
+                    if peak > 0 {
+                        Text("\(peak)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(orange)
+                            .clipShape(Capsule())
+                            .padding(.trailing, 8)
+                            .padding(.top, 4)
+                    }
+                }
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("\(total.formatted()) kcal")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(.black)
+
+                        HStack(spacing: 14) {
+                            Label(deltaLabel(delta), systemImage: "star.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(delta >= 0 ? orange : Color(white: 0.45))
+
+                            Label("\(suggestions) Suggestions", systemImage: "person.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color(white: 0.45))
+                        }
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showWorkouts = true
+                    } label: {
+                        Image(systemName: "figure.run")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+        }
+    }
+
+    // MARK: - Coach (trainer feedback — no fake AI)
+
+    private var coachSection: some View {
+        let notes = store.currentTrainee.map { store.feedback(for: $0.id) } ?? []
+        let trainerName = store.currentTrainee.flatMap { store.trainer(for: $0)?.userId }.flatMap { id in
+            store.users.first { $0.id == id }?.name
+        } ?? "Your trainer"
+
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionHeader("Your Coach") {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(white: 0.35))
+            }
+
+            ZStack(alignment: .bottomLeading) {
+                Image("OnboardingCoach")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 168)
+                    .frame(maxWidth: .infinity)
+                    .clipped()
+
+                LinearGradient(
+                    colors: [orange.opacity(0.15), orange.opacity(0.92)],
+                    startPoint: .topTrailing,
+                    endPoint: .bottomLeading
+                )
+
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 8) {
+                            coachPill(trainerName.components(separatedBy: " ").first ?? "Coach")
+                            coachPill("\(notes.count) notes")
+                        }
+
+                        Text("\(notes.count)+")
+                            .font(.system(size: 34, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text("Trainer conversations")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.92))
+                    }
+
+                    Spacer()
+
+                    Button {
+                        showProfile = true
+                    } label: {
+                        Image(systemName: "bubble.left.and.bubble.right.fill")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(orange)
+                            .frame(width: 44, height: 44)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(18)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        }
+    }
+
+    private func coachPill(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color.black.opacity(0.35))
+            .clipShape(Capsule())
+            .lineLimit(1)
+    }
+
+    // MARK: - Form insights (real reports — not fake resources)
+
+    private var formInsightsSection: some View {
+        let reports = store.currentTrainee.map { store.formReports(for: $0.id) } ?? []
+
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionHeader("Form Insights") {
+                Button("See All") { showProgress = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
+            }
+
+            if reports.isEmpty {
+                Text("Form scores and coaching cues show up here after a live form session.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color(white: 0.45))
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            } else {
+                VStack(spacing: 12) {
+                    ForEach(reports.prefix(3)) { report in
+                        Button {
+                            showProgress = true
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                        .fill(Color(white: 0.94))
+                                        .frame(width: 56, height: 56)
+                                    Image(systemName: "figure.strengthtraining.traditional")
+                                        .font(.system(size: 20, weight: .semibold))
+                                        .foregroundStyle(Color(white: 0.35))
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(exerciseTitle(for: report.exerciseId))
+                                        .font(.system(size: 15, weight: .bold))
+                                        .foregroundStyle(.black)
+                                        .lineLimit(1)
+
+                                    Text(report.createdAt.formatted(date: .abbreviated, time: .omitted))
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundStyle(Color(white: 0.45))
+
+                                    HStack(spacing: 12) {
+                                        Label(String(format: "%.1f", Double(report.score) / 20.0), systemImage: "star.fill")
+                                        Label("\(report.repCount) reps", systemImage: "eye")
+                                        Label("\(report.cues.count) cues", systemImage: "heart.fill")
+                                    }
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(Color(white: 0.45))
+                                }
+
+                                Spacer(minLength: 0)
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(Color(white: 0.35))
+                            }
+                            .padding(12)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Shared chrome
+
+    private func sectionHeader<Trailing: View>(_ title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
+        HStack {
+            Text(title)
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(.black)
+            Spacer()
+            trailing()
         }
     }
 
@@ -349,7 +750,6 @@ struct TraineeDashboardView: View {
     }
 
     private var hydrationMl: Int {
-        // Lightweight estimate from logged volume until a dedicated hydration log exists.
         guard let trainee = store.currentTrainee else { return 781 }
         let macros = store.dailyMacros(for: trainee.id, on: selectedDay)
         let base = 500 + Int(macros.calories / 4)
@@ -373,20 +773,153 @@ struct TraineeDashboardView: View {
         guard let userId = store.session?.userId else { return nil }
         return UserDefaults.standard.string(forKey: "profile.avatar.\(userId)")
     }
+
+    private var cueSuggestionCount: Int {
+        guard let trainee = store.currentTrainee else { return 0 }
+        return store.formReports(for: trainee.id).reduce(0) { $0 + $1.cues.count }
+    }
+
+    private var activityPoints: [(date: Date, value: Int)] {
+        guard let trainee = store.currentTrainee else { return [] }
+        let calendar = Calendar.current
+        let dayCount = activityRange.dayCount
+        let today = calendar.startOfDay(for: Date())
+        return (0..<dayCount).reversed().compactMap { offset -> (Date, Int)? in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            let mealKcal = store.dailyMacros(for: trainee.id, on: day).calories
+            let workoutKcal = store.logs(for: trainee.id)
+                .filter { calendar.isDate($0.completedAt, inSameDayAs: day) }
+                .reduce(0) { $0 + max($1.durationMinutes * 8, 0) }
+            return (day, mealKcal + workoutKcal)
+        }
+    }
+
+    private var activityDelta: Int {
+        guard let trainee = store.currentTrainee else { return 0 }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let days = activityRange.dayCount
+        func total(ending offsetEnd: Int) -> Int {
+            (0..<days).reduce(0) { partial, offset in
+                guard let day = calendar.date(byAdding: .day, value: -(offset + offsetEnd), to: today) else { return partial }
+                return partial + store.dailyMacros(for: trainee.id, on: day).calories
+            }
+        }
+        return total(ending: 0) - total(ending: days)
+    }
+
+    private func deltaLabel(_ delta: Int) -> String {
+        if delta == 0 { return "0" }
+        return delta > 0 ? "+\(delta)" : "\(delta)"
+    }
+
+    private func exerciseTitle(for exerciseId: String) -> String {
+        if let name = store.exercise(id: exerciseId)?.name, !name.isEmpty {
+            return name
+        }
+        return "Form check"
+    }
+}
+
+// MARK: - Header height
+
+private struct HomeHeaderHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 160
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+// MARK: - Activity range
+
+private enum ActivityRange: String, CaseIterable, Identifiable {
+    case day, week, month, year, all
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .day: "1d"
+        case .week: "1w"
+        case .month: "1m"
+        case .year: "1y"
+        case .all: "All"
+        }
+    }
+
+    var dayCount: Int {
+        switch self {
+        case .day: 1
+        case .week: 7
+        case .month: 30
+        case .year: 90
+        case .all: 120
+        }
+    }
+}
+
+// MARK: - Chart
+
+private struct ActivityLineChart: View {
+    let points: [Int]
+    let tint: Color
+
+    var body: some View {
+        GeometryReader { geo in
+            let values = points.isEmpty ? [0] : points
+            let maxV = max(values.max() ?? 1, 1)
+            let stepX = values.count > 1 ? geo.size.width / CGFloat(values.count - 1) : geo.size.width
+
+            ZStack {
+                tint.opacity(0.12)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                Path { path in
+                    for (index, value) in values.enumerated() {
+                        let x = CGFloat(index) * stepX
+                        let y = geo.size.height - (CGFloat(value) / CGFloat(maxV)) * (geo.size.height - 16) - 8
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+                .stroke(tint, style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+
+                if let last = values.indices.last {
+                    let x = CGFloat(last) * stepX
+                    let y = geo.size.height - (CGFloat(values[last]) / CGFloat(maxV)) * (geo.size.height - 16) - 8
+                    Circle()
+                        .fill(tint)
+                        .frame(width: 10, height: 10)
+                        .position(x: min(max(x, 5), geo.size.width - 5), y: y)
+                }
+            }
+        }
+    }
 }
 
 // MARK: - Shapes
 
-private struct HomeHeaderCurve: Shape {
+private struct HomeHeaderBands: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        path.move(to: .zero)
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - 28))
-        path.addQuadCurve(
-            to: CGPoint(x: 0, y: rect.maxY - 28),
-            control: CGPoint(x: rect.midX, y: rect.maxY + 18)
-        )
+        // Top-left ribbons
+        path.move(to: CGPoint(x: -40, y: 20))
+        path.addQuadCurve(to: CGPoint(x: 120, y: -10), control: CGPoint(x: 40, y: -30))
+        path.addQuadCurve(to: CGPoint(x: -20, y: 90), control: CGPoint(x: 70, y: 40))
+        path.closeSubpath()
+
+        path.move(to: CGPoint(x: -30, y: 50))
+        path.addQuadCurve(to: CGPoint(x: 90, y: 10), control: CGPoint(x: 30, y: 0))
+        path.addQuadCurve(to: CGPoint(x: -10, y: 110), control: CGPoint(x: 50, y: 55))
+        path.closeSubpath()
+
+        // Bottom-right ribbons
+        path.move(to: CGPoint(x: rect.maxX + 30, y: rect.maxY - 10))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX - 130, y: rect.maxY + 20), control: CGPoint(x: rect.maxX - 40, y: rect.maxY + 40))
+        path.addQuadCurve(to: CGPoint(x: rect.maxX + 10, y: rect.maxY - 80), control: CGPoint(x: rect.maxX - 60, y: rect.maxY - 30))
         path.closeSubpath()
         return path
     }

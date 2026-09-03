@@ -332,6 +332,13 @@ final class AppStore {
         }
     }
 
+    /// Local calorie goal update for the nutrition home slider.
+    func updateDailyCalorieTarget(_ value: Int) {
+        guard var trainee = currentTrainee else { return }
+        trainee.dailyCalorieTarget = max(1200, min(value, 5000))
+        upsert(trainee)
+    }
+
     func saveFeedback(_ item: TrainerFeedback) async throws {
         let created = try await api.sendFeedback(
             FeedbackBody(traineeId: item.traineeId, message: item.message, relatedExerciseId: item.relatedExerciseId)

@@ -46,6 +46,7 @@ struct ProfileCompletionFlowView: View {
             }
         }
         .background(Color.white.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
         .onAppear { hydrateDraft() }
     }
 

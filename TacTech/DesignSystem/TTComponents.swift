@@ -1,5 +1,14 @@
 import SwiftUI
 
+extension View {
+    /// Hide the system nav bar / back chevron when a custom `TTBackButton` is shown.
+    func ttHideSystemNavigationBar() -> some View {
+        self
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationBarBackButtonHidden(true)
+    }
+}
+
 /// Shared navigation back control — Sandow chevron in a rounded square.
 struct TTBackButton: View {
     enum Style {

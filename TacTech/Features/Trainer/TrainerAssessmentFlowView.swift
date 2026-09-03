@@ -65,6 +65,7 @@ struct TrainerAssessmentFlowView: View {
             .padding(.bottom, 12)
         }
         .background(AssessmentColor.white.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
         .safeAreaPadding(.top)
         .safeAreaPadding(.bottom)
         .onAppear {

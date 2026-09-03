@@ -71,6 +71,7 @@ struct FitnessAssessmentFlowView: View {
             }
         }
         .background(AssessmentColor.white.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
         .safeAreaPadding(.top)
         .safeAreaPadding(.bottom)
         .onAppear {

@@ -47,7 +47,7 @@ struct AccountSettingsView: View {
             }
         }
         .background(Color.white.ignoresSafeArea())
-        .toolbar(.hidden, for: .navigationBar)
+        .ttHideSystemNavigationBar()
         .navigationDestination(for: AccountSettingsRoute.self) { route in
             destination(for: route)
         }

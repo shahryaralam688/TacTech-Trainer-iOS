@@ -49,7 +49,7 @@ struct TraineeProfileView: View {
                 }
             }
             .background(Color.white.ignoresSafeArea())
-            .toolbar(.hidden, for: .navigationBar)
+            .ttHideSystemNavigationBar()
         }
     }
 

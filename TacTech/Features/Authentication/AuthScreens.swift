@@ -325,7 +325,7 @@ struct ResetPasswordView: View {
                 .padding(.bottom, 12)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .ttHideSystemNavigationBar()
         .preferredColorScheme(.light)
         .fullScreenCover(isPresented: $showSent) {
             PasswordSentView(email: email) {
@@ -462,7 +462,7 @@ private struct AuthFormCanvas<Content: View>: View {
                 .scrollDismissesKeyboard(.interactively)
             }
         }
-        .toolbar(.hidden, for: .navigationBar)
+        .ttHideSystemNavigationBar()
         .preferredColorScheme(.light)
     }
 }

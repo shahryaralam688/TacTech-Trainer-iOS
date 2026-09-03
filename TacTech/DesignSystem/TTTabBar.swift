@@ -21,9 +21,10 @@ struct TTTabBarItem<Tab: Hashable>: Identifiable {
     }
 }
 
-// MARK: - Floating bottom tab bar (Tab Bar Main)
+// MARK: - Docked bottom tab bar (Tab Bar Main)
 
-/// Floating, highly rounded tab bar with a center elevated action and notched cradle.
+/// Full-width docked tab bar — not a floating pill.
+/// Top corners rounded with a center notch; orange plus floats above the cradle.
 struct TTFloatingTabBar<Tab: Hashable>: View {
     let tabs: [TTTabBarItem<Tab>]
     @Binding var selection: Tab
@@ -31,22 +32,33 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private let barHeight: CGFloat = 68
-    private let cornerRadius: CGFloat = 34
+    private let barHeight: CGFloat = 62
+    private let topCornerRadius: CGFloat = 28
     private let centerSize: CGFloat = 56
+    /// How far the plus sits above the bar’s top edge.
+    private let fabLift: CGFloat = 24
     private let iconSize: CGFloat = 24
-    private let indicatorWidth: CGFloat = 18
+    private let indicatorWidth: CGFloat = 16
     private let indicatorHeight: CGFloat = 3
 
-    /// Exactly four side tabs (two left, two right of the center FAB).
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
 
     var body: some View {
         ZStack(alignment: .top) {
-            barBackground
-                .frame(height: barHeight)
-                .padding(.top, centerSize * 0.42)
+            TTTabBarNotchShape(
+                topCornerRadius: topCornerRadius,
+                notchRadius: centerSize * 0.62,
+                notchPadding: 8
+            )
+            .fill(barFill)
+            .frame(height: barHeight)
+            .shadow(
+                color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+                radius: 16,
+                y: -4
+            )
+            .padding(.top, fabLift)
 
             HStack(spacing: 0) {
                 ForEach(leftTabs) { item in
@@ -54,44 +66,34 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 }
 
                 Color.clear
-                    .frame(width: centerSize + 12)
+                    .frame(width: centerSize + 8)
 
                 ForEach(rightTabs) { item in
                     tabButton(item)
                 }
             }
             .frame(height: barHeight)
-            .padding(.top, centerSize * 0.42)
+            .padding(.top, fabLift)
+            .padding(.horizontal, 4)
 
             centerButton
+        }
+        .frame(height: fabLift + barHeight)
+        .frame(maxWidth: .infinity)
+        .background(alignment: .bottom) {
+            // Paint docked fill into the home-indicator area.
+            barFill
+                .frame(height: 120)
+                .offset(y: 60)
+                .ignoresSafeArea(edges: .bottom)
         }
         .accessibilityElement(children: .contain)
     }
 
     // MARK: Pieces
 
-    private var barBackground: some View {
-        TTTabBarNotchShape(
-            cornerRadius: cornerRadius,
-            notchRadius: centerSize * 0.58,
-            notchPadding: 10
-        )
-        .fill(barFill)
-        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 18, y: 8)
-        .overlay {
-            TTTabBarNotchShape(
-                cornerRadius: cornerRadius,
-                notchRadius: centerSize * 0.58,
-                notchPadding: 10
-            )
-            .stroke(Color.white.opacity(colorScheme == .dark ? 0.06 : 0.55), lineWidth: 0.5)
-        }
-    }
-
     private var barFill: Color {
-        colorScheme == .dark
-            ? Color(white: 0.18)
-            : Color(white: 0.96)
+        colorScheme == .dark ? Color(white: 0.16) : .white
     }
 
     private var activeIconColor: Color {
@@ -99,9 +101,11 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     }
 
     private var inactiveIconColor: Color {
-        colorScheme == .dark
-            ? Color(white: 0.45)
-            : Color(white: 0.62)
+        colorScheme == .dark ? Color(white: 0.48) : Color(white: 0.68)
+    }
+
+    private var activeChipFill: Color {
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color(white: 0.93)
     }
 
     private func tabButton(_ item: TTTabBarItem<Tab>) -> some View {
@@ -112,16 +116,22 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 selection = item.id
             }
         } label: {
-            VStack(spacing: 6) {
-                TTIcon(icon: item.icon, filled: isActive, size: iconSize)
-                    .foregroundStyle(isActive ? activeIconColor : inactiveIconColor)
+            VStack(spacing: 5) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(isActive ? activeChipFill : Color.clear)
+                        .frame(width: 46, height: 34)
+
+                    TTIcon(icon: item.icon, filled: isActive, size: iconSize)
+                        .foregroundStyle(isActive ? activeIconColor : inactiveIconColor)
+                }
 
                 Capsule()
                     .fill(isActive ? TTColor.actionOrange : Color.clear)
                     .frame(width: indicatorWidth, height: indicatorHeight)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: barHeight)
+            .frame(height: barHeight - 4)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -135,79 +145,74 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(TTColor.actionOrange)
                     .frame(width: centerSize, height: centerSize)
-                    .shadow(color: TTColor.actionOrange.opacity(0.45), radius: 16, y: 6)
-                    .shadow(color: TTColor.actionOrange.opacity(0.25), radius: 6, y: 2)
+                    .shadow(color: TTColor.actionOrange.opacity(0.42), radius: 14, y: 6)
+                    .shadow(color: TTColor.actionOrange.opacity(0.22), radius: 4, y: 2)
 
-                TTIcon(icon: .plus, filled: true, size: 22)
+                TTIcon(icon: .plus, filled: false, size: 20)
                     .foregroundStyle(.white)
             }
         }
         .buttonStyle(TTTabBarCenterPressStyle())
         .accessibilityLabel("Quick action")
-        .offset(y: 2)
     }
 }
 
 // MARK: - Notch shape
 
-/// Capsule-like bar with a smooth concave cradle for the center FAB.
+/// Full-width bar: rounded top corners, square bottom, concave cradle for the FAB.
 struct TTTabBarNotchShape: Shape {
-    var cornerRadius: CGFloat
+    var topCornerRadius: CGFloat
     var notchRadius: CGFloat
     var notchPadding: CGFloat
 
+    init(topCornerRadius: CGFloat, notchRadius: CGFloat, notchPadding: CGFloat) {
+        self.topCornerRadius = topCornerRadius
+        self.notchRadius = notchRadius
+        self.notchPadding = notchPadding
+    }
+
+    /// Backward-compatible alias.
+    init(cornerRadius: CGFloat, notchRadius: CGFloat, notchPadding: CGFloat) {
+        self.topCornerRadius = cornerRadius
+        self.notchRadius = notchRadius
+        self.notchPadding = notchPadding
+    }
+
     func path(in rect: CGRect) -> Path {
-        let r = min(cornerRadius, rect.height / 2, rect.width / 4)
+        let r = min(topCornerRadius, rect.height, rect.width / 4)
         let midX = rect.midX
         let notchHalf = notchRadius + notchPadding
-        let notchDepth = notchRadius * 0.95
+        let notchDepth = notchRadius * 0.88
 
         var path = Path()
 
-        // Bottom-left corner start
-        path.move(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.maxY))
-        path.addArc(
-            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
-            radius: r,
-            startAngle: .degrees(90),
-            endAngle: .degrees(0),
-            clockwise: true
+        path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        path.addLine(to: CGPoint(x: midX - notchHalf, y: rect.minY))
+
+        // Concave cradle under the floating plus.
+        path.addCurve(
+            to: CGPoint(x: midX + notchHalf, y: rect.minY),
+            control1: CGPoint(x: midX - notchHalf * 0.28, y: rect.minY + notchDepth),
+            control2: CGPoint(x: midX + notchHalf * 0.28, y: rect.minY + notchDepth)
         )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY + r))
+
+        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
         path.addArc(
             center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
             radius: r,
-            startAngle: .degrees(0),
-            endAngle: .degrees(-90),
-            clockwise: true
+            startAngle: .degrees(-90),
+            endAngle: .degrees(0),
+            clockwise: false
         )
-
-        // Top edge → right side of notch
-        path.addLine(to: CGPoint(x: midX + notchHalf, y: rect.minY))
-
-        // Concave notch (cubic approximates a circular cradle)
-        path.addCurve(
-            to: CGPoint(x: midX - notchHalf, y: rect.minY),
-            control1: CGPoint(x: midX + notchHalf * 0.35, y: rect.minY + notchDepth),
-            control2: CGPoint(x: midX - notchHalf * 0.35, y: rect.minY + notchDepth)
-        )
-
-        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.minY))
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
         path.addArc(
             center: CGPoint(x: rect.minX + r, y: rect.minY + r),
             radius: r,
-            startAngle: .degrees(-90),
-            endAngle: .degrees(-180),
-            clockwise: true
-        )
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY - r))
-        path.addArc(
-            center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
-            radius: r,
             startAngle: .degrees(180),
-            endAngle: .degrees(90),
-            clockwise: true
+            endAngle: .degrees(270),
+            clockwise: false
         )
         path.closeSubpath()
         return path
@@ -227,7 +232,7 @@ private struct TTTabBarCenterPressStyle: ButtonStyle {
 // MARK: - Pill segmented tabs (Tab Single / Tab Group Text)
 
 enum TTPillTabSize {
-    case display   // largest
+    case display
     case large
     case medium
     case small
@@ -264,7 +269,7 @@ enum TTPillTabSize {
     }
 }
 
-/// Single pill tab control — selected: black + white text; unselected: muted.
+/// Single pill tab — selected: black + white text; unselected: muted.
 struct TTPillTab: View {
     let title: String
     var isSelected: Bool

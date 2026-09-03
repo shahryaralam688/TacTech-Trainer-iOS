@@ -35,9 +35,6 @@ struct TrainerRootView: View {
                 selection: $tab,
                 onCenterTap: { showQuickActions = true }
             )
-            .padding(.horizontal, 18)
-            .padding(.top, 4)
-            .padding(.bottom, 6)
         }
         .ignoresSafeArea(.keyboard)
         .confirmationDialog("Quick action", isPresented: $showQuickActions, titleVisibility: .visible) {

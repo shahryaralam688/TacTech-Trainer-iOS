@@ -6,8 +6,9 @@ struct FitnessAssessmentFlowView: View {
     @State private var draft = FitnessAssessment()
     @State private var isSaving = false
     @State private var error: String?
+    @State private var avatarSelection = TTAvatarCatalog.default
 
-    private let total = 17
+    private let total = 18
 
     var body: some View {
         VStack(spacing: 0) {
@@ -30,7 +31,8 @@ struct FitnessAssessmentFlowView: View {
                 case 13: SleepStep(draft: $draft)
                 case 14: BodyScanStep(draft: $draft)
                 case 15: VoiceStep(draft: $draft)
-                default: TextAnalysisStep(draft: $draft)
+                case 16: TextAnalysisStep(draft: $draft)
+                default: AssessmentAvatarStep(selection: $avatarSelection)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
@@ -71,6 +73,11 @@ struct FitnessAssessmentFlowView: View {
         .background(AssessmentColor.white.ignoresSafeArea())
         .safeAreaPadding(.top)
         .safeAreaPadding(.bottom)
+        .onAppear {
+            if let saved = TTAvatarCatalog.saved(for: store.currentUser?.id) {
+                avatarSelection = saved
+            }
+        }
     }
 
     private var header: some View {
@@ -105,7 +112,7 @@ struct FitnessAssessmentFlowView: View {
     private var ctaTitle: String {
         switch step {
         case 14: "Got it, let’s scan"
-        case 16: "Finish"
+        case 17: "Finish"
         default: "Continue"
         }
     }
@@ -157,8 +164,10 @@ struct FitnessAssessmentFlowView: View {
         error = nil
         defer { isSaving = false }
         do {
+            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
             try await store.submitAssessment(draft)
         } catch {
+            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
             store.persistAssessment(draft)
             store.markAssessmentCompleted()
             self.error = error.localizedDescription

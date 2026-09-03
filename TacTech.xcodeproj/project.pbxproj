@@ -51,6 +51,7 @@
 		DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */; };
 		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
 		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
+		F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */; };
 		F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
 /* End PBXBuildFile section */
@@ -81,6 +82,7 @@
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
+		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
 		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -129,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
+				63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
 				198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */,
@@ -377,6 +380,7 @@
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
+				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
 				F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */,

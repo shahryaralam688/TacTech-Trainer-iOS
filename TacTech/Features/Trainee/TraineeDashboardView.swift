@@ -701,8 +701,7 @@ struct TraineeDashboardView: View {
     }
 
     private var avatarSymbol: String? {
-        guard let userId = store.session?.userId else { return nil }
-        return UserDefaults.standard.string(forKey: "profile.avatar.\(userId)")
+        TTAvatarCatalog.saved(for: store.session?.userId)
     }
 
     private var cueSuggestionCount: Int {

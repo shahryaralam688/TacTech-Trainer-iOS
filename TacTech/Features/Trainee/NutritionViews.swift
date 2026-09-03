@@ -172,13 +172,23 @@ struct NutritionView: View {
     }
 
     private var avatarView: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.14))
-                .frame(width: 58, height: 58)
-            Text(String(firstName.prefix(1)).uppercased())
-                .font(TTFont.headingSM(.bold))
-                .foregroundStyle(.white)
+        Group {
+            if let asset = TTAvatarCatalog.saved(for: store.session?.userId) {
+                Image(asset)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.14))
+                        .frame(width: 58, height: 58)
+                    Text(String(firstName.prefix(1)).uppercased())
+                        .font(TTFont.headingSM(.bold))
+                        .foregroundStyle(.white)
+                }
+            }
         }
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)

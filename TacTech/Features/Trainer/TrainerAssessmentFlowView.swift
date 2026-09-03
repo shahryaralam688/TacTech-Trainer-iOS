@@ -9,8 +9,9 @@ struct TrainerAssessmentFlowView: View {
     @State private var isSaving = false
     @State private var error: String?
     @State private var capacitySlider = 2
+    @State private var avatarSelection = TTAvatarCatalog.default
 
-    private let total = 12
+    private let total = 13
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,8 @@ struct TrainerAssessmentFlowView: View {
                 case 8: TrainerModesStep(draft: $draft)
                 case 9: TrainerGenderStep(draft: $draft, onSkip: skipGender)
                 case 10: TrainerBioStep(draft: $draft)
-                default: TrainerPhilosophyStep(draft: $draft)
+                case 11: TrainerPhilosophyStep(draft: $draft)
+                default: AssessmentAvatarStep(selection: $avatarSelection)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
@@ -67,6 +69,9 @@ struct TrainerAssessmentFlowView: View {
         .safeAreaPadding(.bottom)
         .onAppear {
             capacitySlider = TrainerAssessmentCatalog.capacityIndex(for: draft.maxClients)
+            if let saved = TTAvatarCatalog.saved(for: store.currentUser?.id) {
+                avatarSelection = saved
+            }
         }
     }
 
@@ -130,8 +135,10 @@ struct TrainerAssessmentFlowView: View {
         error = nil
         defer { isSaving = false }
         do {
+            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
             try await store.submitTrainerAssessment(draft)
         } catch {
+            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
             store.persistTrainerAssessment(draft)
             store.markAssessmentCompleted()
             self.error = error.localizedDescription

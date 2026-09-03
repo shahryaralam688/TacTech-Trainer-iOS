@@ -49,6 +49,7 @@ struct TrainerDashboardView: View {
     private var darkHeader: some View {
         TTHomeProfileHeader(
             name: firstName,
+            avatarSymbol: TTAvatarCatalog.saved(for: store.session?.userId),
             badgeCount: attentionQueue.count,
             metrics: [
                 TTHomeProfileMetric(

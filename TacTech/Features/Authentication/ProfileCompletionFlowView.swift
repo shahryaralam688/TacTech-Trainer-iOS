@@ -144,44 +144,7 @@ struct ProfileCompletionFlowView: View {
     // MARK: - Steps
 
     private var avatarStep: some View {
-        VStack(spacing: 24) {
-            Text("Choose your avatar")
-                .font(.system(size: 28, weight: .bold))
-                .padding(.top, 20)
-
-            ZStack {
-                Circle()
-                    .fill(Color(white: 0.94))
-                    .frame(width: 120, height: 120)
-                Image(systemName: draft.avatarSymbol)
-                    .font(.system(size: 46, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.35))
-            }
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-                ForEach(ProfileCompletionDraft.avatarChoices, id: \.self) { symbol in
-                    Button {
-                        draft.avatarSymbol = symbol
-                    } label: {
-                        Image(systemName: symbol)
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(draft.avatarSymbol == symbol ? .white : .black)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 64)
-                            .background(draft.avatarSymbol == symbol ? Color.black : Color(white: 0.94))
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 28)
-
-            Text("Or keep the default and continue.")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(Color(white: 0.45))
-
-            Spacer()
-        }
+        AssessmentAvatarStep(selection: $draft.avatarSymbol)
     }
 
     private var profileStep: some View {
@@ -477,8 +440,11 @@ struct ProfileCompletionFlowView: View {
             draft.weightText = String(Int(w))
         }
         if let userId = store.session?.userId,
-           let symbol = UserDefaults.standard.string(forKey: "profile.avatar.\(userId)") {
+           let symbol = UserDefaults.standard.string(forKey: "profile.avatar.\(userId)"),
+           TTAvatarCatalog.isAssetName(symbol) {
             draft.avatarSymbol = symbol
+        } else if store.session?.userId != nil {
+            draft.avatarSymbol = TTAvatarCatalog.default
         }
     }
 
@@ -490,8 +456,8 @@ struct ProfileCompletionFlowView: View {
             heightCm: store.session?.role == .trainee ? Int(draft.heightCm) : nil,
             weightKg: store.session?.role == .trainee ? weight : nil
         )
-        if let userId = store.session?.userId {
-            UserDefaults.standard.set(draft.avatarSymbol, forKey: "profile.avatar.\(userId)")
+            if let userId = store.session?.userId {
+            TTAvatarCatalog.save(draft.avatarSymbol, for: userId)
             UserDefaults.standard.set(draft.notifyWorkouts, forKey: "notify.workouts.\(userId)")
             UserDefaults.standard.set(draft.notifyMessages, forKey: "notify.messages.\(userId)")
             UserDefaults.standard.set(draft.notifyProgress, forKey: "notify.progress.\(userId)")
@@ -629,7 +595,7 @@ struct ProfileCompletionFlowView: View {
 }
 
 struct ProfileCompletionDraft {
-    var avatarSymbol = "person.fill"
+    var avatarSymbol = TTAvatarCatalog.default
     var name = ""
     var gender = "Male"
     var heightCm: Double = 170
@@ -641,10 +607,7 @@ struct ProfileCompletionDraft {
     var notifyMessages = true
     var notifyProgress = true
 
-    static let avatarChoices = [
-        "person.fill", "figure.run", "figure.strengthtraining.traditional",
-        "figure.yoga", "heart.fill", "flame.fill", "star.fill", "bolt.fill"
-    ]
+    static let avatarChoices = TTAvatarCatalog.all
 }
 
 #Preview("Profile Completion") {

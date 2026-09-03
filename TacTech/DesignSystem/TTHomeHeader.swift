@@ -151,19 +151,29 @@ struct TTHomeProfileHeader: View {
     }
 
     private var avatarView: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.14))
-                .frame(width: 58, height: 58)
-
-            if let avatarSymbol {
-                Image(systemName: avatarSymbol)
-                    .font(TTFont.headingMD(.semibold))
-                    .foregroundStyle(.white)
+        Group {
+            if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
+                Image(avatarSymbol)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
-                Text((avatarInitial ?? String(name.prefix(1))).uppercased())
-                    .font(TTFont.headingSM(.bold))
-                    .foregroundStyle(.white)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.14))
+                        .frame(width: 58, height: 58)
+
+                    if let avatarSymbol {
+                        Image(systemName: avatarSymbol)
+                            .font(TTFont.headingMD(.semibold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text((avatarInitial ?? String(name.prefix(1))).uppercased())
+                            .font(TTFont.headingSM(.bold))
+                            .foregroundStyle(.white)
+                    }
+                }
             }
         }
         .overlay(

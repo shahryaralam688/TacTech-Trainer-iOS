@@ -8,6 +8,7 @@ import UserNotifications
 /// Order: Avatar → Profile → Password → OTP → Biometrics → Notifications → Score → Done
 struct ProfileCompletionFlowView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @State private var step = 0
     @State private var draft = ProfileCompletionDraft()
     @State private var generatedOTP = ""
@@ -57,7 +58,7 @@ struct ProfileCompletionFlowView: View {
                     withAnimation(.easeInOut(duration: 0.25)) { step -= 1 }
                 }
             } else {
-                Color.clear.frame(width: TTBackButton.size, height: TTBackButton.size)
+                TTBackButton { dismiss() }
             }
 
             Spacer()
@@ -414,6 +415,7 @@ struct ProfileCompletionFlowView: View {
 
                     Button {
                         store.markProfileSetupCompleted()
+                        dismiss()
                     } label: {
                         Text("GET STARTED")
                             .font(.system(size: 17, weight: .bold))

@@ -2,6 +2,7 @@ import LocalAuthentication
 import SwiftUI
 
 enum AccountSettingsRoute: Hashable {
+    case profileSetup
     case notifications
     case personalInfo
     case coachContact
@@ -82,6 +83,7 @@ struct AccountSettingsView: View {
 
     private var generalSection: some View {
         settingsGroup(title: "General") {
+            navRow("Profile Setup", icon: "person.crop.circle.badge.plus", route: .profileSetup)
             navRow("Notifications", icon: "bell", route: .notifications)
             navRow("Personal Information", icon: "person", route: .personalInfo)
             navRow(
@@ -299,6 +301,8 @@ struct AccountSettingsView: View {
     @ViewBuilder
     private func destination(for route: AccountSettingsRoute) -> some View {
         switch route {
+        case .profileSetup:
+            ProfileCompletionFlowView()
         case .personalInfo:
             PersonalInformationSettingsView()
         case .notifications:

@@ -16,26 +16,32 @@ struct TraineeRootView: View {
     ]
 
     var body: some View {
-        Group {
-            switch tab {
-            case .home:
-                TraineeDashboardView()
-            case .workout:
-                WorkoutHubView()
-            case .nutrition:
-                NutritionView()
-            case .profile:
-                TraineeProfileView()
+        GeometryReader { geo in
+            ZStack(alignment: .bottom) {
+                Group {
+                    switch tab {
+                    case .home:
+                        TraineeDashboardView()
+                    case .workout:
+                        WorkoutHubView()
+                    case .nutrition:
+                        NutritionView()
+                    case .profile:
+                        TraineeProfileView()
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.bottom, TTFloatingTabBar<TraineeTab>.contentHeight + geo.safeAreaInsets.bottom)
+
+                TTFloatingTabBar(
+                    tabs: tabs,
+                    selection: $tab,
+                    onCenterTap: { showQuickActions = true },
+                    bottomInset: geo.safeAreaInsets.bottom
+                )
             }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            TTFloatingTabBar(
-                tabs: tabs,
-                selection: $tab,
-                onCenterTap: { showQuickActions = true }
-            )
-        }
+        .ignoresSafeArea(edges: .bottom)
         .ignoresSafeArea(.keyboard)
         .confirmationDialog("Quick action", isPresented: $showQuickActions, titleVisibility: .visible) {
             Button("Workouts") { tab = .workout }

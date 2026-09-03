@@ -25,14 +25,17 @@ struct TTTabBarItem<Tab: Hashable>: Identifiable {
 
 /// Full-width docked tab bar — not a floating pill.
 /// Top corners rounded with a center notch; orange plus floats above the cradle.
+/// Extends into the bottom safe area so the home-indicator strip matches the bar.
 struct TTFloatingTabBar<Tab: Hashable>: View {
     let tabs: [TTTabBarItem<Tab>]
     @Binding var selection: Tab
     var onCenterTap: () -> Void
+    /// Device home-indicator inset — passed from a full-screen GeometryReader.
+    var bottomInset: CGFloat = 0
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private let barHeight: CGFloat = 62
+    private let barHeight: CGFloat = 70
     private let topCornerRadius: CGFloat = 28
     private let centerSize: CGFloat = 56
     /// How far the plus sits above the bar’s top edge.
@@ -41,52 +44,56 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     private let indicatorWidth: CGFloat = 16
     private let indicatorHeight: CGFloat = 3
 
+    /// Height above the home indicator (FAB overhang + icon row).
+    static var contentHeight: CGFloat { 24 + 70 }
+
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            TTTabBarNotchShape(
-                topCornerRadius: topCornerRadius,
-                notchRadius: centerSize * 0.62,
-                notchPadding: 8
-            )
-            .fill(barFill)
-            .frame(height: barHeight)
-            .shadow(
-                color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
-                radius: 16,
-                y: -4
-            )
-            .padding(.top, fabLift)
+        VStack(spacing: 0) {
+            ZStack(alignment: .top) {
+                TTTabBarNotchShape(
+                    topCornerRadius: topCornerRadius,
+                    notchRadius: centerSize * 0.62,
+                    notchPadding: 8
+                )
+                .fill(barFill)
+                .frame(height: barHeight)
+                .shadow(
+                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
+                    radius: 16,
+                    y: -4
+                )
+                .padding(.top, fabLift)
 
-            HStack(spacing: 0) {
-                ForEach(leftTabs) { item in
-                    tabButton(item)
+                HStack(spacing: 0) {
+                    ForEach(leftTabs) { item in
+                        tabButton(item)
+                    }
+
+                    Color.clear
+                        .frame(width: centerSize + 8)
+
+                    ForEach(rightTabs) { item in
+                        tabButton(item)
+                    }
                 }
+                .frame(height: barHeight)
+                .padding(.top, fabLift)
+                .padding(.horizontal, 4)
 
-                Color.clear
-                    .frame(width: centerSize + 8)
-
-                ForEach(rightTabs) { item in
-                    tabButton(item)
-                }
+                centerButton
             }
-            .frame(height: barHeight)
-            .padding(.top, fabLift)
-            .padding(.horizontal, 4)
+            .frame(height: fabLift + barHeight)
+            .frame(maxWidth: .infinity)
 
-            centerButton
-        }
-        .frame(height: fabLift + barHeight)
-        .frame(maxWidth: .infinity)
-        .background(alignment: .bottom) {
-            // Paint docked fill into the home-indicator area.
+            // Same fill as the bar — no separate strip under the home indicator.
             barFill
-                .frame(height: 120)
-                .offset(y: 60)
-                .ignoresSafeArea(edges: .bottom)
+                .frame(height: max(bottomInset, 0))
+                .frame(maxWidth: .infinity)
         }
+        .background(barFill)
         .accessibilityElement(children: .contain)
     }
 

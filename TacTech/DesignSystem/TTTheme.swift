@@ -120,13 +120,141 @@ enum TTIconSize {
     static let hero: CGFloat = 28
 }
 
-// MARK: Typography — Work Sans scale
+// MARK: Typography — Work Sans (StrangeHello / Google Fonts scale)
+
+/// Named text styles from the design-system typography page.
+enum TTTypography {
+    // Display
+    case displayLGExtraBold, displayLGBold
+    case displayMDExtraBold, displayMDBold
+    case displaySMExtraBold, displaySMBold
+
+    // Heading
+    case heading2XLBold, heading2XLSemiBold, heading2XLMedium
+    case headingXLBold, headingXLSemiBold, headingXLMedium
+    case headingLGBold, headingLGSemiBold, headingLGMedium
+    case headingMDBold, headingMDSemiBold, headingMDMedium
+    case headingSMBold, headingSMSemiBold, headingSMMedium
+    case headingXSBold, headingXSSemiBold, headingXSMedium
+
+    // Text
+    case text2XLBold, text2XLSemiBold, text2XLMedium
+    case textXLBold, textXLSemiBold, textXLMedium
+    case textLGBold, textLGSemiBold, textLGMedium
+    case textMDBold, textMDSemiBold, textMDMedium
+    case textSMBold, textSMSemiBold, textSMMedium
+    case textXSBold, textXSSemiBold, textXSMedium
+    case text2XSBold, text2XSSemiBold, text2XSMedium
+
+    // Paragraph
+    case paragraphBold, paragraphMedium, paragraphRegular
+    case paragraphLight, paragraphCaption, paragraphOverline
+
+    var size: CGFloat {
+        switch self {
+        case .displayLGExtraBold, .displayLGBold: 72
+        case .displayMDExtraBold, .displayMDBold: 60
+        case .displaySMExtraBold, .displaySMBold: 48
+        case .heading2XLBold, .heading2XLSemiBold, .heading2XLMedium: 40
+        case .headingXLBold, .headingXLSemiBold, .headingXLMedium: 32
+        case .headingLGBold, .headingLGSemiBold, .headingLGMedium: 28
+        case .headingMDBold, .headingMDSemiBold, .headingMDMedium: 24
+        case .headingSMBold, .headingSMSemiBold, .headingSMMedium: 20
+        case .headingXSBold, .headingXSSemiBold, .headingXSMedium: 18
+        case .text2XLBold, .text2XLSemiBold, .text2XLMedium: 20
+        case .textXLBold, .textXLSemiBold, .textXLMedium: 18
+        case .textLGBold, .textLGSemiBold, .textLGMedium: 16
+        case .textMDBold, .textMDSemiBold, .textMDMedium: 14
+        case .textSMBold, .textSMSemiBold, .textSMMedium: 12
+        case .textXSBold, .textXSSemiBold, .textXSMedium: 11
+        case .text2XSBold, .text2XSSemiBold, .text2XSMedium: 10
+        case .paragraphBold: 28
+        case .paragraphMedium: 24
+        case .paragraphRegular: 20
+        case .paragraphLight: 16
+        case .paragraphCaption: 14
+        case .paragraphOverline: 12
+        }
+    }
+
+    var weight: Font.Weight {
+        switch self {
+        case .displayLGExtraBold, .displayMDExtraBold, .displaySMExtraBold,
+             .heading2XLBold, .headingXLBold, .headingLGBold, .headingMDBold,
+             .headingSMBold, .headingXSBold,
+             .text2XLBold, .textXLBold, .textLGBold, .textMDBold, .textSMBold,
+             .textXSBold, .text2XSBold,
+             .displayLGBold, .displayMDBold, .displaySMBold,
+             .paragraphBold:
+            return .bold
+        case .heading2XLSemiBold, .headingXLSemiBold, .headingLGSemiBold,
+             .headingMDSemiBold, .headingSMSemiBold, .headingXSSemiBold,
+             .text2XLSemiBold, .textXLSemiBold, .textLGSemiBold, .textMDSemiBold,
+             .textSMSemiBold, .textXSSemiBold, .text2XSSemiBold,
+             .paragraphOverline:
+            return .semibold
+        case .heading2XLMedium, .headingXLMedium, .headingLGMedium, .headingMDMedium,
+             .headingSMMedium, .headingXSMedium,
+             .text2XLMedium, .textXLMedium, .textLGMedium, .textMDMedium,
+             .textSMMedium, .textXSMedium, .text2XSMedium,
+             .paragraphMedium:
+            return .medium
+        case .paragraphLight:
+            return .light
+        case .paragraphRegular, .paragraphCaption:
+            return .regular
+        }
+    }
+
+    /// Line-height percentage from the typography spec (e.g. 100 = 100%).
+    var lineHeightPercent: CGFloat {
+        switch self {
+        case .paragraphBold: 100
+        case .paragraphMedium: 90
+        case .paragraphRegular: 80
+        case .paragraphLight: 70
+        case .paragraphCaption: 60
+        case .paragraphOverline: 50
+        default: 120
+        }
+    }
+
+    var tracking: CGFloat {
+        switch self {
+        case .paragraphOverline: 0.8
+        default: 0
+        }
+    }
+
+    var isUppercase: Bool {
+        self == .paragraphOverline
+    }
+
+    var font: Font { TTFont.workSans(size, weight: weight) }
+
+    var lineSpacing: CGFloat {
+        TTFont.lineSpacing(size: size, lineHeightPercent: lineHeightPercent)
+    }
+}
 
 enum TTFont {
-    private static let family = "WorkSans-Regular"
+    private static let regular = "WorkSans-Regular"
+    private static let bold = "WorkSans-Bold"
 
+    /// Maps semantic weight to bundled Work Sans files.
     static func workSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom(family, size: size).weight(weight)
+        switch weight {
+        case .bold, .semibold, .heavy, .black:
+            return .custom(bold, size: size)
+        default:
+            return .custom(regular, size: size)
+        }
+    }
+
+    static func lineSpacing(size: CGFloat, lineHeightPercent: CGFloat) -> CGFloat {
+        let defaultMultiplier: CGFloat = 1.2
+        let target = size * (lineHeightPercent / 100)
+        return target - size * defaultMultiplier
     }
 
     // Display
@@ -160,11 +288,11 @@ enum TTFont {
     static let paragraphOverline = workSans(12, weight: .semibold)
 
     // Semantic aliases (backward compatible)
-    static func display(_ size: CGFloat = 34) -> Font { workSans(size, weight: .bold) }
-    static func title(_ size: CGFloat = 22) -> Font { workSans(size, weight: .semibold) }
-    static func heading(_ size: CGFloat = 17) -> Font { workSans(size, weight: .semibold) }
+    static func display(_ size: CGFloat = 48) -> Font { workSans(size, weight: .bold) }
+    static func title(_ size: CGFloat = 20) -> Font { workSans(size, weight: .semibold) }
+    static func heading(_ size: CGFloat = 18) -> Font { workSans(size, weight: .semibold) }
     static func body(_ size: CGFloat = 16) -> Font { workSans(size, weight: .regular) }
-    static func caption(_ size: CGFloat = 13) -> Font { workSans(size, weight: .medium) }
+    static func caption(_ size: CGFloat = 12) -> Font { workSans(size, weight: .medium) }
     static func overline(_ size: CGFloat = 12) -> Font { workSans(size, weight: .semibold) }
 }
 
@@ -396,6 +524,14 @@ extension View {
         self
             .scaleEffect(isPressed ? TTNeu.pressedScale : 1)
             .animation(.easeOut(duration: TTMotion.press), value: isPressed)
+    }
+
+    /// Apply a named Work Sans style from the design-system typography scale.
+    func ttTypography(_ style: TTTypography) -> some View {
+        font(style.font)
+            .tracking(style.tracking)
+            .lineSpacing(style.lineSpacing)
+            .textCase(style.isUppercase ? .uppercase : nil)
     }
 }
 

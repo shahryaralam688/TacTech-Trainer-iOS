@@ -68,7 +68,7 @@ struct TTHomeProfileHeader: View {
             HStack(spacing: 7) {
                 TTIcon(icon: .calendar1, size: 14)
                 Text(formattedDate)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(TTFont.textSM(.semibold))
                     .tracking(0.8)
                     .textCase(.uppercase)
             }
@@ -92,7 +92,7 @@ struct TTHomeProfileHeader: View {
 
                     if badgeCount > 0 {
                         Text("\(min(badgeCount, 9))")
-                            .font(.system(size: 10, weight: .bold))
+                            .font(TTFont.text2XS(.bold))
                             .foregroundStyle(.white)
                             .frame(width: 18, height: 18)
                             .background(orange)
@@ -114,7 +114,7 @@ struct TTHomeProfileHeader: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Hello, \(name)!")
-                        .font(.system(size: 28, weight: .bold))
+                        .font(TTFont.headingLG(.bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
@@ -132,7 +132,7 @@ struct TTHomeProfileHeader: View {
                                     TTIcon(icon: metric.icon, size: 12)
                                         .foregroundStyle(metric.iconColor)
                                     Text(metric.text)
-                                        .font(.system(size: 13, weight: .medium))
+                                        .font(TTFont.textMD(.medium))
                                         .foregroundStyle(.white)
                                 }
                             }
@@ -158,11 +158,11 @@ struct TTHomeProfileHeader: View {
 
             if let avatarSymbol {
                 Image(systemName: avatarSymbol)
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(TTFont.headingMD(.semibold))
                     .foregroundStyle(.white)
             } else {
                 Text((avatarInitial ?? String(name.prefix(1))).uppercased())
-                    .font(.system(size: 22, weight: .bold))
+                    .font(TTFont.headingSM(.bold))
                     .foregroundStyle(.white)
             }
         }

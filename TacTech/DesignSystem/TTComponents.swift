@@ -138,7 +138,7 @@ struct TTAvatar: View {
 
     var body: some View {
         Text(initials)
-            .font(.system(size: size * 0.36, weight: .semibold))
+            .font(TTFont.workSans(size * 0.36, weight: .semibold))
             .foregroundStyle(tint)
             .frame(width: size, height: size)
             .background(tint.opacity(0.16))

@@ -44,6 +44,10 @@ targets:
         NSMicrophoneUsageDescription: TacTech uses the microphone for vocal fitness assessment.
         NSPhotoLibraryUsageDescription: TacTech uses your photos to estimate nutrition from meals.
         UIUserInterfaceStyle: Automatic
+        UIAppFonts:
+          - WorkSans-Regular.ttf
+          - WorkSans-Bold.ttf
+          - WorkSans-Variable.ttf
         NSAppTransportSecurity:
           NSExceptionDomains:
             sheryl-biocellate-sympathizingly.ngrok-free.dev:

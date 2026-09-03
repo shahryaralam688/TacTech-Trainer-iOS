@@ -3,6 +3,7 @@ import SwiftUI
 struct TrainerDashboardView: View {
     @Environment(AppStore.self) private var store
     @State private var selectedDay = Date()
+    @State private var showProfile = false
     @State private var headerHeight: CGFloat = 160
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
@@ -12,7 +13,14 @@ struct TrainerDashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                darkHeader
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: TrainerHeaderHeightKey.self, value: geo.size.height)
+                        }
+                    )
+
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 22) {
                         weekStrip
@@ -22,20 +30,14 @@ struct TrainerDashboardView: View {
                         recentForm
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, headerHeight + 10)
+                    .padding(.top, 16)
                     .padding(.bottom, 28)
                 }
-
-                darkHeader
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: TrainerHeaderHeightKey.self, value: geo.size.height)
-                        }
-                    )
             }
             .onPreferenceChange(TrainerHeaderHeightKey.self) { headerHeight = $0 }
             .background(canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showProfile) { TrainerProfileView() }
         }
     }
 
@@ -58,7 +60,8 @@ struct TrainerDashboardView: View {
                     iconColor: blue,
                     text: "Coach"
                 )
-            ]
+            ],
+            onProfileTap: { showProfile = true }
         )
     }
 

@@ -44,7 +44,7 @@ struct TTHomeProfileHeader: View {
             ZStack {
                 Color.black
                 TTHomeHeaderBands()
-                    .fill(Color.white.opacity(0.05))
+                    .fill(Color.white.opacity(0.07))
             }
             .clipShape(
                 UnevenRoundedRectangle(
@@ -57,7 +57,8 @@ struct TTHomeProfileHeader: View {
             )
             .ignoresSafeArea(edges: .top)
         }
-        .zIndex(1)
+        .contentShape(Rectangle())
+        .allowsHitTesting(true)
     }
 
     // MARK: - Rows
@@ -76,7 +77,11 @@ struct TTHomeProfileHeader: View {
             Spacer()
 
             Button {
-                onNotificationTap?()
+                if let onNotificationTap {
+                    onNotificationTap()
+                } else {
+                    onProfileTap?()
+                }
             } label: {
                 ZStack(alignment: .topTrailing) {
                     TTIcon(icon: .bell1, size: 18)
@@ -96,8 +101,7 @@ struct TTHomeProfileHeader: View {
                     }
                 }
             }
-            .buttonStyle(.plain)
-            .disabled(onNotificationTap == nil)
+            .buttonStyle(TTHomeHeaderPressStyle())
         }
     }
 
@@ -120,7 +124,7 @@ struct TTHomeProfileHeader: View {
                             ForEach(Array(metrics.enumerated()), id: \.element.id) { index, metric in
                                 if index > 0 {
                                     Circle()
-                                        .fill(Color.white.opacity(0.35))
+                                        .fill(Color.white.opacity(0.45))
                                         .frame(width: 3, height: 3)
                                         .padding(.horizontal, 2)
                                 }
@@ -141,9 +145,9 @@ struct TTHomeProfileHeader: View {
                 TTIcon(icon: .chevronRight, size: 22)
                     .foregroundStyle(.white)
             }
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .disabled(onProfileTap == nil)
+        .buttonStyle(TTHomeHeaderPressStyle())
     }
 
     private var avatarView: some View {
@@ -200,5 +204,15 @@ struct TTHomeHeaderBands: Shape {
         )
         path.closeSubpath()
         return path
+    }
+}
+
+/// Press feedback without the default disabled/dull fade.
+private struct TTHomeHeaderPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }

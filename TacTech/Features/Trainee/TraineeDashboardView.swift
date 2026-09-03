@@ -17,7 +17,14 @@ struct TraineeDashboardView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                darkHeader
+                    .background(
+                        GeometryReader { geo in
+                            Color.clear.preference(key: HomeHeaderHeightKey.self, value: geo.size.height)
+                        }
+                    )
+
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
                         fitnessMetrics
@@ -28,16 +35,9 @@ struct TraineeDashboardView: View {
                         formInsightsSection
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, headerHeight + 10)
+                    .padding(.top, 16)
                     .padding(.bottom, 36)
                 }
-
-                darkHeader
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: HomeHeaderHeightKey.self, value: geo.size.height)
-                        }
-                    )
             }
             .onPreferenceChange(HomeHeaderHeightKey.self) { headerHeight = $0 }
             .background(canvas.ignoresSafeArea())

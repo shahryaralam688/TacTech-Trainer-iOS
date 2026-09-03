@@ -6,10 +6,10 @@ struct TrainerDashboardView: View {
     @State private var showProfile = false
     @State private var headerHeight: CGFloat = 160
 
-    private let orange = TTColor.accent
-    private let blue = TTColor.info
-    private let green = TTColor.success
-    private let canvas = TTColor.canvas
+    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+    private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
+    private let green = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
+    private let canvas = Color.white
 
     var body: some View {
         NavigationStack {

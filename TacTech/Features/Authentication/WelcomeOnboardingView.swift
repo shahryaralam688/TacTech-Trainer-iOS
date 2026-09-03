@@ -82,7 +82,7 @@ struct WelcomeOnboardingView: View {
                 Color.clear
                     .allowsHitTesting(false)
 
-                HStack(spacing: 10) {
+                HStack(spacing: TTSpace.sm) {
                     OnboardingArrowButton(
                         imageName: "OnboardingArrowLeft",
                         label: "Back",
@@ -98,7 +98,7 @@ struct WelcomeOnboardingView: View {
                         advance()
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, TTSpace.screen)
                 .padding(.bottom, 6)
                 .contentShape(Rectangle())
             }
@@ -140,8 +140,8 @@ private struct OnboardingSlideView: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.38),
-                        .init(color: .black.opacity(0.45), location: 0.62),
-                        .init(color: .black.opacity(0.88), location: 1)
+                        .init(color: TTPurple.p100.opacity(0.55), location: 0.62),
+                        .init(color: TTPurple.p100.opacity(0.92), location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -156,8 +156,8 @@ private struct OnboardingSlideView: View {
                         .minimumScaleFactor(0.8)
                         .frame(maxWidth: .infinity)
                     Text(page.subtitle)
-                        .font(TTFont.body(17))
-                        .foregroundStyle(TTColor.inkOnDark)
+                        .font(TTFont.textXL())
+                        .foregroundStyle(TTColor.inkOnDarkMuted)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                 }
@@ -182,9 +182,9 @@ private struct OnboardingProgressBar: View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(Color.white.opacity(0.34))
+                    .fill(TTPurple.p50.opacity(0.45))
                 Capsule()
-                    .fill(Color.white)
+                    .fill(TTColor.inkOnDark)
                     .frame(width: max(geo.size.width * progress, geo.size.height))
             }
         }
@@ -207,14 +207,14 @@ private struct OnboardingArrowButton: View {
                 .resizable()
                 .scaledToFit()
                 .frame(width: 22, height: 20)
-                .foregroundStyle(.black)
+                .foregroundStyle(TTPurple.p100)
                 .frame(maxWidth: .infinity)
                 .frame(height: TTSpace.heroButtonHeight)
                 .background(TTColor.inkOnDark)
-                .clipShape(RoundedRectangle(cornerRadius: TTRadius.lg, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: TTRadius.buttonHero, style: .continuous))
         }
-        .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .buttonStyle(TTPressStyle())
+        .contentShape(RoundedRectangle(cornerRadius: TTRadius.lg, style: .continuous))
         .opacity(enabled ? 1 : 0.38)
         .disabled(!enabled)
         .accessibilityLabel(label)

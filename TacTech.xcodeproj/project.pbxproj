@@ -9,14 +9,17 @@
 /* Begin PBXBuildFile section */
 		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
+		0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */; };
 		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
 		18594AEEA468D728FACE4737 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A70DAFDFB21AC3A620021 /* SplashView.swift */; };
+		1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */; };
 		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
 		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
 		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
+		3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */; };
 		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
 		490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */; };
 		49EC3A1501EF2F496437C2DE /* TrainerAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */; };
@@ -57,6 +60,7 @@
 		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessment.swift; sourceTree = "<group>"; };
 		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
+		18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Variable.ttf"; sourceTree = "<group>"; };
 		1B9A70DAFDFB21AC3A620021 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
@@ -84,9 +88,11 @@
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
 		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
 		9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDetailView.swift; sourceTree = "<group>"; };
+		9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Bold.ttf"; sourceTree = "<group>"; };
 		AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodRecognizer.swift; sourceTree = "<group>"; };
 		AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodScannerView.swift; sourceTree = "<group>"; };
 		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
+		C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Regular.ttf"; sourceTree = "<group>"; };
 		C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseAnalyzer.swift; sourceTree = "<group>"; };
 		D0E7B31ACC360641D9625359 /* SandowIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandowIcons.swift; sourceTree = "<group>"; };
 		DF1D3D88CBBC904995027746 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
@@ -103,6 +109,16 @@
 				0ED25703147A11C67180D88E /* TacTech.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		14D015CAC32F4E0E32219B29 /* Fonts */ = {
+			isa = PBXGroup;
+			children = (
+				9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */,
+				C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */,
+				18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */,
+			);
+			path = Fonts;
 			sourceTree = "<group>";
 		};
 		2A23B3A3CC9ACF04C627257C /* DesignSystem */ = {
@@ -191,6 +207,7 @@
 			isa = PBXGroup;
 			children = (
 				8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */,
+				14D015CAC32F4E0E32219B29 /* Fonts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -310,6 +327,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */,
+				0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */,
+				3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */,
+				1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

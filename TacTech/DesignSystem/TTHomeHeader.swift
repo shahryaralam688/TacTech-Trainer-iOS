@@ -27,9 +27,9 @@ struct TTHomeProfileHeader: View {
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
 
-    private let orange = TTColor.accent
-    private let dateGrey = TTColor.dateOnDark
-    private let bellBG = TTColor.headerWell
+    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+    private let dateGrey = Color.white.opacity(0.55)
+    private let bellBG = Color(white: 0.22)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
@@ -42,15 +42,15 @@ struct TTHomeProfileHeader: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             ZStack {
-                TTColor.header
+                Color.black
                 TTHomeHeaderBands()
                     .fill(Color.white.opacity(0.07))
             }
             .clipShape(
                 UnevenRoundedRectangle(
                     topLeadingRadius: 0,
-                    bottomLeadingRadius: TTRadius.header,
-                    bottomTrailingRadius: TTRadius.header,
+                    bottomLeadingRadius: 56,
+                    bottomTrailingRadius: 56,
                     topTrailingRadius: 0,
                     style: .continuous
                 )
@@ -101,7 +101,7 @@ struct TTHomeProfileHeader: View {
                     }
                 }
             }
-            .buttonStyle(TTPressStyle())
+            .buttonStyle(TTHomeHeaderPressStyle())
         }
     }
 
@@ -114,8 +114,8 @@ struct TTHomeProfileHeader: View {
 
                 VStack(alignment: .leading, spacing: 7) {
                     Text("Hello, \(name)!")
-                        .font(TTFont.display(28))
-                        .foregroundStyle(TTColor.inkOnDark)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
@@ -147,7 +147,7 @@ struct TTHomeProfileHeader: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(TTPressStyle())
+        .buttonStyle(TTHomeHeaderPressStyle())
     }
 
     private var avatarView: some View {
@@ -207,3 +207,12 @@ struct TTHomeHeaderBands: Shape {
     }
 }
 
+/// Press feedback without the default disabled/dull fade.
+private struct TTHomeHeaderPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .opacity(1)
+            .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
+    }
+}

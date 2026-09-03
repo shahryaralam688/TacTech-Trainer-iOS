@@ -1,14 +1,14 @@
 import SwiftUI
 
 private enum AuthPalette {
-    static let ink = TTColor.ink
-    static let muted = TTColor.inkMuted
-    static let field = TTColor.surfaceAlt
-    static let line = TTColor.line
-    static let accent = TTColor.accent
-    static let brand = TTColor.accent
-    static let error = TTColor.danger
-    static let errorSoft = TTColor.danger.opacity(0.12)
+    static let ink = Color.black
+    static let muted = Color(white: 0.45)
+    static let field = Color(white: 0.96)
+    static let line = Color(white: 0.90)
+    static let accent = Color(red: 1.0, green: 0.43, blue: 0.08)
+    static let brand = Color(red: 0.694, green: 0.325, blue: 0.122)
+    static let error = Color(red: 0.90, green: 0.18, blue: 0.20)
+    static let errorSoft = Color(red: 1.0, green: 0.92, blue: 0.93)
 }
 
 enum AuthField: Hashable {

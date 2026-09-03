@@ -3,21 +3,23 @@ import SwiftUI
 import UIKit
 
 enum AssessmentColor {
-    static let ink = TTColor.ink
-    static let white = Color.white
-    static let slate = TTColor.inkMuted
-    static let surface = TTColor.surfaceAlt
-    static let charcoal = TTColor.ink
-    static let coolGrey = TTColor.inkSubtle
-    static let blue = TTColor.info
-    static let blueSoft = TTColor.infoSoft
-    static let orange = TTColor.accent
-    static let grey = TTColor.inkMuted
-    static let line = TTColor.line
-    static let peach = TTColor.accentSoft
-    static let orangeBorder = TTColor.accentBorder
-    static let blueMid = TTColor.info
-    static let textBoxBorder = TTColor.inkSubtle
+    // Exact hex from Selection colors
+    static let ink = Color(red: 17 / 255, green: 18 / 255, blue: 20 / 255)        // #111214
+    static let white = Color.white                                                  // #FFFFFF
+    static let slate = Color(red: 103 / 255, green: 108 / 255, blue: 117 / 255)    // #676C75
+    static let surface = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)  // #F3F3F4
+    static let charcoal = Color(red: 57 / 255, green: 60 / 255, blue: 67 / 255)    // #393C43
+    static let coolGrey = Color(red: 186 / 255, green: 187 / 255, blue: 190 / 255) // #BABBBE
+    static let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)       // #2563EB
+    static let blueSoft = Color(red: 219 / 255, green: 234 / 255, blue: 254 / 255) // #DBEAFE
+    static let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)    // #F97316
+    static let grey = Color(red: 158 / 255, green: 160 / 255, blue: 165 / 255)
+    static let line = Color(red: 215 / 255, green: 216 / 255, blue: 217 / 255)
+    static let peach = Color(red: 255 / 255, green: 240 / 255, blue: 224 / 255)
+    static let orangeBorder = Color(red: 253 / 255, green: 186 / 255, blue: 116 / 255)
+    static let blueMid = Color(red: 98 / 255, green: 155 / 255, blue: 252 / 255)
+    /// Figma text-box border (~#9B9D9C).
+    static let textBoxBorder = Color(red: 155 / 255, green: 157 / 255, blue: 156 / 255)
 }
 
 /// Figma-style assessment text box — gray border, undo/redo, 250 char counter.

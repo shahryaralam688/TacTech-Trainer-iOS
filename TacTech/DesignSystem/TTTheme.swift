@@ -3,14 +3,29 @@ import SwiftUI
 // MARK: - TacTech Design System
 //
 // Single source of truth for color, type, space, radius, shadow, icons,
-// motion, and neumorphism. Screens must use these tokens — not one-off hex.
+// buttons, inputs, motion, and neumorphism. Screens must use these tokens.
+
+// MARK: Purple palette (brand)
+
+enum TTPurple {
+    static let p100 = Color(hex: 0x29074F)
+    static let p90 = Color(hex: 0x511A97)
+    static let p80 = Color(hex: 0x8621EB)
+    static let p70 = Color(hex: 0x9338FA)
+    static let p60 = Color(hex: 0x9B42FA)
+    static let p50 = Color(hex: 0xB069FF)
+    static let p40 = Color(hex: 0xC491FF)
+    static let p30 = Color(hex: 0xDDB8FF)
+    static let p20 = Color(hex: 0xEFD1FF)
+    static let p10 = Color(hex: 0xF9EBFF)
+}
 
 enum TTColor {
     // Surfaces
     static let canvas = Color("Canvas")
     static let surface = Color("Surface")
     static let surfaceAlt = Color("SurfaceAlt")
-    static let header = Color.black
+    static let header = TTPurple.p100
     static let headerWell = Color(white: 0.22)
 
     // Ink
@@ -22,18 +37,27 @@ enum TTColor {
     static let dateOnDark = Color.white.opacity(0.55)
     static let line = Color("Line")
 
-    // Brand — orange is the interactive accent used on Home / Figma.
+    // Brand — purple primary
     static let brand = Color("Brand")
     static let brandSoft = Color("BrandSoft")
-    static let accent = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255) // #F97316
-    static let accentSoft = Color(red: 255 / 255, green: 240 / 255, blue: 224 / 255)
-    static let accentBorder = Color(red: 253 / 255, green: 186 / 255, blue: 116 / 255)
+    static let brandDark = TTPurple.p90
+    static let brandLight = TTPurple.p70
+
+    // Fitness / energy accent (secondary — workout metrics, highlights)
     static let energy = Color("Energy")
+    static let energySoft = Color(red: 1, green: 0.94, blue: 0.88)
+    static let energyBorder = Color(red: 253 / 255, green: 186 / 255, blue: 116 / 255)
+
+    /// Primary interactive accent — maps to brand purple.
+    static let accent = TTPurple.p80
+    static let accentSoft = TTPurple.p10
+    static let accentBorder = TTPurple.p40
 
     // Semantic
     static let success = Color("Success")
     static let danger = Color("Danger")
-    static let info = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255) // #2563EB
+    static let dangerSoft = Color(red: 1, green: 0.92, blue: 0.93)
+    static let info = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     static let infoSoft = Color(red: 219 / 255, green: 234 / 255, blue: 254 / 255)
 
     // Nutrition
@@ -47,10 +71,12 @@ enum TTColor {
     // Splash / hero
     static let splash = Color("SplashBackground")
 
-    // Neumorphism pair — highlight + well on canvas.
+    // Neumorphism pair
     static let neuLight = Color.white.opacity(0.85)
     static let neuDark = Color.black.opacity(0.10)
 }
+
+// MARK: Spacing (4pt grid)
 
 enum TTSpace {
     static let xxs: CGFloat = 4
@@ -68,6 +94,8 @@ enum TTSpace {
     static let heroButtonHeight: CGFloat = 58
 }
 
+// MARK: Corner radius
+
 enum TTRadius {
     static let xs: CGFloat = 8
     static let sm: CGFloat = 12
@@ -78,7 +106,11 @@ enum TTRadius {
     static let header: CGFloat = 56
     static let avatar: CGFloat = 16
     static let pill: CGFloat = 100
+    static let button: CGFloat = 18
+    static let buttonHero: CGFloat = 28
 }
+
+// MARK: Icons
 
 enum TTIconSize {
     static let caption: CGFloat = 12
@@ -88,45 +120,215 @@ enum TTIconSize {
     static let hero: CGFloat = 28
 }
 
+// MARK: Typography — Work Sans scale
+
 enum TTFont {
-    static func display(_ size: CGFloat = 34) -> Font {
-        .system(size: size, weight: .bold, design: .default)
+    private static let family = "WorkSans-Regular"
+
+    static func workSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom(family, size: size).weight(weight)
     }
 
-    static func title(_ size: CGFloat = 22) -> Font {
-        .system(size: size, weight: .semibold, design: .default)
-    }
+    // Display
+    static func displayLG(_ weight: Font.Weight = .bold) -> Font { workSans(72, weight: weight) }
+    static func displayMD(_ weight: Font.Weight = .bold) -> Font { workSans(60, weight: weight) }
+    static func displaySM(_ weight: Font.Weight = .bold) -> Font { workSans(48, weight: weight) }
 
-    static func heading(_ size: CGFloat = 17) -> Font {
-        .system(size: size, weight: .semibold, design: .default)
-    }
+    // Heading
+    static func heading2XL(_ weight: Font.Weight = .bold) -> Font { workSans(40, weight: weight) }
+    static func headingXL(_ weight: Font.Weight = .bold) -> Font { workSans(32, weight: weight) }
+    static func headingLG(_ weight: Font.Weight = .bold) -> Font { workSans(28, weight: weight) }
+    static func headingMD(_ weight: Font.Weight = .semibold) -> Font { workSans(24, weight: weight) }
+    static func headingSM(_ weight: Font.Weight = .semibold) -> Font { workSans(20, weight: weight) }
+    static func headingXS(_ weight: Font.Weight = .semibold) -> Font { workSans(18, weight: weight) }
 
-    static func body(_ size: CGFloat = 16) -> Font {
-        .system(size: size, weight: .regular, design: .default)
-    }
+    // Text
+    static func text2XL(_ weight: Font.Weight = .regular) -> Font { workSans(20, weight: weight) }
+    static func textXL(_ weight: Font.Weight = .regular) -> Font { workSans(18, weight: weight) }
+    static func textLG(_ weight: Font.Weight = .regular) -> Font { workSans(16, weight: weight) }
+    static func textMD(_ weight: Font.Weight = .regular) -> Font { workSans(14, weight: weight) }
+    static func textSM(_ weight: Font.Weight = .medium) -> Font { workSans(12, weight: weight) }
+    static func textXS(_ weight: Font.Weight = .medium) -> Font { workSans(11, weight: weight) }
+    static func text2XS(_ weight: Font.Weight = .medium) -> Font { workSans(10, weight: weight) }
 
-    static func caption(_ size: CGFloat = 13) -> Font {
-        .system(size: size, weight: .medium, design: .default)
-    }
+    // Paragraph scale
+    static let paragraphBold = workSans(28, weight: .bold)
+    static let paragraphMedium = workSans(24, weight: .medium)
+    static let paragraphRegular = workSans(20, weight: .regular)
+    static let paragraphLight = workSans(16, weight: .light)
+    static let paragraphCaption = workSans(14, weight: .regular)
+    static let paragraphOverline = workSans(12, weight: .semibold)
 
-    static func overline(_ size: CGFloat = 12) -> Font {
-        .system(size: size, weight: .semibold, design: .default)
-    }
+    // Semantic aliases (backward compatible)
+    static func display(_ size: CGFloat = 34) -> Font { workSans(size, weight: .bold) }
+    static func title(_ size: CGFloat = 22) -> Font { workSans(size, weight: .semibold) }
+    static func heading(_ size: CGFloat = 17) -> Font { workSans(size, weight: .semibold) }
+    static func body(_ size: CGFloat = 16) -> Font { workSans(size, weight: .regular) }
+    static func caption(_ size: CGFloat = 13) -> Font { workSans(size, weight: .medium) }
+    static func overline(_ size: CGFloat = 12) -> Font { workSans(size, weight: .semibold) }
 }
+
+// MARK: Shadows
 
 enum TTShadow {
     static let card = Color.black.opacity(0.06)
     static let lifted = Color.black.opacity(0.12)
-    static let brand = TTColor.accent.opacity(0.35)
+    static let brand = TTColor.brand.opacity(0.35)
 
     static let cardRadius: CGFloat = 10
     static let cardY: CGFloat = 4
+    static let buttonRadius: CGFloat = 16
+    static let buttonY: CGFloat = 8
 }
+
+// MARK: Motion
 
 enum TTMotion {
     static let press: Double = 0.16
     static let panel: Double = 0.25
+    static let page: Double = 0.28
 }
+
+// MARK: Button tokens
+
+enum TTButtonSize {
+    case xs, sm, md, lg, xl, xxl
+
+    var height: CGFloat {
+        switch self {
+        case .xs: 36
+        case .sm: 44
+        case .md: 54
+        case .lg: 58
+        case .xl: 62
+        case .xxl: 68
+        }
+    }
+
+    var fontSize: CGFloat {
+        switch self {
+        case .xs: 12
+        case .sm: 14
+        case .md: 16
+        case .lg: 17
+        case .xl: 18
+        case .xxl: 20
+        }
+    }
+
+    var iconSize: CGFloat {
+        switch self {
+        case .xs: 12
+        case .sm: 14
+        case .md: 16
+        case .lg: 16
+        case .xl: 18
+        case .xxl: 20
+        }
+    }
+
+    var horizontalPadding: CGFloat {
+        switch self {
+        case .xs: 12
+        case .sm: 14
+        case .md: 18
+        case .lg: 20
+        case .xl: 22
+        case .xxl: 24
+        }
+    }
+
+    var cornerRadius: CGFloat {
+        switch self {
+        case .xs, .sm: TTRadius.sm
+        case .md: TTRadius.button
+        case .lg, .xl: TTRadius.buttonHero
+        case .xxl: TTRadius.xxl
+        }
+    }
+}
+
+enum TTButtonVariant {
+    /// Solid brand purple, white label.
+    case solidBrand
+    /// Soft purple tint, dark purple label.
+    case softBrand
+    /// White surface, dark border and label.
+    case outlineNeutral
+    /// Solid red, white label.
+    case solidDanger
+    /// Muted neutral fill, muted label.
+    case subtleNeutral
+    /// White fill, dark label — for dark hero backgrounds.
+    case solidSurface
+    /// Transparent with white border — for dark hero backgrounds.
+    case outlineOnDark
+    /// Dark ink fill — legacy auth CTA.
+    case solidInk
+
+    var foreground: Color {
+        switch self {
+        case .solidBrand, .solidDanger, .solidInk, .outlineOnDark:
+            return TTColor.inkOnDark
+        case .softBrand:
+            return TTColor.brandDark
+        case .outlineNeutral, .subtleNeutral, .solidSurface:
+            return TTColor.ink
+        }
+    }
+
+    var background: Color {
+        switch self {
+        case .solidBrand: return TTColor.brand
+        case .softBrand: return TTColor.brandSoft
+        case .outlineNeutral, .outlineOnDark: return .clear
+        case .solidDanger: return TTColor.danger
+        case .subtleNeutral: return TTColor.surfaceAlt
+        case .solidSurface: return TTColor.surface
+        case .solidInk: return TTColor.ink
+        }
+    }
+
+    var border: Color {
+        switch self {
+        case .outlineNeutral: return TTColor.line
+        case .outlineOnDark: return TTColor.inkOnDark.opacity(0.55)
+        default: return .clear
+        }
+    }
+
+    var borderWidth: CGFloat {
+        switch self {
+        case .outlineNeutral, .outlineOnDark: return 1
+        default: return 0
+        }
+    }
+
+    /// Subtle/muted variant foreground override.
+    func mutedForeground(_ isMuted: Bool) -> Color {
+        guard isMuted else { return foreground }
+        switch self {
+        case .solidBrand, .solidDanger, .solidInk: return TTColor.inkMuted
+        case .softBrand: return TTColor.brandLight
+        case .outlineNeutral, .subtleNeutral, .solidSurface, .outlineOnDark:
+            return TTColor.inkMuted
+        }
+    }
+
+    func mutedBackground(_ isMuted: Bool) -> Color {
+        guard isMuted else { return background }
+        switch self {
+        case .solidBrand, .solidDanger, .solidInk:
+            return TTColor.surfaceAlt
+        case .softBrand:
+            return TTColor.canvas
+        default:
+            return background
+        }
+    }
+}
+
+// MARK: Neumorphism
 
 /// Neumorphism rules:
 /// 1. Only on `TTColor.canvas` / `surfaceAlt` — never on pure white or photos.
@@ -138,7 +340,10 @@ enum TTNeu {
     static let dark = Color.black.opacity(0.08)
     static let radius: CGFloat = 8
     static let offset: CGFloat = 5
+    static let pressedScale: CGFloat = 0.98
 }
+
+// MARK: View modifiers
 
 extension View {
     func ttCard(padding: CGFloat = TTSpace.md) -> some View {
@@ -168,13 +373,28 @@ extension View {
             .shadow(color: TTNeu.dark, radius: TTNeu.radius, x: TTNeu.offset, y: TTNeu.offset)
     }
 
+    func ttNeuPressed(_ isPressed: Bool, radius: CGFloat = TTRadius.md) -> some View {
+        let lightX: CGFloat = isPressed ? TTNeu.offset / 2 : -TTNeu.offset
+        let lightY: CGFloat = isPressed ? TTNeu.offset / 2 : -TTNeu.offset
+        let darkX: CGFloat = isPressed ? -TTNeu.offset / 2 : TTNeu.offset
+        let darkY: CGFloat = isPressed ? -TTNeu.offset / 2 : TTNeu.offset
+        let lightColor = isPressed ? TTNeu.dark.opacity(0.04) : TTNeu.light
+        let darkColor = isPressed ? TTNeu.light.opacity(0.04) : TTNeu.dark
+
+        return self
+            .scaleEffect(isPressed ? TTNeu.pressedScale : 1)
+            .shadow(color: lightColor, radius: TTNeu.radius, x: lightX, y: lightY)
+            .shadow(color: darkColor, radius: TTNeu.radius, x: darkX, y: darkY)
+            .animation(.easeOut(duration: TTMotion.press), value: isPressed)
+    }
+
     func ttScreenBackground() -> some View {
         background(TTColor.canvas.ignoresSafeArea())
     }
 
     func ttPressable(_ isPressed: Bool) -> some View {
         self
-            .scaleEffect(isPressed ? 0.98 : 1)
+            .scaleEffect(isPressed ? TTNeu.pressedScale : 1)
             .animation(.easeOut(duration: TTMotion.press), value: isPressed)
     }
 }
@@ -183,5 +403,18 @@ struct TTPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .ttPressable(configuration.isPressed)
+    }
+}
+
+// MARK: Color hex helper
+
+extension Color {
+    init(hex: UInt, alpha: Double = 1) {
+        self.init(
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: alpha
+        )
     }
 }

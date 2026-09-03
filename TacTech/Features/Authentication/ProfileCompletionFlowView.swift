@@ -225,7 +225,7 @@ struct ProfileCompletionFlowView: View {
                     Text("Height · \(Int(draft.heightCm)) cm")
                         .font(.system(size: 14, weight: .semibold))
                     Slider(value: $draft.heightCm, in: 140...210, step: 1)
-                        .tint(TTColor.accent)
+                        .tint(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
                     boxedField("Weight (kg)", icon: "scalemass", text: $draft.weightText, keyboard: .decimalPad)
                 }
 
@@ -335,7 +335,7 @@ struct ProfileCompletionFlowView: View {
             Spacer()
             Image(systemName: "touchid")
                 .font(.system(size: 72, weight: .regular))
-                .foregroundStyle(TTColor.accent)
+                .foregroundStyle(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
             Text("Enable biometrics")
                 .font(.system(size: 28, weight: .bold))
             Text("Use Face ID / Touch ID for faster secure access. You can skip and do this later.")
@@ -352,7 +352,7 @@ struct ProfileCompletionFlowView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(TTColor.accent)
+                    .background(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .padding(.horizontal, 28)

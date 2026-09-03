@@ -29,14 +29,14 @@ struct TTBackButton: View {
     private var foreground: Color {
         switch style {
         case .onLight: TTColor.ink
-        case .onDark: TTColor.inkOnDark
+        case .onDark: .white
         }
     }
 
     private var background: Color {
         switch style {
-        case .onLight: TTColor.surfaceAlt
-        case .onDark: TTColor.headerWell
+        case .onLight: Color(white: 0.94)
+        case .onDark: Color(white: 0.28)
         }
     }
 }
@@ -62,29 +62,29 @@ struct TTButton: View {
                     .font(TTFont.heading(16))
             }
             .frame(maxWidth: .infinity)
-            .frame(height: TTSpace.buttonHeight)
+            .frame(height: 54)
             .foregroundStyle(foreground)
             .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: TTRadius.lg, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: TTRadius.md, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: TTRadius.lg, style: .continuous)
+                RoundedRectangle(cornerRadius: TTRadius.md, style: .continuous)
                     .stroke(border, lineWidth: style == .secondary ? 1 : 0)
             )
         }
-        .buttonStyle(TTPressStyle())
+        .buttonStyle(.plain)
         .disabled(isLoading)
     }
 
     private var foreground: Color {
         switch style {
-        case .primary: TTColor.inkOnDark
+        case .primary: TTColor.surface
         case .secondary, .ghost: TTColor.ink
         }
     }
 
     private var background: Color {
         switch style {
-        case .primary: TTColor.accent
+        case .primary: TTColor.brand
         case .secondary: TTColor.surface
         case .ghost: .clear
         }
@@ -123,8 +123,8 @@ struct TTTextField: View {
                 .font(TTFont.body(16))
                 .foregroundStyle(TTColor.ink)
             }
-            .padding(.horizontal, TTSpace.md)
-            .frame(height: TTSpace.fieldHeight)
+            .padding(.horizontal, 14)
+            .frame(height: 54)
             .background(TTColor.surfaceAlt)
             .clipShape(RoundedRectangle(cornerRadius: TTRadius.sm, style: .continuous))
         }

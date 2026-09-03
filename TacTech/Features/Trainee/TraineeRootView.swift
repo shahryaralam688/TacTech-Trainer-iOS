@@ -25,6 +25,6 @@ struct TraineeRootView: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
                 .tag(TraineeTab.profile)
         }
-        .tint(TTColor.accent)
+        .tint(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
     }
 }

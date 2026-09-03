@@ -13,14 +13,14 @@ struct SplashView: View {
                     .padding(.bottom, TTSpace.xxs)
 
                 Text("TacTech Trainer App")
-                    .font(TTFont.display(26))
+                    .font(TTFont.headingLG())
                     .foregroundStyle(TTColor.inkOnDark)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.8)
 
                 Text("Your personal AI fitness coach.")
-                    .font(TTFont.body(16))
-                    .foregroundStyle(TTColor.inkOnDark.opacity(0.92))
+                    .font(TTFont.textLG())
+                    .foregroundStyle(TTColor.inkOnDarkMuted)
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, TTSpace.xxl)
@@ -70,8 +70,9 @@ private struct GymMorphIcon: View {
         .fill(
             LinearGradient(
                 colors: [
-                    Color.white,
-                    Color(red: 1, green: 0.93, blue: 0.86)
+                    TTPurple.p30,
+                    TTPurple.p10,
+                    Color.white
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

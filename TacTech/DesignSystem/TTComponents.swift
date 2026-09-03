@@ -41,6 +41,57 @@ struct TTBackButton: View {
     }
 }
 
+/// Account Settings–style dark page header — bottom corners only, status-bar bleed.
+struct TTDarkPageHeader: View {
+    let title: String
+    var showsBack: Bool = true
+    var onBack: (() -> Void)? = nil
+
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+
+    init(title: String, showsBack: Bool = true, onBack: (() -> Void)? = nil) {
+        self.title = title
+        self.showsBack = showsBack
+        self.onBack = onBack
+    }
+
+    /// Trailing-closure convenience — always shows the back button.
+    init(title: String, onBack: @escaping () -> Void) {
+        self.title = title
+        self.showsBack = true
+        self.onBack = onBack
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if showsBack {
+                TTBackButton(style: .onDark) {
+                    onBack?()
+                }
+            }
+
+            Text(title)
+                .font(TTFont.headingLG(.bold))
+                .foregroundStyle(.white)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 20)
+        .padding(.top, showsBack ? 10 : 18)
+        .padding(.bottom, 32)
+        .background {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 36,
+                bottomTrailingRadius: 36,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+            .fill(charcoal)
+            .ignoresSafeArea(edges: .top)
+        }
+    }
+}
+
 struct TTButton: View {
     enum Style { case primary, secondary, ghost }
 

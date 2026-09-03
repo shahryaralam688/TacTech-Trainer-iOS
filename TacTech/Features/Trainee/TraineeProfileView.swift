@@ -2,40 +2,54 @@ import SwiftUI
 
 struct TraineeProfileView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    /// When opened as a sheet from Home, show the back button.
+    var showsBack: Bool = false
+
     @State private var invite = ""
     @State private var message: String?
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    TTScreenHeader(eyebrow: "Account", title: "Profile")
-                    identity
-                    MyTrainerCard()
-                    joinCard
+            VStack(spacing: 0) {
+                TTDarkPageHeader(
+                    title: "Profile",
+                    showsBack: showsBack,
+                    onBack: { dismiss() }
+                )
 
-                    NavigationLink {
-                        AccountSettingsView()
-                    } label: {
-                        HStack {
-                            Image(systemName: "gearshape.fill")
-                            Text("Account Settings & Help")
-                                .font(.system(size: 16, weight: .semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right")
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        identity
+                        MyTrainerCard()
+                        joinCard
+
+                        NavigationLink {
+                            AccountSettingsView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "gearshape.fill")
+                                Text("Account Settings & Help")
+                                    .font(TTFont.textLG(.semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .frame(height: 54)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(height: 54)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
                 }
-                .padding(20)
             }
-            .ttScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
+            .background(Color.white.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 
@@ -118,18 +132,12 @@ struct MyTrainerCard: View {
                         Text(user.name)
                             .font(TTFont.heading(16))
                         Text(trainer.specialty)
-                            .font(TTFont.caption(12))
+                            .font(TTFont.body(13))
                             .foregroundStyle(TTColor.inkMuted)
                     }
                 }
-                Text(trainer.bio)
-                    .font(TTFont.body(14))
-                    .foregroundStyle(TTColor.inkMuted)
-                Text("\(trainer.yearsExperience) years coaching")
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.brand)
             } else {
-                Text("You are not linked to a trainer yet. Use an invite code below.")
+                Text("No trainer linked yet. Use an invite code below.")
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
             }

@@ -37,7 +37,7 @@ struct TrainerDashboardView: View {
             .onPreferenceChange(TrainerHeaderHeightKey.self) { headerHeight = $0 }
             .background(canvas.ignoresSafeArea())
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showProfile) { TrainerProfileView() }
+            .sheet(isPresented: $showProfile) { TrainerProfileView(showsBack: true) }
         }
     }
 

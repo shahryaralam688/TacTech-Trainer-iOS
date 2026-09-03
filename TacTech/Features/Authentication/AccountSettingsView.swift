@@ -53,29 +53,9 @@ struct AccountSettingsView: View {
         }
     }
 
-    /// Dark header — black bleed under status bar; bottom corners rounded.
     private var settingsHeader: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            TTBackButton(style: .onDark) { dismiss() }
-
-            Text("Account Settings")
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(.white)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 10)
-        .padding(.bottom, 32)
-        .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 36,
-                bottomTrailingRadius: 36,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .fill(charcoal)
-            .ignoresSafeArea(edges: .top)
+        TTDarkPageHeader(title: "Account Settings") {
+            dismiss()
         }
     }
 

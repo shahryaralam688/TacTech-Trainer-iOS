@@ -2,37 +2,50 @@ import SwiftUI
 
 struct TrainerProfileView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+
+    /// When opened as a sheet from Home, show the back button.
+    var showsBack: Bool = false
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    TTScreenHeader(eyebrow: "Account", title: "Profile")
-                    profileCard
-                    inviteCard
+            VStack(spacing: 0) {
+                TTDarkPageHeader(
+                    title: "Profile",
+                    showsBack: showsBack,
+                    onBack: { dismiss() }
+                )
 
-                    NavigationLink {
-                        AccountSettingsView()
-                    } label: {
-                        HStack {
-                            Image(systemName: "gearshape.fill")
-                            Text("Account Settings & Help")
-                                .font(.system(size: 16, weight: .semibold))
-                            Spacer()
-                            Image(systemName: "chevron.right")
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        profileCard
+                        inviteCard
+
+                        NavigationLink {
+                            AccountSettingsView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "gearshape.fill")
+                                Text("Account Settings & Help")
+                                    .font(TTFont.textLG(.semibold))
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .frame(height: 54)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         }
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(height: 54)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
                 }
-                .padding(20)
             }
-            .ttScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
+            .background(Color.white.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 

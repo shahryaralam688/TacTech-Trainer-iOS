@@ -47,7 +47,7 @@ struct TraineeDashboardView: View {
                     await store.refreshDay(for: trainee.id, on: selectedDay)
                 }
             }
-            .sheet(isPresented: $showProfile) { TraineeProfileView() }
+            .sheet(isPresented: $showProfile) { TraineeProfileView(showsBack: true) }
             .sheet(isPresented: $showProgress) { TraineeProgressView() }
             .sheet(isPresented: $showNutrition) { NutritionView() }
             .sheet(isPresented: $showWorkouts) { WorkoutHubView() }

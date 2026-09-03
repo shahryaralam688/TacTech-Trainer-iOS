@@ -27,8 +27,9 @@ struct TraineeDashboardView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
+                        // Execution first → snapshot → support
+                        todayWorkoutSection
                         fitnessMetrics
-                        workoutsSection
                         dietSection
                         activitiesSection
                         coachSection
@@ -91,9 +92,20 @@ struct TraineeDashboardView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .bars)
-                    metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
-                    metricCard(title: "Calories", value: "\(caloriesToday)", icon: "flame.fill", tint: Color(white: 0.28), chart: .dots)
+                    Button { showProgress = true } label: {
+                        metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .bars)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { showNutrition = true } label: {
+                        metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button { showNutrition = true } label: {
+                        metricCard(title: "Calories", value: "\(caloriesToday)", icon: "flame.fill", tint: Color(white: 0.28), chart: .dots)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
         }
@@ -154,27 +166,25 @@ struct TraineeDashboardView: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
-    // MARK: - Workouts
+    // MARK: - Today's Workout (primary CTA)
 
-    private var workoutsSection: some View {
+    private var todayWorkoutSection: some View {
         let plan = store.currentTrainee.flatMap { store.assignedPlan(for: $0) }
         let session = plan?.session(on: selectedDay) ?? plan?.nextSession(from: selectedDay)
         let minutes = session?.durationMinutes ?? plan?.durationMinutes ?? 25
         let kcal = max(minutes * 12, 180)
         let series = session?.exercises.count ?? plan?.allExercises.count ?? 0
         let level = plan?.level ?? "Training"
+        let title = session?.title ?? plan?.title ?? "Today’s training"
+        let subtitle = series > 0
+            ? "\(series) exercises · \(plan?.focus ?? "Full body")"
+            : (plan?.focus ?? "Ask your trainer for a plan")
 
         return VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Workouts (\(workoutCount))") {
-                Button {
-                    showWorkouts = true
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(white: 0.35))
-                        .frame(width: 32, height: 32)
-                }
-                .buttonStyle(.plain)
+            sectionHeader("Today’s Workout") {
+                Button("See All") { showWorkouts = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
             }
 
             ZStack(alignment: .topLeading) {
@@ -186,7 +196,7 @@ struct TraineeDashboardView: View {
                     .clipped()
 
                 LinearGradient(
-                    colors: [.black.opacity(0.25), .clear, .black.opacity(0.72)],
+                    colors: [.black.opacity(0.25), .clear, .black.opacity(0.78)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -194,52 +204,76 @@ struct TraineeDashboardView: View {
                 HStack(spacing: 8) {
                     workoutPill(icon: "clock", text: "\(minutes)min")
                     workoutPill(icon: "flame.fill", text: "\(kcal)kcal")
+                    if plan != nil {
+                        workoutPill(icon: "calendar", text: selectedDay.formatted(.dateTime.weekday(.abbreviated)))
+                    }
                 }
                 .padding(14)
 
                 VStack {
                     Spacer()
-                    HStack(alignment: .bottom) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(session?.title ?? plan?.title ?? "Today’s training")
-                                .font(.system(size: 22, weight: .bold))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(title)
+                            .font(TTFont.headingMD(.bold))
+                            .foregroundStyle(.white)
+
+                        HStack(spacing: 8) {
+                            Text(subtitle)
+                                .font(TTFont.textMD(.medium))
+                                .foregroundStyle(.white.opacity(0.88))
+                                .lineLimit(1)
+
+                            Text(level.lowercased())
+                                .font(TTFont.textXS(.bold))
                                 .foregroundStyle(.white)
-
-                            HStack(spacing: 8) {
-                                Text(series > 0 ? "\(series) Series Workout" : (plan?.focus ?? "Ask your trainer for a plan"))
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(.white.opacity(0.88))
-
-                                Text(level.lowercased())
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(orange)
-                                    .clipShape(Capsule())
-                            }
-                        }
-
-                        Spacer(minLength: 8)
-
-                        if let plan {
-                            NavigationLink {
-                                ActiveWorkoutView(plan: plan, day: session)
-                            } label: {
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(width: 48, height: 48)
-                                    .background(orange)
-                                    .clipShape(Circle())
-                                    .shadow(color: orange.opacity(0.4), radius: 8, y: 4)
-                            }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(orange)
+                                .clipShape(Capsule())
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+
+            if let plan {
+                NavigationLink {
+                    ActiveWorkoutView(plan: plan, day: session)
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 14, weight: .bold))
+                        Text(session == nil ? "Start Next Session" : "Start Today’s Workout")
+                            .font(TTFont.textLG(.bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(orange)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
+                }
+                .buttonStyle(.plain)
+            } else {
+                Button {
+                    showProfile = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "link")
+                            .font(.system(size: 14, weight: .bold))
+                        Text("Link a trainer to get workouts")
+                            .font(TTFont.textLG(.bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 
@@ -478,10 +512,10 @@ struct TraineeDashboardView: View {
         } ?? "Your trainer"
 
         return VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Your Coach") {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(white: 0.35))
+            sectionHeader("My Coach") {
+                Button("Profile") { showProfile = true }
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(orange)
             }
 
             ZStack(alignment: .bottomLeading) {

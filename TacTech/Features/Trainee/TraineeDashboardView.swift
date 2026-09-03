@@ -55,125 +55,27 @@ struct TraineeDashboardView: View {
     }
 
     // MARK: - Header
-    // Static black card — bottom corners only rounded. Content scrolls below.
 
     private var darkHeader: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack(alignment: .center) {
-                HStack(spacing: 6) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 12, weight: .semibold))
-                    Text(headerDate)
-                        .font(.system(size: 12, weight: .semibold))
-                        .tracking(0.8)
-                }
-                .foregroundStyle(Color.white.opacity(0.72))
-
-                Spacer()
-
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 42, height: 42)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    if notificationCount > 0 {
-                        Text("\(min(notificationCount, 9))")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 18, height: 18)
-                            .background(orange)
-                            .clipShape(Circle())
-                            .offset(x: 4, y: -4)
-                    }
-                }
-            }
-
-            Button {
-                showProfile = true
-            } label: {
-                HStack(spacing: 14) {
-                    avatarView
-
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text("Hello, \(firstName)!")
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundStyle(.white)
-
-                        HStack(spacing: 8) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(orange)
-                            Text("\(healthScore)% Healthy")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white)
-
-                            Circle()
-                                .fill(Color.white.opacity(0.35))
-                                .frame(width: 3, height: 3)
-                                .padding(.horizontal, 2)
-
-                            Image(systemName: "star.fill")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(blue)
-                            Text("Pro")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundStyle(.white)
-                        }
-                    }
-
-                    Spacer(minLength: 0)
-
-                    TTIcon(icon: .chevronRight, size: 18)
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 22)
-        .padding(.top, 10)
-        .padding(.bottom, 44)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            ZStack {
-                Color.black
-                HomeHeaderBands()
-                    .fill(Color.white.opacity(0.05))
-            }
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 56,
-                    bottomTrailingRadius: 56,
-                    topTrailingRadius: 0,
-                    style: .continuous
+        TTHomeProfileHeader(
+            name: firstName,
+            avatarSymbol: avatarSymbol,
+            badgeCount: notificationCount,
+            metrics: [
+                TTHomeProfileMetric(
+                    id: "health",
+                    icon: .plus,
+                    iconColor: orange,
+                    text: "\(healthScore)% Healthy"
+                ),
+                TTHomeProfileMetric(
+                    id: "pro",
+                    icon: .starFull,
+                    iconColor: blue,
+                    text: "Pro"
                 )
-            )
-            .ignoresSafeArea(edges: .top)
-        }
-        .zIndex(1)
-    }
-
-    private var avatarView: some View {
-        ZStack {
-            Circle()
-                .fill(Color.white.opacity(0.14))
-                .frame(width: 58, height: 58)
-            if let symbol = avatarSymbol {
-                Image(systemName: symbol)
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundStyle(.white)
-            } else {
-                Text(String(firstName.prefix(1)).uppercased())
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(.white)
-            }
-        }
-        .overlay(
-            Circle()
-                .strokeBorder(Color.white.opacity(0.25), lineWidth: 1.5)
+            ],
+            onProfileTap: { showProfile = true }
         )
     }
 
@@ -732,11 +634,6 @@ struct TraineeDashboardView: View {
         store.currentUser?.name.components(separatedBy: " ").first ?? "Athlete"
     }
 
-    private var headerDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: Date()).uppercased()
-    }
 
     private var healthScore: Int {
         if let score = store.currentTrainee.flatMap({ store.formReports(for: $0.id).first?.score }) {
@@ -901,29 +798,6 @@ private struct ActivityLineChart: View {
 }
 
 // MARK: - Shapes
-
-private struct HomeHeaderBands: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        // Top-left ribbons
-        path.move(to: CGPoint(x: -40, y: 20))
-        path.addQuadCurve(to: CGPoint(x: 120, y: -10), control: CGPoint(x: 40, y: -30))
-        path.addQuadCurve(to: CGPoint(x: -20, y: 90), control: CGPoint(x: 70, y: 40))
-        path.closeSubpath()
-
-        path.move(to: CGPoint(x: -30, y: 50))
-        path.addQuadCurve(to: CGPoint(x: 90, y: 10), control: CGPoint(x: 30, y: 0))
-        path.addQuadCurve(to: CGPoint(x: -10, y: 110), control: CGPoint(x: 50, y: 55))
-        path.closeSubpath()
-
-        // Bottom-right ribbons
-        path.move(to: CGPoint(x: rect.maxX + 30, y: rect.maxY - 10))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX - 130, y: rect.maxY + 20), control: CGPoint(x: rect.maxX - 40, y: rect.maxY + 40))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX + 10, y: rect.maxY - 80), control: CGPoint(x: rect.maxX - 60, y: rect.maxY - 30))
-        path.closeSubpath()
-        return path
-    }
-}
 
 private struct WaveShape: Shape {
     func path(in rect: CGRect) -> Path {

@@ -16,6 +16,7 @@
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
 		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
+		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
 		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
 		490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */; };
 		49EC3A1501EF2F496437C2DE /* TrainerAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */; };
@@ -65,6 +66,7 @@
 		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
+		42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeHeader.swift; sourceTree = "<group>"; };
 		48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentSteps.swift; sourceTree = "<group>"; };
 		4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessment.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 			children = (
 				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
+				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
 				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
 			);
 			path = DesignSystem;
@@ -340,6 +343,7 @@
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
+				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
 				87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */,

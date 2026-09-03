@@ -1,30 +1,50 @@
 import SwiftUI
 
 enum TraineeTab: Hashable {
-    case home, workout, nutrition, progress, profile
+    case home, workout, nutrition, profile
 }
 
 struct TraineeRootView: View {
     @State private var tab: TraineeTab = .home
+    @State private var showQuickActions = false
+
+    private let tabs: [TTTabBarItem<TraineeTab>] = [
+        TTTabBarItem(.home, icon: .house1, label: "Home"),
+        TTTabBarItem(.workout, icon: .barbellDiagonal, label: "Workout"),
+        TTTabBarItem(.nutrition, icon: .forkKnife, label: "Nutrition"),
+        TTTabBarItem(.profile, icon: .user, label: "Profile")
+    ]
 
     var body: some View {
-        TabView(selection: $tab) {
-            TraineeDashboardView()
-                .tabItem { Label("Home", systemImage: "house.fill") }
-                .tag(TraineeTab.home)
-            WorkoutHubView()
-                .tabItem { Label("Workout", systemImage: "dumbbell.fill") }
-                .tag(TraineeTab.workout)
-            NutritionView()
-                .tabItem { Label("Nutrition", systemImage: "fork.knife") }
-                .tag(TraineeTab.nutrition)
-            TraineeProgressView()
-                .tabItem { Label("Progress", systemImage: "chart.dots.scatter") }
-                .tag(TraineeTab.progress)
-            TraineeProfileView()
-                .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
-                .tag(TraineeTab.profile)
+        Group {
+            switch tab {
+            case .home:
+                TraineeDashboardView()
+            case .workout:
+                WorkoutHubView()
+            case .nutrition:
+                NutritionView()
+            case .profile:
+                TraineeProfileView()
+            }
         }
-        .tint(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            TTFloatingTabBar(
+                tabs: tabs,
+                selection: $tab,
+                onCenterTap: { showQuickActions = true }
+            )
+            .padding(.horizontal, 18)
+            .padding(.top, 4)
+            .padding(.bottom, 6)
+        }
+        .ignoresSafeArea(.keyboard)
+        .confirmationDialog("Quick action", isPresented: $showQuickActions, titleVisibility: .visible) {
+            Button("Workouts") { tab = .workout }
+            Button("Nutrition") { tab = .nutrition }
+            Button("Profile") { tab = .profile }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 }

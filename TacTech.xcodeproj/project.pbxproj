@@ -50,6 +50,7 @@
 		DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */; };
 		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
 		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
+		F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
 /* End PBXBuildFile section */
 
@@ -61,6 +62,7 @@
 		135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessment.swift; sourceTree = "<group>"; };
 		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Variable.ttf"; sourceTree = "<group>"; };
+		198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTabBar.swift; sourceTree = "<group>"; };
 		1B9A70DAFDFB21AC3A620021 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
@@ -127,6 +129,7 @@
 				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
+				198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */,
 				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
 			);
 			path = DesignSystem;
@@ -364,6 +367,7 @@
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
+				F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
 				87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */,

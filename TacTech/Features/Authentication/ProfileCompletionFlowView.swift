@@ -646,3 +646,8 @@ struct ProfileCompletionDraft {
         "figure.yoga", "heart.fill", "flame.fill", "star.fill", "bolt.fill"
     ]
 }
+
+#Preview("Profile Completion") {
+    ProfileCompletionFlowView()
+        .ttPreviewTrainee()
+}

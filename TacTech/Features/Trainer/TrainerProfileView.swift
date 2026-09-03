@@ -104,3 +104,13 @@ struct TrainerProfileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
+
+#Preview("Trainer Profile · Tab") {
+    TrainerProfileView()
+        .ttPreviewTrainer()
+}
+
+#Preview("Trainer Profile · Sheet") {
+    TrainerProfileView(showsBack: true)
+        .ttPreviewTrainer()
+}

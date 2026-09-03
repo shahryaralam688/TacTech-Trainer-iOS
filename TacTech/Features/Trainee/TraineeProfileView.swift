@@ -145,3 +145,13 @@ struct MyTrainerCard: View {
         .ttCard()
     }
 }
+
+#Preview("Trainee Profile · Tab") {
+    TraineeProfileView()
+        .ttPreviewTrainee()
+}
+
+#Preview("Trainee Profile · Sheet") {
+    TraineeProfileView(showsBack: true)
+        .ttPreviewTrainee()
+}

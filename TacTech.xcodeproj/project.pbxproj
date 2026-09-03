@@ -32,6 +32,7 @@
 		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
+		75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */; };
 		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
 		87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */; };
 		8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE907B791C2450F8D414132 /* TrainerProfileView.swift */; };
@@ -89,6 +90,7 @@
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
 		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
+		9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport.swift; sourceTree = "<group>"; };
 		9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDetailView.swift; sourceTree = "<group>"; };
 		9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Bold.ttf"; sourceTree = "<group>"; };
 		AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodRecognizer.swift; sourceTree = "<group>"; };
@@ -157,6 +159,7 @@
 				2A23B3A3CC9ACF04C627257C /* DesignSystem */,
 				A1B0FFD5E9FB389C2071F3FD /* Features */,
 				D4625652EBF91AE0A8825CE0 /* Models */,
+				CE8C5D3950B9C2765A6DCFF9 /* Preview */,
 				A5E3A8F74BD148BDFCF6746E /* Resources */,
 			);
 			path = TacTech;
@@ -213,6 +216,14 @@
 				14D015CAC32F4E0E32219B29 /* Fonts */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		CE8C5D3950B9C2765A6DCFF9 /* Preview */ = {
+			isa = PBXGroup;
+			children = (
+				9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */,
+			);
+			path = Preview;
 			sourceTree = "<group>";
 		};
 		D4625652EBF91AE0A8825CE0 /* Models */ = {
@@ -361,6 +372,7 @@
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
+				75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */,
 				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,

@@ -51,3 +51,8 @@ struct TrainerRootView: View {
         }
     }
 }
+
+#Preview("Trainer Root") {
+    TrainerRootView()
+        .ttPreviewTrainer()
+}

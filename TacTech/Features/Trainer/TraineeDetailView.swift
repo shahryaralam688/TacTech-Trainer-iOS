@@ -216,3 +216,10 @@ struct TraineeDetailView: View {
         .ttCard()
     }
 }
+
+#Preview("Trainee Detail") {
+    NavigationStack {
+        TraineeDetailView(trainee: TTPreview.sampleTrainee)
+            .ttPreviewTrainer()
+    }
+}

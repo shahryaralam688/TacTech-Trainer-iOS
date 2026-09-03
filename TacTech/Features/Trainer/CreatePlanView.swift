@@ -479,3 +479,8 @@ extension Date {
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
     }
 }
+
+#Preview("Create Plan") {
+    CreatePlanView()
+        .ttPreviewTrainer()
+}

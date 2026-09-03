@@ -1147,3 +1147,8 @@ private func title(_ text: String) -> some View {
         .padding(.top, 24)
         .padding(.horizontal, 20)
 }
+
+#Preview("Trainer Assessment") {
+    TrainerAssessmentFlowView()
+        .ttPreviewTrainer()
+}

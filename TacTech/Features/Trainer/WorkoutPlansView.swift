@@ -240,3 +240,15 @@ struct ExercisePrescriptionCard: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
+
+#Preview("Workout Plans") {
+    WorkoutPlansView()
+        .ttPreviewTrainer()
+}
+
+#Preview("Plan Detail") {
+    NavigationStack {
+        WorkoutPlanDetailView(plan: TTPreview.samplePlan)
+            .ttPreviewTrainer()
+    }
+}

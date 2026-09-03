@@ -216,3 +216,15 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
             .animation(.easeOut(duration: 0.16), value: configuration.isPressed)
     }
 }
+
+#Preview("Home Header") {
+    TTHomeProfileHeader(
+        name: "Maya",
+        badgeCount: 2,
+        metrics: [
+            TTHomeProfileMetric(id: "h", icon: .plus, iconColor: TTColor.actionOrange, text: "86% Healthy"),
+            TTHomeProfileMetric(id: "p", icon: .starFull, iconColor: .blue, text: "Pro")
+        ],
+        onProfileTap: {}
+    )
+}

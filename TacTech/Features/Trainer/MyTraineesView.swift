@@ -87,3 +87,8 @@ struct MyTraineesView: View {
         }
     }
 }
+
+#Preview("My Trainees") {
+    MyTraineesView()
+        .ttPreviewTrainer()
+}

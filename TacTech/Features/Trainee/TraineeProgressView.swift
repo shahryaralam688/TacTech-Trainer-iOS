@@ -81,3 +81,10 @@ struct TraineeProgressView: View {
         }
     }
 }
+
+#Preview("Trainee Progress") {
+    NavigationStack {
+        TraineeProgressView()
+            .ttPreviewTrainee()
+    }
+}

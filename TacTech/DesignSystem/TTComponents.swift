@@ -488,3 +488,22 @@ private struct TTDropPickerSheet<Value: Hashable>: View {
         }
     }
 }
+
+#Preview("Dark Page Header") {
+    VStack(spacing: 0) {
+        TTDarkPageHeader(title: "Profile", showsBack: true, onBack: {})
+        Spacer()
+    }
+    .background(Color.white)
+}
+
+#Preview("Buttons & Fields") {
+    VStack(spacing: 16) {
+        TTBackButton(style: .onLight) {}
+        TTButton(title: "Continue", action: {})
+        TTButton(title: "Secondary", style: .secondary, action: {})
+        TTAvatar(name: "Maya Athlete", size: 64)
+    }
+    .padding()
+    .ttPreviewTrainee()
+}

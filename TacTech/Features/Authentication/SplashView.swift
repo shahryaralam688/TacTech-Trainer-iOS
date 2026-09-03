@@ -230,6 +230,6 @@ private enum GymMorphGlyph: CaseIterable {
     }
 }
 
-#Preview {
+#Preview("Splash") {
     SplashView()
 }

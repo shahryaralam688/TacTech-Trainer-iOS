@@ -41,6 +41,18 @@ final class AppStore {
         Task { await restoreIfNeeded() }
     }
 
+    /// Canvas / Xcode Previews — skips network restore and loads demo data.
+    init(previewRole: UserRole) {
+        isRestoringSession = false
+        assessmentCompleted = true
+        profileSetupCompleted = true
+        seedPreviewData(as: previewRole)
+    }
+
+    static func preview(role: UserRole) -> AppStore {
+        AppStore(previewRole: role)
+    }
+
     func restoreIfNeeded() async {
         defer { isRestoringSession = false }
         guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
@@ -630,6 +642,201 @@ final class AppStore {
         foodCatalog = SeedData.foodCatalog
         assessmentCompleted = false
         profileSetupCompleted = false
+    }
+
+    // MARK: - Preview seeding
+
+    private func seedPreviewData(as role: UserRole) {
+        let now = Date()
+        let trainerUser = User(
+            id: "user-trainer-preview",
+            name: "Alex Coach",
+            email: "trainer@tactech.app",
+            password: "preview",
+            role: .trainer,
+            createdAt: now
+        )
+        let traineeUser = User(
+            id: "user-trainee-preview",
+            name: "Maya Athlete",
+            email: "trainee@tactech.app",
+            password: "preview",
+            role: .trainee,
+            createdAt: now
+        )
+        let traineeUser2 = User(
+            id: "user-trainee-preview-2",
+            name: "Jordan Lee",
+            email: "jordan@tactech.app",
+            password: "preview",
+            role: .trainee,
+            createdAt: now
+        )
+
+        let trainer = TrainerProfile(
+            id: "trainer-preview",
+            userId: trainerUser.id,
+            inviteCode: "TACT-MAYA",
+            specialty: "Strength & Conditioning",
+            yearsExperience: 8,
+            bio: "Helping athletes move better every week.",
+            gender: "Male",
+            location: "Karachi"
+        )
+
+        let trainee = TraineeProfile(
+            id: "trainee-preview",
+            userId: traineeUser.id,
+            trainerId: trainer.id,
+            goal: "Build strength",
+            heightCm: 168,
+            weightKg: 62,
+            dailyCalorieTarget: 2100,
+            gender: "Female",
+            location: "Karachi"
+        )
+        let trainee2 = TraineeProfile(
+            id: "trainee-preview-2",
+            userId: traineeUser2.id,
+            trainerId: trainer.id,
+            goal: "Fat loss",
+            heightCm: 178,
+            weightKg: 82,
+            dailyCalorieTarget: 2400,
+            gender: "Male",
+            location: "Lahore"
+        )
+
+        let squat = Exercise(
+            id: "ex-squat",
+            name: "Back Squat",
+            muscleGroup: "Legs",
+            equipment: "Barbell",
+            difficulty: "Intermediate",
+            cues: ["Brace core", "Knees track toes"],
+            icon: "figure.strengthtraining.traditional"
+        )
+        let press = Exercise(
+            id: "ex-press",
+            name: "Bench Press",
+            muscleGroup: "Chest",
+            equipment: "Barbell",
+            difficulty: "Intermediate",
+            cues: ["Retract scapula", "Control the descent"],
+            icon: "dumbbell.fill"
+        )
+
+        let we1 = WorkoutExercise(
+            id: "we-1",
+            exerciseId: squat.id,
+            sets: 4,
+            reps: 8,
+            restSeconds: 90,
+            recommendedWeightKg: 40
+        )
+        let we2 = WorkoutExercise(
+            id: "we-2",
+            exerciseId: press.id,
+            sets: 3,
+            reps: 10,
+            restSeconds: 75,
+            recommendedWeightKg: 30
+        )
+
+        let todayWeekday = Weekday.from(date: now)
+        let planDay = PlanDay(
+            id: "day-today",
+            weekday: todayWeekday,
+            startTime: "18:00",
+            title: "Full Body Strength",
+            focus: "Compound lifts",
+            durationMinutes: 45,
+            location: "Gym",
+            warmup: "5 min bike",
+            cooldown: "Stretch",
+            coachNotes: "Keep form crisp",
+            exercises: [we1, we2]
+        )
+
+        let plan = WorkoutPlan(
+            id: "plan-preview",
+            trainerId: trainer.id,
+            title: "Athlete Base Plan",
+            focus: "Full body",
+            durationMinutes: 45,
+            level: "Intermediate",
+            daysPerWeek: 4,
+            exercises: [we1, we2],
+            notes: "Preview plan",
+            days: [planDay]
+        )
+
+        let assignment = PlanAssignment(
+            id: "assign-preview",
+            planId: plan.id,
+            traineeId: trainee.id,
+            assignedAt: now
+        )
+
+        let meal = Meal(
+            id: "meal-preview",
+            traineeId: trainee.id,
+            name: "Grilled Chicken Bowl",
+            eatenAt: now,
+            portionGrams: 320,
+            macros: MacroEstimate(calories: 480, protein: 42, carbs: 38, fat: 14),
+            source: "manual",
+            isEstimate: false
+        )
+
+        let log = WorkoutLog(
+            id: "log-preview",
+            traineeId: trainee.id,
+            planId: plan.id,
+            completedAt: Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now,
+            durationMinutes: 42,
+            sets: [
+                WorkoutSetLog(id: "set-1", exerciseId: squat.id, setNumber: 1, reps: 8, weightKg: 40)
+            ]
+        )
+
+        let note = TrainerFeedback(
+            id: "fb-preview",
+            trainerId: trainer.id,
+            traineeId: trainee.id,
+            message: "Great depth on squats — keep bracing.",
+            createdAt: now,
+            relatedExerciseId: squat.id
+        )
+
+        let form = FormReport(
+            id: "form-preview",
+            traineeId: trainee.id,
+            exerciseId: squat.id,
+            createdAt: now,
+            score: 86,
+            cues: ["Brace earlier", "Drive through mid-foot"],
+            repCount: 8
+        )
+
+        users = [trainerUser, traineeUser, traineeUser2]
+        trainers = [trainer]
+        trainees = [trainee, trainee2]
+        exercises = [squat, press]
+        plans = [plan]
+        assignments = [assignment]
+        meals = [meal]
+        workoutLogs = [log]
+        feedback = [note]
+        formReports = [form]
+        foodCatalog = SeedData.foodCatalog
+
+        switch role {
+        case .trainer:
+            session = Session(userId: trainerUser.id, role: .trainer)
+        case .trainee:
+            session = Session(userId: traineeUser.id, role: .trainee)
+        }
     }
 }
 

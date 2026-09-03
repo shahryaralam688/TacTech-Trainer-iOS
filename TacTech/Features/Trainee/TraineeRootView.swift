@@ -51,3 +51,8 @@ struct TraineeRootView: View {
         }
     }
 }
+
+#Preview("Trainee Root") {
+    TraineeRootView()
+        .ttPreviewTrainee()
+}

@@ -165,3 +165,8 @@ struct FitnessAssessmentFlowView: View {
         }
     }
 }
+
+#Preview("Fitness Assessment") {
+    FitnessAssessmentFlowView()
+        .ttPreviewTrainee()
+}

@@ -89,3 +89,10 @@ struct SessionPoint {
     var day: Date
     var count: Int
 }
+
+#Preview("Trainer Progress") {
+    NavigationStack {
+        TrainerProgressView()
+            .ttPreviewTrainer()
+    }
+}

@@ -381,3 +381,15 @@ struct ActiveWorkoutView: View {
         }
     }
 }
+
+#Preview("Workout Hub") {
+    WorkoutHubView()
+        .ttPreviewTrainee()
+}
+
+#Preview("Active Workout") {
+    NavigationStack {
+        ActiveWorkoutView(plan: TTPreview.samplePlan, day: TTPreview.samplePlan.session(on: .now))
+            .ttPreviewTrainee()
+    }
+}

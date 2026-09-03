@@ -213,3 +213,15 @@ struct ManualMealView: View {
         )
     }
 }
+
+#Preview("Nutrition") {
+    NutritionView()
+        .ttPreviewTrainee()
+}
+
+#Preview("Manual Meal") {
+    NavigationStack {
+        ManualMealView(day: .now)
+            .ttPreviewTrainee()
+    }
+}

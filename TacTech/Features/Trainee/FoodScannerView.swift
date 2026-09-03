@@ -200,3 +200,10 @@ struct CameraImagePicker: UIViewControllerRepresentable {
         }
     }
 }
+
+#Preview("Food Scanner") {
+    NavigationStack {
+        FoodScannerView()
+            .ttPreviewTrainee()
+    }
+}

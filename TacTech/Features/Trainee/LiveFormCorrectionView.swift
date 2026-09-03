@@ -113,3 +113,10 @@ struct LiveFormCorrectionView: View {
         .padding()
     }
 }
+
+#Preview("Live Form") {
+    NavigationStack {
+        LiveFormCorrectionView(initialExerciseId: "ex-squat")
+            .ttPreviewTrainee()
+    }
+}

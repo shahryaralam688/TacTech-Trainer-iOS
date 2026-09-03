@@ -238,3 +238,19 @@ struct RoleSelectionView: View {
         }
     }
 }
+
+#Preview("Auth Flow") {
+    AuthFlowView()
+        .ttPreviewTrainee()
+}
+
+#Preview("Welcome") {
+    WelcomeView(onLogin: {}, onSignup: {})
+}
+
+#Preview("Role Selection") {
+    NavigationStack {
+        RoleSelectionView(draft: SignupDraft(name: "Maya", email: "trainee@tactech.app", password: "secret1"))
+            .ttPreviewTrainee()
+    }
+}

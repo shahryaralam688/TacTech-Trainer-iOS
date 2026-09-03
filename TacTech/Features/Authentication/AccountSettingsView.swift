@@ -498,3 +498,36 @@ struct SettingsPlaceholderView: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 }
+
+#Preview("Account Settings · Trainee") {
+    NavigationStack {
+        AccountSettingsView()
+            .ttPreviewTrainee()
+    }
+}
+
+#Preview("Account Settings · Trainer") {
+    NavigationStack {
+        AccountSettingsView()
+            .ttPreviewTrainer()
+    }
+}
+
+#Preview("Personal Information") {
+    NavigationStack {
+        PersonalInformationSettingsView()
+            .ttPreviewTrainee()
+    }
+}
+
+#Preview("Help Center") {
+    NavigationStack {
+        HelpCenterView()
+    }
+}
+
+#Preview("Settings Placeholder") {
+    NavigationStack {
+        SettingsPlaceholderView(title: "Notifications", message: "Coming soon.")
+    }
+}

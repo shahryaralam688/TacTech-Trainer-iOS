@@ -855,3 +855,8 @@ private struct WaveShape: Shape {
         return path
     }
 }
+
+#Preview("Trainee Home") {
+    TraineeDashboardView()
+        .ttPreviewTrainee()
+}

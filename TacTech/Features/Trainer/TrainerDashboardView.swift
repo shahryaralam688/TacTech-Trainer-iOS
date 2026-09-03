@@ -625,3 +625,8 @@ private struct TrainerHeaderHeightKey: PreferenceKey {
         value = max(value, nextValue())
     }
 }
+
+#Preview("Trainer Home") {
+    TrainerDashboardView()
+        .ttPreviewTrainer()
+}

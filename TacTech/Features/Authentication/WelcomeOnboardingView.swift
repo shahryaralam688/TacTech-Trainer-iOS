@@ -220,3 +220,7 @@ private struct OnboardingArrowButton: View {
         .accessibilityLabel(label)
     }
 }
+
+#Preview("Welcome Onboarding") {
+    WelcomeOnboardingView(onFinished: {})
+}

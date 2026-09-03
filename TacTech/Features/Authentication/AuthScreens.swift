@@ -818,3 +818,29 @@ extension String {
         return "**\(visible)@\(parts[1])"
     }
 }
+
+#Preview("Login") {
+    NavigationStack {
+        LoginView(onSignUp: {}, onForgot: { _ in })
+            .ttPreviewTrainee()
+    }
+}
+
+#Preview("Signup") {
+    NavigationStack {
+        SignupView(onSignIn: {}, onContinue: { _ in })
+    }
+}
+
+#Preview("Reset Password") {
+    NavigationStack {
+        ResetPasswordView(email: "trainee@tactech.app")
+            .ttPreviewTrainee()
+    }
+}
+
+#Preview("Password Sent") {
+    NavigationStack {
+        PasswordSentView(email: "trainee@tactech.app", onResend: {}, onClose: {})
+    }
+}

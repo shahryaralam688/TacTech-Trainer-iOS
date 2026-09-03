@@ -378,3 +378,34 @@ struct TTSegmentedPillTabs<Value: Hashable>: View {
         )
     }
 }
+
+#Preview("Tab Bar · Light") {
+    struct Demo: View {
+        @State private var tab = 0
+        private let items = [
+            TTTabBarItem(0, icon: .house1, label: "Home"),
+            TTTabBarItem(1, icon: .barbellDiagonal, label: "Workout"),
+            TTTabBarItem(2, icon: .forkKnife, label: "Nutrition"),
+            TTTabBarItem(3, icon: .user, label: "Profile")
+        ]
+        var body: some View {
+            ZStack(alignment: .bottom) {
+                Color(white: 0.96).ignoresSafeArea()
+                TTFloatingTabBar(tabs: items, selection: $tab, onCenterTap: {}, bottomInset: 34)
+            }
+            .ignoresSafeArea(edges: .bottom)
+        }
+    }
+    return Demo()
+}
+
+#Preview("Pill Tabs") {
+    struct Demo: View {
+        @State private var selection = 0
+        var body: some View {
+            TTPillTabBar(titles: ["Week", "Month", "Year"], selection: $selection)
+                .padding()
+        }
+    }
+    return Demo()
+}

@@ -56,3 +56,13 @@ struct AppRootView: View {
         }
     }
 }
+
+#Preview("App Root · Trainee") {
+    AppRootView()
+        .ttPreviewTrainee()
+}
+
+#Preview("App Root · Trainer") {
+    AppRootView()
+        .ttPreviewTrainer()
+}

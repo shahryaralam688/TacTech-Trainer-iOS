@@ -11,9 +11,9 @@ struct TraineeDashboardView: View {
 
     @State private var headerHeight: CGFloat = 160
 
-    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
-    private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    private let canvas = Color(white: 0.98)
+    private let orange = TTColor.accent
+    private let blue = TTColor.info
+    private let canvas = TTColor.canvas
 
     var body: some View {
         NavigationStack {

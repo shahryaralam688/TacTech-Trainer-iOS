@@ -24,9 +24,9 @@ struct AccountSettingsView: View {
     @AppStorage("settings.biometric") private var biometricEnabled = false
     @AppStorage("settings.language") private var language = "English (EN)"
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
-    private let rowBG = Color(white: 0.96)
+    private let charcoal = TTColor.header
+    private let orange = TTColor.accent
+    private let rowBG = TTColor.surfaceAlt
 
     var body: some View {
         VStack(spacing: 0) {
@@ -353,7 +353,7 @@ struct PersonalInformationSettingsView: View {
     @State private var weightText = ""
     @State private var saved = false
 
-    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+    private let orange = TTColor.accent
 
     var body: some View {
         ScrollView {

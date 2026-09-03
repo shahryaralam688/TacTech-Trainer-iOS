@@ -8,7 +8,7 @@ struct TacTechApp: App {
         WindowGroup {
             AppRootView()
                 .environment(store)
-                .tint(TTColor.brand)
+                .tint(TTColor.accent)
         }
     }
 }

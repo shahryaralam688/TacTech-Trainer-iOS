@@ -80,46 +80,48 @@ struct WelcomeView: View {
 
                 VStack(spacing: 0) {
                     Spacer()
-                    VStack(spacing: 12) {
+                    VStack(spacing: TTSpace.sm) {
                         Text("TACTECH")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(TTFont.overline(13))
                             .tracking(3)
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(TTColor.inkOnDarkMuted)
                         Text("Train with\nclarity.")
-                            .font(.system(size: 42, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(TTFont.display(42))
+                            .foregroundStyle(TTColor.inkOnDark)
                             .multilineTextAlignment(.center)
                         Text("One app for coaches and athletes.")
-                            .font(.system(size: 17, weight: .regular))
-                            .foregroundStyle(.white.opacity(0.88))
+                            .font(TTFont.body(17))
+                            .foregroundStyle(TTColor.inkOnDark.opacity(0.88))
                             .multilineTextAlignment(.center)
                     }
-                    .padding(.horizontal, 28)
-                    .padding(.bottom, 28)
+                    .padding(.horizontal, TTSpace.xxl)
+                    .padding(.bottom, TTSpace.xxl)
 
-                    VStack(spacing: 12) {
+                    VStack(spacing: TTSpace.sm) {
                         Button(action: onSignup) {
                             Text("Create account")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(.black)
+                                .font(TTFont.heading(17))
+                                .foregroundStyle(TTColor.header)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 58)
-                                .background(Color.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                                .frame(height: TTSpace.heroButtonHeight)
+                                .background(TTColor.inkOnDark)
+                                .clipShape(RoundedRectangle(cornerRadius: TTRadius.xxl, style: .continuous))
                         }
+                        .buttonStyle(TTPressStyle())
                         Button(action: onLogin) {
                             Text("I already have an account")
-                                .font(.system(size: 17, weight: .semibold))
-                                .foregroundStyle(.white)
+                                .font(TTFont.heading(17))
+                                .foregroundStyle(TTColor.inkOnDark)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 58)
+                                .frame(height: TTSpace.heroButtonHeight)
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                        .stroke(Color.white.opacity(0.55), lineWidth: 1)
+                                    RoundedRectangle(cornerRadius: TTRadius.xxl, style: .continuous)
+                                        .stroke(TTColor.inkOnDark.opacity(0.55), lineWidth: 1)
                                 )
                         }
+                        .buttonStyle(TTPressStyle())
                     }
-                    .padding(.horizontal, 24)
+                    .padding(.horizontal, TTSpace.xl)
 
                     demoHint
                         .padding(.top, 16)

@@ -5,25 +5,25 @@ struct SplashView: View {
 
     var body: some View {
         ZStack {
-            Color("SplashBackground").ignoresSafeArea()
+            TTColor.splash.ignoresSafeArea()
 
-            VStack(spacing: 18) {
+            VStack(spacing: TTSpace.lg) {
                 GymMorphIcon(isStatic: reduceMotion)
                     .frame(width: 112, height: 112)
-                    .padding(.bottom, 6)
+                    .padding(.bottom, TTSpace.xxs)
 
                 Text("TacTech Trainer App")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(TTFont.display(26))
+                    .foregroundStyle(TTColor.inkOnDark)
                     .multilineTextAlignment(.center)
                     .minimumScaleFactor(0.8)
 
                 Text("Your personal AI fitness coach.")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .font(TTFont.body(16))
+                    .foregroundStyle(TTColor.inkOnDark.opacity(0.92))
                     .multilineTextAlignment(.center)
             }
-            .padding(.horizontal, 28)
+            .padding(.horizontal, TTSpace.xxl)
         }
         .preferredColorScheme(.dark)
         .accessibilityElement(children: .combine)

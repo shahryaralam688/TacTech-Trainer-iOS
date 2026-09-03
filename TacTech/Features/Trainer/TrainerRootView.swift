@@ -25,5 +25,6 @@ struct TrainerRootView: View {
                 .tabItem { Label("Profile", systemImage: "person.crop.circle.fill") }
                 .tag(TrainerTab.profile)
         }
+        .tint(TTColor.accent)
     }
 }

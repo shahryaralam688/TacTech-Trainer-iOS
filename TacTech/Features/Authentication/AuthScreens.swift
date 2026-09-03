@@ -15,6 +15,23 @@ enum AuthField: Hashable {
     case email, password, confirm, name
 }
 
+private enum AuthLayout {
+    static let formMaxWidth: CGFloat = 440
+
+    /// Outer screen margin for auth forms — keeps fields/buttons off the screen edge.
+    static func screenHorizontalPadding(for width: CGFloat) -> CGFloat {
+        switch width {
+        case ..<360: return 24
+        case ..<390: return 28
+        case ..<430: return 32
+        default:     return 36
+        }
+    }
+
+    /// Inner padding inside text fields.
+    static let fieldHorizontalPadding: CGFloat = 18
+}
+
 struct LoginView: View {
     @Environment(AppStore.self) private var store
     var onSignUp: () -> Void
@@ -79,6 +96,7 @@ struct LoginView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 4)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -181,6 +199,7 @@ struct SignupView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.top, 6)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -237,68 +256,74 @@ struct ResetPasswordView: View {
     @FocusState private var focused: AuthField?
 
     var body: some View {
-        ZStack(alignment: .bottom) {
-            Color.white.ignoresSafeArea()
+        GeometryReader { geo in
+            let horizontalPad = AuthLayout.screenHorizontalPadding(for: geo.size.width)
 
-            Image("AuthPadlock")
-                .resizable()
-                .scaledToFit()
-                .frame(maxWidth: 280)
-                .padding(.trailing, -36)
-                .padding(.bottom, -28)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .allowsHitTesting(false)
+            ZStack(alignment: .bottom) {
+                Color.white.ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 0) {
-                TTBackButton { dismiss() }
-                    .padding(.bottom, 22)
+                Image("AuthPadlock")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(maxWidth: min(280, geo.size.width * 0.72))
+                    .padding(.trailing, -36)
+                    .padding(.bottom, -28)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .allowsHitTesting(false)
 
-                Text("Reset Password")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundStyle(AuthPalette.ink)
-                Text("Select what method you’d like to reset.")
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundStyle(AuthPalette.muted)
-                    .padding(.top, 6)
-                    .padding(.bottom, 22)
+                VStack(alignment: .leading, spacing: 0) {
+                    TTBackButton { dismiss() }
+                        .padding(.bottom, 22)
 
-                VStack(spacing: 12) {
-                    ForEach(ResetMethod.allCases) { item in
-                        Button { method = item } label: {
-                            ResetMethodRow(method: item, isSelected: method == item)
+                    Text("Reset Password")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundStyle(AuthPalette.ink)
+                    Text("Select what method you’d like to reset.")
+                        .font(.system(size: 16, weight: .regular))
+                        .foregroundStyle(AuthPalette.muted)
+                        .padding(.top, 6)
+                        .padding(.bottom, 22)
+
+                    VStack(spacing: 12) {
+                        ForEach(ResetMethod.allCases) { item in
+                            Button { method = item } label: {
+                                ResetMethodRow(method: item, isSelected: method == item)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
-                }
 
-                if method == .email {
-                    AuthLabeledField(
-                        title: "Email Address",
-                        icon: "envelope",
-                        text: $email,
-                        isFocused: focused == .email,
-                        field: .email,
-                        focus: $focused,
-                        keyboard: .emailAddress
-                    )
-                    .padding(.top, 16)
-                }
+                    if method == .email {
+                        AuthLabeledField(
+                            title: "Email Address",
+                            icon: "envelope",
+                            text: $email,
+                            isFocused: focused == .email,
+                            field: .email,
+                            focus: $focused,
+                            keyboard: .emailAddress
+                        )
+                        .padding(.top, 16)
+                    }
 
-                if let error {
-                    AuthErrorBanner(message: error)
-                        .padding(.top, 14)
-                }
+                    if let error {
+                        AuthErrorBanner(message: error)
+                            .padding(.top, 14)
+                    }
 
-                Spacer(minLength: 16)
+                    Spacer(minLength: 16)
 
-                AuthBlackButton(title: "Reset Password", isLoading: isLoading) {
-                    Task { await reset() }
+                    AuthBlackButton(title: "Reset Password", isLoading: isLoading) {
+                        Task { await reset() }
+                    }
+                    .padding(.bottom, 8)
                 }
-                .padding(.bottom, 8)
+                .frame(maxWidth: AuthLayout.formMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.horizontal, horizontalPad)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 8)
-            .padding(.bottom, 12)
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
@@ -405,31 +430,37 @@ private struct AuthFormCanvas<Content: View>: View {
     @ViewBuilder var content: () -> Content
 
     var body: some View {
-        ZStack(alignment: .top) {
-            Color.white.ignoresSafeArea()
-            Image("AuthMachine")
-                .resizable()
-                .scaledToFill()
-                .frame(height: 320)
-                .clipped()
-                .opacity(0.28)
-                .mask(
-                    LinearGradient(
-                        colors: [.white, .white, .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .ignoresSafeArea(edges: .top)
+        GeometryReader { geo in
+            let horizontalPad = AuthLayout.screenHorizontalPadding(for: geo.size.width)
 
-            ScrollView {
-                VStack(spacing: 28) {
-                    content()
+            ZStack(alignment: .top) {
+                Color.white.ignoresSafeArea()
+                Image("AuthMachine")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: geo.size.width, height: min(320, geo.size.height * 0.38))
+                    .clipped()
+                    .opacity(0.28)
+                    .mask(
+                        LinearGradient(
+                            colors: [.white, .white, .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .ignoresSafeArea(edges: .top)
+
+                ScrollView {
+                    VStack(spacing: 28) {
+                        content()
+                    }
+                    .frame(maxWidth: AuthLayout.formMaxWidth)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
+                .contentMargins(.horizontal, horizontalPad, for: .scrollContent)
+                .scrollDismissesKeyboard(.interactively)
             }
-            .scrollDismissesKeyboard(.interactively)
         }
         .toolbar(.hidden, for: .navigationBar)
         .preferredColorScheme(.light)
@@ -525,7 +556,8 @@ private struct AuthLabeledField<Trailing: View>: View {
                 .modifier(AuthFocusModifier(field: field, focus: focus))
                 trailing
             }
-            .padding(.horizontal, 16)
+            .padding(.horizontal, AuthLayout.fieldHorizontalPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 56)
             .background(isFocused || isError ? Color.white : AuthPalette.field)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -535,6 +567,7 @@ private struct AuthLabeledField<Trailing: View>: View {
             )
             .shadow(color: glow, radius: isFocused || isError ? 8 : 0)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var border: Color {
@@ -613,14 +646,18 @@ private struct AuthBlackButton: View {
         Button(action: action) {
             HStack(spacing: 10) {
                 if isLoading {
+                    Spacer(minLength: 0)
                     ProgressView().tint(.white)
+                    Spacer(minLength: 0)
                 } else {
                     Text(title)
                         .font(.system(size: 17, weight: .semibold))
+                    Spacer(minLength: 8)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 16, weight: .semibold))
                 }
             }
+            .padding(.horizontal, AuthLayout.fieldHorizontalPadding)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 58)
@@ -649,6 +686,7 @@ private struct AuthErrorBanner: View {
             Spacer(minLength: 0)
         }
         .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(AuthPalette.errorSoft)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(

@@ -343,7 +343,7 @@ struct ExerciseDraft: Identifiable {
     var side = "Both"
     var setRows: [SetDraft]
     /// UI: exercise card expanded in the day editor.
-    var isExpanded: Bool = true
+    var isExpanded: Bool = false
 
     init(exerciseId: String, templateName: String = "") {
         self.exerciseId = exerciseId

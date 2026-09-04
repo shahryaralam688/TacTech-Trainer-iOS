@@ -208,7 +208,7 @@ struct ExerciseTemplatePickerView: View {
         finished.templateName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             ? "Custom template"
             : name.trimmingCharacters(in: .whitespacesAndNewlines)
-        finished.isExpanded = true
+        finished.isExpanded = false
         if persist, let trainerId = store.currentTrainer?.id {
             store.saveExerciseTemplate(finished.asTemplate(name: finished.templateName, trainerId: trainerId))
         }
@@ -314,7 +314,7 @@ extension ExerciseDraft {
         setRows = template.setRows.map {
             SetDraft(setNumber: $0.setNumber, reps: $0.reps, weight: $0.weightKg)
         }
-        isExpanded = true
+        isExpanded = false
         if setRows.isEmpty {
             syncSetCount()
         }

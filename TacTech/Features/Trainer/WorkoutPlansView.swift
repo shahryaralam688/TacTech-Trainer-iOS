@@ -6,6 +6,10 @@ struct WorkoutPlansView: View {
     @Environment(AppStore.self) private var store
     @State private var showCreate = false
     @State private var query = ""
+    @State private var categoryFilter: String?
+    @State private var showSearch = false
+    @State private var selectedPlan: WorkoutPlan?
+    @Namespace private var searchNS
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -23,7 +27,19 @@ struct WorkoutPlansView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 12) {
-                        searchField(placeholder: "Search plans")
+                        TTSearchEntryPill(
+                            placeholder: "Search plans…",
+                            query: query,
+                            namespace: searchNS
+                        ) {
+                            showSearch = true
+                        }
+
+                        if let categoryFilter {
+                            filterChip(categoryFilter) {
+                                self.categoryFilter = nil
+                            }
+                        }
 
                         if filtered.isEmpty {
                             emptyCard(
@@ -35,8 +51,8 @@ struct WorkoutPlansView: View {
                             )
                         } else {
                             ForEach(filtered) { plan in
-                                NavigationLink {
-                                    WorkoutPlanDetailView(plan: plan)
+                                Button {
+                                    selectedPlan = plan
                                 } label: {
                                     planCard(plan)
                                 }
@@ -51,8 +67,18 @@ struct WorkoutPlansView: View {
             }
             .background(canvas.ignoresSafeArea())
             .ttHideSystemNavigationBar()
+            .navigationDestination(item: $selectedPlan) { plan in
+                WorkoutPlanDetailView(plan: plan)
+            }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
+            }
+            .ttSearchOverlay(
+                isPresented: $showSearch,
+                catalog: searchCatalog,
+                namespace: searchNS
+            ) { outcome in
+                handleSearch(outcome)
             }
         }
     }
@@ -61,13 +87,61 @@ struct WorkoutPlansView: View {
         store.plans.filter { $0.trainerId == store.currentTrainer?.id }
     }
 
+    private var searchCatalog: TTSearchCatalog {
+        TTSearchCatalog.workoutPlans(
+            plans: plans,
+            trainerId: store.currentTrainer?.id ?? "trainer"
+        )
+    }
+
     private var filtered: [WorkoutPlan] {
-        guard !query.isEmpty else { return plans }
-        return plans.filter {
-            $0.title.localizedCaseInsensitiveContains(query)
-                || $0.focus.localizedCaseInsensitiveContains(query)
-                || $0.level.localizedCaseInsensitiveContains(query)
+        plans.filter { plan in
+            let matchesCategory = categoryFilter.map {
+                plan.focus.localizedCaseInsensitiveContains($0)
+            } ?? true
+            guard matchesCategory else { return false }
+            guard !query.isEmpty else { return true }
+            return plan.title.localizedCaseInsensitiveContains(query)
+                || plan.focus.localizedCaseInsensitiveContains(query)
+                || plan.level.localizedCaseInsensitiveContains(query)
         }
+    }
+
+    private func handleSearch(_ outcome: TTSearchOutcome) {
+        switch outcome {
+        case .item(let id):
+            selectedPlan = plans.first { $0.id == id }
+        case .category(let id):
+            categoryFilter = searchCatalog.categories.first { $0.id == id }?.name
+            query = ""
+        case .offer(let id):
+            if id == "create-plan" {
+                showCreate = true
+            } else if let first = plans.first {
+                selectedPlan = first
+            }
+        case .applyQuery(let q):
+            query = q
+            categoryFilter = nil
+        case .dismissed:
+            break
+        }
+    }
+
+    private func filterChip(_ title: String, clear: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(TTFont.textSM(.semibold))
+            Button(action: clear) {
+                TTIcon(icon: .closeX, size: 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(TTColor.actionOrange)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(TTColor.actionOrange.opacity(0.12))
+        .clipShape(Capsule())
     }
 
     private func planCard(_ plan: WorkoutPlan) -> some View {
@@ -126,19 +200,6 @@ struct WorkoutPlansView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func searchField(placeholder: String) -> some View {
-        HStack(spacing: 10) {
-            TTIcon(icon: .magnifyingGlass, size: 16)
-                .foregroundStyle(TTColor.inkMuted)
-            TextField(placeholder, text: $query)
-                .font(TTFont.body(15))
-        }
-        .padding(.horizontal, 14)
-        .frame(height: 48)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     private func metaChip(icon: SandowIcon, text: String) -> some View {

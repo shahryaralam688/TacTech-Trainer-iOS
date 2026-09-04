@@ -11,6 +11,8 @@ struct NutritionView: View {
     @State private var selectedCategory: FoodCategory = .meat
     @State private var calorieDraft: Double = 2100
     @State private var suggestionMessage: String?
+    @State private var showSearch = false
+    @Namespace private var searchNS
 
     private let orange = TTColor.actionOrange
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -63,6 +65,13 @@ struct NutritionView: View {
                         .padding(.bottom, 24)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+            }
+            .ttSearchOverlay(
+                isPresented: $showSearch,
+                catalog: foodSearchCatalog,
+                namespace: searchNS
+            ) { outcome in
+                handleFoodSearch(outcome)
             }
         }
     }
@@ -128,29 +137,26 @@ struct NutritionView: View {
             }
 
             HStack(spacing: 10) {
-                TextField(
-                    "",
-                    text: $searchText,
-                    prompt: Text("Search our food database...")
-                        .foregroundStyle(Color.white.opacity(0.45))
-                )
-                .font(TTFont.textLG(.medium))
-                .foregroundStyle(.white)
-                .textInputAutocapitalization(.never)
-                .disableAutocorrection(true)
+                TTSearchEntryPill(
+                    placeholder: "Search our food database…",
+                    query: searchText,
+                    style: .onDark,
+                    namespace: searchNS
+                ) {
+                    showSearch = true
+                }
 
                 NavigationLink {
                     FoodScannerView()
                 } label: {
                     TTIcon(icon: .magnifyingGlass, size: 18)
                         .foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.white.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 16)
-            .frame(height: 52)
-            .background(Color.white.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
@@ -670,6 +676,47 @@ struct NutritionView: View {
             withAnimation(.easeIn(duration: 0.2)) {
                 suggestionMessage = nil
             }
+        }
+    }
+
+    private var foodSearchCatalog: TTSearchCatalog {
+        let categories = FoodCategory.allCases.filter { $0 != .all }.map { cat in
+            (
+                id: cat.rawValue,
+                name: cat.title,
+                count: store.foodCatalog.filter { cat.matches($0) }.count,
+                icon: cat.icon
+            )
+        }
+        return TTSearchCatalog.foods(
+            catalog: store.foodCatalog,
+            categories: categories,
+            scopeId: store.currentTrainee?.id ?? store.session?.userId ?? "guest",
+            offerTitle: featuredSuggestion.name,
+            offerSubtitle: suggestionTag(for: featuredSuggestion)
+        )
+    }
+
+    private func handleFoodSearch(_ outcome: TTSearchOutcome) {
+        switch outcome {
+        case .item(let id):
+            if let food = store.foodCatalog.first(where: { $0.name == id }) {
+                searchText = ""
+                selectedCategory = .all
+                addCatalogMeal(food)
+            }
+        case .category(let id):
+            if let cat = FoodCategory(rawValue: id) {
+                selectedCategory = cat
+                searchText = ""
+            }
+        case .offer:
+            addCatalogMeal(featuredSuggestion)
+        case .applyQuery(let q):
+            searchText = q
+            selectedCategory = .all
+        case .dismissed:
+            break
         }
     }
 }

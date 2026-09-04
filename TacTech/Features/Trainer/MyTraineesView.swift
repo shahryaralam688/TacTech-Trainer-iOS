@@ -5,6 +5,10 @@ import SwiftUI
 struct MyTraineesView: View {
     @Environment(AppStore.self) private var store
     @State private var query = ""
+    @State private var goalFilter: String?
+    @State private var showSearch = false
+    @State private var selectedTrainee: TraineeProfile?
+    @Namespace private var searchNS
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -17,7 +21,6 @@ struct MyTraineesView: View {
                     subtitle: "\(filtered.count) athletes",
                     trailingIcon: .userPlus
                 ) {
-                    // Invite code lives on Profile — keep a clear path.
                     UIPasteboard.general.string = store.currentTrainer?.inviteCode
                 }
 
@@ -27,14 +30,26 @@ struct MyTraineesView: View {
                             inviteBanner(code: code)
                         }
 
-                        searchField
+                        TTSearchEntryPill(
+                            placeholder: "Search trainees…",
+                            query: query,
+                            namespace: searchNS
+                        ) {
+                            showSearch = true
+                        }
+
+                        if let goalFilter {
+                            filterChip(goalFilter) {
+                                self.goalFilter = nil
+                            }
+                        }
 
                         if filtered.isEmpty {
                             emptyCard
                         } else {
                             ForEach(filtered) { trainee in
-                                NavigationLink {
-                                    TraineeDetailView(trainee: trainee)
+                                Button {
+                                    selectedTrainee = trainee
                                 } label: {
                                     traineeRow(trainee)
                                 }
@@ -49,20 +64,105 @@ struct MyTraineesView: View {
             }
             .background(canvas.ignoresSafeArea())
             .ttHideSystemNavigationBar()
+            .navigationDestination(item: $selectedTrainee) { trainee in
+                TraineeDetailView(trainee: trainee)
+            }
+            .ttSearchOverlay(
+                isPresented: $showSearch,
+                catalog: searchCatalog,
+                namespace: searchNS
+            ) { outcome in
+                handleSearch(outcome)
+            }
         }
     }
 
-    private var searchField: some View {
-        HStack(spacing: 10) {
-            TTIcon(icon: .magnifyingGlass, size: 16)
-                .foregroundStyle(TTColor.inkMuted)
-            TextField("Search trainees", text: $query)
-                .font(TTFont.body(15))
+    private var roster: [TraineeProfile] {
+        guard let trainer = store.currentTrainer else { return [] }
+        return store.trainees(for: trainer)
+    }
+
+    private var searchCatalog: TTSearchCatalog {
+        guard let trainer = store.currentTrainer else {
+            return TTSearchCatalog(
+                scopeId: "trainees.none",
+                items: [],
+                categories: [],
+                suggestedItems: [],
+                popularItems: [],
+                offer: nil,
+                bestSell: [],
+                recommendations: [],
+                copy: .trainees
+            )
         }
-        .padding(.horizontal, 14)
-        .frame(height: 48)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        var names: [String: String] = [:]
+        var plansByTrainee: [String: String] = [:]
+        var activeIds = Set<String>()
+        for trainee in roster {
+            names[trainee.id] = store.user(forTrainee: trainee)?.name ?? "Athlete"
+            if let title = store.assignedPlan(for: trainee)?.title {
+                plansByTrainee[trainee.id] = title
+            }
+            if store.logs(for: trainee.id).first != nil {
+                activeIds.insert(trainee.id)
+            }
+        }
+        return TTSearchCatalog.trainees(
+            trainees: roster,
+            names: names,
+            plansByTrainee: plansByTrainee,
+            activeIds: activeIds,
+            trainerId: trainer.id,
+            inviteCode: trainer.inviteCode
+        )
+    }
+
+    private var filtered: [TraineeProfile] {
+        roster.filter { trainee in
+            let matchesGoal = goalFilter.map {
+                trainee.goal.localizedCaseInsensitiveContains($0)
+            } ?? true
+            guard matchesGoal else { return false }
+            guard !query.isEmpty else { return true }
+            return store.user(forTrainee: trainee)?.name.localizedCaseInsensitiveContains(query) == true
+                || trainee.goal.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    private func handleSearch(_ outcome: TTSearchOutcome) {
+        switch outcome {
+        case .item(let id):
+            selectedTrainee = roster.first { $0.id == id }
+        case .category(let id):
+            goalFilter = searchCatalog.categories.first { $0.id == id }?.name
+            query = ""
+        case .offer:
+            if let code = store.currentTrainer?.inviteCode {
+                UIPasteboard.general.string = code
+            }
+        case .applyQuery(let q):
+            query = q
+            goalFilter = nil
+        case .dismissed:
+            break
+        }
+    }
+
+    private func filterChip(_ title: String, clear: @escaping () -> Void) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(TTFont.textSM(.semibold))
+            Button(action: clear) {
+                TTIcon(icon: .closeX, size: 12)
+            }
+            .buttonStyle(.plain)
+        }
+        .foregroundStyle(TTColor.actionOrange)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(TTColor.actionOrange.opacity(0.12))
+        .clipShape(Capsule())
     }
 
     private func inviteBanner(code: String) -> some View {
@@ -151,10 +251,10 @@ struct MyTraineesView: View {
         VStack(spacing: 12) {
             TTIcon(icon: .usersTwo, filled: true, size: 28)
                 .foregroundStyle(TTColor.actionOrange)
-            Text(query.isEmpty ? "No trainees yet" : "No matches")
+            Text(query.isEmpty && goalFilter == nil ? "No trainees yet" : "No matches")
                 .font(TTFont.workSans(17, weight: .bold))
             Text(
-                query.isEmpty
+                query.isEmpty && goalFilter == nil
                     ? "Share your invite code so athletes can join your roster."
                     : "Try a different name."
             )
@@ -166,15 +266,6 @@ struct MyTraineesView: View {
         .padding(28)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private var filtered: [TraineeProfile] {
-        guard let trainer = store.currentTrainer else { return [] }
-        let all = store.trainees(for: trainer)
-        guard !query.isEmpty else { return all }
-        return all.filter {
-            store.user(forTrainee: $0)?.name.localizedCaseInsensitiveContains(query) == true
-        }
     }
 }
 

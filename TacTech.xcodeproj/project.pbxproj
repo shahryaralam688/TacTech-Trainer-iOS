@@ -40,6 +40,7 @@
 		8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95304A4367FC245D3A00DF7F /* TrainerRootView.swift */; };
 		90D61686645F7482E317416A /* TacTechApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587AE07BF381E435AE227C43 /* TacTechApp.swift */; };
 		9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */; };
+		96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 263477F1D52EA623D59CA93C /* TTProfileScreen.swift */; };
 		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
@@ -70,6 +71,7 @@
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
+		263477F1D52EA623D59CA93C /* TTProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTProfileScreen.swift; sourceTree = "<group>"; };
 		26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
@@ -136,6 +138,7 @@
 				63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
+				263477F1D52EA623D59CA93C /* TTProfileScreen.swift */,
 				198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */,
 				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
 			);
@@ -387,6 +390,7 @@
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
+				96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */,
 				F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,

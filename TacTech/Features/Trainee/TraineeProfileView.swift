@@ -9,78 +9,71 @@ struct TraineeProfileView: View {
 
     @State private var invite = ""
     @State private var message: String?
+    @State private var showPersonalInfo = false
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                TTDarkPageHeader(
-                    title: "Profile",
-                    showsBack: showsBack,
-                    onBack: { dismiss() }
-                )
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        identity
-                        MyTrainerCard()
-                        joinCard
-
-                        NavigationLink {
-                            AccountSettingsView()
-                        } label: {
-                            HStack {
-                                Image(systemName: "gearshape.fill")
-                                Text("Account Settings & Help")
-                                    .font(TTFont.textLG(.semibold))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .frame(height: 54)
-                            .background(Color.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
-                }
-            }
-            .background(Color.white.ignoresSafeArea())
-            .ttHideSystemNavigationBar()
-        }
+    private var initials: String {
+        let parts = (store.currentUser?.name ?? "A").split(separator: " ")
+        return parts.prefix(2).map { String($0.prefix(1)) }.joined()
     }
 
-    private var identity: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                TTAvatar(name: store.currentUser?.name ?? "A", size: 68)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(store.currentUser?.name ?? "Trainee")
-                        .font(TTFont.title(22))
-                    Text(store.currentTrainee?.goal ?? "Training")
-                        .font(TTFont.body(14))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
+    private var todayIntake: Int {
+        guard let trainee = store.currentTrainee else { return 0 }
+        return Int(store.dailyMacros(for: trainee.id, on: Date()).calories)
+    }
+
+    private var metrics: [TTProfileMetric] {
+        let age = store.savedAssessmentAge() ?? 18
+        let weight = Int(store.currentTrainee?.weightKg ?? 0)
+        return [
+            TTProfileMetric(
+                id: "age",
+                icon: .calendar1,
+                iconColor: Color(hex: 0xEF4444),
+                value: "\(age)",
+                unit: "yr",
+                label: "Current Age"
+            ),
+            TTProfileMetric(
+                id: "weight",
+                icon: .weightScale,
+                iconColor: Color(hex: 0x22C55E),
+                value: "\(weight)",
+                unit: "kg",
+                label: "Weight"
+            ),
+            TTProfileMetric(
+                id: "intake",
+                icon: .fire1,
+                iconColor: Color(hex: 0x3B82F6),
+                value: "\(todayIntake)",
+                unit: "kcal",
+                label: "Daily Intake"
+            )
+        ]
+    }
+
+    var body: some View {
+        TTProfileScreen(
+            name: store.currentUser?.name ?? "Trainee",
+            location: store.currentTrainee?.location?.nilIfBlank ?? "Add location",
+            membership: store.currentTrainee?.goal.nilIfBlank ?? "Basic Member",
+            avatarAsset: TTAvatarCatalog.saved(for: store.session?.userId),
+            initials: initials,
+            scores: store.weeklySandowScores(),
+            metrics: metrics,
+            showsBack: showsBack,
+            onEdit: { showPersonalInfo = true }
+        ) {
+            VStack(alignment: .leading, spacing: 16) {
+                MyTrainerCard()
+                joinCard
             }
-            HStack {
-                labeled("Weight", "\(Int(store.currentTrainee?.weightKg ?? 0)) kg")
-                labeled("Height", "\(store.currentTrainee?.heightCm ?? 0) cm")
-                labeled("Target", "\(store.currentTrainee?.dailyCalorieTarget ?? 0)")
-            }
-            if let gender = store.currentTrainee?.gender, !gender.isEmpty {
-                labeled("Gender", gender)
-            }
-            if let location = store.currentTrainee?.location, !location.isEmpty {
-                labeled("Location", location)
-            }
-            Text("Role · Trainee")
-                .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.brand)
         }
-        .ttCard()
+        .sheet(isPresented: $showPersonalInfo) {
+            NavigationStack {
+                PersonalInformationSettingsView()
+            }
+        }
     }
 
     private var joinCard: some View {
@@ -104,18 +97,9 @@ struct TraineeProfileView: View {
                 }
             }
         }
-        .ttCard()
-    }
-
-    private func labeled(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(TTFont.caption(10))
-                .foregroundStyle(TTColor.inkSubtle)
-            Text(value)
-                .font(TTFont.heading(14))
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -124,7 +108,8 @@ struct MyTrainerCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            TTSectionHeader(title: "My Trainer")
+            Text("My Trainer")
+                .font(TTFont.heading(16))
             if let trainee = store.currentTrainee, let trainer = store.trainer(for: trainee), let user = store.user(forTrainer: trainer) {
                 HStack(spacing: 12) {
                     TTAvatar(name: user.name, size: 54)
@@ -142,7 +127,17 @@ struct MyTrainerCard: View {
                     .foregroundStyle(TTColor.inkMuted)
             }
         }
-        .ttCard()
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
     }
 }
 

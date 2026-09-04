@@ -2,81 +2,74 @@ import SwiftUI
 
 struct TrainerProfileView: View {
     @Environment(AppStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
 
     /// When opened as a sheet from Home, show the back button.
     var showsBack: Bool = false
 
-    var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                TTDarkPageHeader(
-                    title: "Profile",
-                    showsBack: showsBack,
-                    onBack: { dismiss() }
-                )
+    @State private var showPersonalInfo = false
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 20) {
-                        profileCard
-                        inviteCard
-
-                        NavigationLink {
-                            AccountSettingsView()
-                        } label: {
-                            HStack {
-                                Image(systemName: "gearshape.fill")
-                                Text("Account Settings & Help")
-                                    .font(TTFont.textLG(.semibold))
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .frame(height: 54)
-                            .background(Color.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
-                }
-            }
-            .background(Color.white.ignoresSafeArea())
-            .ttHideSystemNavigationBar()
-        }
+    private var initials: String {
+        let parts = (store.currentUser?.name ?? "T").split(separator: " ")
+        return parts.prefix(2).map { String($0.prefix(1)) }.joined()
     }
 
-    private var profileCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 14) {
-                TTAvatar(name: store.currentUser?.name ?? "T", size: 68)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(store.currentUser?.name ?? "Trainer")
-                        .font(TTFont.title(22))
-                    Text(store.currentTrainer?.specialty ?? "Coach")
-                        .font(TTFont.body(14))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
-            }
-            Text(store.currentTrainer?.bio ?? "")
-                .font(TTFont.body(14))
-                .foregroundStyle(TTColor.inkMuted)
-            HStack {
-                labeled("Experience", "\(store.currentTrainer?.yearsExperience ?? 0) yrs")
-                labeled("Role", "Trainer")
-                labeled("Clients", "\(store.currentTrainer.map { store.trainees(for: $0).count } ?? 0)")
-            }
-            if let gender = store.currentTrainer?.gender, !gender.isEmpty {
-                labeled("Gender", gender)
-            }
-            if let location = store.currentTrainer?.location, !location.isEmpty {
-                labeled("Location", location)
+    private var metrics: [TTProfileMetric] {
+        let years = store.currentTrainer?.yearsExperience ?? 0
+        let clients = store.currentTrainer.map { store.trainees(for: $0).count } ?? 0
+        let age = store.savedAssessmentAge() ?? years + 22
+        return [
+            TTProfileMetric(
+                id: "age",
+                icon: .calendar1,
+                iconColor: Color(hex: 0xEF4444),
+                value: "\(age)",
+                unit: "yr",
+                label: "Current Age"
+            ),
+            TTProfileMetric(
+                id: "exp",
+                icon: .weightScale,
+                iconColor: Color(hex: 0x22C55E),
+                value: "\(years)",
+                unit: "yrs",
+                label: "Experience"
+            ),
+            TTProfileMetric(
+                id: "clients",
+                icon: .usersTwo,
+                iconColor: Color(hex: 0x3B82F6),
+                value: "\(clients)",
+                unit: "",
+                label: "Clients"
+            )
+        ]
+    }
+
+    /// Aggregate client form scores into a coach-facing weekly chart.
+    private var scores: [TTSandowDayScore] {
+        let first = store.currentTrainer.map { store.trainees(for: $0).first?.id }
+        return store.weeklySandowScores(forTraineeId: first ?? nil)
+    }
+
+    var body: some View {
+        TTProfileScreen(
+            name: store.currentUser?.name ?? "Trainer",
+            location: store.currentTrainer?.location?.nilIfBlank ?? "Add location",
+            membership: store.currentTrainer?.specialty.nilIfBlank ?? "Coach",
+            avatarAsset: TTAvatarCatalog.saved(for: store.session?.userId),
+            initials: initials,
+            scores: scores,
+            metrics: metrics,
+            showsBack: showsBack,
+            onEdit: { showPersonalInfo = true }
+        ) {
+            inviteCard
+        }
+        .sheet(isPresented: $showPersonalInfo) {
+            NavigationStack {
+                PersonalInformationSettingsView()
             }
         }
-        .ttCard()
     }
 
     private var inviteCard: some View {
@@ -85,23 +78,22 @@ struct TrainerProfileView: View {
                 .font(TTFont.heading(16))
             Text(store.currentTrainer?.inviteCode ?? "—")
                 .font(TTFont.display(28))
-                .foregroundStyle(TTColor.brand)
+                .foregroundStyle(TTColor.actionOrange)
             Text("Share this code so a trainee can join your roster from signup or Profile.")
                 .font(TTFont.body(13))
                 .foregroundStyle(TTColor.inkMuted)
         }
-        .ttCard()
-    }
-
-    private func labeled(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased())
-                .font(TTFont.caption(10))
-                .foregroundStyle(TTColor.inkSubtle)
-            Text(value)
-                .font(TTFont.heading(14))
-        }
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+}
+
+private extension String {
+    var nilIfBlank: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
     }
 }
 

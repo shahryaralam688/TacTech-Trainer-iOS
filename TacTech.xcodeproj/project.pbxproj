@@ -45,6 +45,7 @@
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
 		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
+		B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
@@ -60,6 +61,7 @@
 
 /* Begin PBXFileReference section */
 		0174D61D79D430362B65F837 /* TrainerProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgressView.swift; sourceTree = "<group>"; };
+		01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInformationSettingsView.swift; sourceTree = "<group>"; };
 		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
 		05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCompletionFlowView.swift; sourceTree = "<group>"; };
 		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -267,6 +269,7 @@
 				26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */,
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
+				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
 				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
@@ -381,6 +384,7 @@
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
+				B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
 				75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */,
 				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,

@@ -322,121 +322,6 @@ struct AccountSettingsView: View {
     }
 }
 
-// MARK: - 1) Personal Information (first settings screen)
-
-struct PersonalInformationSettingsView: View {
-    @Environment(AppStore.self) private var store
-    @State private var name = ""
-    @State private var gender = "Male"
-    @State private var location = ""
-    @State private var heightCm: Double = 170
-    @State private var weightText = ""
-    @State private var saved = false
-
-    private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Personal Information")
-                    .font(.system(size: 28, weight: .bold))
-
-                field("Full Name", text: $name)
-                field("Email", text: .constant(store.currentUser?.email ?? ""), disabled: true)
-
-                Text("Gender")
-                    .font(.system(size: 14, weight: .semibold))
-                HStack(spacing: 8) {
-                    ForEach(["Male", "Female", "Non-binary"], id: \.self) { item in
-                        let on = gender == item
-                        Button { gender = item } label: {
-                            Text(item)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(on ? .white : .black)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 42)
-                                .background(on ? Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255) : Color(white: 0.94))
-                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-
-                if store.session?.role == .trainee {
-                    Text("Height · \(Int(heightCm)) cm")
-                        .font(.system(size: 14, weight: .semibold))
-                    Slider(value: $heightCm, in: 140...210, step: 1)
-                        .tint(orange)
-                    field("Weight (kg)", text: $weightText)
-                }
-
-                field("Location", text: $location)
-
-                if saved {
-                    Text("Saved")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.green)
-                }
-
-                Button {
-                    save()
-                } label: {
-                    Text("Save changes")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 54)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(22)
-        }
-        .background(Color.white.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear(perform: hydrate)
-    }
-
-    private func field(_ title: String, text: Binding<String>, disabled: Bool = false) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-            TextField(title, text: text)
-                .disabled(disabled)
-                .padding(.horizontal, 14)
-                .frame(height: 52)
-                .background(Color(white: 0.96))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color(white: 0.78), lineWidth: 1.2)
-                )
-        }
-    }
-
-    private func hydrate() {
-        name = store.currentUser?.name ?? ""
-        gender = store.currentTrainee?.gender ?? store.currentTrainer?.gender ?? "Male"
-        location = store.currentTrainee?.location ?? store.currentTrainer?.location ?? ""
-        if let h = store.currentTrainee?.heightCm, h > 0 { heightCm = Double(h) }
-        if let w = store.currentTrainee?.weightKg, w > 0 { weightText = String(Int(w)) }
-    }
-
-    private func save() {
-        store.updateCurrentUserName(name)
-        store.applyProfileSetup(
-            gender: gender,
-            location: location,
-            heightCm: store.session?.role == .trainee ? Int(heightCm) : nil,
-            weightKg: store.session?.role == .trainee
-                ? Double(weightText.replacingOccurrences(of: ",", with: "."))
-                : nil
-        )
-        saved = true
-    }
-}
-
 // MARK: - Help Center (second real screen)
 
 struct HelpCenterView: View {
@@ -510,13 +395,6 @@ struct SettingsPlaceholderView: View {
     NavigationStack {
         AccountSettingsView()
             .ttPreviewTrainer()
-    }
-}
-
-#Preview("Personal Information") {
-    NavigationStack {
-        PersonalInformationSettingsView()
-            .ttPreviewTrainee()
     }
 }
 

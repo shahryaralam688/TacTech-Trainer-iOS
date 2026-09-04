@@ -45,9 +45,10 @@ struct TTProfileScreen<Extra: View>: View {
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let avatarSize: CGFloat = 104
-    private let heroHeight: CGFloat = 220
-    /// Matches `TTDarkPageHeader` / home profile top card.
+    private let avatarSize: CGFloat = 108
+    /// Image block height below the status bar.
+    private let heroBodyHeight: CGFloat = 168
+    /// Matches `TTDarkPageHeader` bottom corners.
     private let headerBottomRadius: CGFloat = 36
 
     private var activeDayId: String {
@@ -56,21 +57,23 @@ struct TTProfileScreen<Extra: View>: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    hero
-                    identity
-                        .padding(.top, 12)
-                    sandowCard
-                        .padding(.horizontal, 20)
-                        .padding(.top, 22)
-                    metricsRow
-                        .padding(.horizontal, 20)
-                        .padding(.top, 14)
-                    extra()
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-                        .padding(.bottom, 36)
+            VStack(spacing: 0) {
+                hero
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        identity
+                            .padding(.top, 8)
+                        sandowCard
+                            .padding(.horizontal, 20)
+                            .padding(.top, 22)
+                        metricsRow
+                            .padding(.horizontal, 20)
+                            .padding(.top, 14)
+                        extra()
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
+                            .padding(.bottom, 36)
+                    }
                 }
             }
             .background(canvas.ignoresSafeArea())
@@ -81,12 +84,11 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Hero — static Profile/Setup-style top card
+    // MARK: Hero — bleeds under status bar; edit/settings sit beside avatar
 
     private var hero: some View {
         ZStack(alignment: .bottom) {
-            staticTopCard
-
+            // Screenshot: glass buttons on the image, left / right of the avatar (not under status bar).
             HStack {
                 profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
                     if showsBack {
@@ -96,42 +98,45 @@ struct TTProfileScreen<Extra: View>: View {
                         if onEdit == nil { showSettings = true }
                     }
                 }
-                Spacer()
+                Spacer(minLength: 0)
                 profileChromeButton(icon: .gear1) {
                     showSettings = true
                 }
             }
-            .padding(.horizontal, 20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .padding(.top, 12)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 28)
 
             profileAvatar
-                .offset(y: avatarSize * 0.42)
+                .offset(y: avatarSize * 0.48)
         }
-        .frame(height: heroHeight)
-        .padding(.bottom, avatarSize * 0.42)
+        .frame(maxWidth: .infinity)
+        .frame(height: heroBodyHeight)
+        .padding(.bottom, avatarSize * 0.48)
+        .background(alignment: .top) {
+            staticTopCard
+                .ignoresSafeArea(edges: .top)
+        }
     }
 
-    /// Same static card shape as Account Settings / Profile Setup (`TTDarkPageHeader`).
+    /// Static top card — bottom corners like Profile/Setup; bleeds under status bar.
     private var staticTopCard: some View {
         ZStack {
             charcoal
             Image(heroImage)
                 .resizable()
                 .scaledToFill()
-                .opacity(0.55)
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.45),
-                    Color.black.opacity(0.25),
-                    charcoal.opacity(0.85)
+                    Color.black.opacity(0.2),
+                    Color.black.opacity(0.12),
+                    Color.black.opacity(0.4)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
         .frame(maxWidth: .infinity)
-        .frame(height: heroHeight)
+        .frame(minHeight: heroBodyHeight + 60)
         .clipped()
         .clipShape(
             UnevenRoundedRectangle(
@@ -142,11 +147,11 @@ struct TTProfileScreen<Extra: View>: View {
                 style: .continuous
             )
         )
-        .ignoresSafeArea(edges: .top)
     }
 
     private var profileAvatar: some View {
-        Group {
+        let corner = avatarSize * 0.28
+        return Group {
             if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
                 Image(avatarAsset)
                     .resizable()
@@ -160,21 +165,25 @@ struct TTProfileScreen<Extra: View>: View {
             }
         }
         .frame(width: avatarSize, height: avatarSize)
-        .clipShape(Circle())
-        .overlay(Circle().strokeBorder(.white, lineWidth: 4))
-        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(.white, lineWidth: 4)
+        )
+        .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
     }
 
     private func profileChromeButton(icon: SandowIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             TTIcon(icon: icon, size: 18)
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(.ultraThinMaterial.opacity(0.55))
-                .background(Color.white.opacity(0.18))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .frame(width: 44, height: 44)
+                .background(Color.black.opacity(0.38))
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(icon == .gear1 ? "Settings" : (showsBack ? "Back" : "Edit"))
     }
 
     // MARK: Identity
@@ -186,24 +195,23 @@ struct TTProfileScreen<Extra: View>: View {
                 .foregroundStyle(TTColor.ink)
                 .multilineTextAlignment(.center)
 
-            HStack(spacing: 8) {
-                Label {
+            HStack(spacing: 6) {
+                HStack(spacing: 4) {
+                    TTIcon(icon: .mapPin1, size: 13)
                     Text(location)
                         .font(TTFont.textSM(.medium))
-                } icon: {
-                    TTIcon(icon: .mapPin1, size: 13)
                 }
-                Text("|")
-                    .foregroundStyle(TTColor.inkSubtle)
-                Label {
+                Circle()
+                    .fill(TTColor.inkSubtle)
+                    .frame(width: 3, height: 3)
+                    .padding(.horizontal, 4)
+                HStack(spacing: 4) {
+                    TTIcon(icon: .user, size: 13)
                     Text(membership)
                         .font(TTFont.textSM(.medium))
-                } icon: {
-                    TTIcon(icon: .user, size: 13)
                 }
             }
             .foregroundStyle(TTColor.inkMuted)
-            .labelStyle(.titleAndIcon)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)

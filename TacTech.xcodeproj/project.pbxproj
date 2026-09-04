@@ -19,6 +19,7 @@
 		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
 		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
+		3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */; };
 		3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */; };
 		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
 		490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */; };
@@ -91,6 +92,7 @@
 		42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeHeader.swift; sourceTree = "<group>"; };
 		48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentSteps.swift; sourceTree = "<group>"; };
 		4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessment.swift; sourceTree = "<group>"; };
+		4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
@@ -284,6 +286,7 @@
 				26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */,
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
+				4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */,
 				AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */,
 				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
@@ -398,6 +401,7 @@
 				DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */,
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
+				3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
@@ -571,9 +575,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
-				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for body assessment, live form correction, and food scanning.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos for profile pictures and to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -599,9 +603,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
-				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for body assessment, live form correction, and food scanning.";
+				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos to estimate nutrition from meals.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos for profile pictures and to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				LD_RUNPATH_SEARCH_PATHS = (

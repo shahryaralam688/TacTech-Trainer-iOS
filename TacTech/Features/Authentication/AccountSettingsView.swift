@@ -293,7 +293,7 @@ struct AccountSettingsView: View {
                 message: "Contact details will appear here."
             )
         case .language:
-            SettingsPlaceholderView(title: "Language", message: "English (EN) is currently selected.")
+            LanguageSettingsView()
         case .linkedDevices:
             SettingsPlaceholderView(title: "Linked Devices", message: "Apple Watch and other devices.")
         case .mainSecurity:

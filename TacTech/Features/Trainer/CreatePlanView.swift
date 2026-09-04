@@ -1,5 +1,7 @@
 import SwiftUI
 
+// MARK: - Create Plan (Sandow / TecTach theme)
+
 struct CreatePlanView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -14,12 +16,20 @@ struct CreatePlanView: View {
     @State private var isSaving = false
     @State private var error: String?
 
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let orange = TTColor.actionOrange
+    private let levels = ["Beginner", "Intermediate", "Advanced"]
+
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+        VStack(spacing: 0) {
+            header
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
                     planHeader
                     dayPicker
+
                     ForEach(selectedDays, id: \.self) { day in
                         if let binding = binding(for: day) {
                             SessionEditor(day: day, draft: binding) {
@@ -27,62 +37,127 @@ struct CreatePlanView: View {
                             }
                         }
                     }
+
                     if let error {
                         Text(error)
                             .font(TTFont.caption(13))
                             .foregroundStyle(TTColor.danger)
+                            .padding(.horizontal, 4)
                     }
-                    TTButton(title: "Save detailed plan", icon: "checkmark", isLoading: isSaving) {
-                        Task { await save() }
-                    }
-                    .disabled(!canSave)
-                    .opacity(canSave ? 1 : 0.5)
+
+                    saveButton
                 }
-                .padding(20)
+                .padding(.horizontal, 16)
+                .padding(.top, 14)
+                .padding(.bottom, 28)
             }
-            .ttScreenBackground()
-            .navigationTitle("New plan")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
-                }
-            }
-            .sheet(item: $pickerDay) { day in
-                ExerciseLibrarySheet { draft in
-                    add(draft, to: day)
-                }
+        }
+        .background(canvas.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+        .sheet(item: $pickerDay) { day in
+            ExerciseLibrarySheet { draft in
+                add(draft, to: day)
             }
         }
     }
 
+    // MARK: Header
+
+    private var header: some View {
+        HStack(spacing: 12) {
+            TTBackButton(style: .onLight) { dismiss() }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("New Plan")
+                    .font(TTFont.workSans(20, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Text("Build a weekly program")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                Task { await save() }
+            } label: {
+                Group {
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        TTIcon(icon: .check, filled: true, size: 16)
+                            .foregroundStyle(.white)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .background(canSave ? orange : Color(white: 0.75))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSave || isSaving)
+            .accessibilityLabel("Save plan")
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(Color.white)
+    }
+
+    // MARK: Program
+
     private var planHeader: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Program")
-                .font(TTFont.title(20))
-            field("Plan title", text: $title, prompt: "e.g. 4-day strength block")
-            field("Focus", text: $focus, prompt: "Hypertrophy · posterior chain")
+            sectionLabel("Program", icon: .clipboard)
+
+            sandowField("Plan title", text: $title, prompt: "e.g. 4-day strength block")
+            sandowField("Focus", text: $focus, prompt: "Hypertrophy · posterior chain")
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("LEVEL")
                     .font(TTFont.caption(11))
                     .foregroundStyle(TTColor.inkMuted)
-                Picker("Level", selection: $level) {
-                    ForEach(["Beginner", "Intermediate", "Advanced"], id: \.self) { Text($0) }
+                HStack(spacing: 8) {
+                    ForEach(levels, id: \.self) { item in
+                        let on = level == item
+                        Button {
+                            level = item
+                        } label: {
+                            Text(item)
+                                .font(TTFont.workSans(13, weight: .semibold))
+                                .foregroundStyle(on ? .white : TTColor.ink)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 40)
+                                .background(on ? orange : Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .pickerStyle(.segmented)
             }
-            field("Coach notes for the trainee", text: $notes, prompt: "How this week should feel, deload rules, food timing…", axis: .vertical)
+
+            sandowField(
+                "Coach notes for the trainee",
+                text: $notes,
+                prompt: "How this week should feel, deload rules…",
+                axis: .vertical
+            )
         }
-        .ttCard()
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+
+    // MARK: Days
 
     private var dayPicker: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Which days will they train?")
-                .font(TTFont.title(20))
-            Text("Pick every training day, then set the time, how to do the session, and the exact weight for each set.")
-                .font(TTFont.body(14))
+            sectionLabel("Training days", icon: .calendar1)
+
+            Text("Pick every training day, then set time, cues, and weights for each set.")
+                .font(TTFont.body(13))
                 .foregroundStyle(TTColor.inkMuted)
+
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(Weekday.allCases) { day in
                     let on = selectedDays.contains(day)
@@ -90,21 +165,66 @@ struct CreatePlanView: View {
                         toggle(day)
                     } label: {
                         Text(day.short)
-                            .font(TTFont.heading(13))
+                            .font(TTFont.workSans(13, weight: .bold))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .foregroundStyle(on ? TTColor.surface : TTColor.ink)
-                            .background(on ? TTColor.brand : TTColor.surfaceAlt)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .padding(.vertical, 14)
+                            .foregroundStyle(on ? .white : TTColor.ink)
+                            .background(on ? orange : Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .strokeBorder(on ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+                            )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTSearchPressStyle(scale: 0.97))
                 }
             }
         }
-        .ttCard()
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func field(_ title: String, text: Binding<String>, prompt: String, axis: Axis = .horizontal) -> some View {
+    private var saveButton: some View {
+        Button {
+            Task { await save() }
+        } label: {
+            HStack(spacing: 8) {
+                if isSaving {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Save detailed plan")
+                        .font(TTFont.workSans(16, weight: .bold))
+                    TTIcon(icon: .check, filled: true, size: 14)
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(canSave ? Color.black : Color(white: 0.72))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(TTSearchPressStyle(scale: 0.98))
+        .disabled(!canSave || isSaving)
+        .padding(.top, 4)
+    }
+
+    private func sectionLabel(_ title: String, icon: SandowIcon) -> some View {
+        HStack(spacing: 8) {
+            TTIcon(icon: icon, filled: true, size: 16)
+                .foregroundStyle(orange)
+            Text(title)
+                .font(TTFont.workSans(17, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+        }
+    }
+
+    private func sandowField(
+        _ title: String,
+        text: Binding<String>,
+        prompt: String,
+        axis: Axis = .horizontal
+    ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title.uppercased())
                 .font(TTFont.caption(11))
@@ -113,10 +233,12 @@ struct CreatePlanView: View {
                 .lineLimit(axis == .vertical ? 3...6 : 1...1)
                 .font(TTFont.body(16))
                 .padding(12)
-                .background(TTColor.surfaceAlt)
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
+
+    // MARK: Logic
 
     private func toggle(_ day: Weekday) {
         if let index = selectedDays.firstIndex(of: day) {
@@ -174,6 +296,8 @@ struct CreatePlanView: View {
         }
     }
 }
+
+// MARK: - Drafts
 
 struct SessionDraft {
     var day: Weekday
@@ -264,21 +388,48 @@ struct SetDraft: Identifiable {
     var weight: Double
 }
 
+// MARK: - Session editor
+
 struct SessionEditor: View {
     let day: Weekday
     @Binding var draft: SessionDraft
     var addExercise: () -> Void
 
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let orange = TTColor.actionOrange
+    private let locations = ["Gym", "Home", "Outdoor", "Studio"]
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(day.title)
-                .font(TTFont.title(20))
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(orange.opacity(0.12))
+                    TTIcon(icon: .calendar1, filled: true, size: 16)
+                        .foregroundStyle(orange)
+                }
+                .frame(width: 40, height: 40)
+
+                Text(day.title)
+                    .font(TTFont.workSans(18, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+
+                Spacer()
+
+                Text("\(draft.exercises.count) moves")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+
             labeled("Session name") {
                 TextField("Lower strength", text: $draft.title)
+                    .font(TTFont.body(15))
             }
             labeled("Focus") {
                 TextField("Squat pattern + hamstrings", text: $draft.focus)
+                    .font(TTFont.body(15))
             }
+
             HStack(spacing: 12) {
                 labeled("When") {
                     DatePicker("", selection: $draft.time, displayedComponents: .hourAndMinute)
@@ -291,39 +442,72 @@ struct SessionEditor: View {
                     format: { "\($0) min" }
                 )
             }
-            labeled("Where") {
-                Picker("Location", selection: $draft.location) {
-                    ForEach(["Gym", "Home", "Outdoor", "Studio"], id: \.self) { Text($0) }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("WHERE")
+                    .font(TTFont.caption(11))
+                    .foregroundStyle(TTColor.inkMuted)
+                HStack(spacing: 6) {
+                    ForEach(locations, id: \.self) { place in
+                        let on = draft.location == place
+                        Button {
+                            draft.location = place
+                        } label: {
+                            Text(place)
+                                .font(TTFont.workSans(12, weight: .semibold))
+                                .foregroundStyle(on ? .white : TTColor.ink)
+                                .padding(.horizontal, 10)
+                                .frame(height: 34)
+                                .background(on ? orange : Color.white)
+                                .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .pickerStyle(.segmented)
             }
+
             labeled("How to start (warm-up)") {
                 TextField("Warm-up", text: $draft.warmup, axis: .vertical)
+                    .font(TTFont.body(14))
                     .lineLimit(2...4)
             }
             labeled("How to finish (cool-down)") {
                 TextField("Cool-down", text: $draft.cooldown, axis: .vertical)
+                    .font(TTFont.body(14))
                     .lineLimit(2...4)
             }
             labeled("How they should do this day") {
                 TextField("Pace, rest rules, form priority…", text: $draft.coachNotes, axis: .vertical)
+                    .font(TTFont.body(14))
                     .lineLimit(2...5)
             }
 
             HStack {
                 Text("Exercises")
-                    .font(TTFont.heading(16))
+                    .font(TTFont.workSans(16, weight: .bold))
                 Spacer()
-                Button("Add", action: addExercise)
-                    .font(TTFont.caption(13))
-                    .foregroundStyle(TTColor.brand)
+                Button(action: addExercise) {
+                    HStack(spacing: 6) {
+                        TTIcon(icon: .plus, filled: true, size: 12)
+                        Text("Add")
+                            .font(TTFont.workSans(13, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 34)
+                    .background(orange)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TTSearchPressStyle(scale: 0.97))
             }
 
             ForEach($draft.exercises) { $item in
                 ExerciseDraftEditor(draft: $item)
             }
         }
-        .ttCard()
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -332,24 +516,42 @@ struct SessionEditor: View {
                 .font(TTFont.caption(11))
                 .foregroundStyle(TTColor.inkMuted)
             content()
-                .padding(10)
-                .background(TTColor.surfaceAlt)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 }
 
+// MARK: - Exercise draft editor
+
 struct ExerciseDraftEditor: View {
     @Environment(AppStore.self) private var store
     @Binding var draft: ExerciseDraft
 
+    private let orange = TTColor.actionOrange
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(store.exercise(id: draft.exerciseId)?.name ?? "Exercise")
-                .font(TTFont.heading(16))
-            Text(store.exercise(id: draft.exerciseId).map { "\($0.muscleGroup) · \($0.equipment)" } ?? "")
-                .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.inkMuted)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(orange.opacity(0.12))
+                    TTIcon(icon: .kettlebell, filled: true, size: 16)
+                        .foregroundStyle(orange)
+                }
+                .frame(width: 40, height: 40)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.exercise(id: draft.exerciseId)?.name ?? "Exercise")
+                        .font(TTFont.workSans(15, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text(store.exercise(id: draft.exerciseId).map { "\($0.muscleGroup) · \($0.equipment)" } ?? "")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+            }
 
             HStack(spacing: 8) {
                 TTDropPicker(title: "Sets", selection: $draft.sets, options: Array(1...8))
@@ -385,7 +587,7 @@ struct ExerciseDraftEditor: View {
                 ForEach($draft.setRows) { $row in
                     HStack(spacing: 8) {
                         Text("Set \(row.setNumber)")
-                            .font(TTFont.heading(13))
+                            .font(TTFont.workSans(13, weight: .semibold))
                             .foregroundStyle(TTColor.ink)
                             .frame(width: 52, alignment: .leading)
                         TTDropPicker(
@@ -415,64 +617,137 @@ struct ExerciseDraftEditor: View {
                     format: { String(format: "%g", $0) }
                 )
             }
-            labeled("How to perform") {
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("HOW TO PERFORM")
+                    .font(TTFont.caption(10))
+                    .foregroundStyle(TTColor.inkSubtle)
                 TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
+                    .font(TTFont.body(14))
                     .lineLimit(2...5)
             }
         }
-        .padding(12)
-        .background(TTColor.canvas)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title.uppercased())
-                .font(TTFont.caption(10))
-                .foregroundStyle(TTColor.inkSubtle)
-            content()
-        }
+        .padding(14)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.04), lineWidth: 1)
+        )
     }
 }
+
+// MARK: - Exercise library
 
 struct ExerciseLibrarySheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let onPick: (ExerciseDraft) -> Void
 
+    @State private var query = ""
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let orange = TTColor.actionOrange
+
+    private var filtered: [Exercise] {
+        let q = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return store.exercises }
+        return store.exercises.filter {
+            $0.name.localizedCaseInsensitiveContains(q)
+                || $0.muscleGroup.localizedCaseInsensitiveContains(q)
+                || $0.equipment.localizedCaseInsensitiveContains(q)
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            List(store.exercises) { exercise in
-                NavigationLink {
-                    ExerciseTemplatePickerView(exercise: exercise) { draft in
-                        onPick(draft)
-                        dismiss()
-                    }
-                } label: {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(exercise.name)
-                            .font(TTFont.heading(16))
-                            .foregroundStyle(TTColor.ink)
-                        Text("\(exercise.muscleGroup) · \(exercise.equipment) · \(exercise.difficulty)")
-                            .font(TTFont.caption(12))
-                            .foregroundStyle(TTColor.inkMuted)
-                        let count = store.templates(forExerciseId: exercise.id).count
-                        if count > 0 {
-                            Text("\(count) saved template\(count == 1 ? "" : "s")")
-                                .font(TTFont.caption(11))
-                                .foregroundStyle(TTColor.brand)
+            VStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    TTBackButton(style: .onLight) { dismiss() }
+                    Text("Add exercise")
+                        .font(TTFont.workSans(20, weight: .bold))
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
+                .background(Color.white)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        HStack(spacing: 10) {
+                            TTIcon(icon: .magnifyingGlass, size: 16)
+                                .foregroundStyle(TTColor.inkMuted)
+                            TextField("Search exercises", text: $query)
+                                .font(TTFont.body(15))
+                        }
+                        .padding(.horizontal, 14)
+                        .frame(height: 48)
+                        .background(cardFill)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                        if filtered.isEmpty {
+                            Text("No matches")
+                                .font(TTFont.body(14))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 40)
+                        } else {
+                            ForEach(filtered) { exercise in
+                                NavigationLink {
+                                    ExerciseTemplatePickerView(exercise: exercise) { draft in
+                                        onPick(draft)
+                                        dismiss()
+                                    }
+                                } label: {
+                                    exerciseRow(exercise)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 12)
+                    .padding(.bottom, 24)
                 }
             }
-            .navigationTitle("Add exercise")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
-                }
-            }
+            .background(canvas.ignoresSafeArea())
+            .ttHideSystemNavigationBar()
         }
+    }
+
+    private func exerciseRow(_ exercise: Exercise) -> some View {
+        let count = store.templates(forExerciseId: exercise.id).count
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(orange.opacity(0.12))
+                TTIcon(icon: .kettlebell, filled: true, size: 18)
+                    .foregroundStyle(orange)
+            }
+            .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(exercise.name)
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Text("\(exercise.muscleGroup) · \(exercise.equipment) · \(exercise.difficulty)")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+                if count > 0 {
+                    Text("\(count) saved template\(count == 1 ? "" : "s")")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(orange)
+                }
+            }
+
+            Spacer(minLength: 0)
+            TTIcon(icon: .chevronRight, size: 14)
+                .foregroundStyle(TTColor.inkSubtle)
+        }
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }
 

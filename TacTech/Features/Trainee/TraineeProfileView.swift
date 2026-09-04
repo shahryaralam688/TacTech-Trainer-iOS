@@ -56,6 +56,7 @@ struct TraineeProfileView: View {
             location: store.currentTrainee?.location?.nilIfBlank ?? "Add location",
             membership: store.currentTrainee?.goal.nilIfBlank ?? "Basic Member",
             avatarAsset: TTAvatarCatalog.saved(for: store.session?.userId),
+            avatarUserId: store.session?.userId,
             initials: initials,
             scores: store.weeklySandowScores(),
             metrics: metrics,

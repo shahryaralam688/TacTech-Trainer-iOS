@@ -32,7 +32,7 @@ struct FitnessAssessmentFlowView: View {
                 case 14: BodyScanStep(draft: $draft)
                 case 15: VoiceStep(draft: $draft)
                 case 16: TextAnalysisStep(draft: $draft)
-                default: AssessmentAvatarStep(selection: $avatarSelection)
+                default: AssessmentAvatarStep(selection: $avatarSelection, userId: store.currentUser?.id)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
@@ -165,10 +165,10 @@ struct FitnessAssessmentFlowView: View {
         error = nil
         defer { isSaving = false }
         do {
-            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
+            TTAvatarCatalog.persistSelection(avatarSelection, for: store.currentUser?.id)
             try await store.submitAssessment(draft)
         } catch {
-            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
+            TTAvatarCatalog.persistSelection(avatarSelection, for: store.currentUser?.id)
             store.persistAssessment(draft)
             store.markAssessmentCompleted()
             self.error = error.localizedDescription

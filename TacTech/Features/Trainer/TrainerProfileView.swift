@@ -54,6 +54,7 @@ struct TrainerProfileView: View {
             location: store.currentTrainer?.location?.nilIfBlank ?? "Add location",
             membership: store.currentTrainer?.specialty.nilIfBlank ?? "Coach",
             avatarAsset: TTAvatarCatalog.saved(for: store.session?.userId),
+            avatarUserId: store.session?.userId,
             initials: initials,
             scores: scores,
             metrics: metrics,

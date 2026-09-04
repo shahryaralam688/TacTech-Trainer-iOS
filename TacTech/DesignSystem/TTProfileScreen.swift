@@ -28,6 +28,7 @@ struct TTProfileScreen<Extra: View>: View {
     let location: String
     let membership: String
     let avatarAsset: String?
+    var avatarUserId: String? = nil
     let initials: String
     let scores: [TTSandowDayScore]
     let metrics: [TTProfileMetric]
@@ -158,20 +159,12 @@ struct TTProfileScreen<Extra: View>: View {
 
     private var profileAvatar: some View {
         let corner = avatarSize * 0.28
-        return Group {
-            if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
-                Image(avatarAsset)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                Text(initials.uppercased())
-                    .font(TTFont.workSans(36, weight: .bold))
-                    .foregroundStyle(Color(white: 0.35))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .background(Color(white: 0.92))
-            }
-        }
-        .frame(width: avatarSize, height: avatarSize)
+        return TTAvatarImage(
+            assetName: avatarAsset,
+            userId: avatarUserId,
+            initials: initials,
+            size: avatarSize
+        )
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: corner, style: .continuous)
@@ -360,6 +353,7 @@ extension TTProfileScreen where Extra == EmptyView {
         location: String,
         membership: String,
         avatarAsset: String?,
+        avatarUserId: String? = nil,
         initials: String,
         scores: [TTSandowDayScore],
         metrics: [TTProfileMetric],
@@ -371,6 +365,7 @@ extension TTProfileScreen where Extra == EmptyView {
             location: location,
             membership: membership,
             avatarAsset: avatarAsset,
+            avatarUserId: avatarUserId,
             initials: initials,
             scores: scores,
             metrics: metrics,

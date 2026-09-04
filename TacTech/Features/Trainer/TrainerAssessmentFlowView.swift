@@ -30,7 +30,7 @@ struct TrainerAssessmentFlowView: View {
                 case 9: TrainerGenderStep(draft: $draft, onSkip: skipGender)
                 case 10: TrainerBioStep(draft: $draft)
                 case 11: TrainerPhilosophyStep(draft: $draft)
-                default: AssessmentAvatarStep(selection: $avatarSelection)
+                default: AssessmentAvatarStep(selection: $avatarSelection, userId: store.currentUser?.id)
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)
@@ -136,10 +136,10 @@ struct TrainerAssessmentFlowView: View {
         error = nil
         defer { isSaving = false }
         do {
-            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
+            TTAvatarCatalog.persistSelection(avatarSelection, for: store.currentUser?.id)
             try await store.submitTrainerAssessment(draft)
         } catch {
-            TTAvatarCatalog.save(avatarSelection, for: store.currentUser?.id)
+            TTAvatarCatalog.persistSelection(avatarSelection, for: store.currentUser?.id)
             store.persistTrainerAssessment(draft)
             store.markAssessmentCompleted()
             self.error = error.localizedDescription

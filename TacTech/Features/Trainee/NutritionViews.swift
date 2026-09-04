@@ -219,7 +219,15 @@ struct NutritionView: View {
 
     private var avatarView: some View {
         Group {
-            if let asset = TTAvatarCatalog.saved(for: store.session?.userId) {
+            let asset = TTAvatarCatalog.saved(for: store.session?.userId)
+            if TTAvatarCatalog.isCustom(asset),
+               let custom = TTAvatarCatalog.loadCustomImage(for: store.session?.userId) {
+                Image(uiImage: custom)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            } else if let asset, TTAvatarCatalog.isAssetName(asset) {
                 Image(asset)
                     .resizable()
                     .scaledToFill()

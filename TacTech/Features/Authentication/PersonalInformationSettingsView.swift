@@ -61,15 +61,18 @@ struct PersonalInformationSettingsView: View {
         .onAppear(perform: hydrate)
         .sheet(isPresented: $showAvatarPicker) {
             NavigationStack {
-                AssessmentAvatarStep(selection: Binding(
-                    get: { avatarAsset ?? TTAvatarCatalog.default },
-                    set: { avatarAsset = $0 }
-                ))
+                AssessmentAvatarStep(
+                    selection: Binding(
+                        get: { avatarAsset ?? TTAvatarCatalog.default },
+                        set: { avatarAsset = $0 }
+                    ),
+                    userId: store.session?.userId
+                )
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") {
                             if let avatarAsset {
-                                TTAvatarCatalog.save(avatarAsset, for: store.session?.userId)
+                                TTAvatarCatalog.persistSelection(avatarAsset, for: store.session?.userId)
                             }
                             showAvatarPicker = false
                         }
@@ -99,7 +102,12 @@ struct PersonalInformationSettingsView: View {
     private var avatarWithEdit: some View {
         ZStack(alignment: .bottom) {
             Group {
-                if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
+                if let avatarAsset, TTAvatarCatalog.isCustom(avatarAsset),
+                   let custom = TTAvatarCatalog.loadCustomImage(for: store.session?.userId) {
+                    Image(uiImage: custom)
+                        .resizable()
+                        .scaledToFill()
+                } else if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
                     Image(avatarAsset)
                         .resizable()
                         .scaledToFill()
@@ -329,7 +337,7 @@ struct PersonalInformationSettingsView: View {
             weightKg: store.session?.role == .trainee ? weightKg : nil
         )
         if let avatarAsset {
-            TTAvatarCatalog.save(avatarAsset, for: store.session?.userId)
+            TTAvatarCatalog.persistSelection(avatarAsset, for: store.session?.userId)
         }
         UserDefaults.standard.set(accountType, forKey: accountTypeKey)
         saved = true

@@ -145,7 +145,7 @@ struct ProfileCompletionFlowView: View {
     // MARK: - Steps
 
     private var avatarStep: some View {
-        AssessmentAvatarStep(selection: $draft.avatarSymbol)
+        AssessmentAvatarStep(selection: $draft.avatarSymbol, userId: store.session?.userId ?? store.currentUser?.id)
     }
 
     private var profileStep: some View {
@@ -458,7 +458,7 @@ struct ProfileCompletionFlowView: View {
             weightKg: store.session?.role == .trainee ? weight : nil
         )
             if let userId = store.session?.userId {
-            TTAvatarCatalog.save(draft.avatarSymbol, for: userId)
+            TTAvatarCatalog.persistSelection(draft.avatarSymbol, for: userId)
             UserDefaults.standard.set(draft.notifyWorkouts, forKey: "notify.workouts.\(userId)")
             UserDefaults.standard.set(draft.notifyMessages, forKey: "notify.messages.\(userId)")
             UserDefaults.standard.set(draft.notifyProgress, forKey: "notify.progress.\(userId)")

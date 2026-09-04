@@ -61,6 +61,7 @@ struct TraineeDashboardView: View {
         TTHomeProfileHeader(
             name: firstName,
             avatarSymbol: avatarSymbol,
+            avatarUserId: store.session?.userId,
             badgeCount: notificationCount,
             metrics: [
                 TTHomeProfileMetric(

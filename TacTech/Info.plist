@@ -34,11 +34,11 @@
 		</dict>
 	</dict>
 	<key>NSCameraUsageDescription</key>
-	<string>TacTech uses the camera for body assessment, live form correction, and food scanning.</string>
+	<string>TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TacTech uses the microphone for vocal fitness assessment.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>TacTech uses your photos to estimate nutrition from meals.</string>
+	<string>TacTech uses your photos for profile pictures and to estimate nutrition from meals.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

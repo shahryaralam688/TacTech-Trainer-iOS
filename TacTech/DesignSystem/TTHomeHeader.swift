@@ -20,6 +20,7 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
 struct TTHomeProfileHeader: View {
     let name: String
     var avatarSymbol: String? = nil
+    var avatarUserId: String? = nil
     var avatarInitial: String? = nil
     var badgeCount: Int = 0
     var metrics: [TTHomeProfileMetric] = []
@@ -152,7 +153,14 @@ struct TTHomeProfileHeader: View {
 
     private var avatarView: some View {
         Group {
-            if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
+            if TTAvatarCatalog.isCustom(avatarSymbol),
+               let custom = TTAvatarCatalog.loadCustomImage(for: avatarUserId) {
+                Image(uiImage: custom)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 58, height: 58)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            } else if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
                 Image(avatarSymbol)
                     .resizable()
                     .scaledToFill()
@@ -164,7 +172,7 @@ struct TTHomeProfileHeader: View {
                         .fill(Color.white.opacity(0.14))
                         .frame(width: 58, height: 58)
 
-                    if let avatarSymbol {
+                    if let avatarSymbol, !TTAvatarCatalog.hasRenderableAvatar(avatarSymbol) {
                         Image(systemName: avatarSymbol)
                             .font(TTFont.headingMD(.semibold))
                             .foregroundStyle(.white)

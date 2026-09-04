@@ -42,6 +42,7 @@
 		8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95304A4367FC245D3A00DF7F /* TrainerRootView.swift */; };
 		90C3AADBAC6CC3E291EE1DD7 /* TTSearchOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */; };
 		90D61686645F7482E317416A /* TacTechApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587AE07BF381E435AE227C43 /* TacTechApp.swift */; };
+		91E75FD194F5C532A243D440 /* SecuritySettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */; };
 		9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */; };
 		96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 263477F1D52EA623D59CA93C /* TTProfileScreen.swift */; };
 		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
@@ -83,6 +84,7 @@
 		263477F1D52EA623D59CA93C /* TTProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTProfileScreen.swift; sourceTree = "<group>"; };
 		26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
+		2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecuritySettingsView.swift; sourceTree = "<group>"; };
 		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
@@ -285,6 +287,7 @@
 				AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */,
 				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
+				2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */,
 				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
 				5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
@@ -405,6 +408,7 @@
 				75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */,
 				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
+				91E75FD194F5C532A243D440 /* SecuritySettingsView.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
 				71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */,

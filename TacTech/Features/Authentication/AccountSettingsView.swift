@@ -297,7 +297,7 @@ struct AccountSettingsView: View {
         case .linkedDevices:
             SettingsPlaceholderView(title: "Linked Devices", message: "Apple Watch and other devices.")
         case .mainSecurity:
-            SettingsPlaceholderView(title: "Main Security", message: "Password and account security options.")
+            SecuritySettingsView()
         case .privacyPolicy:
             SettingsPlaceholderView(title: "Privacy Policy", message: "How TacTech handles your data.")
         case .aboutUs:

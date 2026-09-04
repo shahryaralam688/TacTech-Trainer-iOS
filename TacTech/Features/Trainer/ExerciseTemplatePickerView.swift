@@ -204,10 +204,15 @@ struct ExerciseTemplatePickerView: View {
     }
 
     private func commit(_ draft: ExerciseDraft, name: String, persist: Bool) {
+        var finished = draft
+        finished.templateName = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "Custom template"
+            : name.trimmingCharacters(in: .whitespacesAndNewlines)
+        finished.isExpanded = true
         if persist, let trainerId = store.currentTrainer?.id {
-            store.saveExerciseTemplate(draft.asTemplate(name: name, trainerId: trainerId))
+            store.saveExerciseTemplate(finished.asTemplate(name: finished.templateName, trainerId: trainerId))
         }
-        onSelect(draft)
+        onSelect(finished)
     }
 }
 
@@ -294,9 +299,10 @@ struct ExerciseTemplateCustomizeView: View {
 
 extension ExerciseDraft {
     init(template: ExerciseTemplate) {
-        self.init(exerciseId: template.exerciseId)
+        self.init(exerciseId: template.exerciseId, templateName: template.name)
         id = UUID()
         exerciseId = template.exerciseId
+        templateName = template.name
         sets = template.sets
         reps = template.reps
         rest = template.restSeconds
@@ -308,6 +314,7 @@ extension ExerciseDraft {
         setRows = template.setRows.map {
             SetDraft(setNumber: $0.setNumber, reps: $0.reps, weight: $0.weightKg)
         }
+        isExpanded = true
         if setRows.isEmpty {
             syncSetCount()
         }

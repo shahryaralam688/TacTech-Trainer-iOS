@@ -331,6 +331,8 @@ struct SessionDraft {
 struct ExerciseDraft: Identifiable {
     var id = UUID()
     var exerciseId: String
+    /// Saved template label shown as subtitle under the exercise name.
+    var templateName: String = ""
     var sets = 4
     var reps = 8
     var rest = 90
@@ -340,10 +342,17 @@ struct ExerciseDraft: Identifiable {
     var howTo = "Brace, control the eccentric, full lockout, no bouncing."
     var side = "Both"
     var setRows: [SetDraft]
+    /// UI: exercise card expanded in the day editor.
+    var isExpanded: Bool = true
 
-    init(exerciseId: String) {
+    init(exerciseId: String, templateName: String = "") {
         self.exerciseId = exerciseId
+        self.templateName = templateName
         self.setRows = (1...4).map { SetDraft(setNumber: $0, reps: 8, weight: 40) }
+    }
+
+    var prescriptionSummary: String {
+        "\(sets)×\(reps) · \(weight.cleanKg) kg · \(rest)s rest"
     }
 
     mutating func syncSetCount() {
@@ -395,32 +404,151 @@ struct SessionEditor: View {
     @Binding var draft: SessionDraft
     var addExercise: () -> Void
 
+    @Environment(AppStore.self) private var store
+    @State private var isExpanded = true
+
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
     private let locations = ["Gym", "Home", "Outdoor", "Studio"]
 
+    private var morph: Animation {
+        .spring(response: 0.34, dampingFraction: 0.86)
+    }
+
+    private var sessionSubtitle: String {
+        let name = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let focus = draft.focus.trimmingCharacters(in: .whitespacesAndNewlines)
+        let head = name.isEmpty ? (focus.isEmpty ? "\(day.title) session" : focus) : name
+        return "\(head) · \(draft.exercises.count) moves · \(draft.duration) min"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
+            dayHeader
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 14) {
+                    sessionFields
+                    exercisesBlock
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 16)
+                .padding(.top, 4)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.98, anchor: .top)),
+                        removal: .opacity.combined(with: .scale(scale: 0.98, anchor: .top))
+                    )
+                )
+            } else if !draft.exercises.isEmpty {
+                collapsedExercisePreview
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 14)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .animation(morph, value: isExpanded)
+        .animation(morph, value: draft.exercises.count)
+    }
+
+    // MARK: Header
+
+    private var dayHeader: some View {
+        Button {
+            withAnimation(morph) { isExpanded.toggle() }
+        } label: {
+            HStack(spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(orange.opacity(0.12))
+                        .fill(orange.opacity(0.14))
                     TTIcon(icon: .calendar1, filled: true, size: 16)
                         .foregroundStyle(orange)
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: 42, height: 42)
 
-                Text(day.title)
-                    .font(TTFont.workSans(18, weight: .bold))
-                    .foregroundStyle(TTColor.ink)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(day.title)
+                        .font(TTFont.workSans(17, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text(sessionSubtitle)
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .lineLimit(1)
+                }
 
-                Spacer()
+                Spacer(minLength: 8)
 
-                Text("\(draft.exercises.count) moves")
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.inkMuted)
+                Button(action: addExercise) {
+                    HStack(spacing: 5) {
+                        TTIcon(icon: .plus, filled: true, size: 11)
+                        Text("Add")
+                            .font(TTFont.workSans(12, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .frame(height: 32)
+                    .background(orange)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(TTSearchPressStyle(scale: 0.96))
+
+                ZStack {
+                    Circle()
+                        .fill(Color.white)
+                        .frame(width: 34, height: 34)
+                    TTIcon(icon: .chevronDown, size: 14)
+                        .foregroundStyle(TTColor.inkMuted)
+                        .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                }
             }
+            .padding(14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isExpanded ? "Collapse \(day.title)" : "Expand \(day.title)")
+    }
 
+    private var collapsedExercisePreview: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(draft.exercises.enumerated()), id: \.element.id) { index, item in
+                HStack(spacing: 10) {
+                    Text("\(index + 1)")
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(orange)
+                        .frame(width: 22, height: 22)
+                        .background(orange.opacity(0.12))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(store.exercise(id: item.exerciseId)?.name ?? "Exercise")
+                            .font(TTFont.workSans(14, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .lineLimit(1)
+                        Text(item.templateName.isEmpty ? item.prescriptionSummary : item.templateName)
+                            .font(TTFont.caption(11))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    Text(item.prescriptionSummary)
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+        }
+    }
+
+    // MARK: Fields
+
+    private var sessionFields: some View {
+        VStack(alignment: .leading, spacing: 14) {
             labeled("Session name") {
                 TextField("Lower strength", text: $draft.title)
                     .font(TTFont.body(15))
@@ -481,33 +609,32 @@ struct SessionEditor: View {
                     .font(TTFont.body(14))
                     .lineLimit(2...5)
             }
+        }
+    }
 
-            HStack {
-                Text("Exercises")
-                    .font(TTFont.workSans(16, weight: .bold))
-                Spacer()
-                Button(action: addExercise) {
-                    HStack(spacing: 6) {
-                        TTIcon(icon: .plus, filled: true, size: 12)
-                        Text("Add")
-                            .font(TTFont.workSans(13, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 12)
-                    .frame(height: 34)
-                    .background(orange)
-                    .clipShape(Capsule())
+    private var exercisesBlock: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Exercises")
+                .font(TTFont.workSans(16, weight: .bold))
+
+            if draft.exercises.isEmpty {
+                Text("Tap Add to pick an exercise and template.")
+                    .font(TTFont.body(13))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(Color.white.opacity(0.7))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            } else {
+                ForEach($draft.exercises) { $item in
+                    ExerciseDraftEditor(draft: $item)
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .move(edge: .bottom)),
+                            removal: .opacity.combined(with: .scale(scale: 0.96))
+                        ))
                 }
-                .buttonStyle(TTSearchPressStyle(scale: 0.97))
-            }
-
-            ForEach($draft.exercises) { $item in
-                ExerciseDraftEditor(draft: $item)
             }
         }
-        .padding(16)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -532,108 +659,176 @@ struct ExerciseDraftEditor: View {
 
     private let orange = TTColor.actionOrange
 
+    private var morph: Animation {
+        .spring(response: 0.32, dampingFraction: 0.88)
+    }
+
+    private var exerciseTitle: String {
+        store.exercise(id: draft.exerciseId)?.name ?? "Exercise"
+    }
+
+    private var subtitle: String {
+        if !draft.templateName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return draft.templateName
+        }
+        return store.exercise(id: draft.exerciseId).map { "\($0.muscleGroup) · \($0.equipment)" } ?? draft.prescriptionSummary
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(orange.opacity(0.12))
-                    TTIcon(icon: .kettlebell, filled: true, size: 16)
-                        .foregroundStyle(orange)
-                }
-                .frame(width: 40, height: 40)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(morph) { draft.isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(orange.opacity(0.12))
+                        TTIcon(icon: .kettlebell, filled: true, size: 16)
+                            .foregroundStyle(orange)
+                    }
+                    .frame(width: 40, height: 40)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.exercise(id: draft.exerciseId)?.name ?? "Exercise")
-                        .font(TTFont.workSans(15, weight: .bold))
-                        .foregroundStyle(TTColor.ink)
-                    Text(store.exercise(id: draft.exerciseId).map { "\($0.muscleGroup) · \($0.equipment)" } ?? "")
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
-            }
-
-            HStack(spacing: 8) {
-                TTDropPicker(title: "Sets", selection: $draft.sets, options: Array(1...8))
-                    .onChange(of: draft.sets) { _, _ in draft.syncSetCount() }
-                TTDropPicker(
-                    title: "Reps",
-                    selection: $draft.reps,
-                    options: Array(1...30),
-                    format: { "\($0)" }
-                )
-                .onChange(of: draft.reps) { _, value in
-                    for index in draft.setRows.indices { draft.setRows[index].reps = value }
-                }
-                TTDropPicker(
-                    title: "Rest",
-                    selection: $draft.rest,
-                    options: [20, 30, 45, 60, 75, 90, 120, 150, 180, 210, 240],
-                    format: { "\($0)s" }
-                )
-            }
-
-            TTDropPicker(
-                title: "Working weight",
-                selection: $draft.weight,
-                options: PlanPickValues.weights,
-                format: { "\($0.cleanKg) kg" }
-            )
-            .onChange(of: draft.weight) { _, value in
-                for index in draft.setRows.indices { draft.setRows[index].weight = value }
-            }
-
-            VStack(spacing: 8) {
-                ForEach($draft.setRows) { $row in
-                    HStack(spacing: 8) {
-                        Text("Set \(row.setNumber)")
-                            .font(TTFont.workSans(13, weight: .semibold))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(exerciseTitle)
+                            .font(TTFont.workSans(15, weight: .bold))
                             .foregroundStyle(TTColor.ink)
-                            .frame(width: 52, alignment: .leading)
-                        TTDropPicker(
-                            selection: $row.reps,
-                            options: Array(1...30),
-                            format: { "\($0) reps" }
-                        )
-                        TTDropPicker(
-                            selection: $row.weight,
-                            options: PlanPickValues.weights,
-                            format: { "\($0.cleanKg) kg" }
-                        )
+                            .lineLimit(1)
+                        Text(subtitle)
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(orange.opacity(0.95))
+                            .lineLimit(1)
+                        if !draft.isExpanded {
+                            Text(draft.prescriptionSummary)
+                                .font(TTFont.caption(11))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 8)
+
+                    ZStack {
+                        Circle()
+                            .fill(Color(white: 0.94))
+                            .frame(width: 30, height: 30)
+                        TTIcon(icon: .chevronDown, size: 12)
+                            .foregroundStyle(TTColor.inkMuted)
+                            .rotationEffect(.degrees(draft.isExpanded ? 180 : 0))
                     }
                 }
+                .padding(12)
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
 
-            HStack(spacing: 8) {
-                TTDropPicker(
-                    title: "Tempo",
-                    selection: $draft.tempo,
-                    options: ["3-1-1-0", "2-0-2-0", "3-0-1-0", "4-1-1-0", "2-1-1-0", "1-0-X-0", "Explosive"]
-                )
-                TTDropPicker(
-                    title: "RPE",
-                    selection: $draft.rpe,
-                    options: PlanPickValues.rpe,
-                    format: { String(format: "%g", $0) }
-                )
-            }
+            if draft.isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    if !draft.templateName.isEmpty {
+                        HStack(spacing: 6) {
+                            TTIcon(icon: .layerThree, filled: true, size: 12)
+                            Text("Template · \(draft.templateName)")
+                                .font(TTFont.caption(12))
+                                .fontWeight(.semibold)
+                        }
+                        .foregroundStyle(orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(orange.opacity(0.1))
+                        .clipShape(Capsule())
+                    }
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("HOW TO PERFORM")
-                    .font(TTFont.caption(10))
-                    .foregroundStyle(TTColor.inkSubtle)
-                TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
-                    .font(TTFont.body(14))
-                    .lineLimit(2...5)
+                    HStack(spacing: 8) {
+                        TTDropPicker(title: "Sets", selection: $draft.sets, options: Array(1...8))
+                            .onChange(of: draft.sets) { _, _ in draft.syncSetCount() }
+                        TTDropPicker(
+                            title: "Reps",
+                            selection: $draft.reps,
+                            options: Array(1...30),
+                            format: { "\($0)" }
+                        )
+                        .onChange(of: draft.reps) { _, value in
+                            for index in draft.setRows.indices { draft.setRows[index].reps = value }
+                        }
+                        TTDropPicker(
+                            title: "Rest",
+                            selection: $draft.rest,
+                            options: [20, 30, 45, 60, 75, 90, 120, 150, 180, 210, 240],
+                            format: { "\($0)s" }
+                        )
+                    }
+
+                    TTDropPicker(
+                        title: "Working weight",
+                        selection: $draft.weight,
+                        options: PlanPickValues.weights,
+                        format: { "\($0.cleanKg) kg" }
+                    )
+                    .onChange(of: draft.weight) { _, value in
+                        for index in draft.setRows.indices { draft.setRows[index].weight = value }
+                    }
+
+                    VStack(spacing: 8) {
+                        ForEach($draft.setRows) { $row in
+                            HStack(spacing: 8) {
+                                Text("Set \(row.setNumber)")
+                                    .font(TTFont.workSans(13, weight: .semibold))
+                                    .foregroundStyle(TTColor.ink)
+                                    .frame(width: 52, alignment: .leading)
+                                TTDropPicker(
+                                    selection: $row.reps,
+                                    options: Array(1...30),
+                                    format: { "\($0) reps" }
+                                )
+                                TTDropPicker(
+                                    selection: $row.weight,
+                                    options: PlanPickValues.weights,
+                                    format: { "\($0.cleanKg) kg" }
+                                )
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        TTDropPicker(
+                            title: "Tempo",
+                            selection: $draft.tempo,
+                            options: ["3-1-1-0", "2-0-2-0", "3-0-1-0", "4-1-1-0", "2-1-1-0", "1-0-X-0", "Explosive"]
+                        )
+                        TTDropPicker(
+                            title: "RPE",
+                            selection: $draft.rpe,
+                            options: PlanPickValues.rpe,
+                            format: { String(format: "%g", $0) }
+                        )
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("HOW TO PERFORM")
+                            .font(TTFont.caption(10))
+                            .foregroundStyle(TTColor.inkSubtle)
+                        TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
+                            .font(TTFont.body(14))
+                            .lineLimit(2...5)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 14)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)),
+                        removal: .opacity
+                    )
+                )
             }
         }
-        .padding(14)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.04), lineWidth: 1)
+                .strokeBorder(draft.isExpanded ? orange.opacity(0.28) : Color.black.opacity(0.04), lineWidth: 1)
         )
+        .shadow(color: draft.isExpanded ? orange.opacity(0.08) : .clear, radius: 10, y: 4)
+        .animation(morph, value: draft.isExpanded)
     }
 }
 

@@ -45,11 +45,14 @@ struct TTProfileScreen<Extra: View>: View {
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let avatarSize: CGFloat = 108
-    /// Image block height below the status bar.
-    private let heroBodyHeight: CGFloat = 168
-    /// Matches `TTDarkPageHeader` bottom corners.
+    private let avatarSize: CGFloat = 112
+    /// Visible hero card height (includes status-bar bleed when ignoring top safe area).
+    private let heroCardHeight: CGFloat = 236
     private let headerBottomRadius: CGFloat = 36
+    private let chromeButton: CGFloat = 52
+    private let chromeIcon: CGFloat = 22
+    private let chromeBottomPad: CGFloat = 20
+    private let chromeSidePad: CGFloat = 20
 
     private var activeDayId: String {
         selectedDayId ?? scores.max(by: { $0.score < $1.score })?.id ?? scores.first?.id ?? ""
@@ -62,7 +65,7 @@ struct TTProfileScreen<Extra: View>: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
                         identity
-                            .padding(.top, 8)
+                            .padding(.top, 10)
                         sandowCard
                             .padding(.horizontal, 20)
                             .padding(.top, 22)
@@ -84,41 +87,43 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Hero — bleeds under status bar; edit/settings sit beside avatar
+    // MARK: Hero
+    // Avatar center sits on the card bottom edge → half on image, half below.
+    // Edit / Settings sit on the card bottom with side + bottom padding.
 
     private var hero: some View {
         ZStack(alignment: .bottom) {
-            // Screenshot: glass buttons on the image, left / right of the avatar (not under status bar).
-            HStack {
-                profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
-                    if showsBack {
-                        dismiss()
-                    } else {
-                        onEdit?()
-                        if onEdit == nil { showSettings = true }
+            staticTopCard
+                .overlay(alignment: .bottom) {
+                    HStack {
+                        profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
+                            if showsBack {
+                                dismiss()
+                            } else {
+                                onEdit?()
+                                if onEdit == nil { showSettings = true }
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        profileChromeButton(icon: .gear1) {
+                            showSettings = true
+                        }
                     }
+                    .padding(.horizontal, chromeSidePad)
+                    .padding(.bottom, chromeBottomPad)
                 }
-                Spacer(minLength: 0)
-                profileChromeButton(icon: .gear1) {
-                    showSettings = true
-                }
-            }
-            .padding(.horizontal, 22)
-            .padding(.bottom, 28)
 
+            // Half on the top image, half on the white area under it.
             profileAvatar
-                .offset(y: avatarSize * 0.48)
+                .offset(y: avatarSize / 2)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: heroBodyHeight)
-        .padding(.bottom, avatarSize * 0.48)
-        .background(alignment: .top) {
-            staticTopCard
-                .ignoresSafeArea(edges: .top)
-        }
+        .frame(height: heroCardHeight)
+        .padding(.bottom, avatarSize / 2)
+        .ignoresSafeArea(edges: .top)
     }
 
-    /// Static top card — bottom corners like Profile/Setup; bleeds under status bar.
+    /// Static top card — bleeds under status bar; bottom corners like Profile/Setup.
     private var staticTopCard: some View {
         ZStack {
             charcoal
@@ -127,16 +132,16 @@ struct TTProfileScreen<Extra: View>: View {
                 .scaledToFill()
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.2),
-                    Color.black.opacity(0.12),
-                    Color.black.opacity(0.4)
+                    Color.black.opacity(0.18),
+                    Color.black.opacity(0.08),
+                    Color.black.opacity(0.35)
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: heroBodyHeight + 60)
+        .frame(height: heroCardHeight)
         .clipped()
         .clipShape(
             UnevenRoundedRectangle(
@@ -168,19 +173,19 @@ struct TTProfileScreen<Extra: View>: View {
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(.white, lineWidth: 4)
+                .strokeBorder(.white, lineWidth: 3.5)
         )
-        .shadow(color: .black.opacity(0.14), radius: 12, y: 4)
+        .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
     }
 
     private func profileChromeButton(icon: SandowIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            TTIcon(icon: icon, size: 18)
+            TTIcon(icon: icon, filled: true, size: chromeIcon)
                 .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .background(Color.black.opacity(0.38))
+                .frame(width: chromeButton, height: chromeButton)
+                .background(Color(white: 0.22).opacity(0.82))
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(icon == .gear1 ? "Settings" : (showsBack ? "Back" : "Edit"))

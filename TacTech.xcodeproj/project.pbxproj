@@ -32,6 +32,7 @@
 		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
+		667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */; };
 		75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */; };
 		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
 		87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */; };
@@ -85,6 +86,7 @@
 		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
+		699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseTemplatePickerView.swift; sourceTree = "<group>"; };
 		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessmentFlowView.swift; sourceTree = "<group>"; };
 		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 			isa = PBXGroup;
 			children = (
 				24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */,
+				699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */,
 				0404164478DA064625F44D7D /* MyTraineesView.swift */,
 				9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */,
 				7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */,
@@ -365,6 +368,7 @@
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
 				C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */,
 				55D77098DF165235690581BC /* CreatePlanView.swift in Sources */,
+				667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */,
 				DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */,
 				572287442B3248F7E68E53A6 /* FitnessAssessmentFlowView.swift in Sources */,
 				DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */,

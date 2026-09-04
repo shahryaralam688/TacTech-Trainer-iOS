@@ -4,15 +4,16 @@ import SwiftUI
 
 struct NutritionView: View {
     @Environment(AppStore.self) private var store
+    @Namespace private var searchNS
     @State private var selectedDay = Date()
     @State private var showManual = false
     @State private var showProfile = false
+    @State private var showSearch = false
     @State private var searchText = ""
     @State private var selectedCategory: FoodCategory = .meat
     @State private var calorieDraft: Double = 2100
     @State private var suggestionMessage: String?
-    @State private var showSearch = false
-    @Namespace private var searchNS
+    @State private var pendingFood: FoodSheetItem?
 
     private let orange = TTColor.actionOrange
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -69,10 +70,49 @@ struct NutritionView: View {
             .ttSearchOverlay(
                 isPresented: $showSearch,
                 catalog: foodSearchCatalog,
-                namespace: searchNS
-            ) { outcome in
-                handleFoodSearch(outcome)
+                namespace: searchNS,
+                onOutcome: handleFoodSearchOutcome
+            )
+            .sheet(item: $pendingFood) { food in
+                ManualMealView(day: selectedDay, prefillName: food.name)
             }
+        }
+    }
+
+    private var foodSearchCatalog: TTSearchCatalog {
+        let categories = FoodCategory.allCases.filter { $0 != .all }.map { cat in
+            (
+                id: cat.id,
+                name: cat.title,
+                count: store.foodCatalog.filter { cat.matches($0) }.count,
+                icon: cat.icon
+            )
+        }
+        return TTSearchCatalog.foods(
+            catalog: store.foodCatalog,
+            categories: categories,
+            scopeId: store.currentTrainee?.id ?? store.session?.userId ?? "local",
+            offerTitle: "Log a meal",
+            offerSubtitle: "Add food from the database to today’s plan."
+        )
+    }
+
+    private func handleFoodSearchOutcome(_ outcome: TTSearchOutcome) {
+        switch outcome {
+        case .item(let id):
+            searchText = id
+            selectedCategory = .all
+            pendingFood = FoodSheetItem(name: id)
+        case .category(let id):
+            searchText = ""
+            selectedCategory = FoodCategory(rawValue: id) ?? .all
+        case .offer:
+            showManual = true
+        case .applyQuery(let q):
+            searchText = q
+            selectedCategory = .all
+        case .dismissed:
+            break
         }
     }
 
@@ -138,7 +178,7 @@ struct NutritionView: View {
 
             HStack(spacing: 10) {
                 TTSearchEntryPill(
-                    placeholder: "Search our food database…",
+                    placeholder: TTSearchCopy.foods.pillPlaceholder,
                     query: searchText,
                     style: .onDark,
                     namespace: searchNS
@@ -149,11 +189,11 @@ struct NutritionView: View {
                 NavigationLink {
                     FoodScannerView()
                 } label: {
-                    TTIcon(icon: .magnifyingGlass, size: 18)
+                    TTIcon(icon: .scan1, size: 18)
                         .foregroundStyle(.white)
-                        .frame(width: 48, height: 48)
+                        .frame(width: 52, height: 52)
                         .background(Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }
@@ -678,50 +718,14 @@ struct NutritionView: View {
             }
         }
     }
-
-    private var foodSearchCatalog: TTSearchCatalog {
-        let categories = FoodCategory.allCases.filter { $0 != .all }.map { cat in
-            (
-                id: cat.rawValue,
-                name: cat.title,
-                count: store.foodCatalog.filter { cat.matches($0) }.count,
-                icon: cat.icon
-            )
-        }
-        return TTSearchCatalog.foods(
-            catalog: store.foodCatalog,
-            categories: categories,
-            scopeId: store.currentTrainee?.id ?? store.session?.userId ?? "guest",
-            offerTitle: featuredSuggestion.name,
-            offerSubtitle: suggestionTag(for: featuredSuggestion)
-        )
-    }
-
-    private func handleFoodSearch(_ outcome: TTSearchOutcome) {
-        switch outcome {
-        case .item(let id):
-            if let food = store.foodCatalog.first(where: { $0.name == id }) {
-                searchText = ""
-                selectedCategory = .all
-                addCatalogMeal(food)
-            }
-        case .category(let id):
-            if let cat = FoodCategory(rawValue: id) {
-                selectedCategory = cat
-                searchText = ""
-            }
-        case .offer:
-            addCatalogMeal(featuredSuggestion)
-        case .applyQuery(let q):
-            searchText = q
-            selectedCategory = .all
-        case .dismissed:
-            break
-        }
-    }
 }
 
 // MARK: - Categories
+
+private struct FoodSheetItem: Identifiable, Hashable {
+    var id: String { name }
+    let name: String
+}
 
 private enum FoodCategory: String, CaseIterable, Identifiable {
     case vegetable, fruit, dining, meat, all
@@ -771,6 +775,7 @@ struct ManualMealView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let day: Date
+    var prefillName: String? = nil
     @State private var name = ""
     @State private var grams = 200.0
     @State private var selectedFood: FoodKnowledge?
@@ -807,6 +812,11 @@ struct ManualMealView: View {
             }
             .navigationTitle("Log meal")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                guard let prefillName, name.isEmpty else { return }
+                name = prefillName
+                selectedFood = store.lookupFood(query: prefillName)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button { dismiss() } label: { Image(systemName: "xmark") }

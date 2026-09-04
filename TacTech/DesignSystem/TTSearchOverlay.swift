@@ -116,6 +116,7 @@ struct TTSearchOverlay: View {
                 .scrollDismissesKeyboard(.interactively)
                 .opacity(showContent ? 1 : 0)
                 .offset(y: showContent ? 0 : 18)
+                .scaleEffect(showContent ? 1 : 0.97, anchor: .top)
             }
             .safeAreaPadding(.top, 8)
 
@@ -125,6 +126,7 @@ struct TTSearchOverlay: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
+        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).opacity(showBackdrop ? 0.35 : 0).ignoresSafeArea())
         .ignoresSafeArea()
         .onAppear(perform: present)
         .onDisappear { debounceTask?.cancel() }
@@ -783,17 +785,23 @@ struct TTSearchHostModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .overlay {
-                if isPresented {
-                    TTSearchOverlay(
-                        catalog: catalog,
-                        namespace: namespace,
-                        matchedID: matchedID
-                    ) { outcome in
-                        isPresented = false
+            .fullScreenCover(isPresented: $isPresented) {
+                TTSearchOverlay(
+                    catalog: catalog,
+                    namespace: namespace,
+                    matchedID: matchedID
+                ) { outcome in
+                    isPresented = false
+                    DispatchQueue.main.async {
                         onOutcome(outcome)
                     }
-                    .zIndex(999)
+                }
+                .presentationBackground(.clear)
+            }
+            .transaction(value: isPresented) { transaction in
+                // Soft custom springs own the open/close — suppress the system slide.
+                if isPresented {
+                    transaction.disablesAnimations = true
                 }
             }
     }

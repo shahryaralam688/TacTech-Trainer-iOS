@@ -316,11 +316,12 @@ enum TTMotion {
     static let panel: Double = 0.25
     static let page: Double = 0.28
 
-    /// Airbnb-style search overlay springs (present / chrome / accordion only).
+    /// Airbnb-style search overlay — springs only for present / morph / accordion.
     static let searchPresent = Animation.spring(response: 0.42, dampingFraction: 0.92)
     static let searchChrome = Animation.spring(response: 0.36, dampingFraction: 0.94)
     static let searchMorph = Animation.spring(response: 0.32, dampingFraction: 0.92)
     static let searchResults = Animation.easeOut(duration: 0.15)
+    /// 220ms debounce — filters update without springing the tree.
     static let searchDebounceNs: UInt64 = 220_000_000
 }
 

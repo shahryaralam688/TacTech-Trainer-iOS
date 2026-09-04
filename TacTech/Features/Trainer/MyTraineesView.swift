@@ -4,11 +4,11 @@ import SwiftUI
 
 struct MyTraineesView: View {
     @Environment(AppStore.self) private var store
+    @Namespace private var searchNS
+    @State private var showSearch = false
     @State private var query = ""
     @State private var goalFilter: String?
-    @State private var showSearch = false
     @State private var selectedTrainee: TraineeProfile?
-    @Namespace private var searchNS
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -31,25 +31,19 @@ struct MyTraineesView: View {
                         }
 
                         TTSearchEntryPill(
-                            placeholder: "Search trainees…",
-                            query: query,
+                            placeholder: TTSearchCopy.trainees.pillPlaceholder,
+                            query: displayQuery,
                             namespace: searchNS
                         ) {
                             showSearch = true
-                        }
-
-                        if let goalFilter {
-                            filterChip(goalFilter) {
-                                self.goalFilter = nil
-                            }
                         }
 
                         if filtered.isEmpty {
                             emptyCard
                         } else {
                             ForEach(filtered) { trainee in
-                                Button {
-                                    selectedTrainee = trainee
+                                NavigationLink {
+                                    TraineeDetailView(trainee: trainee)
                                 } label: {
                                     traineeRow(trainee)
                                 }
@@ -70,99 +64,75 @@ struct MyTraineesView: View {
             .ttSearchOverlay(
                 isPresented: $showSearch,
                 catalog: searchCatalog,
-                namespace: searchNS
-            ) { outcome in
-                handleSearch(outcome)
-            }
+                namespace: searchNS,
+                onOutcome: handleSearchOutcome
+            )
         }
     }
 
-    private var roster: [TraineeProfile] {
+    private var allTrainees: [TraineeProfile] {
         guard let trainer = store.currentTrainer else { return [] }
         return store.trainees(for: trainer)
     }
 
     private var searchCatalog: TTSearchCatalog {
-        guard let trainer = store.currentTrainer else {
-            return TTSearchCatalog(
-                scopeId: "trainees.none",
-                items: [],
-                categories: [],
-                suggestedItems: [],
-                popularItems: [],
-                offer: nil,
-                bestSell: [],
-                recommendations: [],
-                copy: .trainees
-            )
-        }
-        var names: [String: String] = [:]
-        var plansByTrainee: [String: String] = [:]
-        var activeIds = Set<String>()
-        for trainee in roster {
-            names[trainee.id] = store.user(forTrainee: trainee)?.name ?? "Athlete"
-            if let title = store.assignedPlan(for: trainee)?.title {
-                plansByTrainee[trainee.id] = title
-            }
-            if store.logs(for: trainee.id).first != nil {
-                activeIds.insert(trainee.id)
-            }
-        }
+        let names = Dictionary(uniqueKeysWithValues: allTrainees.map {
+            ($0.id, store.user(forTrainee: $0)?.name ?? "Athlete")
+        })
+        let plansByTrainee = Dictionary(uniqueKeysWithValues: allTrainees.compactMap { trainee -> (String, String)? in
+            guard let title = store.assignedPlan(for: trainee)?.title else { return nil }
+            return (trainee.id, title)
+        })
+        let activeIds = Set(allTrainees.compactMap { trainee -> String? in
+            store.logs(for: trainee.id).first != nil ? trainee.id : nil
+        })
         return TTSearchCatalog.trainees(
-            trainees: roster,
+            trainees: allTrainees,
             names: names,
             plansByTrainee: plansByTrainee,
             activeIds: activeIds,
-            trainerId: trainer.id,
-            inviteCode: trainer.inviteCode
+            trainerId: store.currentTrainer?.id ?? "local",
+            inviteCode: store.currentTrainer?.inviteCode
         )
     }
 
+    private var displayQuery: String {
+        if !query.isEmpty { return query }
+        if let goalFilter { return goalFilter }
+        return ""
+    }
+
     private var filtered: [TraineeProfile] {
-        roster.filter { trainee in
-            let matchesGoal = goalFilter.map {
-                trainee.goal.localizedCaseInsensitiveContains($0)
-            } ?? true
-            guard matchesGoal else { return false }
-            guard !query.isEmpty else { return true }
-            return store.user(forTrainee: trainee)?.name.localizedCaseInsensitiveContains(query) == true
-                || trainee.goal.localizedCaseInsensitiveContains(query)
+        var result = allTrainees
+        if let goalFilter {
+            result = result.filter { $0.goal.lowercased() == goalFilter.lowercased() }
+        }
+        guard !query.isEmpty else { return result }
+        return result.filter {
+            store.user(forTrainee: $0)?.name.localizedCaseInsensitiveContains(query) == true
+                || $0.goal.localizedCaseInsensitiveContains(query)
         }
     }
 
-    private func handleSearch(_ outcome: TTSearchOutcome) {
+    private func handleSearchOutcome(_ outcome: TTSearchOutcome) {
         switch outcome {
         case .item(let id):
-            selectedTrainee = roster.first { $0.id == id }
-        case .category(let id):
-            goalFilter = searchCatalog.categories.first { $0.id == id }?.name
             query = ""
+            goalFilter = nil
+            selectedTrainee = allTrainees.first { $0.id == id }
+        case .category(let id):
+            query = ""
+            goalFilter = id
         case .offer:
             if let code = store.currentTrainer?.inviteCode {
                 UIPasteboard.general.string = code
             }
         case .applyQuery(let q):
-            query = q
             goalFilter = nil
+            query = q
         case .dismissed:
             break
         }
-    }
-
-    private func filterChip(_ title: String, clear: @escaping () -> Void) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(TTFont.textSM(.semibold))
-            Button(action: clear) {
-                TTIcon(icon: .closeX, size: 12)
-            }
-            .buttonStyle(.plain)
-        }
-        .foregroundStyle(TTColor.actionOrange)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(TTColor.actionOrange.opacity(0.12))
-        .clipShape(Capsule())
     }
 
     private func inviteBanner(code: String) -> some View {

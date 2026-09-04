@@ -60,21 +60,20 @@ struct TTProfileScreen<Extra: View>: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    // One block: card + half-overlapping avatar + name (no empty white spacer).
-                    headerBlock
+            VStack(spacing: 0) {
+                // Card + avatar + name stay fixed.
+                staticHeader
 
-                    sandowCard
-                        .padding(.horizontal, 20)
-                        .padding(.top, 22)
-                    metricsRow
-                        .padding(.horizontal, 20)
-                        .padding(.top, 14)
-                    extra()
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-                        .padding(.bottom, 36)
+                // Only the section below scrolls.
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        sandowCard
+                        metricsRow
+                        extra()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 20)
                 }
             }
             .background(canvas.ignoresSafeArea())
@@ -86,11 +85,9 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Header
-    // Avatar center on card bottom → half on image / half above name.
-    // Name sits right under the avatar (no dead white div).
+    // MARK: Static header (card + profile picture + identity)
 
-    private var headerBlock: some View {
+    private var staticHeader: some View {
         ZStack(alignment: .top) {
             staticTopCard
                 .overlay(alignment: .bottom) {
@@ -112,13 +109,14 @@ struct TTProfileScreen<Extra: View>: View {
                     .padding(.bottom, chromeBottomPad)
                 }
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 Color.clear
                     .frame(height: heroCardHeight - avatarSize / 2)
                 profileAvatar
                 identity
             }
         }
+        .padding(.bottom, 4)
     }
 
     /// Static top card — bleeds under status bar; bottom corners like Profile/Setup.
@@ -192,9 +190,9 @@ struct TTProfileScreen<Extra: View>: View {
     // MARK: Identity
 
     private var identity: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Text(name)
-                .font(TTFont.workSans(26, weight: .bold))
+                .font(TTFont.workSans(24, weight: .bold))
                 .foregroundStyle(TTColor.ink)
                 .multilineTextAlignment(.center)
 
@@ -223,13 +221,13 @@ struct TTProfileScreen<Extra: View>: View {
     // MARK: Sandow Score
 
     private var sandowCard: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 HStack(spacing: 8) {
                     TTIcon(icon: .plus, filled: true, size: 14)
                         .foregroundStyle(TTColor.actionOrange)
                     Text("Sandow Score")
-                        .font(TTFont.headingLG(.bold))
+                        .font(TTFont.workSans(18, weight: .bold))
                         .foregroundStyle(TTColor.ink)
                 }
                 Spacer()
@@ -246,18 +244,18 @@ struct TTProfileScreen<Extra: View>: View {
                     }
                     .foregroundStyle(TTColor.inkMuted)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 7)
+                    .padding(.vertical, 6)
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
             }
 
             chart
-                .frame(height: 180)
+                .frame(height: 150)
         }
-        .padding(16)
+        .padding(12)
         .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var chart: some View {
@@ -324,27 +322,27 @@ struct TTProfileScreen<Extra: View>: View {
     // MARK: Metrics
 
     private var metricsRow: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ForEach(metrics) { metric in
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 8) {
                     TTIcon(icon: metric.icon, filled: true, size: 18)
                         .foregroundStyle(metric.iconColor)
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text(metric.value)
-                            .font(TTFont.workSans(22, weight: .bold))
+                            .font(TTFont.workSans(20, weight: .bold))
                             .foregroundStyle(TTColor.ink)
                         Text(metric.unit)
                             .font(TTFont.caption(12))
                             .foregroundStyle(TTColor.inkMuted)
                     }
                     Text(metric.label)
-                        .font(TTFont.caption(12))
+                        .font(TTFont.caption(11))
                         .foregroundStyle(TTColor.inkMuted)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
+                .padding(12)
                 .background(cardFill)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }

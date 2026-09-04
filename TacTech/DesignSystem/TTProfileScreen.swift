@@ -60,26 +60,25 @@ struct TTProfileScreen<Extra: View>: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                hero
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
-                        identity
-                            .padding(.top, 10)
-                        sandowCard
-                            .padding(.horizontal, 20)
-                            .padding(.top, 22)
-                        metricsRow
-                            .padding(.horizontal, 20)
-                            .padding(.top, 14)
-                        extra()
-                            .padding(.horizontal, 20)
-                            .padding(.top, 18)
-                            .padding(.bottom, 36)
-                    }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: 0) {
+                    // One block: card + half-overlapping avatar + name (no empty white spacer).
+                    headerBlock
+
+                    sandowCard
+                        .padding(.horizontal, 20)
+                        .padding(.top, 22)
+                    metricsRow
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                    extra()
+                        .padding(.horizontal, 20)
+                        .padding(.top, 18)
+                        .padding(.bottom, 36)
                 }
             }
             .background(canvas.ignoresSafeArea())
+            .ignoresSafeArea(edges: .top)
             .ttHideSystemNavigationBar()
             .navigationDestination(isPresented: $showSettings) {
                 AccountSettingsView()
@@ -87,12 +86,12 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Hero
-    // Avatar center sits on the card bottom edge → half on image, half below.
-    // Edit / Settings sit on the card bottom with side + bottom padding.
+    // MARK: Header
+    // Avatar center on card bottom → half on image / half above name.
+    // Name sits right under the avatar (no dead white div).
 
-    private var hero: some View {
-        ZStack(alignment: .bottom) {
+    private var headerBlock: some View {
+        ZStack(alignment: .top) {
             staticTopCard
                 .overlay(alignment: .bottom) {
                     HStack {
@@ -113,14 +112,13 @@ struct TTProfileScreen<Extra: View>: View {
                     .padding(.bottom, chromeBottomPad)
                 }
 
-            // Half on the top image, half on the white area under it.
-            profileAvatar
-                .offset(y: avatarSize / 2)
+            VStack(spacing: 12) {
+                Color.clear
+                    .frame(height: heroCardHeight - avatarSize / 2)
+                profileAvatar
+                identity
+            }
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: heroCardHeight)
-        .padding(.bottom, avatarSize / 2)
-        .ignoresSafeArea(edges: .top)
     }
 
     /// Static top card — bleeds under status bar; bottom corners like Profile/Setup.

@@ -95,38 +95,44 @@ struct TTSearchOverlay: View {
     private let canvas = Color(white: 0.97)
 
     var body: some View {
-        ZStack {
-            backdrop
-                .opacity(showBackdrop ? 1 : 0)
-                .allowsHitTesting(false)
+        GeometryReader { geo in
+            let topInset = max(geo.safeAreaInsets.top, 54)
 
-            VStack(spacing: 0) {
-                chrome
-                    .opacity(showChrome ? 1 : 0)
-                    .offset(y: showChrome ? 0 : -12)
+            ZStack(alignment: .top) {
+                // Edge-to-edge scrim only — chrome stays below the status bar.
+                backdrop
+                    .opacity(showBackdrop ? 1 : 0)
+                    .allowsHitTesting(false)
+                    .ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        accordion
+                VStack(spacing: 0) {
+                    chrome
+                        .opacity(showChrome ? 1 : 0)
+                        .offset(y: showChrome ? 0 : -12)
+
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 10) {
+                            accordion
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, isFocusedPhase ? 24 : 100)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, isFocusedPhase ? 24 : 100)
-                }
-                .scrollDismissesKeyboard(.interactively)
-                .opacity(showContent ? 1 : 0)
-                .offset(y: showContent ? 0 : 18)
-                .scaleEffect(showContent ? 1 : 0.97, anchor: .top)
-            }
-            .safeAreaPadding(.top, 8)
-
-            if !isFocusedPhase {
-                footer
+                    .scrollDismissesKeyboard(.interactively)
                     .opacity(showContent ? 1 : 0)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .offset(y: showContent ? 0 : 18)
+                    .scaleEffect(showContent ? 1 : 0.97, anchor: .top)
+                }
+                .padding(.top, topInset + 4)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+
+                if !isFocusedPhase {
+                    footer
+                        .opacity(showContent ? 1 : 0)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).opacity(showBackdrop ? 0.35 : 0).ignoresSafeArea())
         .ignoresSafeArea()
         .onAppear(perform: present)
         .onDisappear { debounceTask?.cancel() }

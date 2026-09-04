@@ -47,6 +47,7 @@
 		9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */; };
 		96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 263477F1D52EA623D59CA93C /* TTProfileScreen.swift */; };
 		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
+		9A91A8F06B4748C47F67A326 /* HelpCenterViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */; };
 		A205CD2CCD673B15566C5E1C /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */; };
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
@@ -85,6 +86,7 @@
 		24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
 		263477F1D52EA623D59CA93C /* TTProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTProfileScreen.swift; sourceTree = "<group>"; };
 		26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
+		278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenterViews.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecuritySettingsView.swift; sourceTree = "<group>"; };
 		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
@@ -289,6 +291,7 @@
 				26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */,
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
+				278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */,
 				4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */,
 				AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */,
 				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
@@ -405,6 +408,7 @@
 				DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */,
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
+				9A91A8F06B4748C47F67A326 /* HelpCenterViews.swift in Sources */,
 				3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,

@@ -322,51 +322,7 @@ struct AccountSettingsView: View {
     }
 }
 
-// MARK: - Help Center (second real screen)
-
-struct HelpCenterView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    private let topics = [
-        ("Getting started", "Account, roles, and first assessment"),
-        ("Training plans", "How coaches assign and athletes follow plans"),
-        ("Form AI", "Live form correction tips"),
-        ("Billing & access", "Invites, linking trainer/trainee")
-    ]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(title: "Help Center") { dismiss() }
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("Pick a topic — more articles coming soon.")
-                        .font(TTFont.body(14))
-                        .foregroundStyle(TTColor.inkMuted)
-
-                    ForEach(topics, id: \.0) { topic in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(topic.0)
-                                .font(TTFont.heading(16))
-                            Text(topic.1)
-                                .font(TTFont.body(13))
-                                .foregroundStyle(TTColor.inkMuted)
-                        }
-                        .padding(16)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(white: 0.96))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, 24)
-            }
-        }
-        .background(Color.white.ignoresSafeArea())
-        .ttHideSystemNavigationBar()
-    }
-}
+// MARK: - Settings placeholder
 
 struct SettingsPlaceholderView: View {
     @Environment(\.dismiss) private var dismiss

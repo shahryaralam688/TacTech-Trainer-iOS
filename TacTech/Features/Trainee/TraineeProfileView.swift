@@ -2,14 +2,12 @@ import SwiftUI
 
 struct TraineeProfileView: View {
     @Environment(AppStore.self) private var store
-    @Environment(\.dismiss) private var dismiss
 
     /// When opened as a sheet from Home, show the back button.
     var showsBack: Bool = false
 
     @State private var invite = ""
     @State private var message: String?
-    @State private var showPersonalInfo = false
 
     private var initials: String {
         let parts = (store.currentUser?.name ?? "A").split(separator: " ")
@@ -61,17 +59,11 @@ struct TraineeProfileView: View {
             initials: initials,
             scores: store.weeklySandowScores(),
             metrics: metrics,
-            showsBack: showsBack,
-            onEdit: { showPersonalInfo = true }
+            showsBack: showsBack
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 MyTrainerCard()
                 joinCard
-            }
-        }
-        .sheet(isPresented: $showPersonalInfo) {
-            NavigationStack {
-                PersonalInformationSettingsView()
             }
         }
     }

@@ -16,7 +16,6 @@ struct PersonalInformationSettingsView: View {
     @State private var accountType = "Regular"
     @State private var avatarAsset: String?
     @State private var showAvatarPicker = false
-    @State private var showSettings = false
     @State private var saved = false
     @FocusState private var focusedField: Field?
 
@@ -84,9 +83,6 @@ struct PersonalInformationSettingsView: View {
                 }
             }
         }
-        .navigationDestination(isPresented: $showSettings) {
-            AccountSettingsView()
-        }
     }
 
     // MARK: - Static header
@@ -112,7 +108,8 @@ struct PersonalInformationSettingsView: View {
                     .font(TTFont.workSans(17, weight: .bold))
                     .foregroundStyle(.white)
                 Spacer()
-                chromeButton(icon: .gear1) { showSettings = true }
+                // Same width as back — keeps title centered (no second Settings push).
+                Color.clear.frame(width: 40, height: 40)
             }
             .padding(.horizontal, 18)
             .padding(.top, 58)

@@ -34,13 +34,12 @@ struct TTProfileScreen<Extra: View>: View {
     var showsBack: Bool = false
     /// Static top card background — same family as Profile / Setup headers.
     var heroImage: String = "ProfileHero"
-    var onEdit: (() -> Void)? = nil
     @ViewBuilder var extra: () -> Extra
 
     @State private var selectedDayId: String?
     @State private var selectedShort: String?
     @State private var rangeLabel = "Weekly"
-    @State private var showSettings = false
+    @State private var path = NavigationPath()
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -54,17 +53,20 @@ struct TTProfileScreen<Extra: View>: View {
     private let chromeBottomPad: CGFloat = 20
     private let chromeSidePad: CGFloat = 20
 
+    private enum ProfileRoute: Hashable {
+        case accountSettings
+        case personalInfo
+    }
+
     private var activeDayId: String {
         selectedDayId ?? scores.max(by: { $0.score < $1.score })?.id ?? scores.first?.id ?? ""
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             VStack(spacing: 0) {
-                // Card + avatar + name stay fixed.
                 staticHeader
 
-                // Only the section below scrolls.
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 10) {
                         sandowCard
@@ -79,8 +81,13 @@ struct TTProfileScreen<Extra: View>: View {
             .background(canvas.ignoresSafeArea())
             .ignoresSafeArea(edges: .top)
             .ttHideSystemNavigationBar()
-            .navigationDestination(isPresented: $showSettings) {
-                AccountSettingsView()
+            .navigationDestination(for: ProfileRoute.self) { route in
+                switch route {
+                case .accountSettings:
+                    AccountSettingsView()
+                case .personalInfo:
+                    PersonalInformationSettingsView()
+                }
             }
         }
     }
@@ -96,13 +103,12 @@ struct TTProfileScreen<Extra: View>: View {
                             if showsBack {
                                 dismiss()
                             } else {
-                                onEdit?()
-                                if onEdit == nil { showSettings = true }
+                                path.append(ProfileRoute.personalInfo)
                             }
                         }
                         Spacer(minLength: 0)
                         profileChromeButton(icon: .gear1) {
-                            showSettings = true
+                            path.append(ProfileRoute.accountSettings)
                         }
                     }
                     .padding(.horizontal, chromeSidePad)
@@ -358,8 +364,7 @@ extension TTProfileScreen where Extra == EmptyView {
         scores: [TTSandowDayScore],
         metrics: [TTProfileMetric],
         showsBack: Bool = false,
-        heroImage: String = "ProfileHero",
-        onEdit: (() -> Void)? = nil
+        heroImage: String = "ProfileHero"
     ) {
         self.init(
             name: name,
@@ -371,7 +376,6 @@ extension TTProfileScreen where Extra == EmptyView {
             metrics: metrics,
             showsBack: showsBack,
             heroImage: heroImage,
-            onEdit: onEdit,
             extra: { EmptyView() }
         )
     }

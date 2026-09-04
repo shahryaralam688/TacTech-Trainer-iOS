@@ -325,6 +325,8 @@ struct AccountSettingsView: View {
 // MARK: - Help Center (second real screen)
 
 struct HelpCenterView: View {
+    @Environment(\.dismiss) private var dismiss
+
     private let topics = [
         ("Getting started", "Account, roles, and first assessment"),
         ("Training plans", "How coaches assign and athletes follow plans"),
@@ -333,54 +335,61 @@ struct HelpCenterView: View {
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Help Center")
-                    .font(.system(size: 28, weight: .bold))
-                Text("Pick a topic — more articles coming soon.")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color(white: 0.45))
+        VStack(spacing: 0) {
+            TTDarkPageHeader(title: "Help Center") { dismiss() }
 
-                ForEach(topics, id: \.0) { topic in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(topic.0)
-                            .font(.system(size: 16, weight: .bold))
-                        Text(topic.1)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color(white: 0.45))
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Pick a topic — more articles coming soon.")
+                        .font(TTFont.body(14))
+                        .foregroundStyle(TTColor.inkMuted)
+
+                    ForEach(topics, id: \.0) { topic in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(topic.0)
+                                .font(TTFont.heading(16))
+                            Text(topic.1)
+                                .font(TTFont.body(13))
+                                .foregroundStyle(TTColor.inkMuted)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(white: 0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(white: 0.96))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
+                .padding(.horizontal, 18)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(22)
         }
         .background(Color.white.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
+        .ttHideSystemNavigationBar()
     }
 }
 
 struct SettingsPlaceholderView: View {
+    @Environment(\.dismiss) private var dismiss
     let title: String
     let message: String
 
     var body: some View {
-        VStack(spacing: 12) {
-            Text(title)
-                .font(.system(size: 28, weight: .bold))
-            Text(message)
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color(white: 0.45))
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 28)
-            Spacer()
+        VStack(spacing: 0) {
+            TTDarkPageHeader(title: title) { dismiss() }
+
+            VStack(spacing: 12) {
+                Text(message)
+                    .font(TTFont.body(15))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 28)
+                Spacer()
+            }
+            .padding(.top, 20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .padding(.top, 40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
+        .ttHideSystemNavigationBar()
     }
 }
 

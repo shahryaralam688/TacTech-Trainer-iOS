@@ -6,8 +6,6 @@ struct TrainerProfileView: View {
     /// When opened as a sheet from Home, show the back button.
     var showsBack: Bool = false
 
-    @State private var showPersonalInfo = false
-
     private var initials: String {
         let parts = (store.currentUser?.name ?? "T").split(separator: " ")
         return parts.prefix(2).map { String($0.prefix(1)) }.joined()
@@ -45,7 +43,6 @@ struct TrainerProfileView: View {
         ]
     }
 
-    /// Aggregate client form scores into a coach-facing weekly chart.
     private var scores: [TTSandowDayScore] {
         let first = store.currentTrainer.map { store.trainees(for: $0).first?.id }
         return store.weeklySandowScores(forTraineeId: first ?? nil)
@@ -60,15 +57,9 @@ struct TrainerProfileView: View {
             initials: initials,
             scores: scores,
             metrics: metrics,
-            showsBack: showsBack,
-            onEdit: { showPersonalInfo = true }
+            showsBack: showsBack
         ) {
             inviteCard
-        }
-        .sheet(isPresented: $showPersonalInfo) {
-            NavigationStack {
-                PersonalInformationSettingsView()
-            }
         }
     }
 

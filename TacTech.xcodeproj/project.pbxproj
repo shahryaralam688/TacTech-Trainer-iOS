@@ -60,6 +60,7 @@
 		DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */; };
 		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
 		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
+		E94FD396B29C5C62C29E7400 /* AboutUsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */; };
 		F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */; };
 		F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */; };
 		FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */; };
@@ -125,6 +126,7 @@
 		DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViews.swift; sourceTree = "<group>"; };
 		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
 		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
+		EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutUsView.swift; sourceTree = "<group>"; };
 		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -283,6 +285,7 @@
 		E5531C3C532CF30EC9303934 /* Authentication */ = {
 			isa = PBXGroup;
 			children = (
+				EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */,
 				26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */,
 				E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */,
 				89CD7D2571D7A03D718A7699 /* AuthScreens.swift */,
@@ -389,6 +392,7 @@
 			files = (
 				29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */,
 				4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */,
+				E94FD396B29C5C62C29E7400 /* AboutUsView.swift in Sources */,
 				490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */,
 				2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */,
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,

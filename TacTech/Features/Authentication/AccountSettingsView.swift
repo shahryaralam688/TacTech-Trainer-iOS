@@ -301,7 +301,7 @@ struct AccountSettingsView: View {
         case .privacyPolicy:
             SettingsPlaceholderView(title: "Privacy Policy", message: "How TacTech handles your data.")
         case .aboutUs:
-            SettingsPlaceholderView(title: "About Us", message: "TacTech — train with clarity.")
+            AboutUsView()
         case .helpCenter:
             HelpCenterView()
         case .submitFeedback:

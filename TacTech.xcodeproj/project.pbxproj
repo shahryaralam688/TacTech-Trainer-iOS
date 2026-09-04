@@ -34,6 +34,7 @@
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
 		667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */; };
+		71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */; };
 		75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */; };
 		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
 		87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */; };
@@ -90,6 +91,7 @@
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
+		5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitFeedbackView.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
 		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
 				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
+				5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
 			path = Authentication;
@@ -400,6 +403,7 @@
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
+				71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */,
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,

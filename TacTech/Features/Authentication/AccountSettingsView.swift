@@ -305,7 +305,7 @@ struct AccountSettingsView: View {
         case .helpCenter:
             HelpCenterView()
         case .submitFeedback:
-            SettingsPlaceholderView(title: "Submit Feedback", message: "Tell us what to improve.")
+            SubmitFeedbackView()
         }
     }
 

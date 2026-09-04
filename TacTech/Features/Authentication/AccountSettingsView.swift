@@ -286,7 +286,7 @@ struct AccountSettingsView: View {
         case .personalInfo:
             PersonalInformationSettingsView()
         case .notifications:
-            SettingsPlaceholderView(title: "Notifications", message: "Manage workout, message, and progress alerts.")
+            NotificationSettingsView()
         case .coachContact:
             SettingsPlaceholderView(
                 title: store.session?.role == .trainee ? "Coach Contact" : "Client Contact",

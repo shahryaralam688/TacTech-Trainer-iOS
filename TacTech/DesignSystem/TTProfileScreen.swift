@@ -32,7 +32,8 @@ struct TTProfileScreen<Extra: View>: View {
     let scores: [TTSandowDayScore]
     let metrics: [TTProfileMetric]
     var showsBack: Bool = false
-    var heroImage: String = "AuthMachine"
+    /// Static top card background — same family as Profile / Setup headers.
+    var heroImage: String = "ProfileHero"
     var onEdit: (() -> Void)? = nil
     @ViewBuilder var extra: () -> Extra
 
@@ -43,8 +44,11 @@ struct TTProfileScreen<Extra: View>: View {
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let avatarSize: CGFloat = 104
-    private let heroHeight: CGFloat = 210
+    private let heroHeight: CGFloat = 220
+    /// Matches `TTDarkPageHeader` / home profile top card.
+    private let headerBottomRadius: CGFloat = 36
 
     private var activeDayId: String {
         selectedDayId ?? scores.max(by: { $0.score < $1.score })?.id ?? scores.first?.id ?? ""
@@ -77,25 +81,11 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Hero
+    // MARK: Hero — static Profile/Setup-style top card
 
     private var hero: some View {
         ZStack(alignment: .bottom) {
-            Image(heroImage)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: heroHeight)
-                .clipped()
-                .overlay {
-                    LinearGradient(
-                        colors: [.black.opacity(0.35), .black.opacity(0.15), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-                .clipShape(ProfileHeroBottomCurve())
-                .ignoresSafeArea(edges: .top)
+            staticTopCard
 
             HStack {
                 profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
@@ -120,6 +110,39 @@ struct TTProfileScreen<Extra: View>: View {
         }
         .frame(height: heroHeight)
         .padding(.bottom, avatarSize * 0.42)
+    }
+
+    /// Same static card shape as Account Settings / Profile Setup (`TTDarkPageHeader`).
+    private var staticTopCard: some View {
+        ZStack {
+            charcoal
+            Image(heroImage)
+                .resizable()
+                .scaledToFill()
+                .opacity(0.55)
+            LinearGradient(
+                colors: [
+                    Color.black.opacity(0.45),
+                    Color.black.opacity(0.25),
+                    charcoal.opacity(0.85)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: heroHeight)
+        .clipped()
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: headerBottomRadius,
+                bottomTrailingRadius: headerBottomRadius,
+                topTrailingRadius: 0,
+                style: .continuous
+            )
+        )
+        .ignoresSafeArea(edges: .top)
     }
 
     private var profileAvatar: some View {
@@ -316,24 +339,6 @@ struct TTProfileScreen<Extra: View>: View {
     }
 }
 
-/// Concave U along the bottom of the profile hero (Sandow-style).
-private struct ProfileHeroBottomCurve: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let dip: CGFloat = 48
-        path.move(to: CGPoint(x: 0, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: 0))
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - dip * 0.35))
-        path.addCurve(
-            to: CGPoint(x: 0, y: rect.maxY - dip * 0.35),
-            control1: CGPoint(x: rect.maxX * 0.72, y: rect.maxY + dip * 0.55),
-            control2: CGPoint(x: rect.maxX * 0.28, y: rect.maxY + dip * 0.55)
-        )
-        path.closeSubpath()
-        return path
-    }
-}
-
 extension TTProfileScreen where Extra == EmptyView {
     init(
         name: String,
@@ -344,7 +349,7 @@ extension TTProfileScreen where Extra == EmptyView {
         scores: [TTSandowDayScore],
         metrics: [TTProfileMetric],
         showsBack: Bool = false,
-        heroImage: String = "AuthMachine",
+        heroImage: String = "ProfileHero",
         onEdit: (() -> Void)? = nil
     ) {
         self.init(

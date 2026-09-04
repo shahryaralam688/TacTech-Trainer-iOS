@@ -50,8 +50,13 @@ struct TTBackButton: View {
     }
 }
 
-/// Account Settings–style dark page header — bottom corners only, status-bar bleed.
+/// Shared dark settings header — fixed height, bottom corners, status-bar bleed.
+/// Used by Account Settings, Personal Info, Help, and placeholder screens.
 struct TTDarkPageHeader: View {
+    /// Same card height everywhere (below status bar content area).
+    static let cardHeight: CGFloat = 148
+    static let bottomRadius: CGFloat = 36
+
     let title: String
     var showsBack: Bool = true
     var onBack: (() -> Void)? = nil
@@ -72,7 +77,7 @@ struct TTDarkPageHeader: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             if showsBack {
                 TTBackButton(style: .onDark) {
                     onBack?()
@@ -82,16 +87,18 @@ struct TTDarkPageHeader: View {
             Text(title)
                 .font(TTFont.headingLG(.bold))
                 .foregroundStyle(.white)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: Self.cardHeight, alignment: .topLeading)
         .padding(.horizontal, 20)
         .padding(.top, showsBack ? 10 : 18)
-        .padding(.bottom, 32)
+        .padding(.bottom, 28)
         .background {
             UnevenRoundedRectangle(
                 topLeadingRadius: 0,
-                bottomLeadingRadius: 36,
-                bottomTrailingRadius: 36,
+                bottomLeadingRadius: Self.bottomRadius,
+                bottomTrailingRadius: Self.bottomRadius,
                 topTrailingRadius: 0,
                 style: .continuous
             )

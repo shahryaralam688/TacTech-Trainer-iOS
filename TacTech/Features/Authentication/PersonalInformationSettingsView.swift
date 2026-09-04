@@ -21,11 +21,9 @@ struct PersonalInformationSettingsView: View {
 
     private enum Field { case name, email, location, password }
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let fieldBG = Color(white: 0.94)
     private let orange = TTColor.actionOrange
     private let selectBlue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    private let headerHeight: CGFloat = 168
     private let avatarSize: CGFloat = 104
     private let genders = ["Male", "Female", "Non-binary", "Trans Female", "Trans Male"]
     private let accountTypes = ["Regular", "Coach", "Nutritionist"]
@@ -59,7 +57,6 @@ struct PersonalInformationSettingsView: View {
             }
         }
         .background(Color.white.ignoresSafeArea())
-        .ignoresSafeArea(edges: .top)
         .ttHideSystemNavigationBar()
         .onAppear(perform: hydrate)
         .sheet(isPresented: $showAvatarPicker) {
@@ -85,41 +82,18 @@ struct PersonalInformationSettingsView: View {
         }
     }
 
-    // MARK: - Static header
+    // MARK: - Static header (same card + back as Account Settings)
 
     private var staticHeader: some View {
-        ZStack(alignment: .top) {
-            charcoal
-                .frame(height: headerHeight)
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 36,
-                        bottomTrailingRadius: 36,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                )
-
-            HStack {
-                chromeButton(icon: .chevronLeft) { dismiss() }
-                Spacer()
-                Text("Personal Info")
-                    .font(TTFont.workSans(17, weight: .bold))
-                    .foregroundStyle(.white)
-                Spacer()
-                // Same width as back — keeps title centered (no second Settings push).
-                Color.clear.frame(width: 40, height: 40)
+        ZStack(alignment: .bottom) {
+            TTDarkPageHeader(title: "Personal Info") {
+                dismiss()
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 58)
 
-            VStack(spacing: 0) {
-                Color.clear.frame(height: headerHeight - avatarSize / 2)
-                avatarWithEdit
-            }
+            avatarWithEdit
+                .offset(y: avatarSize / 2)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, avatarSize / 2)
     }
 
     private var avatarWithEdit: some View {
@@ -154,17 +128,6 @@ struct PersonalInformationSettingsView: View {
             .offset(y: 4)
             .accessibilityLabel("Edit avatar")
         }
-    }
-
-    private func chromeButton(icon: SandowIcon, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            TTIcon(icon: icon, filled: true, size: 18)
-                .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
-                .background(Color.white.opacity(0.14))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 
     private var initials: String {

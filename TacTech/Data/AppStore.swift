@@ -21,6 +21,8 @@ final class AppStore {
     var isRestoringSession = true
     var assessmentCompleted = false
     var profileSetupCompleted = false
+    /// Trainer-saved exercise prescriptions (local).
+    var exerciseTemplates: [ExerciseTemplate] = []
     private var macrosByKey: [String: MacroEstimate] = [:]
 
     var currentUser: User? {
@@ -269,8 +271,10 @@ final class AppStore {
             if created.days.isEmpty { created.days = draft.days }
             if created.notes == nil { created.notes = draft.notes }
             upsert(created)
+            saveTemplates(from: created)
         } else if currentTrainer != nil {
             upsert(draft)
+            saveTemplates(from: draft)
             let remote = (try? await api.trainerPlans()) ?? []
             if !remote.isEmpty { plans = remote }
         }
@@ -380,6 +384,89 @@ final class AppStore {
         exercises.first { $0.id == id }
     }
 
+    /// Saved templates plus unique prescriptions previously used in this trainer's plans.
+    func templates(forExerciseId exerciseId: String) -> [ExerciseTemplate] {
+        guard let trainerId = currentTrainer?.id else { return [] }
+        var seen = Set<String>()
+        var result: [ExerciseTemplate] = []
+
+        let saved = exerciseTemplates
+            .filter { $0.trainerId == trainerId && $0.exerciseId == exerciseId }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        for item in saved {
+            let key = item.fingerprint
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(item)
+        }
+
+        for plan in plans where plan.trainerId == trainerId {
+            let fromDays = plan.days.flatMap(\.exercises)
+            let fromFlat = plan.exercises
+            for we in fromDays + fromFlat where we.exerciseId == exerciseId {
+                let template = ExerciseTemplate.from(workoutExercise: we, trainerId: trainerId, planTitle: plan.title)
+                let key = template.fingerprint
+                guard !seen.contains(key) else { continue }
+                seen.insert(key)
+                result.append(template)
+            }
+        }
+
+        return result
+    }
+
+    func saveExerciseTemplate(_ template: ExerciseTemplate) {
+        if let index = exerciseTemplates.firstIndex(where: { $0.id == template.id }) {
+            exerciseTemplates[index] = template
+        } else if let dup = exerciseTemplates.firstIndex(where: {
+            $0.trainerId == template.trainerId
+                && $0.exerciseId == template.exerciseId
+                && $0.fingerprint == template.fingerprint
+        }) {
+            var updated = template
+            updated.id = exerciseTemplates[dup].id
+            updated.updatedAt = .now
+            exerciseTemplates[dup] = updated
+        } else {
+            exerciseTemplates.insert(template, at: 0)
+        }
+        persistExerciseTemplates()
+    }
+
+    func saveTemplates(from plan: WorkoutPlan) {
+        let trainerId = currentTrainer?.id ?? plan.trainerId
+        let items = plan.days.flatMap(\.exercises)
+        let source = items.isEmpty ? plan.exercises : items
+        for we in source {
+            saveExerciseTemplate(
+                ExerciseTemplate.from(workoutExercise: we, trainerId: trainerId, planTitle: plan.title)
+            )
+        }
+    }
+
+    func deleteExerciseTemplate(id: String) {
+        exerciseTemplates.removeAll { $0.id == id }
+        persistExerciseTemplates()
+    }
+
+    func loadExerciseTemplates() {
+        guard let trainerId = currentTrainer?.id,
+              let data = UserDefaults.standard.data(forKey: "exercise.templates.\(trainerId)"),
+              let decoded = try? JSONDecoder().decode([ExerciseTemplate].self, from: data)
+        else {
+            exerciseTemplates = []
+            return
+        }
+        exerciseTemplates = decoded
+    }
+
+    private func persistExerciseTemplates() {
+        guard let trainerId = currentTrainer?.id else { return }
+        let mine = exerciseTemplates.filter { $0.trainerId == trainerId }
+        guard let data = try? JSONEncoder().encode(mine) else { return }
+        UserDefaults.standard.set(data, forKey: "exercise.templates.\(trainerId)")
+    }
+
     func dailyMacros(for traineeId: String, on date: Date) -> MacroEstimate {
         if let cached = macrosByKey[macroKey(traineeId, on: date)] {
             return cached
@@ -460,6 +547,7 @@ final class AppStore {
 
     private func loadTrainerWorkspace() async throws {
         plans = try await api.trainerPlans()
+        loadExerciseTemplates()
         let items = try await api.trainerTrainees()
         apply(traineeItems: items)
         for trainee in trainees {
@@ -647,6 +735,7 @@ final class AppStore {
         formReports = []
         macrosByKey = [:]
         foodCatalog = SeedData.foodCatalog
+        exerciseTemplates = []
         assessmentCompleted = false
         profileSetupCompleted = false
     }
@@ -841,6 +930,9 @@ final class AppStore {
         switch role {
         case .trainer:
             session = Session(userId: trainerUser.id, role: .trainer)
+            exerciseTemplates = [
+                ExerciseTemplate.from(workoutExercise: we1, trainerId: trainer.id, planTitle: plan.title)
+            ]
         case .trainee:
             session = Session(userId: traineeUser.id, role: .trainee)
         }

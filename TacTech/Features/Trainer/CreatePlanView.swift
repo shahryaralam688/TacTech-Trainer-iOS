@@ -49,8 +49,8 @@ struct CreatePlanView: View {
                 }
             }
             .sheet(item: $pickerDay) { day in
-                ExerciseLibrarySheet { exercise in
-                    add(exercise, to: day)
+                ExerciseLibrarySheet { draft in
+                    add(draft, to: day)
                 }
             }
         }
@@ -137,8 +137,8 @@ struct CreatePlanView: View {
         )
     }
 
-    private func add(_ exercise: Exercise, to day: Weekday) {
-        sessions[day, default: SessionDraft(day: day, focus: focus)].exercises.append(ExerciseDraft(exerciseId: exercise.id))
+    private func add(_ draft: ExerciseDraft, to day: Weekday) {
+        sessions[day, default: SessionDraft(day: day, focus: focus)].exercises.append(draft)
     }
 
     private var canSave: Bool {
@@ -438,14 +438,16 @@ struct ExerciseDraftEditor: View {
 struct ExerciseLibrarySheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    let onPick: (Exercise) -> Void
+    let onPick: (ExerciseDraft) -> Void
 
     var body: some View {
         NavigationStack {
             List(store.exercises) { exercise in
-                Button {
-                    onPick(exercise)
-                    dismiss()
+                NavigationLink {
+                    ExerciseTemplatePickerView(exercise: exercise) { draft in
+                        onPick(draft)
+                        dismiss()
+                    }
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(exercise.name)
@@ -454,6 +456,12 @@ struct ExerciseLibrarySheet: View {
                         Text("\(exercise.muscleGroup) · \(exercise.equipment) · \(exercise.difficulty)")
                             .font(TTFont.caption(12))
                             .foregroundStyle(TTColor.inkMuted)
+                        let count = store.templates(forExerciseId: exercise.id).count
+                        if count > 0 {
+                            Text("\(count) saved template\(count == 1 ? "" : "s")")
+                                .font(TTFont.caption(11))
+                                .foregroundStyle(TTColor.brand)
+                        }
                     }
                 }
             }

@@ -375,6 +375,113 @@ struct FormReport: Identifiable, Codable, Hashable {
     var repCount: Int
 }
 
+/// Trainer-saved (or plan-derived) prescription for a catalog exercise.
+struct ExerciseTemplate: Identifiable, Codable, Hashable {
+    var id: String
+    var exerciseId: String
+    var trainerId: String
+    var name: String
+    var sets: Int
+    var reps: Int
+    var restSeconds: Int
+    var weightKg: Double
+    var tempo: String
+    var rpe: Double
+    var howTo: String
+    var side: String
+    var setRows: [ExerciseTemplateSet]
+    var updatedAt: Date
+
+    var summary: String {
+        let weight = weightKg.cleanKg
+        return "\(sets)×\(reps) · \(weight) kg · \(restSeconds)s rest · RPE \(String(format: "%g", rpe))"
+    }
+
+    /// Dedupes equivalent prescriptions across saved templates and past plans.
+    var fingerprint: String {
+        let setsKey = setRows
+            .sorted { $0.setNumber < $1.setNumber }
+            .map { "\($0.setNumber):\($0.reps):\($0.weightKg)" }
+            .joined(separator: "|")
+        return "\(exerciseId)|\(sets)|\(reps)|\(restSeconds)|\(weightKg)|\(tempo)|\(rpe)|\(side)|\(setsKey)"
+    }
+
+    static func from(workoutExercise we: WorkoutExercise, trainerId: String, planTitle: String) -> ExerciseTemplate {
+        let rows: [ExerciseTemplateSet]
+        if we.prescribedSets.isEmpty {
+            rows = (1...max(we.sets, 1)).map {
+                ExerciseTemplateSet(
+                    id: UUID().uuidString,
+                    setNumber: $0,
+                    reps: we.reps,
+                    weightKg: we.recommendedWeightKg ?? 0
+                )
+            }
+        } else {
+            rows = we.prescribedSets.map {
+                ExerciseTemplateSet(
+                    id: $0.id,
+                    setNumber: $0.setNumber,
+                    reps: $0.reps,
+                    weightKg: $0.weightKg ?? we.recommendedWeightKg ?? 0
+                )
+            }
+        }
+        return ExerciseTemplate(
+            id: UUID().uuidString,
+            exerciseId: we.exerciseId,
+            trainerId: trainerId,
+            name: "From \(planTitle)",
+            sets: we.sets,
+            reps: we.reps,
+            restSeconds: we.restSeconds,
+            weightKg: we.recommendedWeightKg ?? rows.last?.weightKg ?? 0,
+            tempo: we.tempo ?? "3-1-1-0",
+            rpe: we.rpe ?? 7.5,
+            howTo: we.notes ?? "",
+            side: we.side ?? "Both",
+            setRows: rows,
+            updatedAt: .now
+        )
+    }
+
+    static func starter(for exercise: Exercise, trainerId: String) -> ExerciseTemplate {
+        let (sets, reps, weight, rpe): (Int, Int, Double, Double) = {
+            switch exercise.difficulty.lowercased() {
+            case "beginner": return (3, 12, 20, 6.5)
+            case "advanced": return (5, 5, 60, 8.5)
+            default: return (4, 8, 40, 7.5)
+            }
+        }()
+        let rows = (1...sets).map {
+            ExerciseTemplateSet(id: UUID().uuidString, setNumber: $0, reps: reps, weightKg: weight)
+        }
+        return ExerciseTemplate(
+            id: UUID().uuidString,
+            exerciseId: exercise.id,
+            trainerId: trainerId,
+            name: "\(exercise.difficulty) starter",
+            sets: sets,
+            reps: reps,
+            restSeconds: 90,
+            weightKg: weight,
+            tempo: "3-1-1-0",
+            rpe: rpe,
+            howTo: exercise.cues.joined(separator: " "),
+            side: "Both",
+            setRows: rows,
+            updatedAt: .now
+        )
+    }
+}
+
+struct ExerciseTemplateSet: Identifiable, Codable, Hashable {
+    var id: String
+    var setNumber: Int
+    var reps: Int
+    var weightKg: Double
+}
+
 struct Session: Codable, Hashable {
     var userId: String
     var role: UserRole

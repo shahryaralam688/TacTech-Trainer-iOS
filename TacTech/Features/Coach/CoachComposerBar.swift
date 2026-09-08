@@ -4,6 +4,7 @@ import SwiftUI
 struct CoachComposerBar: View {
     @Binding var draft: String
     @Binding var pendingImage: UIImage?
+    @Binding var isFocused: Bool
     var isBusy: Bool
     var isRecording: Bool
     var recordingSecondsLeft: Int = 30
@@ -16,7 +17,7 @@ struct CoachComposerBar: View {
     var onStopVoice: () -> Void
     var onCancelVoice: () -> Void
 
-    @FocusState private var focused: Bool
+    @FocusState private var fieldFocused: Bool
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
@@ -45,6 +46,12 @@ struct CoachComposerBar: View {
         .background(Color.white.opacity(0.55))
         .animation(soft, value: isRecording)
         .animation(soft, value: pendingImage != nil)
+        .onChange(of: fieldFocused) { _, focused in
+            if isFocused != focused { isFocused = focused }
+        }
+        .onChange(of: isFocused) { _, focused in
+            if fieldFocused != focused { fieldFocused = focused }
+        }
     }
 
     private func pendingPhotoRow(_ image: UIImage) -> some View {
@@ -81,7 +88,7 @@ struct CoachComposerBar: View {
                 ForEach(CoachImageCaptionChip.allCases) { chip in
                     Button {
                         draft = chip.rawValue
-                        onSendImage(chip.rawValue)
+                        sendImageKeepingFocus(chip.rawValue)
                     } label: {
                         Text(chip.rawValue)
                             .font(.system(size: 12, weight: .semibold))
@@ -109,14 +116,20 @@ struct CoachComposerBar: View {
             .disabled(isBusy)
             .accessibilityLabel("Share photo")
 
-            Button(action: onMic) {
+            Button {
+                fieldFocused = false
+                onMic()
+            } label: {
                 iconCircle(icon: .microphone, filled: true)
             }
             .buttonStyle(AssessmentCardPressStyle())
             .disabled(isBusy)
             .accessibilityLabel("Talk to AI")
 
-            Button(action: onCall) {
+            Button {
+                fieldFocused = false
+                onCall()
+            } label: {
                 iconCircle(systemName: "phone.fill")
             }
             .buttonStyle(AssessmentCardPressStyle())
@@ -132,14 +145,13 @@ struct CoachComposerBar: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(ink)
                 .lineLimit(1...4)
-                .focused($focused)
+                .focused($fieldFocused)
                 .tint(orange)
                 .submitLabel(.send)
-                .onSubmit(send)
-                .disabled(isBusy)
+                .onSubmit(sendKeepingFocus)
 
                 if canSend {
-                    Button(action: send) {
+                    Button(action: sendKeepingFocus) {
                         ZStack {
                             Circle().fill(orange).frame(width: 32, height: 32)
                             Image(systemName: "arrow.up")
@@ -158,7 +170,7 @@ struct CoachComposerBar: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(focused ? orange : Color.clear, lineWidth: 1.5)
+                    .strokeBorder(fieldFocused ? orange : Color.clear, lineWidth: 1.5)
             )
         }
         .padding(.horizontal, 12)
@@ -196,11 +208,26 @@ struct CoachComposerBar: View {
         .frame(maxWidth: .infinity)
     }
 
-    private func send() {
+    private func sendKeepingFocus() {
         if pendingImage != nil {
-            onSendImage(draft.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
+            sendImageKeepingFocus(draft.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty)
         } else {
             onSendText()
+            restoreFocus()
+        }
+    }
+
+    private func sendImageKeepingFocus(_ caption: String?) {
+        onSendImage(caption)
+        restoreFocus()
+    }
+
+    private func restoreFocus() {
+        fieldFocused = true
+        isFocused = true
+        DispatchQueue.main.async {
+            fieldFocused = true
+            isFocused = true
         }
     }
 

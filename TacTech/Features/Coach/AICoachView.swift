@@ -19,6 +19,7 @@ struct AICoachView: View {
     @State private var fullscreenImage: UIImage?
     @State private var userPinnedScroll = false
     @State private var wavePhase: CGFloat = 0
+    @State private var composerFocused = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let orange = TTColor.actionOrange
@@ -46,21 +47,7 @@ struct AICoachView: View {
                 errorBanner(err)
             }
 
-            CoachComposerBar(
-                draft: $draft,
-                pendingImage: $pendingImage,
-                isBusy: store.isBusy || store.rateLimitSecondsRemaining > 0,
-                isRecording: store.isRecording,
-                recordingSecondsLeft: store.recordingSecondsLeft,
-                showImageChips: pendingImage != nil,
-                onSendText: sendDraft,
-                onSendImage: sendPendingImage,
-                onPickPhoto: { showPhotoSource = true },
-                onMic: { store.startRecording() },
-                onCall: { showCall = true },
-                onStopVoice: { store.stopAndSendVoice() },
-                onCancelVoice: { store.cancelRecording() }
-            )
+            composer
         }
         .task {
             // Never gate chrome on network — bootstrap in background.
@@ -125,6 +112,28 @@ struct AICoachView: View {
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: store.hapticTick)
         .sensoryFeedback(.selection, trigger: store.isRecording)
+    }
+
+    private var composer: some View {
+        CoachComposerBar(
+            draft: $draft,
+            pendingImage: $pendingImage,
+            isFocused: $composerFocused,
+            isBusy: store.isBusy || store.rateLimitSecondsRemaining > 0,
+            isRecording: store.isRecording,
+            recordingSecondsLeft: store.recordingSecondsLeft,
+            showImageChips: pendingImage != nil,
+            onSendText: sendDraft,
+            onSendImage: sendPendingImage,
+            onPickPhoto: {
+                composerFocused = false
+                showPhotoSource = true
+            },
+            onMic: { store.startRecording() },
+            onCall: { showCall = true },
+            onStopVoice: { store.stopAndSendVoice() },
+            onCancelVoice: { store.cancelRecording() }
+        )
     }
 
     private var shouldShowSuggestions: Bool {
@@ -204,6 +213,8 @@ struct AICoachView: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
         .padding(.top, 4)
+        .contentShape(Rectangle())
+        .onTapGesture { composerFocused = false }
     }
 
     private var messageList: some View {
@@ -260,7 +271,7 @@ struct AICoachView: View {
                 .padding(.bottom, 8)
                 .animation(reduceMotion ? nil : soft, value: store.messages.count)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .scrollDismissesKeyboard(.never)
             .onChange(of: store.messages.count) { _, _ in
                 guard !userPinnedScroll else { return }
                 scrollToEnd(proxy)
@@ -278,6 +289,8 @@ struct AICoachView: View {
             )
             .onTapGesture {
                 userPinnedScroll = false
+                // Explicit dismiss — send must not hide the keyboard.
+                composerFocused = false
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

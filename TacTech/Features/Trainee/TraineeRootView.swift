@@ -17,45 +17,48 @@ struct TraineeRootView: View {
     ]
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .bottom) {
-                Group {
-                    switch tab {
-                    case .home:
-                        TraineeDashboardView()
-                    case .workout:
-                        WorkoutHubView()
-                    case .nutrition:
-                        NutritionView()
-                    case .profile:
-                        TraineeProfileView()
+        ZStack {
+            GeometryReader { geo in
+                ZStack(alignment: .bottom) {
+                    Group {
+                        switch tab {
+                        case .home:
+                            TraineeDashboardView()
+                        case .workout:
+                            WorkoutHubView()
+                        case .nutrition:
+                            NutritionView()
+                        case .profile:
+                            TraineeProfileView()
+                        }
                     }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.bottom, TTFloatingTabBar<TraineeTab>.contentHeight + geo.safeAreaInsets.bottom)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.bottom, TTFloatingTabBar<TraineeTab>.contentHeight + geo.safeAreaInsets.bottom)
 
-                TTFloatingTabBar(
-                    tabs: tabs,
-                    selection: $tab,
-                    onCenterTap: openAIChat,
-                    bottomInset: geo.safeAreaInsets.bottom,
-                    aiChatNamespace: aiChatNamespace,
-                    isAIChatPresented: showAIChat
-                )
-
-                if showAIChat {
-                    TTAICoachChatOverlay(
-                        isPresented: $showAIChat,
-                        audience: .trainee,
-                        namespace: aiChatNamespace
+                    TTFloatingTabBar(
+                        tabs: tabs,
+                        selection: $tab,
+                        onCenterTap: openAIChat,
+                        bottomInset: geo.safeAreaInsets.bottom,
+                        aiChatNamespace: aiChatNamespace,
+                        isAIChatPresented: showAIChat
                     )
-                    .zIndex(40)
-                    .transition(.identity)
                 }
             }
+            .ignoresSafeArea(edges: .bottom)
+            .modifier(TTRootKeyboardIgnore(enabled: !showAIChat))
+
+            // Outside the tab GeometryReader so keyboard safe-area insets apply.
+            if showAIChat {
+                TTAICoachChatOverlay(
+                    isPresented: $showAIChat,
+                    audience: .trainee,
+                    namespace: aiChatNamespace
+                )
+                .zIndex(40)
+                .transition(.identity)
+            }
         }
-        .ignoresSafeArea(edges: .bottom)
-        .modifier(TTRootKeyboardIgnore(enabled: !showAIChat))
     }
 
     private func openAIChat() {

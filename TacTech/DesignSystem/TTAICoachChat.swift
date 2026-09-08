@@ -54,54 +54,6 @@ enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
 }
 
-// MARK: - Keyboard
-
-@MainActor
-final class TTAIKeyboardObserver: ObservableObject {
-    @Published var height: CGFloat = 0
-
-    private var tokens: [NSObjectProtocol] = []
-
-    init() {
-        let center = NotificationCenter.default
-        tokens.append(center.addObserver(
-            forName: UIResponder.keyboardWillChangeFrameNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] note in
-            Task { @MainActor in
-                self?.update(from: note)
-            }
-        })
-        tokens.append(center.addObserver(
-            forName: UIResponder.keyboardWillHideNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor in
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
-                    self?.height = 0
-                }
-            }
-        })
-    }
-
-    deinit {
-        tokens.forEach(NotificationCenter.default.removeObserver)
-    }
-
-    private func update(from note: Notification) {
-        guard
-            let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
-        else { return }
-        let screenH = UIScreen.main.bounds.height
-        let visible = max(0, screenH - frame.origin.y)
-        withAnimation(.spring(response: 0.36, dampingFraction: 0.9)) {
-            height = visible
-        }
-    }
-}
-
 // MARK: - Liquid floating chat (from Plus FAB)
 
 /// Messenger-style floating bubble that morphs open from the orange Plus.
@@ -123,7 +75,6 @@ struct TTAICoachChatOverlay: View {
     @State private var showCamera = false
     @State private var cameraImage: UIImage?
     @FocusState private var fieldFocused: Bool
-    @StateObject private var keyboard = TTAIKeyboardObserver()
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
@@ -131,38 +82,40 @@ struct TTAICoachChatOverlay: View {
     private let bubble = Animation.spring(response: 0.52, dampingFraction: 0.82)
     private let soft = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
+    /// Resting gaps (unchanged visually when keyboard is hidden).
+    private let sidePad: CGFloat = 14
+    private let topGap: CGFloat = 10
+    private let bottomGap: CGFloat = 12
+
     var body: some View {
-        GeometryReader { geo in
-            let topSafe = max(geo.safeAreaInsets.top, 10)
-            let bottomSafe = max(geo.safeAreaInsets.bottom, 10)
-            let sidePad: CGFloat = 14
-            let topPad = topSafe + 10
-            let keyboardLift = max(0, keyboard.height - (keyboard.height > 0 ? bottomSafe * 0.35 : 0))
-            let bottomPad = keyboard.height > 0
-                ? keyboardLift + 10
-                : bottomSafe + 12
+        ZStack {
+            // Scrim only — must not eat keyboard safe-area for the bubble.
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .overlay(Color.black.opacity(expanded ? 0.22 : 0))
+                .ignoresSafeArea()
+                .opacity(expanded ? 1 : 0)
+                .onTapGesture { close() }
+                .allowsHitTesting(expanded)
 
-            ZStack {
-                // Soft scrim — tap outside to dismiss.
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Color.black.opacity(expanded ? 0.22 : 0))
-                    .ignoresSafeArea()
-                    .opacity(expanded ? 1 : 0)
-                    .onTapGesture { close() }
-                    .allowsHitTesting(expanded)
+            GeometryReader { geo in
+                // Dynamic insets: home indicator when idle, keyboard when focused.
+                let topInset = geo.safeAreaInsets.top + topGap
+                let bottomInset = geo.safeAreaInsets.bottom + bottomGap
+                let maxBubbleHeight = max(280, geo.size.height - topInset - bottomInset)
 
-                floatingBubble(maxHeight: geo.size.height - topPad - bottomPad)
+                floatingBubble(maxHeight: maxBubbleHeight)
                     .padding(.horizontal, sidePad)
-                    .padding(.top, topPad)
-                    .padding(.bottom, bottomPad)
+                    .padding(.top, topInset)
+                    .padding(.bottom, bottomInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .scaleEffect(expanded ? 1 : 0.18, anchor: .bottom)
                     .opacity(expanded ? 1 : 0.01)
                     .offset(y: expanded ? 0 : 36)
+                    .animation(.easeOut(duration: 0.25), value: geo.safeAreaInsets.bottom)
             }
         }
-        .ignoresSafeArea()
+        // Do not ignore keyboard — system reports keyboard via safeAreaInsets.
         .onAppear(perform: openSequence)
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
@@ -333,12 +286,14 @@ struct TTAICoachChatOverlay: View {
                 .padding(.top, 10)
                 .padding(.bottom, 8)
             }
+            .scrollDismissesKeyboard(.interactively)
             .onChange(of: messages.count) { _, _ in scrollToEnd(proxy) }
             .onChange(of: isThinking) { _, on in
                 if on { scrollToEnd(proxy, id: "typing") }
             }
-            .onChange(of: keyboard.height) { _, _ in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            .onChange(of: fieldFocused) { _, focused in
+                guard focused else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
                     scrollToEnd(proxy)
                 }
             }

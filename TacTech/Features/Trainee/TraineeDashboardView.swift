@@ -21,21 +21,25 @@ struct TraineeDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Execution first → snapshot → support
-                        todayWorkoutSection
-                        fitnessMetrics
-                        dietSection
-                        activitiesSection
-                        coachSection
-                        formInsightsSection
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: "traineeHome")
+
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Execution first → snapshot → support
+                            todayWorkoutSection
+                            fitnessMetrics
+                            dietSection
+                            activitiesSection
+                            coachSection
+                            formInsightsSection
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 36)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 36)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: "traineeHome")
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)

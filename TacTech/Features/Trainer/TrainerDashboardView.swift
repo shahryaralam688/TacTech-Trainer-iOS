@@ -18,21 +18,25 @@ struct TrainerDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        // Ops first → snapshot → roster → actions → recent
-                        weekStrip
-                        todayQueue
-                        coachingMetrics
-                        rosterSpotlight
-                        coachShortcuts
-                        recentForm
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: "trainerHome")
+
+                        VStack(alignment: .leading, spacing: 22) {
+                            // Ops first → snapshot → roster → actions → recent
+                            weekStrip
+                            todayQueue
+                            coachingMetrics
+                            rosterSpotlight
+                            coachShortcuts
+                            recentForm
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 28)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: "trainerHome")
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)

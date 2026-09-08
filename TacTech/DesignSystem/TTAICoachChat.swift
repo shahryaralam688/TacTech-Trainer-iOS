@@ -65,6 +65,19 @@ enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
 }
 
+/// Compatibility PreferenceKey — older FAB frame tracking.
+/// Kept so mixed local checkouts that still publish FAB frames continue to compile.
+struct TTAICoachFABFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next != .zero {
+            value = next
+        }
+    }
+}
+
 // MARK: - Overlay
 
 /// Floating liquid-glass AI chat that expands from the Plus FAB like a bubble,

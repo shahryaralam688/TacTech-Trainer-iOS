@@ -9,9 +9,11 @@ struct MyTraineesView: View {
     @State private var query = ""
     @State private var goalFilter: String?
     @State private var selectedTrainee: TraineeProfile?
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let scrollSpace = "myTrainees"
 
     var body: some View {
         NavigationStack {
@@ -19,43 +21,49 @@ struct MyTraineesView: View {
                 trainerListHeader(
                     title: "My Trainees",
                     subtitle: "\(filtered.count) athletes",
-                    trailingIcon: .userPlus
+                    trailingIcon: .userPlus,
+                    collapseProgress: scrollCollapse.progress
                 ) {
                     UIPasteboard.general.string = store.currentTrainer?.inviteCode
                 }
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        if let code = store.currentTrainer?.inviteCode {
-                            inviteBanner(code: code)
-                        }
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                        TTSearchEntryPill(
-                            placeholder: TTSearchCopy.trainees.pillPlaceholder,
-                            query: displayQuery,
-                            namespace: searchNS
-                        ) {
-                            showSearch = true
-                        }
+                        VStack(alignment: .leading, spacing: 12) {
+                            if let code = store.currentTrainer?.inviteCode {
+                                inviteBanner(code: code)
+                            }
 
-                        if filtered.isEmpty {
-                            emptyCard
-                        } else {
-                            ForEach(filtered) { trainee in
-                                NavigationLink {
-                                    TraineeDetailView(trainee: trainee)
-                                } label: {
-                                    traineeRow(trainee)
+                            TTSearchEntryPill(
+                                placeholder: TTSearchCopy.trainees.pillPlaceholder,
+                                query: displayQuery,
+                                namespace: searchNS
+                            ) {
+                                showSearch = true
+                            }
+
+                            if filtered.isEmpty {
+                                emptyCard
+                            } else {
+                                ForEach(filtered) { trainee in
+                                    NavigationLink {
+                                        TraineeDetailView(trainee: trainee)
+                                    } label: {
+                                        traineeRow(trainee)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()

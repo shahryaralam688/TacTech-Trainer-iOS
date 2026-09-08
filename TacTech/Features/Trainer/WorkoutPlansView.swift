@@ -10,9 +10,11 @@ struct WorkoutPlansView: View {
     @State private var query = ""
     @State private var focusFilter: String?
     @State private var selectedPlan: WorkoutPlan?
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let scrollSpace = "workoutPlans"
 
     var body: some View {
         NavigationStack {
@@ -20,45 +22,51 @@ struct WorkoutPlansView: View {
                 trainerListHeader(
                     title: "Workout Plans",
                     subtitle: "\(filtered.count) programs",
-                    trailingIcon: .plus
+                    trailingIcon: .plus,
+                    collapseProgress: scrollCollapse.progress
                 ) {
                     showCreate = true
                 }
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        TTSearchEntryPill(
-                            placeholder: TTSearchCopy.plans.pillPlaceholder,
-                            query: displayQuery,
-                            namespace: searchNS
-                        ) {
-                            showSearch = true
-                        }
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                        if filtered.isEmpty {
-                            emptyCard(
-                                icon: .clipboard,
-                                title: plans.isEmpty ? "No plans yet" : "No matches",
-                                message: plans.isEmpty
-                                    ? "Tap + to build a detailed weekly plan for your athletes."
-                                    : "Try a different search."
-                            )
-                        } else {
-                            ForEach(filtered) { plan in
-                                NavigationLink {
-                                    WorkoutPlanDetailView(plan: plan)
-                                } label: {
-                                    planCard(plan)
+                        VStack(alignment: .leading, spacing: 12) {
+                            TTSearchEntryPill(
+                                placeholder: TTSearchCopy.plans.pillPlaceholder,
+                                query: displayQuery,
+                                namespace: searchNS
+                            ) {
+                                showSearch = true
+                            }
+
+                            if filtered.isEmpty {
+                                emptyCard(
+                                    icon: .clipboard,
+                                    title: plans.isEmpty ? "No plans yet" : "No matches",
+                                    message: plans.isEmpty
+                                        ? "Tap + to build a detailed weekly plan for your athletes."
+                                        : "Try a different search."
+                                )
+                            } else {
+                                ForEach(filtered) { plan in
+                                    NavigationLink {
+                                        WorkoutPlanDetailView(plan: plan)
+                                    } label: {
+                                        planCard(plan)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
@@ -422,40 +430,54 @@ struct ExercisePrescriptionCard: View {
     }
 }
 
-// Shared trainer list header (Plans / Trainees)
+// Shared trainer list header (Plans / Trainees) — shrinks on scroll like home.
 @ViewBuilder
 func trainerListHeader(
     title: String,
     subtitle: String,
     trailingIcon: SandowIcon,
+    collapseProgress: CGFloat = 0,
     action: @escaping () -> Void
 ) -> some View {
     let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    VStack(alignment: .leading, spacing: 10) {
+    let p = min(1, max(0, collapseProgress))
+    let expand = 1 - p
+    let compactHeight: CGFloat = 64
+    let headerHeight = compactHeight + (TTDarkPageHeader.cardHeight - compactHeight) * expand
+
+    VStack(alignment: .leading, spacing: 10 * expand) {
         HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 4 * expand) {
                 Text(title)
-                    .font(TTFont.headingLG(.bold))
+                    .font(TTFont.workSans(28 - 8 * p, weight: .bold))
                     .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+
                 Text(subtitle)
                     .font(TTFont.textSM(.medium))
                     .foregroundStyle(.white.opacity(0.65))
+                    .opacity(Double(expand))
+                    .frame(height: 18 * expand, alignment: .top)
+                    .clipped()
             }
-            Spacer()
+
+            Spacer(minLength: 8)
+
             Button(action: action) {
-                TTIcon(icon: trailingIcon, filled: true, size: 18)
+                TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
                     .foregroundStyle(.white)
-                    .frame(width: 44, height: 44)
+                    .frame(width: 44 - 4 * p, height: 44 - 4 * p)
                     .background(TTColor.actionOrange)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
             }
             .buttonStyle(.plain)
         }
     }
     .padding(.horizontal, 20)
-    .padding(.top, 14)
-    .padding(.bottom, 20)
-    .frame(maxWidth: .infinity, minHeight: TTDarkPageHeader.cardHeight, alignment: .bottomLeading)
+    .padding(.top, 14 - 4 * p)
+    .padding(.bottom, 20 - 8 * p)
+    .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .bottomLeading)
     .background {
         Rectangle()
             .fill(charcoal)

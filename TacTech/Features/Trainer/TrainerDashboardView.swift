@@ -19,7 +19,7 @@ struct TrainerDashboardView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollOffsetAnchor(space: "trainerHome")
+                        TTHomeScrollOffsetAnchor(offset: $scrollOffset)
 
                         VStack(alignment: .leading, spacing: 22) {
                             // Ops first → snapshot → roster → actions → recent
@@ -35,7 +35,6 @@ struct TrainerDashboardView: View {
                         .padding(.bottom, 28)
                     }
                 }
-                .ttHomeScrollCollapseOffset($scrollOffset, space: "trainerHome")
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

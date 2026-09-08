@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Status chip under the home greeting (e.g. "88% Healthy", "Pro").
 struct TTHomeProfileMetric: Identifiable, Hashable {
@@ -15,16 +16,19 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
     }
 }
 
-/// How far home must scroll before the header is fully compact (name + chevron).
+/// How far home must scroll before the header is fully compact.
 enum TTHomeHeaderCollapse {
-    static let distance: CGFloat = 72
+    /// Slightly longer travel so the shrink feels paced, not abrupt.
+    static let distance: CGFloat = 110
 
+    /// Smoothstep 0…1 so layout eases in/out with the finger.
     static func progress(for offset: CGFloat) -> CGFloat {
-        min(1, max(0, offset / distance))
+        let raw = min(1, max(0, offset / distance))
+        return raw * raw * (3 - 2 * raw)
     }
 }
 
-/// Figma home top bar — collapses with scroll to a sticky name + forward control.
+/// Home top bar — scroll-synced collapse to avatar + name + forward.
 struct TTHomeProfileHeader: View {
     let name: String
     var avatarSymbol: String? = nil
@@ -33,7 +37,7 @@ struct TTHomeProfileHeader: View {
     var badgeCount: Int = 0
     var metrics: [TTHomeProfileMetric] = []
     var date: Date = .now
-    /// 0 = expanded (date, bell, avatar, metrics). 1 = compact name + chevron.
+    /// 0 = expanded. 1 = compact (avatar + name + chevron).
     var collapseProgress: CGFloat = 0
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
@@ -41,29 +45,34 @@ struct TTHomeProfileHeader: View {
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let dateGrey = Color.white.opacity(0.55)
     private let bellBG = Color(white: 0.22)
-    private let avatarSide: CGFloat = 58
 
     private var p: CGFloat { min(1, max(0, collapseProgress)) }
+    private var expand: CGFloat { 1 - p }
+
+    private var avatarSide: CGFloat { 58 - 18 * p } // 58 → 40
+    private var avatarRadius: CGFloat { 16 - 4 * p } // 16 → 12
+    private var titleSize: CGFloat { 28 - 8 * p } // 28 → 20
+    private var rowSpacing: CGFloat { 14 - 2 * p }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22 * (1 - p)) {
+        VStack(alignment: .leading, spacing: 22 * expand) {
             topRow
-                .opacity(Double(1 - p))
-                .frame(height: 44 * (1 - p), alignment: .top)
+                .opacity(Double(expand))
+                .frame(height: 44 * expand, alignment: .top)
                 .clipped()
                 .allowsHitTesting(p < 0.35)
 
             profileRow
         }
         .padding(.horizontal, 22)
-        .padding(.top, 10)
+        .padding(.top, 10 - 2 * p)
         .padding(.bottom, 22 - 10 * p)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             ZStack {
                 Color.black
                 TTHomeHeaderBands()
-                    .fill(Color.white.opacity(0.07 * (1 - p)))
+                    .fill(Color.white.opacity(0.07 * Double(expand)))
             }
             .ignoresSafeArea(edges: .top)
         }
@@ -119,15 +128,12 @@ struct TTHomeProfileHeader: View {
         Button {
             onProfileTap?()
         } label: {
-            HStack(spacing: 14 * (1 - p)) {
-                avatarView
-                    .opacity(Double(1 - p))
-                    .frame(width: avatarSide * (1 - p), height: avatarSide * (1 - p))
-                    .clipped()
+            HStack(spacing: rowSpacing) {
+                avatarView(side: avatarSide, corner: avatarRadius)
 
-                VStack(alignment: .leading, spacing: 7 * (1 - p)) {
-                    Text(p < 0.45 ? "Hello, \(name)!" : name)
-                        .font(TTFont.workSans(28 - 8 * p, weight: .bold))
+                VStack(alignment: .leading, spacing: 7 * expand) {
+                    Text(p < 0.55 ? "Hello, \(name)!" : name)
+                        .font(TTFont.workSans(titleSize, weight: .bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
@@ -150,15 +156,15 @@ struct TTHomeProfileHeader: View {
                                 }
                             }
                         }
-                        .opacity(Double(1 - p))
-                        .frame(height: 22 * (1 - p), alignment: .top)
+                        .opacity(Double(expand))
+                        .frame(height: 22 * expand, alignment: .top)
                         .clipped()
                     }
                 }
 
                 Spacer(minLength: 0)
 
-                TTIcon(icon: .chevronRight, size: 22)
+                TTIcon(icon: .chevronRight, size: 22 - 2 * p)
                     .foregroundStyle(.white)
             }
             .frame(minHeight: 44)
@@ -169,41 +175,36 @@ struct TTHomeProfileHeader: View {
         .accessibilityHint("Opens your profile")
     }
 
-    private var avatarView: some View {
+    private func avatarView(side: CGFloat, corner: CGFloat) -> some View {
         Group {
             if TTAvatarCatalog.isCustom(avatarSymbol),
                let custom = TTAvatarCatalog.loadCustomImage(for: avatarUserId) {
                 Image(uiImage: custom)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: avatarSide, height: avatarSide)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
                 Image(avatarSymbol)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: avatarSide, height: avatarSide)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.14))
-                        .frame(width: avatarSide, height: avatarSide)
-
+                    Color.white.opacity(0.14)
                     if let avatarSymbol, !TTAvatarCatalog.hasRenderableAvatar(avatarSymbol) {
                         Image(systemName: avatarSymbol)
-                            .font(TTFont.headingMD(.semibold))
+                            .font(TTFont.workSans(side * 0.38, weight: .semibold))
                             .foregroundStyle(.white)
                     } else {
                         Text((avatarInitial ?? String(name.prefix(1))).uppercased())
-                            .font(TTFont.headingSM(.bold))
+                            .font(TTFont.workSans(side * 0.36, weight: .bold))
                             .foregroundStyle(.white)
                     }
                 }
             }
         }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.22), lineWidth: 1.5)
         )
     }
@@ -253,43 +254,90 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - Home scroll → header collapse
+// MARK: - Reliable scroll offset (UIKit) → header collapse
 
-extension View {
-    /// Attach to the home **ScrollView**. Pair content with `TTHomeScrollOffsetAnchor`.
-    func ttHomeScrollCollapseOffset(_ offset: Binding<CGFloat>, space: String = "ttHomeScroll") -> some View {
-        self
-            .coordinateSpace(name: space)
-            .onPreferenceChange(TTHomeScrollOffsetKey.self) { value in
-                var transaction = Transaction()
-                transaction.animation = nil
-                withTransaction(transaction) {
-                    offset.wrappedValue = max(0, value)
-                }
-            }
-    }
-}
-
-/// Put as the **first** child inside the home ScrollView content (above padding/sections).
+/// Embed as the **first** child inside the home ScrollView content.
 struct TTHomeScrollOffsetAnchor: View {
-    var space: String = "ttHomeScroll"
+    @Binding var offset: CGFloat
 
     var body: some View {
-        GeometryReader { geo in
-            Color.clear.preference(
-                key: TTHomeScrollOffsetKey.self,
-                value: -geo.frame(in: .named(space)).minY
-            )
-        }
-        .frame(width: 0, height: 0)
-        .accessibilityHidden(true)
+        TTHomeScrollOffsetObserver(offset: $offset)
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }
 
-private struct TTHomeScrollOffsetKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+/// Finds the parent vertical UIScrollView and mirrors `contentOffset.y`.
+private struct TTHomeScrollOffsetObserver: UIViewRepresentable {
+    @Binding var offset: CGFloat
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(offset: $offset)
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.attach(from: uiView)
+    }
+
+    final class Coordinator {
+        private var offset: Binding<CGFloat>
+        private var observation: NSKeyValueObservation?
+        private weak var scrollView: UIScrollView?
+
+        init(offset: Binding<CGFloat>) {
+            self.offset = offset
+        }
+
+        deinit {
+            observation?.invalidate()
+        }
+
+        func attach(from view: UIView) {
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view else { return }
+                guard let scroll = Self.findVerticalScrollView(from: view) else { return }
+                if scroll === self.scrollView { return }
+
+                self.observation?.invalidate()
+                self.scrollView = scroll
+                self.observation = scroll.observe(\.contentOffset, options: [.new, .initial]) { [weak self] scrollView, _ in
+                    guard let self else { return }
+                    let y = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+                    var transaction = Transaction()
+                    transaction.animation = nil
+                    withTransaction(transaction) {
+                        self.offset.wrappedValue = y
+                    }
+                }
+            }
+        }
+
+        private static func findVerticalScrollView(from view: UIView) -> UIScrollView? {
+            var current: UIView? = view.superview
+            var candidate: UIScrollView?
+            while let node = current {
+                if let scroll = node as? UIScrollView {
+                    // Prefer the tallest vertical scroller (home page), skip narrow horizontal strips.
+                    let mostlyVertical = scroll.contentSize.height >= scroll.contentSize.width
+                        || scroll.contentSize.height > scroll.bounds.height + 40
+                    if mostlyVertical {
+                        candidate = scroll
+                    } else if candidate == nil {
+                        candidate = scroll
+                    }
+                }
+                current = node.superview
+            }
+            return candidate
+        }
     }
 }
 
@@ -306,6 +354,7 @@ private struct TTHomeScrollOffsetKey: PreferenceKey {
         )
         TTHomeProfileHeader(
             name: "Maya",
+            avatarSymbol: nil,
             collapseProgress: 1,
             onProfileTap: {}
         )

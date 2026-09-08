@@ -22,7 +22,7 @@ struct TraineeDashboardView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollOffsetAnchor(space: "traineeHome")
+                        TTHomeScrollOffsetAnchor(offset: $scrollOffset)
 
                         VStack(alignment: .leading, spacing: 24) {
                             // Execution first → snapshot → support
@@ -38,7 +38,6 @@ struct TraineeDashboardView: View {
                         .padding(.bottom, 36)
                     }
                 }
-                .ttHomeScrollCollapseOffset($scrollOffset, space: "traineeHome")
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

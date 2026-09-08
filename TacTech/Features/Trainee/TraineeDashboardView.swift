@@ -9,7 +9,7 @@ struct TraineeDashboardView: View {
     @State private var showNutrition = false
     @State private var showWorkouts = false
 
-    @State private var scrollOffset: CGFloat = 0
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -21,24 +21,21 @@ struct TraineeDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollOffsetAnchor(offset: $scrollOffset)
-
-                        VStack(alignment: .leading, spacing: 24) {
-                            // Execution first → snapshot → support
-                            todayWorkoutSection
-                            fitnessMetrics
-                            dietSection
-                            activitiesSection
-                            coachSection
-                            formInsightsSection
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        .padding(.bottom, 36)
+                    VStack(alignment: .leading, spacing: 24) {
+                        // Execution first → snapshot → support
+                        todayWorkoutSection
+                        fitnessMetrics
+                        dietSection
+                        activitiesSection
+                        coachSection
+                        formInsightsSection
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 36)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
@@ -76,7 +73,7 @@ struct TraineeDashboardView: View {
                     text: "Pro"
                 )
             ],
-            collapseProgress: TTHomeHeaderCollapse.progress(for: scrollOffset),
+            collapseProgress: scrollCollapse.progress,
             onProfileTap: { showProfile = true }
         )
     }

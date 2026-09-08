@@ -254,90 +254,215 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - Reliable scroll offset (UIKit) → header collapse
+// MARK: - Stable scroll → header collapse (survives header height changes)
 
-/// Embed as the **first** child inside the home ScrollView content.
-struct TTHomeScrollOffsetAnchor: View {
-    @Binding var offset: CGFloat
+/// Shared collapse progress for home dashboards. Updated from UIKit without relying on
+/// a GeometryReader inside scroll content (that breaks after the first layout pass).
+@MainActor
+final class TTHomeScrollCollapseModel: ObservableObject {
+    @Published private(set) var progress: CGFloat = 0
 
-    var body: some View {
-        TTHomeScrollOffsetObserver(offset: $offset)
-            .frame(width: 0, height: 0)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
+    private var lastProgress: CGFloat = -1
+
+    func setOffsetY(_ y: CGFloat) {
+        let next = TTHomeHeaderCollapse.progress(for: max(0, y))
+        // ~80 visual steps — smooth, but skips no-op SwiftUI invalidations.
+        let stepped = (next * 80).rounded() / 80
+        guard abs(stepped - lastProgress) > 0.0001 else { return }
+        lastProgress = stepped
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            progress = stepped
+        }
     }
 }
 
-/// Finds the parent vertical UIScrollView and mirrors `contentOffset.y`.
-private struct TTHomeScrollOffsetObserver: UIViewRepresentable {
-    @Binding var offset: CGFloat
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(offset: $offset)
+extension View {
+    /// Attach to the home **ScrollView**. Keeps observing across header shrink/expand.
+    func ttObserveHomeScrollCollapse(_ model: TTHomeScrollCollapseModel) -> some View {
+        background {
+            TTHomeScrollCollapseBridge(model: model)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
+}
 
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isUserInteractionEnabled = false
-        view.backgroundColor = .clear
+/// UIKit bridge that re-binds whenever SwiftUI recreates the underlying UIScrollView.
+private struct TTHomeScrollCollapseBridge: UIViewRepresentable {
+    let model: TTHomeScrollCollapseModel
+
+    func makeUIView(context: Context) -> TTHomeScrollCollapseHostView {
+        let view = TTHomeScrollCollapseHostView()
+        view.model = model
         return view
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.attach(from: uiView)
+    func updateUIView(_ uiView: TTHomeScrollCollapseHostView, context: Context) {
+        uiView.model = model
+        uiView.rebindScrollViewIfNeeded()
+    }
+}
+
+private final class TTHomeScrollCollapseHostView: UIView {
+    var model: TTHomeScrollCollapseModel?
+    private var observation: NSKeyValueObservation?
+    private weak var observedScrollView: UIScrollView?
+    private var displayLink: CADisplayLink?
+    private var displayLinkProxy: TTHomeScrollDisplayLinkProxy?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        backgroundColor = .clear
     }
 
-    final class Coordinator {
-        private var offset: Binding<CGFloat>
-        private var observation: NSKeyValueObservation?
-        private weak var scrollView: UIScrollView?
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { nil }
 
-        init(offset: Binding<CGFloat>) {
-            self.offset = offset
-        }
+    deinit {
+        observation?.invalidate()
+        displayLink?.invalidate()
+        displayLinkProxy = nil
+    }
 
-        deinit {
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        rebindScrollViewIfNeeded()
+    }
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        rebindScrollViewIfNeeded()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        rebindScrollViewIfNeeded()
+    }
+
+    func rebindScrollViewIfNeeded() {
+        guard window != nil else { return }
+        guard let scroll = findVerticalScrollView() else { return }
+
+        if scroll !== observedScrollView || observation == nil {
             observation?.invalidate()
-        }
-
-        func attach(from view: UIView) {
-            DispatchQueue.main.async { [weak self, weak view] in
-                guard let self, let view else { return }
-                guard let scroll = Self.findVerticalScrollView(from: view) else { return }
-                if scroll === self.scrollView { return }
-
-                self.observation?.invalidate()
-                self.scrollView = scroll
-                self.observation = scroll.observe(\.contentOffset, options: [.new, .initial]) { [weak self] scrollView, _ in
-                    guard let self else { return }
-                    let y = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
-                    var transaction = Transaction()
-                    transaction.animation = nil
-                    withTransaction(transaction) {
-                        self.offset.wrappedValue = y
-                    }
-                }
+            observedScrollView = scroll
+            observation = scroll.observe(\.contentOffset, options: [.new, .initial]) { [weak self] scrollView, _ in
+                self?.publish(from: scrollView)
+                self?.syncDisplayLink(with: scrollView)
             }
         }
 
-        private static func findVerticalScrollView(from view: UIView) -> UIScrollView? {
-            var current: UIView? = view.superview
-            var candidate: UIScrollView?
-            while let node = current {
-                if let scroll = node as? UIScrollView {
-                    // Prefer the tallest vertical scroller (home page), skip narrow horizontal strips.
-                    let mostlyVertical = scroll.contentSize.height >= scroll.contentSize.width
-                        || scroll.contentSize.height > scroll.bounds.height + 40
-                    if mostlyVertical {
-                        candidate = scroll
-                    } else if candidate == nil {
-                        candidate = scroll
+        publish(from: scroll)
+        syncDisplayLink(with: scroll)
+    }
+
+    private func publish(from scrollView: UIScrollView) {
+        let y = max(0, scrollView.contentOffset.y + scrollView.adjustedContentInset.top)
+        if Thread.isMainThread {
+            model?.setOffsetY(y)
+        } else {
+            DispatchQueue.main.async { [weak self] in
+                self?.model?.setOffsetY(y)
+            }
+        }
+    }
+
+    private func syncDisplayLink(with scrollView: UIScrollView) {
+        let tracking = scrollView.isDragging || scrollView.isDecelerating || scrollView.isTracking
+        if tracking {
+            if displayLink == nil {
+                let proxy = TTHomeScrollDisplayLinkProxy(owner: self)
+                displayLinkProxy = proxy
+                let link = CADisplayLink(target: proxy, selector: #selector(TTHomeScrollDisplayLinkProxy.tick))
+                link.add(to: .main, forMode: .common)
+                displayLink = link
+            }
+        } else if displayLink != nil {
+            displayLink?.invalidate()
+            displayLink = nil
+            displayLinkProxy = nil
+        }
+    }
+
+    @objc fileprivate func handleDisplayLink() {
+        guard let scrollView = observedScrollView else {
+            displayLink?.invalidate()
+            displayLink = nil
+            displayLinkProxy = nil
+            return
+        }
+        publish(from: scrollView)
+        if !scrollView.isDragging && !scrollView.isDecelerating && !scrollView.isTracking {
+            displayLink?.invalidate()
+            displayLink = nil
+            displayLinkProxy = nil
+        }
+    }
+
+    private func findVerticalScrollView() -> UIScrollView? {
+        var node: UIView? = self
+        var best: UIScrollView?
+
+        while let current = node {
+            if let scroll = current as? UIScrollView, isMostlyVertical(scroll) {
+                best = scroll
+            }
+
+            for subview in current.subviews {
+                if let scroll = subview as? UIScrollView, isMostlyVertical(scroll) {
+                    // Prefer larger vertical home scroller over tiny horizontal strips.
+                    if best == nil || scroll.bounds.height > (best?.bounds.height ?? 0) {
+                        best = scroll
                     }
                 }
-                current = node.superview
             }
-            return candidate
+
+            if let parent = current.superview {
+                for sibling in parent.subviews {
+                    if let scroll = sibling as? UIScrollView, isMostlyVertical(scroll) {
+                        if best == nil || scroll.bounds.height > (best?.bounds.height ?? 0) {
+                            best = scroll
+                        }
+                    }
+                    for nested in sibling.subviews where nested is UIScrollView {
+                        if let scroll = nested as? UIScrollView, isMostlyVertical(scroll) {
+                            if best == nil || scroll.bounds.height > (best?.bounds.height ?? 0) {
+                                best = scroll
+                            }
+                        }
+                    }
+                }
+            }
+
+            node = current.superview
         }
+
+        return best
+    }
+
+    private func isMostlyVertical(_ scroll: UIScrollView) -> Bool {
+        // Horizontal chips/strips are short; home scroll fills most of the screen.
+        if scroll.bounds.height < 80 { return false }
+        return scroll.contentSize.height + 20 >= scroll.contentSize.width
+            || scroll.contentSize.height > scroll.bounds.height + 40
+            || scroll.bounds.height > scroll.bounds.width * 0.55
+    }
+}
+
+/// Breaks CADisplayLink → view retain cycles.
+private final class TTHomeScrollDisplayLinkProxy: NSObject {
+    weak var owner: TTHomeScrollCollapseHostView?
+
+    init(owner: TTHomeScrollCollapseHostView) {
+        self.owner = owner
+    }
+
+    @objc func tick() {
+        owner?.handleDisplayLink()
     }
 }
 

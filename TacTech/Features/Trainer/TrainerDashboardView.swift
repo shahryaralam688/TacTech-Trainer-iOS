@@ -5,7 +5,7 @@ struct TrainerDashboardView: View {
     @State private var selectedDay = Date()
     @State private var showProfile = false
     @State private var copiedInvite = false
-    @State private var scrollOffset: CGFloat = 0
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -18,24 +18,21 @@ struct TrainerDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollOffsetAnchor(offset: $scrollOffset)
-
-                        VStack(alignment: .leading, spacing: 22) {
-                            // Ops first → snapshot → roster → actions → recent
-                            weekStrip
-                            todayQueue
-                            coachingMetrics
-                            rosterSpotlight
-                            coachShortcuts
-                            recentForm
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        .padding(.bottom, 28)
+                    VStack(alignment: .leading, spacing: 22) {
+                        // Ops first → snapshot → roster → actions → recent
+                        weekStrip
+                        todayQueue
+                        coachingMetrics
+                        rosterSpotlight
+                        coachShortcuts
+                        recentForm
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
@@ -65,7 +62,7 @@ struct TrainerDashboardView: View {
                     text: "Coach"
                 )
             ],
-            collapseProgress: TTHomeHeaderCollapse.progress(for: scrollOffset),
+            collapseProgress: scrollCollapse.progress,
             onProfileTap: { showProfile = true }
         )
     }

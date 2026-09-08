@@ -96,19 +96,39 @@ struct TTAICoachChatOverlay: View {
     private let orange = TTColor.actionOrange
     private let ink = Color.black
     private let muted = Color(white: 0.42)
-    private let morph = Animation.spring(response: 0.5, dampingFraction: 0.86)
-    private let soft = Animation.spring(response: 0.42, dampingFraction: 0.84)
+    /// Snappy spring (iOS sheet-like) — short settle, no mushy lag.
+    private let morph = Animation.spring(response: 0.28, dampingFraction: 0.88)
+    private let soft = Animation.easeOut(duration: 0.16)
+    private let morphDuration: TimeInterval = 0.32
 
     var body: some View {
         GeometryReader { geo in
             let container = geo.frame(in: .global)
-            let topPad = max(geo.safeAreaInsets.top, 10) + 6
+            let topPad = max(geo.safeAreaInsets.top, 12) + 8
             let tabClearance = TTFloatingTabBar<Int>.contentHeight + max(geo.safeAreaInsets.bottom, 8) + 10
-            let keyboardLift = max(0, keyboardHeight - geo.safeAreaInsets.bottom)
-            let bottomPad = keyboardLift > 0 ? keyboardLift + 12 : tabClearance
+            let keyboardLift = max(0, keyboardHeight)
             let panelWidth = min(geo.size.width - 28, 520)
-            let available = geo.size.height - topPad - bottomPad
-            let panelHeight = min(max(available, 280), geo.size.height * 0.78)
+            let restingHeight = min(geo.size.height * 0.72, geo.size.height - topPad - tabClearance)
+
+            // International pattern (iMessage / chat sheets):
+            // sit on the keyboard and grow upward; clamp top under the status bar.
+            let expanded: CGRect = {
+                let x = (geo.size.width - panelWidth) / 2
+                if keyboardLift > 40 {
+                    let gap: CGFloat = 10
+                    let maxBottom = geo.size.height - keyboardLift - gap
+                    let idealHeight = min(restingHeight, maxBottom - topPad)
+                    let height = max(240, idealHeight)
+                    let y = max(topPad, maxBottom - height)
+                    return CGRect(x: x, y: y, width: panelWidth, height: maxBottom - y)
+                }
+                return CGRect(
+                    x: x,
+                    y: geo.size.height - tabClearance - restingHeight,
+                    width: panelWidth,
+                    height: restingHeight
+                )
+            }()
 
             let fabLocal: CGRect = {
                 guard fabFrameGlobal.width > 1 else {
@@ -127,40 +147,29 @@ struct TTAICoachChatOverlay: View {
                 )
             }()
 
-            let expanded = CGRect(
-                x: (geo.size.width - panelWidth) / 2,
-                y: geo.size.height - bottomPad - panelHeight,
-                width: panelWidth,
-                height: panelHeight
-            )
-
             let frame = lerp(fabLocal, expanded, t: morphProgress)
-            let radius = 18 + (32 - 18) * morphProgress
+            let radius = 18 + 14 * morphProgress
 
             ZStack {
-                ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
-                    Color.black.opacity(0.16)
-                }
-                .opacity(Double(morphProgress))
-                .ignoresSafeArea()
-                .onTapGesture { close() }
-                .allowsHitTesting(morphProgress > 0.85 && keyboardLift == 0)
+                Color.black
+                    .opacity(0.22 * Double(morphProgress))
+                    .ignoresSafeArea()
+                    .onTapGesture { close() }
+                    .allowsHitTesting(morphProgress > 0.9 && keyboardLift < 40)
 
                 floatingPanel(cornerRadius: radius)
-                    .frame(width: frame.width, height: frame.height)
+                    .frame(width: max(frame.width, 1), height: max(frame.height, 1))
                     .position(x: frame.midX, y: frame.midY)
             }
-            .animation(morph, value: keyboardHeight)
         }
         .ignoresSafeArea()
         .onAppear(perform: openSequence)
-        .onReceive(TTAIKeyboard.overlapHeight) { height in
-            withAnimation(.easeOut(duration: 0.28)) {
-                keyboardHeight = height
+        .onReceive(TTAIKeyboard.events) { event in
+            withAnimation(.easeOut(duration: event.duration)) {
+                keyboardHeight = event.height
             }
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: isPresented)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.6), trigger: isPresented)
         .sensoryFeedback(.selection, trigger: isRecording)
     }
 
@@ -203,69 +212,38 @@ struct TTAICoachChatOverlay: View {
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.95),
-                            Color.white.opacity(0.35),
-                            orange.opacity(0.45),
-                            Color.white.opacity(0.55)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.4
-                )
+                .strokeBorder(Color.white.opacity(0.55 + 0.25 * morphProgress), lineWidth: 1.2)
         }
-        .shadow(color: Color.black.opacity(0.12 + 0.1 * morphProgress), radius: 12 + 24 * morphProgress, y: 6 + 12 * morphProgress)
-        .shadow(color: orange.opacity(0.25 + 0.08 * morphProgress), radius: 14 + 14 * morphProgress, y: 4 + 6 * morphProgress)
+        .shadow(
+            color: Color.black.opacity(morphProgress > 0.6 ? 0.18 : 0.12),
+            radius: morphProgress > 0.6 ? 20 : 10,
+            y: morphProgress > 0.6 ? 10 : 4
+        )
     }
 
     private func liquidGlassBackground(cornerRadius: CGFloat) -> some View {
+        // Keep morph cheap: solid fills while expanding; light glass only when settled.
         ZStack {
-            if morphProgress < 0.35 {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(orange)
-            } else {
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .fill(morphProgress < 0.55 ? orange : Color.white.opacity(0.94))
+
+            if morphProgress >= 0.55 {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .fill(.ultraThinMaterial)
+                    .opacity(0.55)
+
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.85),
+                                Color.white.opacity(0.72)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
             }
-
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.15 + 0.67 * morphProgress),
-                            Color.white.opacity(0.05 + 0.63 * morphProgress),
-                            Color.white.opacity(0.1 + 0.65 * morphProgress)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-
-            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.55 * morphProgress),
-                            Color.white.opacity(0.08 * morphProgress),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-                .blendMode(.plusLighter)
-                .opacity(0.7)
-
-            Ellipse()
-                .fill(orange.opacity(0.14 * morphProgress))
-                .frame(width: 220, height: 120)
-                .blur(radius: 36)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .offset(y: 24)
-                .allowsHitTesting(false)
         }
     }
 
@@ -661,7 +639,7 @@ struct TTAICoachChatOverlay: View {
         withAnimation(morph) {
             morphProgress = 1
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             withAnimation(soft) {
                 contentReady = true
             }
@@ -670,12 +648,13 @@ struct TTAICoachChatOverlay: View {
 
     private func close() {
         fieldFocused = false
+        contentReady = false
         keyboardHeight = 0
-        withAnimation(soft) {
-            contentReady = false
-        }
+        // Morph back to FAB first; dismiss binding after settle so unmount isn't early.
         withAnimation(morph) {
             morphProgress = 0
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + morphDuration) {
             isPresented = false
         }
     }
@@ -743,19 +722,33 @@ struct TTAICoachChatOverlay: View {
     }
 }
 
-// MARK: - Keyboard overlap
+// MARK: - Keyboard overlap (system duration + window intersection)
+
+struct TTAIKeyboardEvent: Equatable {
+    var height: CGFloat
+    var duration: TimeInterval
+}
 
 enum TTAIKeyboard {
-    static var overlapHeight: AnyPublisher<CGFloat, Never> {
+    static var events: AnyPublisher<TTAIKeyboardEvent, Never> {
         NotificationCenter.default
             .publisher(for: UIResponder.keyboardWillChangeFrameNotification)
-            .compactMap { notification -> CGFloat? in
+            .compactMap { notification -> TTAIKeyboardEvent? in
                 guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
                     return nil
                 }
-                let screenH = UIScreen.main.bounds.height
-                return max(0, screenH - frame.origin.y)
+                let duration = (notification.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?
+                    .doubleValue ?? 0.25
+                let window = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .flatMap(\.windows)
+                    .first { $0.isKeyWindow }
+                let windowHeight = window?.bounds.height ?? UIScreen.main.bounds.height
+                let converted = window.map { $0.convert(frame, from: nil) } ?? frame
+                let overlap = max(0, windowHeight - converted.origin.y)
+                return TTAIKeyboardEvent(height: overlap, duration: max(0.15, duration))
             }
+            .removeDuplicates()
             .eraseToAnyPublisher()
     }
 }

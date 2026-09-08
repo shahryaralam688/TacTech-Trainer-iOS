@@ -18,8 +18,6 @@ struct TrainerRootView: View {
         TTTabBarItem(.profile, icon: .user, label: "Profile")
     ]
 
-    private let morph = Animation.spring(response: 0.5, dampingFraction: 0.86)
-
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
@@ -64,7 +62,8 @@ struct TrainerRootView: View {
         .ignoresSafeArea(.keyboard)
         .onChange(of: showAIChat) { _, open in
             if !open {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                // Wait for overlay morph-to-FAB to finish before unmount.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
                     if !showAIChat { mountAIChat = false }
                 }
             }
@@ -73,9 +72,8 @@ struct TrainerRootView: View {
 
     private func openAIChat() {
         mountAIChat = true
-        withAnimation(morph) {
-            showAIChat = true
-        }
+        // Overlay owns the morph spring — avoid a second competing animation here.
+        showAIChat = true
     }
 }
 

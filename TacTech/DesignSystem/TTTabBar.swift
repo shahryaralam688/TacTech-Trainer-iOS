@@ -122,7 +122,12 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
         let isActive = selection == item.id
 
         return Button {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            // Don't animate the root content swap — heavy tabs (Profile) block the
+            // main thread and trip "System gesture gate timed out" near the home indicator.
+            guard selection != item.id else { return }
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
                 selection = item.id
             }
         } label: {
@@ -143,6 +148,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             .frame(maxWidth: .infinity)
             .frame(height: barHeight - 4)
             .contentShape(Rectangle())
+            .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isActive)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.accessibilityLabel)

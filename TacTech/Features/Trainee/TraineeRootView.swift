@@ -6,6 +6,7 @@ enum TraineeTab: Hashable {
 
 struct TraineeRootView: View {
     @State private var tab: TraineeTab = .home
+    @State private var mounted: Set<TraineeTab> = [.home]
     @State private var showAIChat = false
     @Namespace private var aiChatNamespace
 
@@ -20,16 +21,26 @@ struct TraineeRootView: View {
         ZStack {
             GeometryReader { geo in
                 ZStack(alignment: .bottom) {
-                    Group {
-                        switch tab {
-                        case .home:
+                    ZStack {
+                        if mounted.contains(.home) {
                             TraineeDashboardView()
-                        case .workout:
+                                .opacity(tab == .home ? 1 : 0)
+                                .allowsHitTesting(tab == .home)
+                        }
+                        if mounted.contains(.workout) {
                             WorkoutHubView()
-                        case .nutrition:
+                                .opacity(tab == .workout ? 1 : 0)
+                                .allowsHitTesting(tab == .workout)
+                        }
+                        if mounted.contains(.nutrition) {
                             NutritionView()
-                        case .profile:
+                                .opacity(tab == .nutrition ? 1 : 0)
+                                .allowsHitTesting(tab == .nutrition)
+                        }
+                        if mounted.contains(.profile) {
                             TraineeProfileView()
+                                .opacity(tab == .profile ? 1 : 0)
+                                .allowsHitTesting(tab == .profile)
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -43,6 +54,7 @@ struct TraineeRootView: View {
                         aiChatNamespace: aiChatNamespace,
                         isAIChatPresented: showAIChat
                     )
+                    .zIndex(20)
                 }
             }
             .ignoresSafeArea(edges: .bottom)
@@ -59,6 +71,14 @@ struct TraineeRootView: View {
                 .zIndex(40)
                 .transition(.opacity)
             }
+        }
+        .onChange(of: tab) { _, newTab in
+            mounted.insert(newTab)
+        }
+        .task {
+            // Warm Profile after first frame so the first Profile tap isn't a cold Chart mount.
+            try? await Task.sleep(for: .milliseconds(600))
+            mounted.insert(.profile)
         }
     }
 

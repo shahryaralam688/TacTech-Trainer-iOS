@@ -16,8 +16,6 @@ struct TrainerRootView: View {
         TTTabBarItem(.profile, icon: .user, label: "Profile")
     ]
 
-    private let morph = Animation.spring(response: 0.48, dampingFraction: 0.88)
-
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
@@ -57,11 +55,11 @@ struct TrainerRootView: View {
             }
         }
         .ignoresSafeArea(edges: .bottom)
-        .ignoresSafeArea(.keyboard)
+        .modifier(TTRootKeyboardIgnore(enabled: !showAIChat))
     }
 
     private func openAIChat() {
-        withAnimation(morph) {
+        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
             showAIChat = true
         }
     }

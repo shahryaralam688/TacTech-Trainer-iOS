@@ -555,26 +555,64 @@ private struct TTDropPickerSheet<Value: Hashable>: View {
 // MARK: - Reversed chrome: rectangular header + top-rounded content sheet
 
 enum TTSheetChrome {
-    /// Home dashboard — matches the old header bottom curve.
-    static let homeTopRadius: CGFloat = 56
+    /// Home dashboard — continuous squircle, slightly softer than a hard 56pt bubble.
+    static let homeTopRadius: CGFloat = 44
     /// Settings / detail pages under `TTDarkPageHeader`.
     static let pageTopRadius: CGFloat = TTDarkPageHeader.contentTopRadius
 }
 
 extension View {
-    /// White/canvas sheet with rounded **top** corners (curve lives on content, not the header).
+    /// Canvas sheet with rounded **top** corners. Clips scrolling content to the curve
+    /// and adds a soft lift into the dark header so the lip reads as a real surface.
     func ttTopRoundedSheet(radius: CGFloat, fill: Color) -> some View {
-        background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: radius,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: radius,
-                style: .continuous
-            )
-            .fill(fill)
-            .ignoresSafeArea(edges: .bottom)
-        }
+        modifier(TTTopRoundedSheetModifier(radius: radius, fill: fill))
+    }
+}
+
+private struct TTTopRoundedSheetModifier: ViewModifier {
+    let radius: CGFloat
+    let fill: Color
+
+    private var shape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: radius,
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: radius,
+            style: .continuous
+        )
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                shape
+                    .fill(fill)
+                    .ignoresSafeArea(edges: .bottom)
+            }
+            // Keeps scroll / bounce content inside the top curve.
+            .clipShape(shape)
+            .overlay {
+                // Soft rim light along the top lip only.
+                shape
+                    .stroke(Color.white.opacity(0.5), lineWidth: 0.7)
+                    .mask(
+                        LinearGradient(
+                            colors: [.white, .white.opacity(0.35), .clear],
+                            startPoint: .top,
+                            endPoint: UnitPoint(x: 0.5, y: 0.14)
+                        )
+                    )
+                    .allowsHitTesting(false)
+            }
+            // Upward contact shadow onto the black/charcoal header.
+            .background {
+                shape
+                    .fill(fill)
+                    .shadow(color: Color.black.opacity(0.38), radius: 16, y: -5)
+                    .shadow(color: Color.black.opacity(0.16), radius: 3, y: -1)
+                    .allowsHitTesting(false)
+            }
     }
 }
 

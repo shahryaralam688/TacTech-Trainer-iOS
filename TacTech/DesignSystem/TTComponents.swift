@@ -50,52 +50,70 @@ struct TTBackButton: View {
     }
 }
 
-/// Shared dark settings header — fixed height, rectangular top bar, status-bar bleed.
-/// Content below should use `ttTopRoundedSheet` so the curve sits on the sheet, not the header.
+/// Shared dark settings header — rectangular top bar, status-bar bleed.
+/// Pass `collapseProgress` (0…1) to shrink on scroll like home / plans.
 struct TTDarkPageHeader: View {
     /// Same card height everywhere (below status bar content area).
     static let cardHeight: CGFloat = 148
+    /// Compact height when fully collapsed.
+    static let compactHeight: CGFloat = 72
     /// Radius for the content sheet under this header (was previously on the header bottom).
     static let bottomRadius: CGFloat = 36
     static var contentTopRadius: CGFloat { bottomRadius }
 
     let title: String
     var showsBack: Bool = true
+    var collapseProgress: CGFloat = 0
     var onBack: (() -> Void)? = nil
 
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
 
-    init(title: String, showsBack: Bool = true, onBack: (() -> Void)? = nil) {
+    init(
+        title: String,
+        showsBack: Bool = true,
+        collapseProgress: CGFloat = 0,
+        onBack: (() -> Void)? = nil
+    ) {
         self.title = title
         self.showsBack = showsBack
+        self.collapseProgress = collapseProgress
         self.onBack = onBack
     }
 
     /// Trailing-closure convenience — always shows the back button.
-    init(title: String, onBack: @escaping () -> Void) {
+    init(title: String, collapseProgress: CGFloat = 0, onBack: @escaping () -> Void) {
         self.title = title
         self.showsBack = true
+        self.collapseProgress = collapseProgress
         self.onBack = onBack
     }
 
+    private var p: CGFloat { min(1, max(0, collapseProgress)) }
+    private var expand: CGFloat { 1 - p }
+
+    private var headerHeight: CGFloat {
+        Self.compactHeight + (Self.cardHeight - Self.compactHeight) * expand
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 14 * expand) {
             if showsBack {
                 TTBackButton(style: .onDark) {
                     onBack?()
                 }
+                .scaleEffect(1 - 0.1 * p, anchor: .topLeading)
             }
 
             Text(title)
-                .font(TTFont.headingLG(.bold))
+                .font(TTFont.workSans(28 - 8 * p, weight: .bold))
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .minimumScaleFactor(0.85)
         }
-        .frame(maxWidth: .infinity, minHeight: Self.cardHeight, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .topLeading)
         .padding(.horizontal, 20)
-        .padding(.top, showsBack ? 10 : 18)
-        .padding(.bottom, 20)
+        .padding(.top, (showsBack ? 10 : 18) - 4 * p)
+        .padding(.bottom, 20 - 8 * p)
         .background {
             Rectangle()
                 .fill(charcoal)

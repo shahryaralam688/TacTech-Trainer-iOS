@@ -23,29 +23,36 @@ struct AccountSettingsView: View {
     @AppStorage("settings.darkMode") private var darkMode = false
     @AppStorage("settings.biometric") private var biometricEnabled = false
     @AppStorage("settings.language") private var language = "English (EN)"
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let rowBG = Color(white: 0.96)
+    private let scrollSpace = "accountSettings"
 
     var body: some View {
         VStack(spacing: 0) {
             settingsHeader
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 22) {
-                    generalSection
-                    securitySection
-                    helpSection
-                    dangerSection
-                    logoutSection
-                    footer
+                VStack(alignment: .leading, spacing: 0) {
+                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+
+                    VStack(alignment: .leading, spacing: 22) {
+                        generalSection
+                        securitySection
+                        helpSection
+                        dangerSection
+                        logoutSection
+                        footer
+                    }
+                    .padding(.horizontal, 18)
+                    .padding(.top, 20)
+                    .padding(.bottom, 28)
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 20)
-                .padding(.bottom, 28)
             }
             .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
+            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
@@ -55,7 +62,10 @@ struct AccountSettingsView: View {
     }
 
     private var settingsHeader: some View {
-        TTDarkPageHeader(title: "Account Settings") {
+        TTDarkPageHeader(
+            title: "Account Settings",
+            collapseProgress: scrollCollapse.progress
+        ) {
             dismiss()
         }
     }

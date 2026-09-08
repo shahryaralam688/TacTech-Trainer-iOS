@@ -55,11 +55,12 @@ struct WorkoutPlansView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.top, 16)
                     .padding(.bottom, 24)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
             }
-            .background(canvas.ignoresSafeArea())
+            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
@@ -250,11 +251,12 @@ struct WorkoutPlanDetailView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.top, 16)
                 .padding(.bottom, 24)
             }
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
         }
-        .background(canvas.ignoresSafeArea())
+        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .onAppear {
             if let trainer = store.currentTrainer {
@@ -452,18 +454,12 @@ func trainerListHeader(
     }
     .padding(.horizontal, 20)
     .padding(.top, 14)
-    .padding(.bottom, 28)
+    .padding(.bottom, 20)
     .frame(maxWidth: .infinity, minHeight: TTDarkPageHeader.cardHeight, alignment: .bottomLeading)
     .background {
-        UnevenRoundedRectangle(
-            topLeadingRadius: 0,
-            bottomLeadingRadius: TTDarkPageHeader.bottomRadius,
-            bottomTrailingRadius: TTDarkPageHeader.bottomRadius,
-            topTrailingRadius: 0,
-            style: .continuous
-        )
-        .fill(charcoal)
-        .ignoresSafeArea(edges: .top)
+        Rectangle()
+            .fill(charcoal)
+            .ignoresSafeArea(edges: .top)
     }
 }
 

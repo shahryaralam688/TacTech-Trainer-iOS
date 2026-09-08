@@ -50,12 +50,14 @@ struct TTBackButton: View {
     }
 }
 
-/// Shared dark settings header — fixed height, bottom corners, status-bar bleed.
-/// Used by Account Settings, Personal Info, Help, and placeholder screens.
+/// Shared dark settings header — fixed height, rectangular top bar, status-bar bleed.
+/// Content below should use `ttTopRoundedSheet` so the curve sits on the sheet, not the header.
 struct TTDarkPageHeader: View {
     /// Same card height everywhere (below status bar content area).
     static let cardHeight: CGFloat = 148
+    /// Radius for the content sheet under this header (was previously on the header bottom).
     static let bottomRadius: CGFloat = 36
+    static var contentTopRadius: CGFloat { bottomRadius }
 
     let title: String
     var showsBack: Bool = true
@@ -93,17 +95,11 @@ struct TTDarkPageHeader: View {
         .frame(maxWidth: .infinity, minHeight: Self.cardHeight, alignment: .topLeading)
         .padding(.horizontal, 20)
         .padding(.top, showsBack ? 10 : 18)
-        .padding(.bottom, 28)
+        .padding(.bottom, 20)
         .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: Self.bottomRadius,
-                bottomTrailingRadius: Self.bottomRadius,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .fill(charcoal)
-            .ignoresSafeArea(edges: .top)
+            Rectangle()
+                .fill(charcoal)
+                .ignoresSafeArea(edges: .top)
         }
     }
 }
@@ -554,6 +550,32 @@ private struct TTDropPickerSheet<Value: Hashable>: View {
         Spacer()
     }
     .background(Color.white)
+}
+
+// MARK: - Reversed chrome: rectangular header + top-rounded content sheet
+
+enum TTSheetChrome {
+    /// Home dashboard — matches the old header bottom curve.
+    static let homeTopRadius: CGFloat = 56
+    /// Settings / detail pages under `TTDarkPageHeader`.
+    static let pageTopRadius: CGFloat = TTDarkPageHeader.contentTopRadius
+}
+
+extension View {
+    /// White/canvas sheet with rounded **top** corners (curve lives on content, not the header).
+    func ttTopRoundedSheet(radius: CGFloat, fill: Color) -> some View {
+        background {
+            UnevenRoundedRectangle(
+                topLeadingRadius: radius,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: radius,
+                style: .continuous
+            )
+            .fill(fill)
+            .ignoresSafeArea(edges: .bottom)
+        }
+    }
 }
 
 #Preview("Buttons & Fields") {

@@ -36,12 +36,13 @@ struct TraineeDashboardView: View {
                         formInsightsSection
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.top, 20)
                     .padding(.bottom, 36)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .onPreferenceChange(HomeHeaderHeightKey.self) { headerHeight = $0 }
-            .background(canvas.ignoresSafeArea())
+            .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .task(id: selectedDay) {
                 if let trainee = store.currentTrainee {

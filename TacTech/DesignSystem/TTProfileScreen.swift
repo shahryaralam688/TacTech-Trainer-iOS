@@ -48,7 +48,8 @@ struct TTProfileScreen<Extra: View>: View {
     private let avatarSize: CGFloat = 112
     /// Visible hero card height (includes status-bar bleed when ignoring top safe area).
     private let heroCardHeight: CGFloat = 236
-    private let headerBottomRadius: CGFloat = 36
+    /// Content sheet top curve (moved off the hero card).
+    private let contentTopRadius: CGFloat = 36
     private let chromeButton: CGFloat = 52
     private let chromeIcon: CGFloat = 22
     private let chromeBottomPad: CGFloat = 20
@@ -75,11 +76,12 @@ struct TTProfileScreen<Extra: View>: View {
                         extra()
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 10)
+                    .padding(.top, 16)
                     .padding(.bottom, 20)
                 }
+                .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
             }
-            .background(canvas.ignoresSafeArea())
+            .background(charcoal.ignoresSafeArea(edges: .top))
             .ignoresSafeArea(edges: .top)
             .ttHideSystemNavigationBar()
             .navigationDestination(for: ProfileRoute.self) { route in
@@ -126,7 +128,7 @@ struct TTProfileScreen<Extra: View>: View {
         .padding(.bottom, 4)
     }
 
-    /// Static top card — bleeds under status bar; bottom corners like Profile/Setup.
+    /// Static top card — bleeds under status bar; rectangular (curve on content sheet).
     private var staticTopCard: some View {
         ZStack {
             charcoal
@@ -146,15 +148,6 @@ struct TTProfileScreen<Extra: View>: View {
         .frame(maxWidth: .infinity)
         .frame(height: heroCardHeight)
         .clipped()
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: headerBottomRadius,
-                bottomTrailingRadius: headerBottomRadius,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-        )
     }
 
     private var profileAvatar: some View {
@@ -192,7 +185,7 @@ struct TTProfileScreen<Extra: View>: View {
         VStack(spacing: 6) {
             Text(name)
                 .font(TTFont.workSans(24, weight: .bold))
-                .foregroundStyle(TTColor.ink)
+                .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 6) {
@@ -202,7 +195,7 @@ struct TTProfileScreen<Extra: View>: View {
                         .font(TTFont.textSM(.medium))
                 }
                 Circle()
-                    .fill(TTColor.inkSubtle)
+                    .fill(Color.white.opacity(0.45))
                     .frame(width: 3, height: 3)
                     .padding(.horizontal, 4)
                 HStack(spacing: 4) {
@@ -211,7 +204,7 @@ struct TTProfileScreen<Extra: View>: View {
                         .font(TTFont.textSM(.medium))
                 }
             }
-            .foregroundStyle(TTColor.inkMuted)
+            .foregroundStyle(Color.white.opacity(0.72))
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)

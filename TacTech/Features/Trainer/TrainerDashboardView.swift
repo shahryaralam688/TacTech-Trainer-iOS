@@ -33,12 +33,13 @@ struct TrainerDashboardView: View {
                         recentForm
                     }
                     .padding(.horizontal, 20)
-                    .padding(.top, 16)
+                    .padding(.top, 20)
                     .padding(.bottom, 28)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .onPreferenceChange(TrainerHeaderHeightKey.self) { headerHeight = $0 }
-            .background(canvas.ignoresSafeArea())
+            .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProfile) { TrainerProfileView(showsBack: true) }
         }

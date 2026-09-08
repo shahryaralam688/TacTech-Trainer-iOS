@@ -15,7 +15,7 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
     }
 }
 
-/// Figma home top card — static black block, bottom corners rounded.
+/// Figma home top bar — static black rectangle (curve moved to content sheet below).
 /// Uses Sandow calendar / bell / chevron and shared typography tokens.
 struct TTHomeProfileHeader: View {
     let name: String
@@ -39,7 +39,7 @@ struct TTHomeProfileHeader: View {
         }
         .padding(.horizontal, 22)
         .padding(.top, 10)
-        .padding(.bottom, 44)
+        .padding(.bottom, 22)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             ZStack {
@@ -47,15 +47,6 @@ struct TTHomeProfileHeader: View {
                 TTHomeHeaderBands()
                     .fill(Color.white.opacity(0.07))
             }
-            .clipShape(
-                UnevenRoundedRectangle(
-                    topLeadingRadius: 0,
-                    bottomLeadingRadius: 56,
-                    bottomTrailingRadius: 56,
-                    topTrailingRadius: 0,
-                    style: .continuous
-                )
-            )
             .ignoresSafeArea(edges: .top)
         }
         .contentShape(Rectangle())

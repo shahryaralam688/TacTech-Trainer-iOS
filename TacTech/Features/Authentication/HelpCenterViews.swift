@@ -33,8 +33,9 @@ struct HelpCenterView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .navigationDestination(isPresented: $showLiveChat) {
             LiveChatView()
@@ -76,17 +77,11 @@ struct HelpCenterView: View {
         }
         .padding(.horizontal, 18)
         .padding(.top, 10)
-        .padding(.bottom, 22)
+        .padding(.bottom, 18)
         .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 32,
-                bottomTrailingRadius: 32,
-                topTrailingRadius: 0,
-                style: .continuous
-            )
-            .fill(charcoal)
-            .ignoresSafeArea(edges: .top)
+            Rectangle()
+                .fill(charcoal)
+                .ignoresSafeArea(edges: .top)
         }
     }
 

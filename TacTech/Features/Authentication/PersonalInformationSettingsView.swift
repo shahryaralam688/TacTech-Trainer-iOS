@@ -52,11 +52,12 @@ struct PersonalInformationSettingsView: View {
                     saveButton
                 }
                 .padding(.horizontal, 18)
-                .padding(.top, 8)
+                .padding(.top, 12)
                 .padding(.bottom, 24)
             }
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .onAppear(perform: hydrate)
         .sheet(isPresented: $showAvatarPicker) {

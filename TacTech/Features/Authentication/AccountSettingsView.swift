@@ -45,8 +45,9 @@ struct AccountSettingsView: View {
                 .padding(.top, 20)
                 .padding(.bottom, 28)
             }
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .navigationDestination(for: AccountSettingsRoute.self) { route in
             destination(for: route)
@@ -343,8 +344,9 @@ struct SettingsPlaceholderView: View {
             }
             .padding(.top, 20)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
         }
-        .background(Color.white.ignoresSafeArea())
+        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
     }
 }

@@ -52,11 +52,12 @@ struct MyTraineesView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .padding(.top, 12)
+                    .padding(.top, 16)
                     .padding(.bottom, 24)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
             }
-            .background(canvas.ignoresSafeArea())
+            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .navigationDestination(item: $selectedTrainee) { trainee in
                 TraineeDetailView(trainee: trainee)

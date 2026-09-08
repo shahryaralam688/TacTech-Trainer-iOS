@@ -37,8 +37,9 @@ struct NutritionView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 36)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
             }
-            .background(canvas.ignoresSafeArea())
+            .background(charcoal.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showManual) {
                 ManualMealView(day: selectedDay)
@@ -200,19 +201,10 @@ struct NutritionView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 10)
-        .padding(.bottom, 28)
+        .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             charcoal
-                .clipShape(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 36,
-                        bottomTrailingRadius: 36,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                )
                 .ignoresSafeArea(edges: .top)
         }
     }

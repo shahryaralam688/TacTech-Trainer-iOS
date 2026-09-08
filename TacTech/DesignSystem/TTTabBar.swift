@@ -160,9 +160,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
                 TTIcon(icon: .plus, filled: false, size: 20)
                     .foregroundStyle(.white)
-                    .rotationEffect(.degrees(isAIChatPresented ? 45 : 0))
             }
-            .modifier(TTAICoachFABMatchedModifier(namespace: aiChatNamespace, isPresented: isAIChatPresented))
         }
         .buttonStyle(TTTabBarCenterPressStyle())
         .accessibilityLabel("Open TacTech AI chat")
@@ -171,19 +169,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 }
 
 // MARK: - Notch shape
-
-private struct TTAICoachFABMatchedModifier: ViewModifier {
-    var namespace: Namespace.ID?
-    var isPresented: Bool
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(isPresented ? 0 : 1)
-            .scaleEffect(isPresented ? 0.82 : 1, anchor: .center)
-            .animation(.spring(response: 0.42, dampingFraction: 0.88), value: isPresented)
-            .allowsHitTesting(!isPresented)
-    }
-}
 
 /// Full-width bar: rounded top corners, square bottom, concave cradle for the FAB.
 struct TTTabBarNotchShape: Shape {

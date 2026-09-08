@@ -703,11 +703,8 @@ struct TTAICoachChatOverlay: View {
 
 extension View {
     func ttAICoachFABSource(namespace: Namespace.ID, isChatPresented: Bool) -> some View {
+        // Plus stays visible — no appear/disappear on chat open.
         self
-            .opacity(isChatPresented ? 0 : 1)
-            .scaleEffect(isChatPresented ? 0.82 : 1, anchor: .center)
-            .animation(.spring(response: 0.42, dampingFraction: 0.88), value: isChatPresented)
-            .allowsHitTesting(!isChatPresented)
     }
 }
 

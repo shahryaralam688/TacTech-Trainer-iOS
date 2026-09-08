@@ -59,9 +59,9 @@ enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
 }
 
-// MARK: - Overlay (morphs from tab-bar Plus)
+// MARK: - Overlay (liquid glass floating panel from Plus FAB)
 
-/// Full-screen AI coach chat that expands from the orange Plus FAB.
+/// Floating liquid-glass AI chat that expands from the orange Plus FAB.
 /// UI-only: local messages / voice state. Backend wiring comes later.
 struct TTAICoachChatOverlay: View {
     @Binding var isPresented: Bool
@@ -79,41 +79,51 @@ struct TTAICoachChatOverlay: View {
     private let orange = TTColor.actionOrange
     private let ink = Color.black
     private let muted = Color(white: 0.42)
-    private let morph = Animation.spring(response: 0.48, dampingFraction: 0.88)
+    private let morph = Animation.spring(response: 0.52, dampingFraction: 0.86)
     private let soft = Animation.spring(response: 0.42, dampingFraction: 0.84)
+    private let panelRadius: CGFloat = 32
 
     var body: some View {
         GeometryReader { geo in
-            let topPad = max(geo.safeAreaInsets.top, 12)
-            let bottomPad = max(geo.safeAreaInsets.bottom, 8)
+            let topPad = max(geo.safeAreaInsets.top, 10) + 6
+            let bottomClearance = TTFloatingTabBar<Int>.contentHeight + max(geo.safeAreaInsets.bottom, 8) + 10
+            let panelHeight = min(geo.size.height - topPad - bottomClearance, geo.size.height * 0.74)
 
-            ZStack {
-                Color.black
-                    .opacity(contentReady ? 0.28 : 0)
-                    .ignoresSafeArea()
-                    .onTapGesture { close() }
-                    .allowsHitTesting(contentReady)
+            ZStack(alignment: .bottom) {
+                // Soft glass scrim — tap outside to dismiss.
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                        .opacity(contentReady ? 1 : 0)
+                    Color.black.opacity(contentReady ? 0.18 : 0)
+                }
+                .ignoresSafeArea()
+                .onTapGesture { close() }
+                .allowsHitTesting(contentReady)
 
-                chatShell
+                floatingPanel
                     .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
-                    .padding(.top, topPad)
-                    .padding(.bottom, bottomPad)
+                    .frame(maxWidth: 520)
+                    .frame(height: contentReady ? panelHeight : 56)
+                    .padding(.horizontal, contentReady ? 14 : geo.size.width / 2 - 28)
+                    .padding(.bottom, contentReady ? bottomClearance : bottomClearance - 8)
+                    .scaleEffect(contentReady ? 1 : 0.92, anchor: .bottom)
+                    .opacity(contentReady ? 1 : 0.95)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
         }
         .ignoresSafeArea()
         .onAppear(perform: openSequence)
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: isPresented)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: isPresented)
         .sensoryFeedback(.selection, trigger: isRecording)
     }
 
-    // MARK: Shell
+    // MARK: Floating liquid glass panel
 
-    private var chatShell: some View {
+    private var floatingPanel: some View {
         VStack(spacing: 0) {
             grabber
             header
-            Divider().opacity(0.12)
 
             messageList
                 .opacity(contentReady ? 1 : 0)
@@ -133,35 +143,79 @@ struct TTAICoachChatOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background {
-            UnevenRoundedRectangle(
-                topLeadingRadius: 28,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 28,
-                style: .continuous
-            )
-            .fill(Color.white)
-            .ignoresSafeArea(edges: .bottom)
-            .shadow(color: orange.opacity(contentReady ? 0.12 : 0.35), radius: contentReady ? 24 : 14, y: contentReady ? -4 : 6)
+        .background { liquidGlassBackground }
+        .clipShape(RoundedRectangle(cornerRadius: panelRadius, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.95),
+                            Color.white.opacity(0.35),
+                            orange.opacity(0.45),
+                            Color.white.opacity(0.55)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.4
+                )
         }
-        .clipShape(
-            UnevenRoundedRectangle(
-                topLeadingRadius: 28,
-                bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0,
-                topTrailingRadius: 28,
-                style: .continuous
-            )
-        )
+        .shadow(color: Color.black.opacity(contentReady ? 0.22 : 0.12), radius: contentReady ? 36 : 12, y: contentReady ? 18 : 6)
+        .shadow(color: orange.opacity(contentReady ? 0.28 : 0.4), radius: contentReady ? 28 : 14, y: contentReady ? 10 : 4)
+    }
+
+    private var liquidGlassBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+                .fill(.ultraThinMaterial)
+
+            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.82),
+                            Color.white.opacity(0.68),
+                            Color.white.opacity(0.75)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            // Specular highlight (liquid glass sheen).
+            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.55),
+                            Color.white.opacity(0.08),
+                            Color.clear
+                        ],
+                        startPoint: .top,
+                        endPoint: .center
+                    )
+                )
+                .blendMode(.plusLighter)
+                .opacity(0.7)
+
+            // Soft orange bloom near the bottom (ties to FAB brand).
+            Ellipse()
+                .fill(orange.opacity(0.14))
+                .frame(width: 220, height: 120)
+                .blur(radius: 36)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .offset(y: 24)
+                .allowsHitTesting(false)
+        }
     }
 
     private var grabber: some View {
         Capsule()
-            .fill(Color.black.opacity(0.12))
-            .frame(width: 40, height: 4)
+            .fill(Color.black.opacity(0.14))
+            .frame(width: 36, height: 4)
             .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.bottom, 4)
             .opacity(contentReady ? 1 : 0)
     }
 
@@ -169,15 +223,18 @@ struct TTAICoachChatOverlay: View {
         HStack(spacing: 12) {
             ZStack {
                 Circle()
+                    .fill(.ultraThinMaterial)
+                    .frame(width: 44, height: 44)
+                Circle()
                     .fill(
                         LinearGradient(
-                            colors: [orange, orange.opacity(0.75)],
+                            colors: [orange, orange.opacity(0.72)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .frame(width: 44, height: 44)
-                    .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
+                    .shadow(color: orange.opacity(0.4), radius: 10, y: 4)
 
                 TTIcon(icon: .robotFace1, filled: true, size: 22)
                     .foregroundStyle(.white)
@@ -185,7 +242,7 @@ struct TTAICoachChatOverlay: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("TacTech AI")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(ink)
                 HStack(spacing: 6) {
                     Circle()
@@ -203,19 +260,21 @@ struct TTAICoachChatOverlay: View {
             Button(action: close) {
                 ZStack {
                     Circle()
-                        .fill(Color(white: 0.94))
-                        .frame(width: 40, height: 40)
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 36, height: 36)
+                    Circle()
+                        .fill(Color.white.opacity(0.55))
+                        .frame(width: 36, height: 36)
                     Image(systemName: "xmark")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 13, weight: .bold))
                         .foregroundStyle(ink)
-                        .rotationEffect(.degrees(contentReady ? 0 : -45))
                 }
             }
             .buttonStyle(AssessmentCardPressStyle())
             .accessibilityLabel("Close AI chat")
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 14)
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
         .opacity(contentReady ? 1 : 0)
     }
 
@@ -239,8 +298,8 @@ struct TTAICoachChatOverlay: View {
                             .id("typing")
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
+                .padding(.horizontal, 14)
+                .padding(.top, 8)
                 .padding(.bottom, 8)
             }
             .onChange(of: messages.count) { _, _ in
@@ -251,7 +310,7 @@ struct TTAICoachChatOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(white: 0.97))
+        .background(Color.white.opacity(0.22))
     }
 
     private func bubble(_ message: TTAIChatMessage) -> some View {
@@ -261,7 +320,7 @@ struct TTAICoachChatOverlay: View {
             if !isUser {
                 aiAvatar(size: 28)
             } else {
-                Spacer(minLength: 48)
+                Spacer(minLength: 40)
             }
 
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
@@ -277,7 +336,18 @@ struct TTAICoachChatOverlay: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 11)
-                .background(isUser ? Color.black : Color.white)
+                .background {
+                    if isUser {
+                        Color.black
+                    } else {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(.ultraThinMaterial)
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(Color.white.opacity(0.78))
+                        }
+                    }
+                }
                 .clipShape(
                     UnevenRoundedRectangle(
                         topLeadingRadius: 18,
@@ -289,9 +359,9 @@ struct TTAICoachChatOverlay: View {
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+                        .strokeBorder(isUser ? Color.clear : Color.white.opacity(0.7), lineWidth: 1)
                 )
-                .shadow(color: Color.black.opacity(isUser ? 0.12 : 0.04), radius: 8, y: 3)
+                .shadow(color: Color.black.opacity(isUser ? 0.14 : 0.05), radius: 8, y: 3)
 
                 if let time = message.timeLabel {
                     Text(time)
@@ -301,10 +371,8 @@ struct TTAICoachChatOverlay: View {
                 }
             }
 
-            if isUser {
-                // trailing space handled by alignment
-            } else {
-                Spacer(minLength: 48)
+            if !isUser {
+                Spacer(minLength: 40)
             }
         }
     }
@@ -322,13 +390,16 @@ struct TTAICoachChatOverlay: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
-            .background(Color.white)
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.white.opacity(0.75))
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-            )
-            Spacer(minLength: 48)
+            Spacer(minLength: 40)
         }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) {
@@ -339,7 +410,8 @@ struct TTAICoachChatOverlay: View {
 
     private func aiAvatar(size: CGFloat) -> some View {
         ZStack {
-            Circle().fill(orange.opacity(0.14))
+            Circle().fill(.ultraThinMaterial)
+            Circle().fill(orange.opacity(0.16))
             TTIcon(icon: .robotFace1, filled: true, size: size * 0.48)
                 .foregroundStyle(orange)
         }
@@ -362,20 +434,24 @@ struct TTAICoachChatOverlay: View {
                             .foregroundStyle(ink)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color.white)
+                            .background {
+                                ZStack {
+                                    Capsule().fill(.ultraThinMaterial)
+                                    Capsule().fill(Color.white.opacity(0.7))
+                                }
+                            }
                             .clipShape(Capsule())
                             .overlay(
                                 Capsule()
-                                    .strokeBorder(orange.opacity(0.45), lineWidth: 1.2)
+                                    .strokeBorder(orange.opacity(0.4), lineWidth: 1.2)
                             )
                     }
                     .buttonStyle(AssessmentCardPressStyle())
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
         }
-        .background(Color(white: 0.97))
     }
 
     // MARK: Composer
@@ -387,7 +463,10 @@ struct TTAICoachChatOverlay: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(Color(white: 0.94))
+                        .fill(.ultraThinMaterial)
+                        .frame(width: 44, height: 44)
+                    Circle()
+                        .fill(Color.white.opacity(0.55))
                         .frame(width: 44, height: 44)
                     TTIcon(icon: .microphone, filled: true, size: 18)
                         .foregroundStyle(ink)
@@ -412,6 +491,7 @@ struct TTAICoachChatOverlay: View {
                             Circle()
                                 .fill(orange)
                                 .frame(width: 34, height: 34)
+                                .shadow(color: orange.opacity(0.35), radius: 8, y: 3)
                             Image(systemName: "arrow.up")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundStyle(.white)
@@ -424,18 +504,24 @@ struct TTAICoachChatOverlay: View {
             .padding(.leading, 14)
             .padding(.trailing, 8)
             .padding(.vertical, 8)
-            .background(Color(white: 0.94))
+            .background {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.ultraThinMaterial)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color.white.opacity(0.55))
+                }
+            }
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(fieldFocused ? orange : Color.clear, lineWidth: 1.5)
+                    .strokeBorder(fieldFocused ? orange : Color.white.opacity(0.65), lineWidth: fieldFocused ? 1.5 : 1)
             )
             .animation(soft, value: draft.isEmpty)
         }
         .padding(.horizontal, 14)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
-        .background(Color.white)
+        .padding(.top, 8)
+        .padding(.bottom, 14)
     }
 
     // MARK: Voice panel (UI-only)
@@ -486,10 +572,9 @@ struct TTAICoachChatOverlay: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.top, 14)
-        .padding(.bottom, 22)
+        .padding(.top, 12)
+        .padding(.bottom, 18)
         .frame(maxWidth: .infinity)
-        .background(Color.white)
     }
 
     private func barHeight(for index: Int) -> CGFloat {
@@ -512,9 +597,8 @@ struct TTAICoachChatOverlay: View {
                 )
             ]
         }
-        // Let matchedGeometry settle, then reveal chrome.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-            withAnimation(soft) { contentReady = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            withAnimation(morph) { contentReady = true }
         }
     }
 
@@ -522,7 +606,11 @@ struct TTAICoachChatOverlay: View {
         fieldFocused = false
         withAnimation(morph) {
             contentReady = false
-            isPresented = false
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+            withAnimation(morph) {
+                isPresented = false
+            }
         }
     }
 
@@ -547,7 +635,6 @@ struct TTAICoachChatOverlay: View {
             isThinking = true
         }
 
-        // Placeholder assistant reply — swap for real AI later.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             let reply = TTAIChatMessage(
                 id: UUID().uuidString,

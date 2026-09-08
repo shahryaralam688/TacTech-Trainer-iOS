@@ -9,21 +9,17 @@ struct TraineeDashboardView: View {
     @State private var showNutrition = false
     @State private var showWorkouts = false
 
-    @State private var headerHeight: CGFloat = 160
+    @State private var scrollOffset: CGFloat = 0
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let canvas = Color(white: 0.98)
+    private let homeScrollSpace = "traineeHome"
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 darkHeader
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: HomeHeaderHeightKey.self, value: geo.size.height)
-                        }
-                    )
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 24) {
@@ -38,10 +34,11 @@ struct TraineeDashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .padding(.bottom, 36)
+                    .ttHomeScrollOffset($scrollOffset, space: homeScrollSpace)
                 }
+                .coordinateSpace(name: homeScrollSpace)
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
-            .onPreferenceChange(HomeHeaderHeightKey.self) { headerHeight = $0 }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .task(id: selectedDay) {
@@ -78,6 +75,7 @@ struct TraineeDashboardView: View {
                     text: "Pro"
                 )
             ],
+            collapseProgress: TTHomeHeaderCollapse.progress(for: scrollOffset),
             onProfileTap: { showProfile = true }
         )
     }
@@ -750,15 +748,6 @@ struct TraineeDashboardView: View {
             return name
         }
         return "Form check"
-    }
-}
-
-// MARK: - Header height
-
-private struct HomeHeaderHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 160
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 

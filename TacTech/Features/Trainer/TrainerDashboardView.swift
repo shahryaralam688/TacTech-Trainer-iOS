@@ -5,22 +5,18 @@ struct TrainerDashboardView: View {
     @State private var selectedDay = Date()
     @State private var showProfile = false
     @State private var copiedInvite = false
-    @State private var headerHeight: CGFloat = 160
+    @State private var scrollOffset: CGFloat = 0
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let green = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
     private let canvas = Color.white
+    private let homeScrollSpace = "trainerHome"
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
                 darkHeader
-                    .background(
-                        GeometryReader { geo in
-                            Color.clear.preference(key: TrainerHeaderHeightKey.self, value: geo.size.height)
-                        }
-                    )
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 22) {
@@ -35,10 +31,11 @@ struct TrainerDashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 20)
                     .padding(.bottom, 28)
+                    .ttHomeScrollOffset($scrollOffset, space: homeScrollSpace)
                 }
+                .coordinateSpace(name: homeScrollSpace)
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
-            .onPreferenceChange(TrainerHeaderHeightKey.self) { headerHeight = $0 }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProfile) { TrainerProfileView(showsBack: true) }
@@ -67,6 +64,7 @@ struct TrainerDashboardView: View {
                     text: "Coach"
                 )
             ],
+            collapseProgress: TTHomeHeaderCollapse.progress(for: scrollOffset),
             onProfileTap: { showProfile = true }
         )
     }
@@ -619,13 +617,6 @@ struct TrainerDashboardView: View {
         let cal = Calendar.current
         let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDay)) ?? selectedDay
         return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
-    }
-}
-
-private struct TrainerHeaderHeightKey: PreferenceKey {
-    static var defaultValue: CGFloat = 160
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = max(value, nextValue())
     }
 }
 

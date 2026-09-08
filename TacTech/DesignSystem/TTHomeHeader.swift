@@ -15,8 +15,16 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
     }
 }
 
-/// Figma home top bar — static black rectangle (curve moved to content sheet below).
-/// Uses Sandow calendar / bell / chevron and shared typography tokens.
+/// How far home must scroll before the header is fully compact (name + chevron).
+enum TTHomeHeaderCollapse {
+    static let distance: CGFloat = 92
+
+    static func progress(for offset: CGFloat) -> CGFloat {
+        min(1, max(0, offset / distance))
+    }
+}
+
+/// Figma home top bar — collapses with scroll to a sticky name + forward control.
 struct TTHomeProfileHeader: View {
     let name: String
     var avatarSymbol: String? = nil
@@ -25,27 +33,37 @@ struct TTHomeProfileHeader: View {
     var badgeCount: Int = 0
     var metrics: [TTHomeProfileMetric] = []
     var date: Date = .now
+    /// 0 = expanded (date, bell, avatar, metrics). 1 = compact name + chevron.
+    var collapseProgress: CGFloat = 0
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let dateGrey = Color.white.opacity(0.55)
     private let bellBG = Color(white: 0.22)
+    private let avatarSide: CGFloat = 58
+
+    private var p: CGFloat { min(1, max(0, collapseProgress)) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 22 * (1 - p)) {
             topRow
+                .opacity(Double(1 - p))
+                .frame(height: 44 * (1 - p), alignment: .top)
+                .clipped()
+                .allowsHitTesting(p < 0.35)
+
             profileRow
         }
         .padding(.horizontal, 22)
         .padding(.top, 10)
-        .padding(.bottom, 22)
+        .padding(.bottom, 22 - 10 * p)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
             ZStack {
                 Color.black
                 TTHomeHeaderBands()
-                    .fill(Color.white.opacity(0.07))
+                    .fill(Color.white.opacity(0.07 * (1 - p)))
             }
             .ignoresSafeArea(edges: .top)
         }
@@ -101,12 +119,15 @@ struct TTHomeProfileHeader: View {
         Button {
             onProfileTap?()
         } label: {
-            HStack(spacing: 14) {
+            HStack(spacing: 14 * (1 - p)) {
                 avatarView
+                    .opacity(Double(1 - p))
+                    .frame(width: avatarSide * (1 - p), height: avatarSide * (1 - p))
+                    .clipped()
 
-                VStack(alignment: .leading, spacing: 7) {
-                    Text("Hello, \(name)!")
-                        .font(TTFont.headingLG(.bold))
+                VStack(alignment: .leading, spacing: 7 * (1 - p)) {
+                    Text(p < 0.45 ? "Hello, \(name)!" : name)
+                        .font(TTFont.workSans(28 - 8 * p, weight: .bold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
@@ -129,6 +150,9 @@ struct TTHomeProfileHeader: View {
                                 }
                             }
                         }
+                        .opacity(Double(1 - p))
+                        .frame(height: 22 * (1 - p), alignment: .top)
+                        .clipped()
                     }
                 }
 
@@ -137,9 +161,12 @@ struct TTHomeProfileHeader: View {
                 TTIcon(icon: .chevronRight, size: 22)
                     .foregroundStyle(.white)
             }
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(TTHomeHeaderPressStyle())
+        .accessibilityLabel("Open profile, \(name)")
+        .accessibilityHint("Opens your profile")
     }
 
     private var avatarView: some View {
@@ -149,19 +176,19 @@ struct TTHomeProfileHeader: View {
                 Image(uiImage: custom)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 58, height: 58)
+                    .frame(width: avatarSide, height: avatarSide)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
                 Image(avatarSymbol)
                     .resizable()
                     .scaledToFill()
-                    .frame(width: 58, height: 58)
+                    .frame(width: avatarSide, height: avatarSide)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(Color.white.opacity(0.14))
-                        .frame(width: 58, height: 58)
+                        .frame(width: avatarSide, height: avatarSide)
 
                     if let avatarSymbol, !TTAvatarCatalog.hasRenderableAvatar(avatarSymbol) {
                         Image(systemName: avatarSymbol)
@@ -226,14 +253,53 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
     }
 }
 
+// MARK: - Home scroll → header collapse
+
+private struct TTHomeScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+extension View {
+    /// Reads how far this view's top has scrolled (positive = down). Pair with `.coordinateSpace(name:)`.
+    func ttHomeScrollOffset(_ offset: Binding<CGFloat>, space: String) -> some View {
+        background(alignment: .top) {
+            GeometryReader { geo in
+                Color.clear.preference(
+                    key: TTHomeScrollOffsetKey.self,
+                    value: -geo.frame(in: .named(space)).minY
+                )
+            }
+            .frame(height: 0)
+        }
+        .onPreferenceChange(TTHomeScrollOffsetKey.self) { value in
+            var transaction = Transaction()
+            transaction.animation = nil
+            withTransaction(transaction) {
+                offset.wrappedValue = max(0, value)
+            }
+        }
+    }
+}
+
 #Preview("Home Header") {
-    TTHomeProfileHeader(
-        name: "Maya",
-        badgeCount: 2,
-        metrics: [
-            TTHomeProfileMetric(id: "h", icon: .plus, iconColor: TTColor.actionOrange, text: "86% Healthy"),
-            TTHomeProfileMetric(id: "p", icon: .starFull, iconColor: .blue, text: "Pro")
-        ],
-        onProfileTap: {}
-    )
+    VStack(spacing: 24) {
+        TTHomeProfileHeader(
+            name: "Maya",
+            badgeCount: 2,
+            metrics: [
+                TTHomeProfileMetric(id: "h", icon: .plus, iconColor: TTColor.actionOrange, text: "86% Healthy"),
+                TTHomeProfileMetric(id: "p", icon: .starFull, iconColor: .blue, text: "Pro")
+            ],
+            onProfileTap: {}
+        )
+        TTHomeProfileHeader(
+            name: "Maya",
+            collapseProgress: 1,
+            onProfileTap: {}
+        )
+    }
+    .background(Color.black)
 }

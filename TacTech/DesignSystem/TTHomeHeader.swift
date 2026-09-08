@@ -253,7 +253,7 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - Scroll → header collapse (SwiftUI geometry — reliable on cold launch)
+// MARK: - Scroll → header collapse (reliable on cold launch)
 
 /// Shared collapse progress for home dashboards.
 @MainActor
@@ -283,6 +283,9 @@ extension View {
     ) -> some View {
         self
             .coordinateSpace(name: space)
+            .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
+                model.setOffsetY(value)
+            }
             .modifier(TTHomeScrollGeometryCollapseModifier(model: model))
     }
 }
@@ -293,18 +296,25 @@ struct TTHomeScrollCollapseProbe: View {
     let space: String
 
     var body: some View {
-        Color.clear
-            .frame(width: 1, height: 1)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                max(0, -proxy.frame(in: .named(space)).minY)
-            } action: { _, offsetY in
-                model.setOffsetY(offsetY)
-            }
-            .accessibilityHidden(true)
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: TTHomeScrollOffsetPreferenceKey.self,
+                value: max(0, -geo.frame(in: .named(space)).minY)
+            )
+        }
+        .frame(width: 1, height: 1)
+        .accessibilityHidden(true)
     }
 }
 
-/// iOS 18+ belt-and-suspenders on the ScrollView itself (probe remains the source of truth).
+private struct TTHomeScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+/// iOS 18+ extra path on the ScrollView (probe + preference remain the cold-launch source of truth).
 private struct TTHomeScrollGeometryCollapseModifier: ViewModifier {
     let model: TTHomeScrollCollapseModel
 

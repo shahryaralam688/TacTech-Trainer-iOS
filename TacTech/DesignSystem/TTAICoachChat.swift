@@ -1,8 +1,6 @@
-import PhotosUI
 import SwiftUI
-import UIKit
 
-// MARK: - Models (UI-only)
+// MARK: - Models (UI-only for now)
 
 enum TTAIChatRole: Hashable {
     case user
@@ -16,24 +14,18 @@ struct TTAIChatMessage: Identifiable, Hashable {
     var text: String
     var timeLabel: String?
     var isVoice: Bool = false
-    /// Local preview image — backend upload comes later.
-    var image: UIImage? = nil
-
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(id)
-    }
-
-    static func == (lhs: TTAIChatMessage, rhs: TTAIChatMessage) -> Bool {
-        lhs.id == rhs.id
-            && lhs.text == rhs.text
-            && lhs.isVoice == rhs.isVoice
-            && (lhs.image == nil) == (rhs.image == nil)
-    }
 }
 
 enum TTAIChatAudience {
     case trainer
     case trainee
+
+    var greetingName: String {
+        switch self {
+        case .trainer: "Coach"
+        case .trainee: "Athlete"
+        }
+    }
 
     var headerSubtitle: String {
         switch self {
@@ -54,34 +46,23 @@ enum TTAIChatAudience {
     var welcome: String {
         switch self {
         case .trainer:
-            "I’m your TacTech AI. Ask about plans, trainees, or cues — type, talk, or share a photo."
+            "I’m your TacTech AI. Ask about plans, trainees, or cues — tap the mic to talk."
         case .trainee:
-            "I’m your TacTech AI. Ask about workouts, form, or nutrition — type, talk, or share a photo."
+            "I’m your TacTech AI. Ask about workouts, form, or nutrition — tap the mic to talk."
         }
     }
 }
+
+// MARK: - Portal ID
 
 enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
 }
 
-/// Compatibility PreferenceKey — older FAB frame tracking.
-/// Kept so mixed local checkouts that still publish FAB frames continue to compile.
-struct TTAICoachFABFrameKey: PreferenceKey {
-    static var defaultValue: CGRect = .zero
+// MARK: - Overlay (morphs from tab-bar Plus)
 
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
-        let next = nextValue()
-        if next != .zero {
-            value = next
-        }
-    }
-}
-
-// MARK: - Overlay
-
-/// Floating liquid-glass AI chat that expands from the Plus FAB like a bubble,
-/// with WhatsApp-style keyboard avoidance and image sharing (UI-only).
+/// Full-screen AI coach chat that expands from the orange Plus FAB.
+/// UI-only: local messages / voice state. Backend wiring comes later.
 struct TTAICoachChatOverlay: View {
     @Binding var isPresented: Bool
     var audience: TTAIChatAudience
@@ -91,105 +72,55 @@ struct TTAICoachChatOverlay: View {
     @State private var draft = ""
     @State private var isRecording = false
     @State private var isThinking = false
-    @State private var expanded = false
+    @State private var contentReady = false
     @State private var wavePhase: CGFloat = 0
-    @State private var libraryItem: PhotosPickerItem?
-    @State private var showPhotoSource = false
-    @State private var showCamera = false
-    @State private var cameraImage: UIImage?
-    @State private var pendingImage: UIImage?
     @FocusState private var fieldFocused: Bool
-
-    @StateObject private var keyboard = TTAIKeyboardObserver()
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
     private let muted = Color(white: 0.42)
-    private let bubble = Animation.spring(response: 0.52, dampingFraction: 0.82)
-    private let soft = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    private let morph = Animation.spring(response: 0.48, dampingFraction: 0.88)
+    private let soft = Animation.spring(response: 0.42, dampingFraction: 0.84)
 
     var body: some View {
         GeometryReader { geo in
-            let topSafe = max(geo.safeAreaInsets.top, 8)
-            let bottomSafe = max(geo.safeAreaInsets.bottom, 8)
-            let keyboardLift = max(0, keyboard.height - (keyboard.height > 0 ? bottomSafe : 0))
-            let sidePad: CGFloat = 12
-            let topPad = topSafe + 6
+            let topPad = max(geo.safeAreaInsets.top, 12)
+            let bottomPad = max(geo.safeAreaInsets.bottom, 8)
 
-            ZStack(alignment: .bottom) {
-                // Scrim
+            ZStack {
                 Color.black
-                    .opacity(expanded ? 0.34 : 0)
+                    .opacity(contentReady ? 0.28 : 0)
                     .ignoresSafeArea()
                     .onTapGesture { close() }
-                    .allowsHitTesting(expanded)
+                    .allowsHitTesting(contentReady)
 
-                // Floating liquid panel
-                floatingPanel
-                    .frame(maxWidth: .infinity)
-                    .frame(height: panelHeight(in: geo, topPad: topPad, bottomSafe: bottomSafe, keyboardLift: keyboardLift))
-                    .padding(.horizontal, sidePad)
-                    .padding(.bottom, keyboardLift > 0 ? keyboardLift + 6 : bottomSafe + 6)
-                    .padding(.top, topPad)
-                    .scaleEffect(expanded ? 1 : 0.08, anchor: .bottom)
-                    .opacity(expanded ? 1 : 0)
-                    .blur(radius: expanded ? 0 : 10)
-                    .offset(y: expanded ? 0 : 40)
+                chatShell
                     .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
+                    .padding(.top, topPad)
+                    .padding(.bottom, bottomPad)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .ignoresSafeArea()
         .onAppear(perform: openSequence)
-        .onChange(of: libraryItem) { _, item in
-            Task { await loadLibrary(item) }
-        }
-        .onChange(of: cameraImage) { _, image in
-            guard let image else { return }
-            pendingImage = image
-            cameraImage = nil
-        }
-        .onChange(of: keyboard.height) { _, height in
-            if height > 0 { isRecording = false }
-        }
-        .sheet(isPresented: $showCamera) {
-            CameraImagePicker(image: $cameraImage)
-                .ignoresSafeArea()
-        }
-        .confirmationDialog("Share a photo", isPresented: $showPhotoSource, titleVisibility: .visible) {
-            Button("Take photo") { showCamera = true }
-            PhotosPicker(selection: $libraryItem, matching: .images) {
-                Text("Photo library")
-            }
-            Button("Cancel", role: .cancel) {}
-        }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: expanded)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: isPresented)
         .sensoryFeedback(.selection, trigger: isRecording)
     }
 
-    private func panelHeight(
-        in geo: GeometryProxy,
-        topPad: CGFloat,
-        bottomSafe: CGFloat,
-        keyboardLift: CGFloat
-    ) -> CGFloat {
-        let available = geo.size.height - topPad - (keyboardLift > 0 ? keyboardLift + 6 : bottomSafe + 6)
-        // Floating card — not edge-to-edge full bleed.
-        return min(available, geo.size.height * 0.88)
-    }
+    // MARK: Shell
 
-    // MARK: - Floating panel
-
-    private var floatingPanel: some View {
+    private var chatShell: some View {
         VStack(spacing: 0) {
             grabber
             header
-            Divider().opacity(0.1)
+            Divider().opacity(0.12)
 
             messageList
+                .opacity(contentReady ? 1 : 0)
 
-            if !audience.suggestions.isEmpty && draft.isEmpty && pendingImage == nil && !isRecording && !fieldFocused {
+            if !suggestions.isEmpty && draft.isEmpty && !isRecording {
                 suggestionRow
+                    .opacity(contentReady ? 1 : 0)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -198,45 +129,40 @@ struct TTAICoachChatOverlay: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             } else {
                 composer
+                    .opacity(contentReady ? 1 : 0)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
-            ZStack {
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
-                    .fill(Color.white.opacity(0.92))
-            }
+            UnevenRoundedRectangle(
+                topLeadingRadius: 28,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 28,
+                style: .continuous
+            )
+            .fill(Color.white)
+            .ignoresSafeArea(edges: .bottom)
+            .shadow(color: orange.opacity(contentReady ? 0.12 : 0.35), radius: contentReady ? 24 : 14, y: contentReady ? -4 : 6)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.9),
-                            orange.opacity(0.35),
-                            Color.white.opacity(0.35)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1.2
-                )
+        .clipShape(
+            UnevenRoundedRectangle(
+                topLeadingRadius: 28,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 28,
+                style: .continuous
+            )
         )
-        .shadow(color: Color.black.opacity(0.18), radius: 28, y: 14)
-        .shadow(color: orange.opacity(0.22), radius: 22, y: 8)
-        .animation(soft, value: fieldFocused)
-        .animation(soft, value: isRecording)
-        .animation(soft, value: pendingImage != nil)
     }
 
     private var grabber: some View {
         Capsule()
-            .fill(Color.black.opacity(0.14))
-            .frame(width: 42, height: 5)
+            .fill(Color.black.opacity(0.12))
+            .frame(width: 40, height: 4)
             .padding(.top, 10)
-            .padding(.bottom, 4)
+            .padding(.bottom, 6)
+            .opacity(contentReady ? 1 : 0)
     }
 
     private var header: some View {
@@ -245,7 +171,7 @@ struct TTAICoachChatOverlay: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: [orange, orange.opacity(0.7)],
+                            colors: [orange, orange.opacity(0.75)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -277,69 +203,55 @@ struct TTAICoachChatOverlay: View {
             Button(action: close) {
                 ZStack {
                     Circle()
-                        .fill(Color.black.opacity(0.06))
-                        .frame(width: 36, height: 36)
+                        .fill(Color(white: 0.94))
+                        .frame(width: 40, height: 40)
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(ink)
+                        .rotationEffect(.degrees(contentReady ? 0 : -45))
                 }
             }
             .buttonStyle(AssessmentCardPressStyle())
             .accessibilityLabel("Close AI chat")
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
-        .padding(.top, 4)
+        .padding(.horizontal, 18)
+        .padding(.bottom, 14)
+        .opacity(contentReady ? 1 : 0)
     }
 
-    // MARK: - Messages
+    // MARK: Messages
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 12) {
+                LazyVStack(spacing: 14) {
                     ForEach(messages) { message in
                         bubble(message)
                             .id(message.id)
                             .transition(.asymmetric(
-                                insertion: .opacity
-                                    .combined(with: .scale(scale: 0.94, anchor: message.role == .user ? .bottomTrailing : .bottomLeading))
-                                    .combined(with: .offset(y: 10)),
+                                insertion: .opacity.combined(with: .move(edge: .bottom)).combined(with: .scale(scale: 0.96)),
                                 removal: .opacity
                             ))
                     }
 
                     if isThinking {
-                        typingIndicator.id("typing")
+                        typingIndicator
+                            .id("typing")
                     }
-
-                    Color.clear.frame(height: 4).id("bottomAnchor")
                 }
-                .padding(.horizontal, 14)
+                .padding(.horizontal, 16)
                 .padding(.top, 12)
-                .padding(.bottom, 10)
+                .padding(.bottom, 8)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .onTapGesture { fieldFocused = false }
             .onChange(of: messages.count) { _, _ in
-                scrollToBottom(proxy)
+                scrollToEnd(proxy)
             }
-            .onChange(of: isThinking) { _, on in
-                if on { scrollToBottom(proxy, id: "typing") }
-            }
-            .onChange(of: keyboard.height) { _, _ in
-                scrollToBottom(proxy, id: "bottomAnchor")
-            }
-            .onChange(of: fieldFocused) { _, focused in
-                if focused {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-                        scrollToBottom(proxy, id: "bottomAnchor")
-                    }
-                }
+            .onChange(of: isThinking) { _, thinking in
+                if thinking { scrollToEnd(proxy, id: "typing") }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white.opacity(0.35))
+        .background(Color(white: 0.97))
     }
 
     private func bubble(_ message: TTAIChatMessage) -> some View {
@@ -349,51 +261,37 @@ struct TTAICoachChatOverlay: View {
             if !isUser {
                 aiAvatar(size: 28)
             } else {
-                Spacer(minLength: 42)
+                Spacer(minLength: 48)
             }
 
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 6) {
-                if let image = message.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: 220, maxHeight: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                        )
-                }
-
-                if !message.text.isEmpty {
-                    HStack(spacing: 6) {
-                        if message.isVoice {
-                            TTIcon(icon: .waveSine, size: 12)
-                                .foregroundStyle(isUser ? Color.white.opacity(0.85) : orange)
-                        }
-                        Text(message.text)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(isUser ? Color.white : ink)
-                            .multilineTextAlignment(.leading)
+            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    if message.isVoice {
+                        TTIcon(icon: .waveSine, size: 12)
+                            .foregroundStyle(isUser ? Color.white.opacity(0.8) : orange)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(isUser ? Color.black : Color.white.opacity(0.95))
-                    .clipShape(
-                        UnevenRoundedRectangle(
-                            topLeadingRadius: 18,
-                            bottomLeadingRadius: isUser ? 18 : 5,
-                            bottomTrailingRadius: isUser ? 5 : 18,
-                            topTrailingRadius: 18,
-                            style: .continuous
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(isUser ? 0.12 : 0.04), radius: 8, y: 3)
+                    Text(message.text)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(isUser ? Color.white : ink)
+                        .multilineTextAlignment(.leading)
                 }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 11)
+                .background(isUser ? Color.black : Color.white)
+                .clipShape(
+                    UnevenRoundedRectangle(
+                        topLeadingRadius: 18,
+                        bottomLeadingRadius: isUser ? 18 : 6,
+                        bottomTrailingRadius: isUser ? 6 : 18,
+                        topTrailingRadius: 18,
+                        style: .continuous
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(isUser ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(isUser ? 0.12 : 0.04), radius: 8, y: 3)
 
                 if let time = message.timeLabel {
                     Text(time)
@@ -403,8 +301,10 @@ struct TTAICoachChatOverlay: View {
                 }
             }
 
-            if !isUser {
-                Spacer(minLength: 42)
+            if isUser {
+                // trailing space handled by alignment
+            } else {
+                Spacer(minLength: 48)
             }
         }
     }
@@ -415,19 +315,23 @@ struct TTAICoachChatOverlay: View {
             HStack(spacing: 5) {
                 ForEach(0..<3, id: \.self) { i in
                     Circle()
-                        .fill(orange.opacity(0.5 + Double(i) * 0.15))
+                        .fill(orange.opacity(0.55 + Double(i) * 0.15))
                         .frame(width: 7, height: 7)
-                        .offset(y: wavePhase > 0.5 ? (i == Int(wavePhase) % 3 ? -3 : 0) : 0)
+                        .offset(y: wavePhase == CGFloat(i) ? -3 : 0)
                 }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
-            .background(Color.white.opacity(0.95))
+            .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            Spacer(minLength: 42)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
+            )
+            Spacer(minLength: 48)
         }
         .onAppear {
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true)) {
                 wavePhase = 2
             }
         }
@@ -442,151 +346,119 @@ struct TTAICoachChatOverlay: View {
         .frame(width: size, height: size)
     }
 
-    // MARK: - Suggestions
+    // MARK: Suggestions
+
+    private var suggestions: [String] { audience.suggestions }
 
     private var suggestionRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(audience.suggestions, id: \.self) { tip in
+                ForEach(suggestions, id: \.self) { tip in
                     Button {
-                        send(text: tip)
+                        send(tip)
                     } label: {
                         Text(tip)
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(ink)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
-                            .background(Color.white.opacity(0.95))
+                            .background(Color.white)
                             .clipShape(Capsule())
                             .overlay(
-                                Capsule().strokeBorder(orange.opacity(0.4), lineWidth: 1.2)
+                                Capsule()
+                                    .strokeBorder(orange.opacity(0.45), lineWidth: 1.2)
                             )
                     }
                     .buttonStyle(AssessmentCardPressStyle())
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
         }
+        .background(Color(white: 0.97))
     }
 
-    // MARK: - Composer (WhatsApp-style)
+    // MARK: Composer
 
     private var composer: some View {
-        VStack(spacing: 8) {
-            if let pendingImage {
-                HStack(spacing: 10) {
-                    Image(uiImage: pendingImage)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 56, height: 56)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    Text("Photo ready to send")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(muted)
-
-                    Spacer()
-
-                    Button {
-                        withAnimation(soft) { self.pendingImage = nil }
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color(white: 0.55))
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 14)
-                .padding(.top, 8)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            HStack(alignment: .bottom, spacing: 8) {
-                Button { showPhotoSource = true } label: {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.06))
-                            .frame(width: 40, height: 40)
-                        TTIcon(icon: .image1, size: 18)
-                            .foregroundStyle(ink.opacity(0.75))
-                    }
-                }
-                .buttonStyle(AssessmentCardPressStyle())
-                .accessibilityLabel("Share photo")
-
-                HStack(alignment: .bottom, spacing: 8) {
-                    TextField("Message", text: $draft, axis: .vertical)
-                        .font(.system(size: 16, weight: .medium))
+        HStack(spacing: 10) {
+            Button {
+                startVoice()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color(white: 0.94))
+                        .frame(width: 44, height: 44)
+                    TTIcon(icon: .microphone, filled: true, size: 18)
                         .foregroundStyle(ink)
-                        .lineLimit(1...5)
-                        .focused($fieldFocused)
-                        .tint(orange)
-                        .submitLabel(.send)
-                        .onSubmit(sendDraft)
-
-                    if canSend {
-                        Button(action: sendDraft) {
-                            ZStack {
-                                Circle()
-                                    .fill(orange)
-                                    .frame(width: 34, height: 34)
-                                Image(systemName: "arrow.up")
-                                    .font(.system(size: 14, weight: .bold))
-                                    .foregroundStyle(.white)
-                            }
-                        }
-                        .buttonStyle(AssessmentCardPressStyle())
-                        .transition(.scale.combined(with: .opacity))
-                        .accessibilityLabel("Send")
-                    } else {
-                        Button(action: startVoice) {
-                            TTIcon(icon: .microphone, filled: true, size: 18)
-                                .foregroundStyle(ink.opacity(0.7))
-                                .frame(width: 34, height: 34)
-                        }
-                        .buttonStyle(AssessmentCardPressStyle())
-                        .accessibilityLabel("Voice message")
-                    }
                 }
-                .padding(.leading, 14)
-                .padding(.trailing, 6)
-                .padding(.vertical, 6)
-                .background(Color.black.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .strokeBorder(fieldFocused ? orange : Color.clear, lineWidth: 1.5)
-                )
             }
-            .padding(.horizontal, 12)
-            .padding(.top, pendingImage == nil ? 8 : 0)
-            .padding(.bottom, 10)
-            .animation(soft, value: canSend)
+            .buttonStyle(AssessmentCardPressStyle())
+            .accessibilityLabel("Talk to AI")
+
+            HStack(spacing: 8) {
+                TextField("Message TacTech AI…", text: $draft, axis: .vertical)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(ink)
+                    .lineLimit(1...4)
+                    .focused($fieldFocused)
+                    .tint(orange)
+                    .submitLabel(.send)
+                    .onSubmit(sendDraft)
+
+                if !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: sendDraft) {
+                        ZStack {
+                            Circle()
+                                .fill(orange)
+                                .frame(width: 34, height: 34)
+                            Image(systemName: "arrow.up")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                    }
+                    .buttonStyle(AssessmentCardPressStyle())
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 8)
+            .padding(.vertical, 8)
+            .background(Color(white: 0.94))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(fieldFocused ? orange : Color.clear, lineWidth: 1.5)
+            )
+            .animation(soft, value: draft.isEmpty)
         }
-        .background(Color.white.opacity(0.88))
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(Color.white)
     }
 
-    private var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || pendingImage != nil
-    }
-
-    // MARK: - Voice
+    // MARK: Voice panel (UI-only)
 
     private var voicePanel: some View {
-        VStack(spacing: 14) {
-            Text("Listening… release to send")
-                .font(.system(size: 13, weight: .semibold))
+        VStack(spacing: 16) {
+            Text("Listening…")
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(muted)
 
-            HStack(spacing: 3) {
-                ForEach(0..<20, id: \.self) { i in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+            HStack(spacing: 4) {
+                ForEach(0..<16, id: \.self) { i in
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
                         .fill(orange)
-                        .frame(width: 3, height: voiceBar(i))
+                        .frame(width: 4, height: barHeight(for: i))
                 }
             }
-            .frame(height: 44)
+            .frame(height: 48)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) {
+                    wavePhase = 1
+                }
+            }
 
             HStack(spacing: 28) {
                 Button {
@@ -597,37 +469,37 @@ struct TTAICoachChatOverlay: View {
                         .foregroundStyle(muted)
                 }
 
-                Button(action: finishVoice) {
+                Button {
+                    finishVoice()
+                } label: {
                     ZStack {
                         Circle()
                             .fill(Color.black)
-                            .frame(width: 58, height: 58)
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 18, weight: .bold))
+                            .frame(width: 64, height: 64)
+                            .shadow(color: Color.black.opacity(0.2), radius: 12, y: 6)
+                        TTIcon(icon: .chatSmile, filled: true, size: 22)
                             .foregroundStyle(.white)
                     }
                 }
                 .buttonStyle(AssessmentCardPressStyle())
+                .accessibilityLabel("Send voice message")
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 12)
-        .padding(.bottom, 16)
+        .padding(.horizontal, 20)
+        .padding(.top, 14)
+        .padding(.bottom, 22)
         .frame(maxWidth: .infinity)
-        .background(Color.white.opacity(0.92))
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
-                wavePhase = 1
-            }
-        }
+        .background(Color.white)
     }
 
-    private func voiceBar(_ index: Int) -> CGFloat {
-        let t = abs(sin(Double(index) * 0.55 + Double(wavePhase) * .pi))
-        return 8 + 30 * t
+    private func barHeight(for index: Int) -> CGFloat {
+        let base: CGFloat = 10
+        let amp: CGFloat = 28
+        let t = abs(sin(Double(index) * 0.7 + Double(wavePhase) * .pi))
+        return base + amp * t
     }
 
-    // MARK: - Actions
+    // MARK: Actions (local UI)
 
     private func openSequence() {
         if messages.isEmpty {
@@ -640,55 +512,47 @@ struct TTAICoachChatOverlay: View {
                 )
             ]
         }
-        withAnimation(bubble) {
-            expanded = true
+        // Let matchedGeometry settle, then reveal chrome.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            withAnimation(soft) { contentReady = true }
         }
     }
 
     private func close() {
         fieldFocused = false
-        withAnimation(bubble) {
-            expanded = false
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+        withAnimation(morph) {
+            contentReady = false
             isPresented = false
         }
     }
 
     private func sendDraft() {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        let image = pendingImage
-        guard !text.isEmpty || image != nil else { return }
+        guard !text.isEmpty else { return }
         draft = ""
-        pendingImage = nil
-        send(text: text, image: image)
+        send(text)
     }
 
-    private func send(text: String, image: UIImage? = nil, isVoice: Bool = false) {
+    private func send(_ text: String, isVoice: Bool = false) {
+        fieldFocused = false
         let user = TTAIChatMessage(
             id: UUID().uuidString,
             role: .user,
             text: text,
             timeLabel: nil,
-            isVoice: isVoice,
-            image: image
+            isVoice: isVoice
         )
         withAnimation(soft) {
             messages.append(user)
             isThinking = true
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
-            let replyText: String
-            if image != nil {
-                replyText = "I can see your photo. Image understanding will connect with the AI backend next — thanks for sharing."
-            } else {
-                replyText = placeholderReply(to: text)
-            }
+        // Placeholder assistant reply — swap for real AI later.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.85) {
             let reply = TTAIChatMessage(
                 id: UUID().uuidString,
                 role: .assistant,
-                text: replyText,
+                text: placeholderReply(to: text),
                 timeLabel: nil
             )
             withAnimation(soft) {
@@ -705,106 +569,31 @@ struct TTAICoachChatOverlay: View {
 
     private func finishVoice() {
         withAnimation(soft) { isRecording = false }
-        send(text: "Voice note — transcription coming soon", isVoice: true)
+        send("Voice note — (transcription coming soon)", isVoice: true)
     }
 
     private func placeholderReply(to prompt: String) -> String {
-        let clip = prompt.isEmpty ? "that" : "“\(prompt.prefix(40))”"
         switch audience {
         case .trainer:
-            return "Got it — \(clip). Live coaching replies will plug in when we wire the AI backend."
+            return "Got it. I’ll help with “\(prompt.prefix(48))”. Live AI replies will connect here next — for now this is the chat UI."
         case .trainee:
-            return "Noted — \(clip). Your AI coach UI is ready; real answers connect next."
+            return "Noted: “\(prompt.prefix(48))”. Your AI coach UI is ready — real answers will plug in when we wire the backend."
         }
     }
 
-    private func scrollToBottom(_ proxy: ScrollViewProxy, id: String? = nil) {
-        let target = id ?? messages.last?.id ?? "bottomAnchor"
-        withAnimation(.easeOut(duration: 0.2)) {
+    private func scrollToEnd(_ proxy: ScrollViewProxy, id: String? = nil) {
+        let target = id ?? messages.last?.id
+        guard let target else { return }
+        withAnimation(.easeOut(duration: 0.22)) {
             proxy.scrollTo(target, anchor: .bottom)
         }
     }
-
-    private func loadLibrary(_ item: PhotosPickerItem?) async {
-        guard let item else { return }
-        if let data = try? await item.loadTransferable(type: Data.self),
-           let image = UIImage(data: data) {
-            await MainActor.run {
-                pendingImage = image
-                libraryItem = nil
-            }
-        }
-    }
 }
 
-// MARK: - Keyboard observer (WhatsApp-style lift)
-
-@MainActor
-final class TTAIKeyboardObserver: ObservableObject {
-    @Published var height: CGFloat = 0
-
-    private var tokens: [NSObjectProtocol] = []
-
-    init() {
-        let center = NotificationCenter.default
-        tokens.append(
-            center.addObserver(forName: UIResponder.keyboardWillChangeFrameNotification, object: nil, queue: .main) { [weak self] note in
-                Task { @MainActor in
-                    self?.update(from: note)
-                }
-            }
-        )
-        tokens.append(
-            center.addObserver(forName: UIResponder.keyboardWillHideNotification, object: nil, queue: .main) { [weak self] _ in
-                Task { @MainActor in
-                    withAnimation(.easeOut(duration: 0.25)) {
-                        self?.height = 0
-                    }
-                }
-            }
-        )
-    }
-
-    deinit {
-        let center = NotificationCenter.default
-        tokens.forEach { center.removeObserver($0) }
-    }
-
-    private func update(from note: Notification) {
-        guard
-            let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect,
-            let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double,
-            let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-            let window = scene.windows.first(where: \.isKeyWindow) ?? scene.windows.first
-        else { return }
-
-        let converted = window.convert(frame, from: nil)
-        let overlap = max(0, window.bounds.maxY - converted.minY)
-        withAnimation(.easeOut(duration: duration)) {
-            height = overlap
-        }
-    }
-}
-
-// MARK: - Root keyboard helper
-
-/// When AI chat is open, allow WhatsApp-style keyboard avoidance on the root.
-struct TTRootKeyboardIgnore: ViewModifier {
-    var enabled: Bool
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if enabled {
-            content.ignoresSafeArea(.keyboard)
-        } else {
-            content
-        }
-    }
-}
-
-// MARK: - FAB helper
+// MARK: - FAB morph source helper
 
 extension View {
+    /// Apply on the orange Plus control so it can morph into `TTAICoachChatOverlay`.
     func ttAICoachFABSource(namespace: Namespace.ID, isChatPresented: Bool) -> some View {
         self
             .matchedGeometryEffect(

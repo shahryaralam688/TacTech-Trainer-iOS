@@ -75,6 +75,9 @@
 		C0ACH006COMPOSERB02 /* CoachComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH006COMPOSERB01 /* CoachComposerBar.swift */; };
 		C0ACH007CITATIONS02 /* CoachCitationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */; };
 		C0ACH008VOICECALL02 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */; };
+		C0FONT01MEDIUMBLD001 /* WorkSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */; };
+		C0FONT02SEMIBLDFILE1 /* WorkSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */; };
+		C0FONT03EXTRABLDFILE /* WorkSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -148,6 +151,9 @@
 		C0ACH006COMPOSERB01 /* CoachComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachComposerBar.swift; sourceTree = "<group>"; };
 		C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCitationsSheet.swift; sourceTree = "<group>"; };
 		C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachVoiceCallView.swift; sourceTree = "<group>"; };
+		C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Medium.ttf"; sourceTree = "<group>"; };
+		C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-SemiBold.ttf"; sourceTree = "<group>"; };
+		C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-ExtraBold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -177,6 +183,9 @@
 			children = (
 				9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */,
 				C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */,
+				C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */,
+				C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */,
+				C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */,
 				18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */,
 			);
 			path = Fonts;
@@ -419,6 +428,9 @@
 				0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */,
 				3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */,
 				1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */,
+				C0FONT03EXTRABLDFILE /* WorkSans-ExtraBold.ttf in Resources */,
+				C0FONT02SEMIBLDFILE1 /* WorkSans-SemiBold.ttf in Resources */,
+				C0FONT01MEDIUMBLD001 /* WorkSans-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

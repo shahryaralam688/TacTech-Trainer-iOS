@@ -63,10 +63,10 @@ struct CoachComposerBar: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Photo ready")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(ink)
                 Text("Add a caption or pick a quick chip")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(TTFont.workSans(12, weight: .medium))
                     .foregroundStyle(muted)
             }
             Spacer()
@@ -91,7 +91,7 @@ struct CoachComposerBar: View {
                         sendImageKeepingFocus(chip.rawValue)
                     } label: {
                         Text(chip.rawValue)
-                            .font(.system(size: 12, weight: .semibold))
+                            .font(TTFont.workSans(12, weight: .semibold))
                             .foregroundStyle(ink)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 8)
@@ -142,7 +142,7 @@ struct CoachComposerBar: View {
                     text: $draft,
                     axis: .vertical
                 )
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(ink)
                 .lineLimit(1...4)
                 .focused($fieldFocused)
@@ -155,7 +155,7 @@ struct CoachComposerBar: View {
                         ZStack {
                             Circle().fill(orange).frame(width: 32, height: 32)
                             Image(systemName: "arrow.up")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(TTFont.workSans(13, weight: .bold))
                                 .foregroundStyle(.white)
                         }
                     }
@@ -181,20 +181,20 @@ struct CoachComposerBar: View {
     private var voicePanel: some View {
         VStack(spacing: 12) {
             Text("Listening… \(recordingSecondsLeft)s left")
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
                 .foregroundStyle(ink)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: recordingSecondsLeft)
             Text("Max 30 seconds · release or tap Send")
-                .font(.system(size: 12, weight: .medium))
+                .font(TTFont.workSans(12, weight: .medium))
                 .foregroundStyle(muted)
             HStack(spacing: 16) {
                 Button("Cancel", action: onCancelVoice)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(TTFont.workSans(15, weight: .semibold))
                     .foregroundStyle(muted)
                 Button(action: onStopVoice) {
                     Text("Send voice")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(TTFont.workSans(15, weight: .bold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 22)
                         .padding(.vertical, 12)
@@ -247,7 +247,7 @@ struct CoachComposerBar: View {
                 .fill(Color.black.opacity(0.05))
                 .frame(width: 40, height: 40)
             Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
+                .font(TTFont.workSans(15, weight: .semibold))
                 .foregroundStyle(ink)
         }
     }

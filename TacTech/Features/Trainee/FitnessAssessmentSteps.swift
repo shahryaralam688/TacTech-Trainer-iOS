@@ -41,7 +41,7 @@ struct AssessmentTextBox: View {
             ZStack(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(TTFont.workSans(16, weight: .medium))
                         .foregroundStyle(AssessmentColor.coolGrey)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 8)
@@ -49,7 +49,7 @@ struct AssessmentTextBox: View {
                 }
 
                 TextField("", text: $text, axis: .vertical)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(AssessmentColor.ink)
                     .lineLimit(6...12)
                     .focused($focused)
@@ -77,9 +77,9 @@ struct AssessmentTextBox: View {
 
                 HStack(spacing: 6) {
                     Image(systemName: "doc.text")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(TTFont.workSans(13, weight: .semibold))
                     Text("\(count)/\(maxCharacters)")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(TTFont.workSans(13, weight: .semibold))
                         .monospacedDigit()
                 }
                 .foregroundStyle(count >= maxCharacters ? AssessmentColor.orange : AssessmentColor.slate)
@@ -108,7 +108,7 @@ struct AssessmentTextBox: View {
     private func toolButton(systemName: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
                 .foregroundStyle(enabled ? AssessmentColor.ink : AssessmentColor.coolGrey)
                 .frame(width: 40, height: 40)
                 .background(AssessmentColor.white)
@@ -176,7 +176,7 @@ struct GenderStep: View {
                 Button(action: onSkip) {
                     HStack(spacing: 8) {
                         Text("Prefer to skip, thanks!")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(TTFont.workSans(16, weight: .semibold))
                         TTIcon(icon: .closeX, size: 14)
                     }
                     .foregroundStyle(AssessmentColor.orange)
@@ -200,7 +200,7 @@ struct GenderStep: View {
                     VStack(alignment: .leading, spacing: 18) {
                         HStack(spacing: 6) {
                             Text(title)
-                                .font(.system(size: 18, weight: .bold))
+                                .font(TTFont.workSans(18, weight: .bold))
                             TTIcon(icon: icon, size: 16)
                         }
                         AssessmentRadio(selected: selected)
@@ -233,7 +233,7 @@ struct WeightStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("What is your weight?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .padding(.top, 28)
@@ -241,12 +241,12 @@ struct WeightStep: View {
                 .padding(.top, 28)
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(displayNumber)
-                    .font(.system(size: 72, weight: .bold))
+                    .font(TTFont.workSans(72, weight: .bold))
                     .foregroundStyle(AssessmentColor.ink)
                     .contentTransition(.numericText())
                     .animation(.snappy(duration: 0.18), value: displayedWeight)
                 Text(draft.weightUnit)
-                    .font(.system(size: 22, weight: .medium))
+                    .font(TTFont.workSans(22, weight: .medium))
                     .foregroundStyle(AssessmentColor.grey)
                     .animation(.snappy(duration: 0.18), value: draft.weightUnit)
             }
@@ -297,7 +297,7 @@ struct AgeStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("What is your age?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .padding(.top, 28)
@@ -491,7 +491,7 @@ struct ExperienceStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Do you have previous\nfitness experience?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .padding(.top, 28)
@@ -543,7 +543,7 @@ struct ExperienceStep: View {
         Button(action: action) {
             HStack(spacing: 8) {
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(TTFont.workSans(17, weight: .semibold))
                 TTIcon(icon: icon, size: 16)
             }
             .foregroundStyle(foreground)
@@ -562,7 +562,7 @@ struct FitnessLevelStep: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("How would you rate your\nfitness level?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
@@ -572,7 +572,7 @@ struct FitnessLevelStep: View {
             HStack(spacing: 8) {
                 TTIcon(icon: .questionMarkCircle, size: 16)
                 Text("Drag to adjust")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
             }
             .foregroundStyle(AssessmentColor.slate)
             .padding(.top, 18)
@@ -584,12 +584,12 @@ struct FitnessLevelStep: View {
 
                 VStack(alignment: .trailing, spacing: 6) {
                     Text("\(draft.fitnessLevel)")
-                        .font(.system(size: 92, weight: .bold))
+                        .font(TTFont.workSans(92, weight: .bold))
                         .foregroundStyle(AssessmentColor.ink)
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.18), value: draft.fitnessLevel)
                     Text(label)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                         .foregroundStyle(AssessmentColor.charcoal)
                         .animation(.snappy(duration: 0.18), value: draft.fitnessLevel)
                 }
@@ -797,7 +797,7 @@ struct LimitationsStep: View {
         ScrollView {
             VStack(spacing: 18) {
                 Text("Do you have any physical\nlimitations?")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(TTFont.workSans(28, weight: .bold))
                     .foregroundStyle(AssessmentColor.ink)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
@@ -813,7 +813,7 @@ struct LimitationsStep: View {
 
                 HStack(alignment: .center, spacing: 10) {
                     Text("Most Common:")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(TTFont.workSans(14, weight: .medium))
                         .foregroundStyle(AssessmentColor.slate)
 
                     FlowLayout(spacing: 8) {
@@ -838,7 +838,7 @@ struct LimitationsStep: View {
                 }
 
                 TextField("Type here…", text: $draftText)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(TTFont.workSans(15, weight: .medium))
                     .foregroundStyle(AssessmentColor.ink)
                     .focused($isFieldFocused)
                     .frame(minWidth: 90)
@@ -850,7 +850,7 @@ struct LimitationsStep: View {
                 HStack(spacing: 4) {
                     TTIcon(icon: .file1, size: 14)
                     Text("\(draft.limitations.count)/\(maxTags)")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TTFont.workSans(12, weight: .medium))
                 }
                 .foregroundStyle(AssessmentColor.slate)
             }
@@ -874,7 +874,7 @@ struct LimitationsStep: View {
             draft.limitations.removeAll { $0 == title }
         } label: {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
+                .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(AssessmentColor.orange)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -891,7 +891,7 @@ struct LimitationsStep: View {
         } label: {
             HStack(spacing: 6) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                 TTIcon(icon: .closeX, size: 11)
             }
             .foregroundStyle(AssessmentColor.blue)
@@ -1002,7 +1002,7 @@ struct DietStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("Do you have a specific\ndiet preference?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
@@ -1056,10 +1056,10 @@ struct DietPreferenceCard: View {
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(title)
-                        .font(.system(size: 17, weight: .bold))
+                        .font(TTFont.workSans(17, weight: .bold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
                     Text(subtitle)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(selected ? AssessmentColor.white.opacity(0.92) : AssessmentColor.slate)
                     Spacer(minLength: 0)
                 }
@@ -1140,7 +1140,7 @@ struct DaysStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text("How many days/wk will\nyou commit?")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
@@ -1150,7 +1150,7 @@ struct DaysStep: View {
             Spacer(minLength: 24)
 
             Text("\(clampedDays)x")
-                .font(.system(size: 84, weight: .bold))
+                .font(TTFont.workSans(84, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: clampedDays)
@@ -1168,7 +1168,7 @@ struct DaysStep: View {
                 + Text(" weekly")
                     .foregroundStyle(AssessmentColor.slate)
             )
-            .font(.system(size: 16, weight: .medium))
+            .font(TTFont.workSans(16, weight: .medium))
             .multilineTextAlignment(.center)
             .padding(.top, 20)
             .padding(.horizontal, 24)
@@ -1225,7 +1225,7 @@ struct DaysCommitmentSlider: View {
                 HStack(spacing: 0) {
                     ForEach(values, id: \.self) { day in
                         Text("\(day)")
-                            .font(.system(size: 18, weight: .bold))
+                            .font(TTFont.workSans(18, weight: .bold))
                             .foregroundStyle(day == value ? Color.clear : AssessmentColor.coolGrey)
                             .frame(maxWidth: .infinity)
                     }
@@ -1234,7 +1234,7 @@ struct DaysCommitmentSlider: View {
                 .frame(height: trackHeight)
 
                 Text("\(value)")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(TTFont.workSans(22, weight: .bold))
                     .foregroundStyle(AssessmentColor.white)
                     .frame(width: thumbSize, height: thumbSize)
                     .background(AssessmentColor.blue)
@@ -1556,7 +1556,7 @@ struct AssessmentQuestion<Content: View>: View {
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 }
                 Text(title)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(TTFont.workSans(28, weight: .bold))
                     .foregroundStyle(AssessmentColor.ink)
                     .multilineTextAlignment(centered ? .center : .leading)
                     .frame(maxWidth: .infinity, alignment: centered ? .center : .leading)
@@ -1584,10 +1584,10 @@ struct AssessmentChoice: View {
                 }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                     if let subtitle {
                         Text(subtitle)
-                            .font(.system(size: 13, weight: .medium))
+                            .font(TTFont.workSans(13, weight: .medium))
                             .foregroundStyle(selected ? AssessmentColor.white.opacity(0.85) : AssessmentColor.grey)
                     }
                 }
@@ -1642,7 +1642,7 @@ struct AssessmentUnitToggle: View {
             selection = item.value
         } label: {
             Text(item.title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
                 .foregroundStyle(selection == item.value ? AssessmentColor.white : AssessmentColor.slate)
                 .frame(width: 72, height: 34)
                 .background(selection == item.value ? AssessmentColor.blue : Color.clear)
@@ -1673,7 +1673,7 @@ struct AssessmentRuler: View {
                                 .fill(AssessmentColor.line)
                                 .frame(width: strokeWidth(for: tick), height: tickHeight(for: tick))
                             Text(label(for: tick))
-                                .font(.system(size: 12, weight: .medium))
+                                .font(TTFont.workSans(12, weight: .medium))
                                 .foregroundStyle(AssessmentColor.grey)
                                 .frame(height: 16)
                         }

@@ -312,7 +312,7 @@ struct TTMetricCard: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Image(systemName: icon)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(TTFont.workSans(15, weight: .semibold))
                     .foregroundStyle(tint)
                     .frame(width: 34, height: 34)
                     .background(tint.opacity(0.14))
@@ -422,7 +422,7 @@ struct TTEmptyState: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 28, weight: .medium))
+                .font(TTFont.workSans(28, weight: .medium))
                 .foregroundStyle(TTColor.brand)
                 .frame(width: 64, height: 64)
                 .background(TTColor.brandSoft)
@@ -505,7 +505,7 @@ struct TTDropPicker<Value: Hashable>: View {
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
+                .font(TTFont.workSans(11, weight: .semibold))
                 .foregroundStyle(TTColor.inkMuted)
         }
         .padding(.horizontal, 12)

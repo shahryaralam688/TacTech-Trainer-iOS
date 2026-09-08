@@ -89,7 +89,7 @@ struct LoginView: View {
                         onSignUp()
                     }
                     Button("Forgot Password") { onForgot(email) }
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(TTFont.workSans(15, weight: .semibold))
                         .foregroundStyle(AuthPalette.brand)
                         .underline()
                 }
@@ -276,10 +276,10 @@ struct ResetPasswordView: View {
                         .padding(.bottom, 22)
 
                     Text("Reset Password")
-                        .font(.system(size: 32, weight: .bold))
+                        .font(TTFont.workSans(32, weight: .bold))
                         .foregroundStyle(AuthPalette.ink)
                     Text("Select what method you’d like to reset.")
-                        .font(.system(size: 16, weight: .regular))
+                        .font(TTFont.workSans(16, weight: .regular))
                         .foregroundStyle(AuthPalette.muted)
                         .padding(.top, 6)
                         .padding(.bottom, 22)
@@ -372,28 +372,28 @@ struct PasswordSentView: View {
                 Spacer()
                 VStack(spacing: 18) {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(TTFont.workSans(22, weight: .bold))
                         .foregroundStyle(Color(red: 0.20, green: 0.62, blue: 0.28))
                         .frame(width: 52, height: 52)
                         .background(Color(red: 0.86, green: 0.95, blue: 0.87))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                     Text("Password Sent!")
-                        .font(.system(size: 26, weight: .bold))
+                        .font(TTFont.workSans(26, weight: .bold))
                         .foregroundStyle(AuthPalette.ink)
 
                     Text("We’ve sent the password to \(email.tactechMasked). Resend if the password is not received! 🔥")
-                        .font(.system(size: 15, weight: .regular))
+                        .font(TTFont.workSans(15, weight: .regular))
                         .foregroundStyle(AuthPalette.muted)
                         .multilineTextAlignment(.center)
 
                     Button(action: onResend) {
                         HStack {
                             Text("Re-Send Password")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(TTFont.workSans(17, weight: .semibold))
                             Spacer()
                             Image(systemName: "lock")
-                                .font(.system(size: 16, weight: .medium))
+                                .font(TTFont.workSans(16, weight: .medium))
                         }
                         .foregroundStyle(.white)
                         .padding(.horizontal, 22)
@@ -411,7 +411,7 @@ struct PasswordSentView: View {
 
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                         .foregroundStyle(AuthPalette.ink)
                         .frame(width: 54, height: 54)
                         .background(Color.white)
@@ -474,7 +474,7 @@ private struct AuthHeroHeader: View {
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "plus")
-                .font(.system(size: 30, weight: .bold))
+                .font(TTFont.workSans(30, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 72, height: 72)
                 .background(AuthPalette.accent)
@@ -483,11 +483,11 @@ private struct AuthHeroHeader: View {
                 .padding(.top, 86)
 
             Text(title)
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AuthPalette.ink)
                 .multilineTextAlignment(.center)
             Text(subtitle)
-                .font(.system(size: 16, weight: .regular))
+                .font(TTFont.workSans(16, weight: .regular))
                 .foregroundStyle(AuthPalette.muted)
                 .multilineTextAlignment(.center)
         }
@@ -534,11 +534,11 @@ private struct AuthLabeledField<Trailing: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 15, weight: .bold))
+                .font(TTFont.workSans(15, weight: .bold))
                 .foregroundStyle(AuthPalette.ink)
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(isFocused ? AuthPalette.accent : AuthPalette.ink)
                     .frame(width: 20)
                 Group {
@@ -548,7 +548,7 @@ private struct AuthLabeledField<Trailing: View>: View {
                         TextField("", text: $text)
                     }
                 }
-                .font(.system(size: 16, weight: .regular))
+                .font(TTFont.workSans(16, weight: .regular))
                 .foregroundStyle(AuthPalette.ink)
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(keyboard == .emailAddress ? .never : .sentences)
@@ -618,7 +618,7 @@ private struct AuthEyeButton: View {
             isVisible.toggle()
         } label: {
             Image(systemName: isVisible ? "eye.slash" : "eye")
-                .font(.system(size: 16, weight: .medium))
+                .font(TTFont.workSans(16, weight: .medium))
                 .foregroundStyle(Color(white: 0.62))
         }
         .buttonStyle(.plain)
@@ -639,10 +639,10 @@ private struct AuthBlackButton: View {
                     Spacer(minLength: 0)
                 } else {
                     Text(title)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(TTFont.workSans(17, weight: .semibold))
                     Spacer(minLength: 8)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                 }
             }
             .padding(.horizontal, AuthLayout.fieldHorizontalPadding)
@@ -663,13 +663,13 @@ private struct AuthErrorBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "exclamationmark")
-                .font(.system(size: 11, weight: .bold))
+                .font(TTFont.workSans(11, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(width: 20, height: 20)
                 .background(AuthPalette.error)
                 .clipShape(Circle())
             Text(message)
-                .font(.system(size: 13, weight: .bold))
+                .font(TTFont.workSans(13, weight: .bold))
                 .foregroundStyle(AuthPalette.ink)
             Spacer(minLength: 0)
         }
@@ -697,7 +697,7 @@ private struct AuthFooterLink: View {
                 .foregroundStyle(AuthPalette.brand)
                 .underline()
         }
-        .font(.system(size: 15, weight: .regular))
+        .font(TTFont.workSans(15, weight: .regular))
     }
 }
 
@@ -756,7 +756,7 @@ private struct FacebookMark: View {
 private struct LinkedInMark: View {
     var body: some View {
         Text("in")
-            .font(.system(size: 18, weight: .bold))
+            .font(TTFont.workSans(18, weight: .bold))
             .foregroundStyle(AuthPalette.ink)
     }
 }
@@ -768,23 +768,23 @@ private struct ResetMethodRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: method.icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
                 .background(method.tint)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             VStack(alignment: .leading, spacing: 4) {
                 Text(method.title)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(TTFont.workSans(16, weight: .semibold))
                     .foregroundStyle(AuthPalette.ink)
                 Text(method.subtitle)
-                    .font(.system(size: 12, weight: .regular))
+                    .font(TTFont.workSans(12, weight: .regular))
                     .foregroundStyle(AuthPalette.muted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Image(systemName: "chevron.right")
-                .font(.system(size: 13, weight: .semibold))
+                .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(Color(white: 0.72))
         }
         .padding(14)

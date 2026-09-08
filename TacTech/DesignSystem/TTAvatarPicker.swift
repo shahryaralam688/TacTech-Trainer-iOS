@@ -203,14 +203,14 @@ struct AssessmentAvatarStep: View {
     var body: some View {
         VStack(spacing: 0) {
             Text(title)
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(TTColor.ink)
                 .multilineTextAlignment(.center)
                 .padding(.top, 12)
                 .padding(.horizontal, 24)
 
             Text(subtitle)
-                .font(.system(size: 14, weight: .medium))
+                .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
                 .multilineTextAlignment(.center)
                 .padding(.top, 8)
@@ -397,7 +397,7 @@ struct AssessmentAvatarStep: View {
                         )
                         .overlay {
                             Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 22, weight: .semibold))
+                                .font(TTFont.workSans(22, weight: .semibold))
                                 .foregroundStyle(orange)
                                 .symbolEffect(.bounce, value: swapToken)
                         }

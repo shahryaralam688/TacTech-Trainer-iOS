@@ -50,7 +50,7 @@ struct FitnessAssessmentFlowView: View {
                     HStack(spacing: 8) {
                         if isSaving { ProgressView().tint(.white) }
                         Text(ctaTitle)
-                            .font(.system(size: 17, weight: .semibold))
+                            .font(TTFont.workSans(17, weight: .semibold))
                         Image("OnboardingArrowRight")
                             .renderingMode(.template)
                             .resizable()
@@ -84,7 +84,7 @@ struct FitnessAssessmentFlowView: View {
     private var header: some View {
         ZStack {
             Text("Assessment")
-                .font(.system(size: 17, weight: .bold))
+                .font(TTFont.workSans(17, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
 
             HStack {
@@ -97,7 +97,7 @@ struct FitnessAssessmentFlowView: View {
                 Spacer()
 
                 Text("\(step + 1) of \(total)")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(AssessmentColor.blue)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)

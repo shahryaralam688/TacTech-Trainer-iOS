@@ -391,7 +391,7 @@ struct NutritionView: View {
                     .foregroundStyle(.black)
                 Spacer()
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(TTFont.workSans(16, weight: .bold))
                     .foregroundStyle(Color(white: 0.35))
             }
 
@@ -524,7 +524,7 @@ struct NutritionView: View {
     private func suggestionStat(icon: String, text: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
+                .font(TTFont.workSans(11, weight: .bold))
             Text(text)
                 .font(TTFont.textSM(.semibold))
                 .lineLimit(1)

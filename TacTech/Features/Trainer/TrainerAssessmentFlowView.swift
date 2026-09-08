@@ -47,7 +47,7 @@ struct TrainerAssessmentFlowView: View {
                 HStack(spacing: 8) {
                     if isSaving { ProgressView().tint(.white) }
                     Text(step == total - 1 ? "Finish" : "Continue")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(TTFont.workSans(17, weight: .semibold))
                     Image("OnboardingArrowRight")
                         .renderingMode(.template)
                         .resizable()
@@ -79,7 +79,7 @@ struct TrainerAssessmentFlowView: View {
     private var header: some View {
         ZStack {
             Text("Assessment")
-                .font(.system(size: 17, weight: .bold))
+                .font(TTFont.workSans(17, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
 
             HStack {
@@ -92,7 +92,7 @@ struct TrainerAssessmentFlowView: View {
                 Spacer()
 
                 Text("\(step + 1) of \(total)")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(AssessmentColor.blue)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
@@ -198,7 +198,7 @@ struct TrainerYearsStep: View {
             AssessmentAgeWheel(selection: $draft.yearsExperience, range: 0...30)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             Text(draft.yearsExperience == 0 ? "Just getting started" : "\(draft.yearsExperience) years experience")
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: draft.yearsExperience)
@@ -231,7 +231,7 @@ struct TrainerCertificationsStep: View {
                     .padding(.top, 20)
 
                 Text("Select all that apply")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(AssessmentColor.slate)
 
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -295,18 +295,18 @@ private struct CertificationPickCard: View {
                     Spacer(minLength: 8)
 
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(TTFont.workSans(20, weight: .semibold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(TTFont.workSans(16, weight: .bold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(selected ? AssessmentColor.white.opacity(0.9) : AssessmentColor.slate)
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
@@ -365,7 +365,7 @@ struct TrainerSpecialtyStep: View {
                     .padding(.top, 20)
 
                 Text("Pick the one that fits you best")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(AssessmentColor.slate)
 
                 VStack(spacing: 10) {
@@ -413,10 +413,10 @@ private struct SpecialtyPickRow: View {
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(TTFont.workSans(16, weight: .bold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
                     Text(subtitle)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(selected ? AssessmentColor.white.opacity(0.88) : AssessmentColor.slate)
                         .lineLimit(2)
                 }
@@ -424,7 +424,7 @@ private struct SpecialtyPickRow: View {
                 Spacer(minLength: 8)
 
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 22, weight: .semibold))
+                    .font(TTFont.workSans(22, weight: .semibold))
                     .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
                     .symbolEffect(.bounce, value: selected)
             }
@@ -482,7 +482,7 @@ struct TrainerClientTypesStep: View {
                     .padding(.top, 20)
 
                 Text("Select all that apply")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(AssessmentColor.slate)
 
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -541,19 +541,19 @@ private struct ClientTypePickCard: View {
                     Spacer(minLength: 8)
 
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(TTFont.workSans(20, weight: .semibold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
                         .symbolEffect(.bounce, value: selected)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text(title)
-                        .font(.system(size: 15, weight: .bold))
+                        .font(TTFont.workSans(15, weight: .bold))
                         .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
                         .lineLimit(2)
                         .minimumScaleFactor(0.85)
                     Text(subtitle)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(selected ? AssessmentColor.white.opacity(0.9) : AssessmentColor.slate)
                         .lineLimit(2)
                 }
@@ -603,14 +603,14 @@ struct TrainerCapacityStep: View {
             Spacer(minLength: 16)
 
             Text("\(draft.maxClients)")
-                .font(.system(size: 84, weight: .bold))
+                .font(TTFont.workSans(84, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: draft.maxClients)
 
             Text("active clients")
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
 
             CapacityClientsPicker(
@@ -628,7 +628,7 @@ struct TrainerCapacityStep: View {
             }
 
             Text("I’m set up to coach \(draft.maxClients) clients")
-                .font(.system(size: 16, weight: .medium))
+                .font(TTFont.workSans(16, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: draft.maxClients)
@@ -693,12 +693,12 @@ private struct CapacityClientsPicker: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(TTFont.workSans(15, weight: .semibold))
                     Text(isCustom ? "Custom · \(selection)" : "Custom")
-                        .font(.system(size: 16, weight: .bold))
+                        .font(TTFont.workSans(16, weight: .bold))
                     if !isCustom {
                         Text("30+")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(TTFont.workSans(12, weight: .bold))
                             .foregroundStyle(AssessmentColor.orange)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -740,7 +740,7 @@ private struct CapacityClientsPicker: View {
     private func capacityChip(label: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 17, weight: .bold))
+                .font(TTFont.workSans(17, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
                 .frame(maxWidth: .infinity)
@@ -777,7 +777,7 @@ private struct CapacityCustomStepper: View {
             }
 
             Text("\(value)")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(AssessmentColor.ink)
                 .frame(minWidth: 72)
@@ -803,7 +803,7 @@ private struct CapacityCustomStepper: View {
     private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 18, weight: .bold))
+                .font(TTFont.workSans(18, weight: .bold))
                 .foregroundStyle(AssessmentColor.white)
                 .frame(width: 44, height: 44)
                 .background(AssessmentColor.orange)
@@ -852,21 +852,21 @@ struct TrainerDaysStep: View {
             title("How many days per week\ncan you coach?")
 
             Text("This is weekly — not monthly")
-                .font(.system(size: 14, weight: .medium))
+                .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
                 .padding(.top, 8)
 
             Spacer(minLength: 20)
 
             Text("\(clamped)")
-                .font(.system(size: 84, weight: .bold))
+                .font(TTFont.workSans(84, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .monospacedDigit()
                 .contentTransition(.numericText())
                 .animation(.snappy(duration: 0.18), value: clamped)
 
             Text(clamped == 1 ? "day every week" : "days every week")
-                .font(.system(size: 18, weight: .semibold))
+                .font(TTFont.workSans(18, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
                 .animation(.snappy(duration: 0.18), value: clamped)
 
@@ -884,7 +884,7 @@ struct TrainerDaysStep: View {
                 + Text(" every week")
                     .foregroundStyle(AssessmentColor.slate)
             )
-            .font(.system(size: 16, weight: .medium))
+            .font(TTFont.workSans(16, weight: .medium))
             .padding(.top, 20)
             .animation(.snappy(duration: 0.18), value: clamped)
 
@@ -934,7 +934,7 @@ private struct DaysPerWeekDragSlider: View {
                 HStack(spacing: 0) {
                     ForEach(values, id: \.self) { day in
                         Text("\(day)")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(TTFont.workSans(16, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(day == value ? Color.clear : AssessmentColor.coolGrey)
                             .frame(maxWidth: .infinity)
@@ -944,7 +944,7 @@ private struct DaysPerWeekDragSlider: View {
                 .frame(height: trackHeight)
 
                 Text("\(value)")
-                    .font(.system(size: 22, weight: .bold))
+                    .font(TTFont.workSans(22, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(AssessmentColor.white)
                     .frame(width: thumbSize, height: thumbSize)
@@ -1009,7 +1009,7 @@ struct TrainerModesStep: View {
                     .padding(.top, 20)
 
                 Text("Select all that apply")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(AssessmentColor.slate)
 
                 LazyVGrid(columns: columns, spacing: 12) {
@@ -1060,7 +1060,7 @@ struct TrainerGenderStep: View {
             Button(action: onSkip) {
                 HStack(spacing: 8) {
                     Text("Prefer to skip, thanks!")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                     TTIcon(icon: .closeX, size: 14)
                 }
                 .foregroundStyle(AssessmentColor.orange)
@@ -1083,7 +1083,7 @@ struct TrainerGenderStep: View {
         } label: {
             VStack(spacing: 12) {
                 TTIcon(icon: icon, size: 32)
-                Text(title).font(.system(size: 17, weight: .bold))
+                Text(title).font(TTFont.workSans(17, weight: .bold))
             }
             .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
             .frame(maxWidth: .infinity)
@@ -1106,7 +1106,7 @@ struct TrainerBioStep: View {
         VStack(alignment: .leading, spacing: 18) {
             title("Tell trainees about yourself")
             Text("A short bio helps clients trust your coaching.")
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
                 .frame(maxWidth: .infinity, alignment: .center)
 
@@ -1128,7 +1128,7 @@ struct TrainerPhilosophyStep: View {
         VStack(alignment: .leading, spacing: 18) {
             title("Any coaching philosophy\nor notes?")
             Text("Optional — TacTech AI will use this when helping you build plans.")
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
                 .frame(maxWidth: .infinity, alignment: .center)
 
@@ -1147,7 +1147,7 @@ struct TrainerPhilosophyStep: View {
 
 private func title(_ text: String) -> some View {
     Text(text)
-        .font(.system(size: 28, weight: .bold))
+        .font(TTFont.workSans(28, weight: .bold))
         .foregroundStyle(AssessmentColor.ink)
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)

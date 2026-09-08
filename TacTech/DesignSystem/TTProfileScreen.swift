@@ -239,7 +239,7 @@ struct TTProfileScreen<Extra: View>: View {
                         Text(rangeLabel)
                             .font(TTFont.caption(12))
                         Image(systemName: "chevron.down")
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(TTFont.workSans(10, weight: .semibold))
                     }
                     .foregroundStyle(TTColor.inkMuted)
                     .padding(.horizontal, 10)

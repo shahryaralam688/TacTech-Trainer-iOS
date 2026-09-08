@@ -102,9 +102,9 @@ struct AccountSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
                 Text("Danger Zone")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(TTFont.workSans(16, weight: .bold))
                 Text("Warning")
-                    .font(.system(size: 11, weight: .bold))
+                    .font(TTFont.workSans(11, weight: .bold))
                     .foregroundStyle(Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
@@ -121,7 +121,7 @@ struct AccountSettingsView: View {
                 HStack {
                     Image(systemName: "trash")
                     Text("Close Account")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                     Spacer()
                     Image(systemName: "chevron.right")
                 }
@@ -142,7 +142,7 @@ struct AccountSettingsView: View {
             } label: {
                 settingsRowLabel(title: "Sign Out", icon: "rectangle.portrait.and.arrow.right", trailing: {
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(TTFont.workSans(13, weight: .semibold))
                         .foregroundStyle(Color(white: 0.55))
                 })
             }
@@ -153,13 +153,13 @@ struct AccountSettingsView: View {
     private var footer: some View {
         VStack(spacing: 8) {
             Image(systemName: "sparkle")
-                .font(.system(size: 22, weight: .bold))
+                .font(TTFont.workSans(22, weight: .bold))
                 .foregroundStyle(.white)
             Text("TacTech v1.0")
-                .font(.system(size: 13, weight: .semibold))
+                .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
             Text("© All Rights Reserved, 2026")
-                .font(.system(size: 11, weight: .medium))
+                .font(TTFont.workSans(11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.55))
         }
         .frame(maxWidth: .infinity)
@@ -179,10 +179,10 @@ struct AccountSettingsView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(TTFont.workSans(16, weight: .bold))
                 if let badge {
                     Text(badge.0)
-                        .font(.system(size: 11, weight: .bold))
+                        .font(TTFont.workSans(11, weight: .bold))
                         .foregroundStyle(badge.2)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -191,7 +191,7 @@ struct AccountSettingsView: View {
                 }
                 Spacer()
                 Image(systemName: "ellipsis")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(TTFont.workSans(14, weight: .bold))
                     .foregroundStyle(Color(white: 0.45))
             }
             VStack(spacing: 8) {
@@ -204,7 +204,7 @@ struct AccountSettingsView: View {
         NavigationLink(value: route) {
             settingsRowLabel(title: title, icon: icon, badge: badge) {
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(Color(white: 0.55))
             }
         }
@@ -216,10 +216,10 @@ struct AccountSettingsView: View {
             settingsRowLabel(title: title, icon: icon) {
                 HStack(spacing: 8) {
                     Text(value)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(Color(white: 0.45))
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(TTFont.workSans(13, weight: .semibold))
                         .foregroundStyle(Color(white: 0.55))
                 }
             }
@@ -251,17 +251,17 @@ struct AccountSettingsView: View {
     ) -> some View {
         HStack(spacing: 14) {
             Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(.black)
                 .frame(width: 28)
 
             Text(title)
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(.black)
 
             if let badge {
                 Text(badge)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(TTFont.workSans(11, weight: .bold))
                     .foregroundStyle(orange)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)

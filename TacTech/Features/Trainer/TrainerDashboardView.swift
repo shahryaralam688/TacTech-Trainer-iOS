@@ -171,7 +171,7 @@ struct TrainerDashboardView: View {
                                     .clipShape(Capsule())
 
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .bold))
+                                    .font(TTFont.workSans(12, weight: .bold))
                                     .foregroundStyle(Color(white: 0.45))
                             }
                             .padding(14)
@@ -260,7 +260,7 @@ struct TrainerDashboardView: View {
                     .font(TTFont.textMD(.semibold))
                 Spacer()
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(TTFont.workSans(12, weight: .bold))
             }
             Text(value)
                 .font(TTFont.headingLG(.bold))
@@ -405,7 +405,7 @@ struct TrainerDashboardView: View {
             }
             Spacer()
             Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .bold))
+                .font(TTFont.workSans(12, weight: .bold))
                 .foregroundStyle(Color(white: 0.55))
         }
         .padding(14)

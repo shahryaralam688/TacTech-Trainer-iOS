@@ -78,7 +78,7 @@ struct CoachMessageBubble: View {
 
     private var analyzingChip: some View {
         Text("Analyzing photo…")
-            .font(.system(size: 12, weight: .semibold))
+            .font(TTFont.workSans(12, weight: .semibold))
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -104,7 +104,7 @@ struct CoachMessageBubble: View {
                         .padding(.top, 3)
                 }
                 Text(message.content.isEmpty && message.status == .streaming ? "…" : message.content)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(TTFont.workSans(15, weight: .medium))
                     .foregroundStyle(isUser ? Color.white : ink)
                     .multilineTextAlignment(.leading)
                     .contentTransition(.opacity)
@@ -134,12 +134,12 @@ struct CoachMessageBubble: View {
         HStack(spacing: 8) {
             if case .failed(let reason) = message.status {
                 Text(reason)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(TTFont.workSans(11, weight: .medium))
                     .foregroundStyle(Color.red.opacity(0.85))
                     .lineLimit(2)
                 if onRetry != nil {
                     Button("Retry") { onRetry?() }
-                        .font(.system(size: 12, weight: .bold))
+                        .font(TTFont.workSans(12, weight: .bold))
                         .foregroundStyle(orange)
                 }
             }
@@ -147,7 +147,7 @@ struct CoachMessageBubble: View {
             if !isUser, let url = message.audioUrl, !url.isEmpty {
                 Button { onPlayAudio?() } label: {
                     Label("Play", systemImage: "speaker.wave.2.fill")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(TTFont.workSans(11, weight: .semibold))
                         .foregroundStyle(orange)
                 }
                 .buttonStyle(.plain)
@@ -156,7 +156,7 @@ struct CoachMessageBubble: View {
             if !isUser, let citations = message.citations, !citations.isEmpty {
                 Button { onCitations?() } label: {
                     Text("Sources \(citations.count)")
-                        .font(.system(size: 11, weight: .semibold))
+                        .font(TTFont.workSans(11, weight: .semibold))
                         .foregroundStyle(muted)
                 }
                 .buttonStyle(.plain)

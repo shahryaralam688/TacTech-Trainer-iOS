@@ -16,15 +16,15 @@ struct CoachCitationsSheet: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text(cite.sourceType.replacingOccurrences(of: "_", with: " ").capitalized)
-                                    .font(.system(size: 13, weight: .bold))
+                                    .font(TTFont.workSans(13, weight: .bold))
                                     .foregroundStyle(orange)
                                 Spacer()
                                 Text(String(format: "%.0f%%", cite.score * 100))
-                                    .font(.system(size: 12, weight: .semibold))
+                                    .font(TTFont.workSans(12, weight: .semibold))
                                     .foregroundStyle(muted)
                             }
                             Text(cite.content)
-                                .font(.system(size: 14, weight: .medium))
+                                .font(TTFont.workSans(14, weight: .medium))
                                 .foregroundStyle(ink)
                                 .fixedSize(horizontal: false, vertical: true)
                         }

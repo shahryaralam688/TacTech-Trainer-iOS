@@ -82,15 +82,15 @@ struct WelcomeView: View {
                     Spacer()
                     VStack(spacing: 12) {
                         Text("TACTECH")
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(TTFont.workSans(13, weight: .semibold))
                             .tracking(3)
                             .foregroundStyle(.white.opacity(0.72))
                         Text("Train with\nclarity.")
-                            .font(.system(size: 42, weight: .bold))
+                            .font(TTFont.workSans(42, weight: .bold))
                             .foregroundStyle(.white)
                             .multilineTextAlignment(.center)
                         Text("One app for coaches and athletes.")
-                            .font(.system(size: 17, weight: .regular))
+                            .font(TTFont.workSans(17, weight: .regular))
                             .foregroundStyle(.white.opacity(0.88))
                             .multilineTextAlignment(.center)
                     }
@@ -100,7 +100,7 @@ struct WelcomeView: View {
                     VStack(spacing: 12) {
                         Button(action: onSignup) {
                             Text("Create account")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(TTFont.workSans(17, weight: .semibold))
                                 .foregroundStyle(.black)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 58)
@@ -109,7 +109,7 @@ struct WelcomeView: View {
                         }
                         Button(action: onLogin) {
                             Text("I already have an account")
-                                .font(.system(size: 17, weight: .semibold))
+                                .font(TTFont.workSans(17, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 58)
@@ -135,13 +135,13 @@ struct WelcomeView: View {
     private var demoHint: some View {
         VStack(spacing: 4) {
             Text("Demo accounts")
-                .font(.system(size: 11, weight: .medium))
+                .font(TTFont.workSans(11, weight: .medium))
                 .foregroundStyle(.white.opacity(0.45))
             Text("trainer@tactech.app / trainer123")
-                .font(.system(size: 12, weight: .regular))
+                .font(TTFont.workSans(12, weight: .regular))
                 .foregroundStyle(.white.opacity(0.62))
             Text("trainee@tactech.app / trainee123")
-                .font(.system(size: 12, weight: .regular))
+                .font(TTFont.workSans(12, weight: .regular))
                 .foregroundStyle(.white.opacity(0.62))
         }
         .frame(maxWidth: .infinity)
@@ -192,7 +192,7 @@ struct RoleSelectionView: View {
 
                     if let error {
                         Text(error)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(TTFont.workSans(13, weight: .semibold))
                             .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15))
                             .padding(.bottom, 12)
                             .transition(.opacity.combined(with: .move(edge: .top)))
@@ -221,7 +221,7 @@ struct RoleSelectionView: View {
             TTBackButton(style: .onLight) { dismiss() }
             Spacer()
             Text("STEP 2 OF 2")
-                .font(.system(size: 11, weight: .bold))
+                .font(TTFont.workSans(11, weight: .bold))
                 .tracking(1.4)
                 .foregroundStyle(ink)
                 .padding(.horizontal, 12)
@@ -234,11 +234,11 @@ struct RoleSelectionView: View {
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Choose your path")
-                .font(.system(size: 32, weight: .bold))
+                .font(TTFont.workSans(32, weight: .bold))
                 .foregroundStyle(ink)
 
             Text("Pick Trainer or Trainee. Tools and screens will match the role you choose.")
-                .font(.system(size: 16, weight: .medium))
+                .font(TTFont.workSans(16, weight: .medium))
                 .foregroundStyle(muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -271,7 +271,7 @@ struct RoleSelectionView: View {
                 TTIcon(icon: .user, size: 18)
                     .foregroundStyle(nameFocused ? orange : ink.opacity(0.45))
                 TextField("Full name", text: $name)
-                    .font(.system(size: 16, weight: .medium))
+                    .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(ink)
                     .focused($nameFocused)
                     .tint(orange)
@@ -287,7 +287,7 @@ struct RoleSelectionView: View {
                         TTIcon(icon: .link1, size: 18)
                             .foregroundStyle(inviteFocused ? orange : ink.opacity(0.45))
                         TextField("e.g. TACT-MAYA", text: $inviteCode)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(TTFont.workSans(16, weight: .medium))
                             .foregroundStyle(ink)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
@@ -299,7 +299,7 @@ struct RoleSelectionView: View {
                     .ttInputChrome(focused: inviteFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
 
                     Text("Use TACT-MAYA to join the demo trainer.")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(muted)
                 }
                 .transition(
@@ -314,7 +314,7 @@ struct RoleSelectionView: View {
 
     private func fieldLabel(_ text: String) -> some View {
         Text(text.uppercased())
-            .font(.system(size: 11, weight: .bold))
+            .font(TTFont.workSans(11, weight: .bold))
             .tracking(0.8)
             .foregroundStyle(ink.opacity(0.55))
     }
@@ -329,10 +329,10 @@ struct RoleSelectionView: View {
                     ProgressView().tint(.white)
                 } else {
                     Text("Continue to assessment")
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(TTFont.workSans(17, weight: .semibold))
                     Spacer(minLength: 8)
                     Image(systemName: "arrow.right")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(TTFont.workSans(16, weight: .semibold))
                         .symbolEffect(.bounce, value: role)
                 }
             }
@@ -411,18 +411,18 @@ private struct RolePathCard: View {
                                 TTIcon(icon: role.sandowIcon, filled: true, size: 16)
                                     .foregroundStyle(isSelected ? orange : ink)
                                 Text(role.title)
-                                    .font(.system(size: 18, weight: .bold))
+                                    .font(TTFont.workSans(18, weight: .bold))
                                     .foregroundStyle(ink)
                             }
                             Text(role.headline)
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(TTFont.workSans(13, weight: .semibold))
                                 .foregroundStyle(isSelected ? orange : muted)
                         }
 
                         Spacer(minLength: 8)
 
                         Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(.system(size: 22, weight: .semibold))
+                            .font(TTFont.workSans(22, weight: .semibold))
                             .foregroundStyle(isSelected ? orange : Color(white: 0.72))
                             .symbolEffect(.bounce, value: isSelected)
                     }
@@ -435,7 +435,7 @@ private struct RolePathCard: View {
                                     .frame(width: 5, height: 5)
                                     .padding(.top, 5)
                                 Text(perk)
-                                    .font(.system(size: 12, weight: .medium))
+                                    .font(TTFont.workSans(12, weight: .medium))
                                     .foregroundStyle(ink.opacity(0.72))
                                     .fixedSize(horizontal: false, vertical: true)
                             }

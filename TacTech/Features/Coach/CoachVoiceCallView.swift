@@ -49,17 +49,17 @@ struct CoachVoiceCallView: View {
 
                 VStack(spacing: 6) {
                     Text("TacTech AI Call")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(TTFont.workSans(20, weight: .bold))
                         .foregroundStyle(ink)
                     Text(statusLabel)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(muted)
                         .multilineTextAlignment(.center)
                 }
 
                 if let hint {
                     Text(hint)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(ink)
                         .padding(.horizontal, 16)
                         .multilineTextAlignment(.center)
@@ -67,7 +67,7 @@ struct CoachVoiceCallView: View {
 
                 if let errorText {
                     Text(errorText)
-                        .font(.system(size: 13, weight: .semibold))
+                        .font(TTFont.workSans(13, weight: .semibold))
                         .foregroundStyle(Color.red.opacity(0.85))
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 16)
@@ -77,7 +77,7 @@ struct CoachVoiceCallView: View {
                     .padding(.top, 8)
 
                 Button("End call", action: hangup)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(TTFont.workSans(15, weight: .semibold))
                     .foregroundStyle(muted)
                     .padding(.bottom, 20)
             }
@@ -114,7 +114,7 @@ struct CoachVoiceCallView: View {
 
     private var holdButton: some View {
         Text(holding ? "Release" : "Hold to talk")
-            .font(.system(size: 16, weight: .bold))
+            .font(TTFont.workSans(16, weight: .bold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)

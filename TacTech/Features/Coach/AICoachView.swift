@@ -169,7 +169,7 @@ struct AICoachView: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("TacTech AI")
-                    .font(.system(size: 17, weight: .bold))
+                    .font(TTFont.workSans(17, weight: .bold))
                     .foregroundStyle(ink)
                 HStack(spacing: 6) {
                     Circle()
@@ -178,7 +178,7 @@ struct AICoachView: View {
                               : Color.orange)
                         .frame(width: 7, height: 7)
                     Text(audience.headerSubtitle)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(muted)
                         .lineLimit(1)
                 }
@@ -195,7 +195,7 @@ struct AICoachView: View {
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
-                    .font(.system(size: 20, weight: .medium))
+                    .font(TTFont.workSans(20, weight: .medium))
                     .foregroundStyle(ink.opacity(0.7))
             }
 
@@ -205,7 +205,7 @@ struct AICoachView: View {
                         .fill(Color.black.opacity(0.06))
                         .frame(width: 36, height: 36)
                     Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
+                        .font(TTFont.workSans(13, weight: .bold))
                         .foregroundStyle(ink)
                 }
             }
@@ -301,7 +301,7 @@ struct AICoachView: View {
     private var welcomeCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(audience.welcome)
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(ink)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -368,7 +368,7 @@ struct AICoachView: View {
                         sendDraft()
                     } label: {
                         Text(tip)
-                            .font(.system(size: 13, weight: .semibold))
+                            .font(TTFont.workSans(13, weight: .semibold))
                             .foregroundStyle(ink)
                             .padding(.horizontal, 13)
                             .padding(.vertical, 9)
@@ -389,12 +389,12 @@ struct AICoachView: View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(text)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(TTFont.workSans(13, weight: .medium))
                     .foregroundStyle(Color.red.opacity(0.9))
                     .fixedSize(horizontal: false, vertical: true)
                 if store.rateLimitSecondsRemaining > 0 {
                     Text("Auto-retry in \(store.rateLimitSecondsRemaining)s")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(TTFont.workSans(12, weight: .semibold))
                         .foregroundStyle(muted)
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.18), value: store.rateLimitSecondsRemaining)
@@ -404,7 +404,7 @@ struct AICoachView: View {
             Button(store.rateLimitSecondsRemaining > 0 ? "Retry now" : "Retry") {
                 store.retryLastFailure()
             }
-            .font(.system(size: 13, weight: .bold))
+            .font(TTFont.workSans(13, weight: .bold))
             .foregroundStyle(orange)
         }
         .padding(.horizontal, 14)

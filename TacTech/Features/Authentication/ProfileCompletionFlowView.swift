@@ -71,11 +71,11 @@ struct ProfileCompletionFlowView: View {
 
             Spacer()
             Text("Profile Setup")
-                .font(.system(size: 17, weight: .bold))
+                .font(TTFont.workSans(17, weight: .bold))
             Spacer()
 
             Text("\(step + 1) of \(totalSteps)")
-                .font(.system(size: 13, weight: .semibold))
+                .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
@@ -91,9 +91,9 @@ struct ProfileCompletionFlowView: View {
         Button(action: advance) {
             HStack(spacing: 8) {
                 Text(step == 6 ? "Generate score" : "Continue")
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(TTFont.workSans(17, weight: .semibold))
                 Image(systemName: "arrow.right")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(TTFont.workSans(14, weight: .bold))
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -159,18 +159,18 @@ struct ProfileCompletionFlowView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 Text("Complete your profile")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(TTFont.workSans(28, weight: .bold))
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(roleTitle)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
 
                 boxedField("Full Name", icon: "person", text: $draft.name, field: .fullName)
                 boxedField("Email Address", icon: "envelope", text: .constant(store.currentUser?.email ?? ""), field: .email, disabled: true)
 
                 Text("Gender")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                 HStack(spacing: 8) {
                     ForEach(["Male", "Female", "Non-binary"], id: \.self) { item in
                         chip(item, selected: draft.gender == item) { draft.gender = item }
@@ -178,12 +178,12 @@ struct ProfileCompletionFlowView: View {
                 }
 
                 Text("Member Type")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                 HStack(spacing: 10) {
                     ForEach(UserRole.allCases) { option in
                         let on = store.session?.role == option
                         Text(option.title)
-                            .font(.system(size: 15, weight: .bold))
+                            .font(TTFont.workSans(15, weight: .bold))
                             .foregroundStyle(on ? .white : Color(white: 0.45))
                             .frame(maxWidth: .infinity)
                             .frame(height: 48)
@@ -194,7 +194,7 @@ struct ProfileCompletionFlowView: View {
 
                 if store.session?.role == .trainee {
                     Text("Height · \(Int(draft.heightCm)) cm")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(TTFont.workSans(14, weight: .semibold))
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.18), value: Int(draft.heightCm))
                     Slider(value: $draft.heightCm, in: 140...210, step: 1)
@@ -212,11 +212,11 @@ struct ProfileCompletionFlowView: View {
     private var passwordStep: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text("Secure your account")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .padding(.top, 12)
 
             Text("Confirm a password for TacTech. Minimum 6 characters.")
-                .font(.system(size: 14, weight: .medium))
+                .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
 
             secureField("Password", text: $draft.password, field: .password)
@@ -224,7 +224,7 @@ struct ProfileCompletionFlowView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Password Strength")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(strengthColor)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
@@ -252,9 +252,9 @@ struct ProfileCompletionFlowView: View {
                 .font(.system(size: 56))
                 .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
             Text("Two-step verification")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
             Text("We’ll send a 4-digit code so only you can access this \(roleTitle.lowercased()) account.")
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
@@ -265,11 +265,11 @@ struct ProfileCompletionFlowView: View {
     private var otpEntryStep: some View {
         VStack(spacing: 20) {
             Text("Enter OTP code")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .padding(.top, 20)
 
             Text("Demo code: \(generatedOTP)")
-                .font(.system(size: 13, weight: .semibold))
+                .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(Color(white: 0.45))
 
             HStack(spacing: 12) {
@@ -279,7 +279,7 @@ struct ProfileCompletionFlowView: View {
                     TextField("", text: $otpInput[index])
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.center)
-                        .font(.system(size: 24, weight: .bold))
+                        .font(TTFont.workSans(24, weight: .bold))
                         .foregroundStyle(cellFocused && hasValue ? .white : .primary)
                         .focused($otpFocusIndex, equals: index)
                         .tint(accent)
@@ -306,7 +306,7 @@ struct ProfileCompletionFlowView: View {
 
             if let otpError {
                 Text(otpError)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(.red)
             }
 
@@ -319,12 +319,12 @@ struct ProfileCompletionFlowView: View {
         VStack(spacing: 22) {
             Spacer()
             Image(systemName: "touchid")
-                .font(.system(size: 72, weight: .regular))
+                .font(TTFont.workSans(72, weight: .regular))
                 .foregroundStyle(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
             Text("Enable biometrics")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
             Text("Use Face ID / Touch ID for faster secure access. You can skip and do this later.")
-                .font(.system(size: 15, weight: .medium))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 28)
@@ -333,7 +333,7 @@ struct ProfileCompletionFlowView: View {
                 Task { await enableBiometrics() }
             } label: {
                 Text(biometricOK ? "Fingerprint enabled" : "Press Fingerprint")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(TTFont.workSans(16, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
@@ -349,7 +349,7 @@ struct ProfileCompletionFlowView: View {
     private var notificationsStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text("Stay in the loop")
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
                 .padding(.top, 12)
 
             notificationRow("Workout reminders", icon: "bell.fill", color: .orange, isOn: $draft.notifyWorkouts)
@@ -371,18 +371,18 @@ struct ProfileCompletionFlowView: View {
                         .tint(.white)
                         .scaleEffect(1.3)
                     Text("Generating your TacTech Score…")
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(TTFont.workSans(18, weight: .semibold))
                         .foregroundStyle(.white)
                 }
             } else {
                 VStack(spacing: 22) {
                     Spacer()
                     Text(scoreTitle)
-                        .font(.system(size: 18, weight: .semibold))
+                        .font(TTFont.workSans(18, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.9))
 
                     Text("+\(score)")
-                        .font(.system(size: 72, weight: .bold))
+                        .font(TTFont.workSans(72, weight: .bold))
                         .foregroundStyle(.black)
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.18), value: score)
@@ -393,7 +393,7 @@ struct ProfileCompletionFlowView: View {
                         .padding(.horizontal, 36)
 
                     Text(scoreMessage)
-                        .font(.system(size: 16, weight: .medium))
+                        .font(TTFont.workSans(16, weight: .medium))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
@@ -406,7 +406,7 @@ struct ProfileCompletionFlowView: View {
                         dismiss()
                     } label: {
                         Text("GET STARTED")
-                            .font(.system(size: 17, weight: .bold))
+                            .font(TTFont.workSans(17, weight: .bold))
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .frame(height: 56)
@@ -544,7 +544,7 @@ struct ProfileCompletionFlowView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .foregroundStyle(focusedProfileField == field ? accent : Color(white: 0.45))
@@ -569,7 +569,7 @@ struct ProfileCompletionFlowView: View {
     private func secureField(_ title: String, text: Binding<String>, field: ProfileField) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
             SecureField(title, text: text)
                 .focused($focusedProfileField, equals: field)
                 .tint(accent)
@@ -587,7 +587,7 @@ struct ProfileCompletionFlowView: View {
     private func chip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 14, weight: .semibold))
+                .font(TTFont.workSans(14, weight: .semibold))
                 .foregroundStyle(selected ? .white : .black)
                 .frame(maxWidth: .infinity)
                 .frame(height: 42)
@@ -605,7 +605,7 @@ struct ProfileCompletionFlowView: View {
                 .background(color)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             Text(title)
-                .font(.system(size: 16, weight: .semibold))
+                .font(TTFont.workSans(16, weight: .semibold))
             Spacer()
             Toggle("", isOn: isOn)
                 .labelsHidden()

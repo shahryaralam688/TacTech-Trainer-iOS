@@ -87,7 +87,7 @@ struct TraineeDashboardView: View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Fitness Metrics") {
                 Button("See All") { showProgress = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
@@ -124,10 +124,10 @@ struct TraineeDashboardView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Text(title)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                 Spacer()
                 Image(systemName: icon)
-                    .font(.system(size: 12, weight: .bold))
+                    .font(TTFont.workSans(12, weight: .bold))
             }
 
             Group {
@@ -158,7 +158,7 @@ struct TraineeDashboardView: View {
             }
 
             Text(value)
-                .font(.system(size: 28, weight: .bold))
+                .font(TTFont.workSans(28, weight: .bold))
         }
         .foregroundStyle(.white)
         .padding(16)
@@ -184,7 +184,7 @@ struct TraineeDashboardView: View {
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Today’s Workout") {
                 Button("See All") { showWorkouts = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
@@ -245,7 +245,7 @@ struct TraineeDashboardView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "play.fill")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(TTFont.workSans(14, weight: .bold))
                         Text(session == nil ? "Start Next Session" : "Start Today’s Workout")
                             .font(TTFont.textLG(.bold))
                     }
@@ -263,7 +263,7 @@ struct TraineeDashboardView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "link")
-                            .font(.system(size: 14, weight: .bold))
+                            .font(TTFont.workSans(14, weight: .bold))
                         Text("Link a trainer to get workouts")
                             .font(TTFont.textLG(.bold))
                     }
@@ -281,9 +281,9 @@ struct TraineeDashboardView: View {
     private func workoutPill(icon: String, text: String) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
-                .font(.system(size: 11, weight: .bold))
+                .font(TTFont.workSans(11, weight: .bold))
             Text(text)
-                .font(.system(size: 12, weight: .bold))
+                .font(TTFont.workSans(12, weight: .bold))
         }
         .foregroundStyle(.white)
         .padding(.horizontal, 10)
@@ -300,7 +300,7 @@ struct TraineeDashboardView: View {
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Diet & Nutrition") {
                 Button("See All") { showNutrition = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
@@ -363,28 +363,28 @@ struct TraineeDashboardView: View {
 
                 VStack(alignment: .leading, spacing: 8) {
                     Text(name)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(TTFont.workSans(16, weight: .bold))
                         .foregroundStyle(.black)
                         .lineLimit(2)
 
                     HStack {
                         if empty {
                             Label("Scan or add a meal", systemImage: "fork.knife")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(TTFont.workSans(12, weight: .medium))
                                 .foregroundStyle(Color(white: 0.45))
                         } else {
                             Label("\(calories)kcal", systemImage: "flame.fill")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(TTFont.workSans(12, weight: .medium))
                                 .foregroundStyle(Color(white: 0.45))
                             Label("\(minutes)min", systemImage: "clock")
-                                .font(.system(size: 12, weight: .medium))
+                                .font(TTFont.workSans(12, weight: .medium))
                                 .foregroundStyle(Color(white: 0.45))
                         }
 
                         Spacer(minLength: 0)
 
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(TTFont.workSans(12, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 28, height: 28)
                             .background(orange)
@@ -403,7 +403,7 @@ struct TraineeDashboardView: View {
 
     private func mealStatPill(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 10, weight: .bold))
+            .font(TTFont.workSans(10, weight: .bold))
             .foregroundStyle(.white)
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
@@ -423,7 +423,7 @@ struct TraineeDashboardView: View {
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Activities") {
                 Button("See All") { showProgress = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
@@ -434,7 +434,7 @@ struct TraineeDashboardView: View {
                             activityRange = range
                         } label: {
                             Text(range.label)
-                                .font(.system(size: 12, weight: .bold))
+                                .font(TTFont.workSans(12, weight: .bold))
                                 .foregroundStyle(activityRange == range ? .white : Color(white: 0.35))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
@@ -454,7 +454,7 @@ struct TraineeDashboardView: View {
 
                     if peak > 0 {
                         Text("\(peak)")
-                            .font(.system(size: 12, weight: .bold))
+                            .font(TTFont.workSans(12, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -468,16 +468,16 @@ struct TraineeDashboardView: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("\(total.formatted()) kcal")
-                            .font(.system(size: 28, weight: .bold))
+                            .font(TTFont.workSans(28, weight: .bold))
                             .foregroundStyle(.black)
 
                         HStack(spacing: 14) {
                             Label(deltaLabel(delta), systemImage: "star.fill")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(TTFont.workSans(13, weight: .semibold))
                                 .foregroundStyle(delta >= 0 ? orange : Color(white: 0.45))
 
                             Label("\(suggestions) Suggestions", systemImage: "person.fill")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(TTFont.workSans(13, weight: .semibold))
                                 .foregroundStyle(Color(white: 0.45))
                         }
                     }
@@ -488,7 +488,7 @@ struct TraineeDashboardView: View {
                         showWorkouts = true
                     } label: {
                         Image(systemName: "figure.run")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(TTFont.workSans(16, weight: .bold))
                             .foregroundStyle(.white)
                             .frame(width: 44, height: 44)
                             .background(Color.black)
@@ -515,7 +515,7 @@ struct TraineeDashboardView: View {
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("My Coach") {
                 Button("Profile") { showProfile = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
@@ -541,10 +541,10 @@ struct TraineeDashboardView: View {
                         }
 
                         Text("\(notes.count)+")
-                            .font(.system(size: 34, weight: .bold))
+                            .font(TTFont.workSans(34, weight: .bold))
                             .foregroundStyle(.white)
                         Text("Trainer conversations")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(TTFont.workSans(16, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.92))
                     }
 
@@ -554,7 +554,7 @@ struct TraineeDashboardView: View {
                         showProfile = true
                     } label: {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(TTFont.workSans(16, weight: .bold))
                             .foregroundStyle(orange)
                             .frame(width: 44, height: 44)
                             .background(Color.white)
@@ -570,7 +570,7 @@ struct TraineeDashboardView: View {
 
     private func coachPill(_ text: String) -> some View {
         Text(text)
-            .font(.system(size: 11, weight: .bold))
+            .font(TTFont.workSans(11, weight: .bold))
             .foregroundStyle(.white)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -587,13 +587,13 @@ struct TraineeDashboardView: View {
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Form Insights") {
                 Button("See All") { showProgress = true }
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
             if reports.isEmpty {
                 Text("Form scores and coaching cues show up here after a live form session.")
-                    .font(.system(size: 14, weight: .medium))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(Color(white: 0.45))
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -611,18 +611,18 @@ struct TraineeDashboardView: View {
                                         .fill(Color(white: 0.94))
                                         .frame(width: 56, height: 56)
                                     Image(systemName: "figure.strengthtraining.traditional")
-                                        .font(.system(size: 20, weight: .semibold))
+                                        .font(TTFont.workSans(20, weight: .semibold))
                                         .foregroundStyle(Color(white: 0.35))
                                 }
 
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(exerciseTitle(for: report.exerciseId))
-                                        .font(.system(size: 15, weight: .bold))
+                                        .font(TTFont.workSans(15, weight: .bold))
                                         .foregroundStyle(.black)
                                         .lineLimit(1)
 
                                     Text(report.createdAt.formatted(date: .abbreviated, time: .omitted))
-                                        .font(.system(size: 12, weight: .medium))
+                                        .font(TTFont.workSans(12, weight: .medium))
                                         .foregroundStyle(Color(white: 0.45))
 
                                     HStack(spacing: 12) {
@@ -630,14 +630,14 @@ struct TraineeDashboardView: View {
                                         Label("\(report.repCount) reps", systemImage: "eye")
                                         Label("\(report.cues.count) cues", systemImage: "heart.fill")
                                     }
-                                    .font(.system(size: 11, weight: .semibold))
+                                    .font(TTFont.workSans(11, weight: .semibold))
                                     .foregroundStyle(Color(white: 0.45))
                                 }
 
                                 Spacer(minLength: 0)
 
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(TTFont.workSans(13, weight: .semibold))
                                     .foregroundStyle(Color(white: 0.35))
                             }
                             .padding(12)
@@ -656,7 +656,7 @@ struct TraineeDashboardView: View {
     private func sectionHeader<Trailing: View>(_ title: String, @ViewBuilder trailing: () -> Trailing) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 20, weight: .bold))
+                .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(.black)
             Spacer()
             trailing()

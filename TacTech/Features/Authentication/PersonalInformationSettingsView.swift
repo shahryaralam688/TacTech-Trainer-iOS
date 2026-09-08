@@ -252,7 +252,7 @@ struct PersonalInformationSettingsView: View {
                     .foregroundStyle(TTColor.ink)
                 Spacer()
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(TTFont.workSans(13, weight: .semibold))
                     .foregroundStyle(Color(white: 0.45))
             }
             .padding(.horizontal, 14)
@@ -283,7 +283,7 @@ struct PersonalInformationSettingsView: View {
                             .lineLimit(1)
                             .minimumScaleFactor(0.85)
                         Image(systemName: on ? "checkmark.square.fill" : "circle")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(TTFont.workSans(14, weight: .semibold))
                     }
                     .foregroundStyle(on ? .white : TTColor.ink)
                     .frame(maxWidth: .infinity)

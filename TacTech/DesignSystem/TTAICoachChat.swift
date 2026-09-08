@@ -83,20 +83,25 @@ struct TTAICoachChatOverlay: View {
     private let soft = Animation.spring(response: 0.42, dampingFraction: 0.84)
 
     var body: some View {
-        ZStack {
-            // Dim behind expanding card (fades in after morph starts).
-            Color.black
-                .opacity(contentReady ? 0.28 : 0)
-                .ignoresSafeArea()
-                .onTapGesture { close() }
-                .allowsHitTesting(contentReady)
+        GeometryReader { geo in
+            let topPad = max(geo.safeAreaInsets.top, 12)
+            let bottomPad = max(geo.safeAreaInsets.bottom, 8)
 
-            chatShell
-                .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
-                .padding(.horizontal, contentReady ? 0 : 0)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .ignoresSafeArea(edges: contentReady ? .all : [])
+            ZStack {
+                Color.black
+                    .opacity(contentReady ? 0.28 : 0)
+                    .ignoresSafeArea()
+                    .onTapGesture { close() }
+                    .allowsHitTesting(contentReady)
+
+                chatShell
+                    .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
+                    .padding(.top, topPad)
+                    .padding(.bottom, bottomPad)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            }
         }
+        .ignoresSafeArea()
         .onAppear(perform: openSequence)
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: isPresented)
         .sensoryFeedback(.selection, trigger: isRecording)
@@ -128,17 +133,27 @@ struct TTAICoachChatOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(Color.white)
+        .background {
+            UnevenRoundedRectangle(
+                topLeadingRadius: 28,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 28,
+                style: .continuous
+            )
+            .fill(Color.white)
+            .ignoresSafeArea(edges: .bottom)
+            .shadow(color: orange.opacity(contentReady ? 0.12 : 0.35), radius: contentReady ? 24 : 14, y: contentReady ? -4 : 6)
+        }
         .clipShape(
             UnevenRoundedRectangle(
-                topLeadingRadius: contentReady ? 28 : 18,
-                bottomLeadingRadius: contentReady ? 0 : 18,
-                bottomTrailingRadius: contentReady ? 0 : 18,
-                topTrailingRadius: contentReady ? 28 : 18,
+                topLeadingRadius: 28,
+                bottomLeadingRadius: 0,
+                bottomTrailingRadius: 0,
+                topTrailingRadius: 28,
                 style: .continuous
             )
         )
-        .shadow(color: orange.opacity(contentReady ? 0.12 : 0.35), radius: contentReady ? 24 : 14, y: contentReady ? -4 : 6)
     }
 
     private var grabber: some View {
@@ -421,7 +436,6 @@ struct TTAICoachChatOverlay: View {
         .padding(.top, 10)
         .padding(.bottom, 12)
         .background(Color.white)
-        .safeAreaPadding(.bottom, 4)
     }
 
     // MARK: Voice panel (UI-only)

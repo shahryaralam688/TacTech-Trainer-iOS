@@ -7,8 +7,6 @@ enum TraineeTab: Hashable {
 struct TraineeRootView: View {
     @State private var tab: TraineeTab = .home
     @State private var showAIChat = false
-    @State private var mountAIChat = false
-    @State private var fabFrameGlobal: CGRect = .zero
     @Namespace private var aiChatNamespace
 
     private let tabs: [TTTabBarItem<TraineeTab>] = [
@@ -45,35 +43,25 @@ struct TraineeRootView: View {
                     isAIChatPresented: showAIChat
                 )
 
-                if mountAIChat {
+                if showAIChat {
                     TTAICoachChatOverlay(
                         isPresented: $showAIChat,
                         audience: .trainee,
-                        namespace: aiChatNamespace,
-                        fabFrameGlobal: fabFrameGlobal
+                        namespace: aiChatNamespace
                     )
                     .zIndex(40)
                     .transition(.identity)
                 }
             }
-            .onPreferenceChange(TTAICoachFABFrameKey.self) { fabFrameGlobal = $0 }
         }
         .ignoresSafeArea(edges: .bottom)
-        .ignoresSafeArea(.keyboard)
-        .onChange(of: showAIChat) { _, open in
-            if !open {
-                // Wait for overlay morph-to-FAB to finish before unmount.
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.36) {
-                    if !showAIChat { mountAIChat = false }
-                }
-            }
-        }
+        .modifier(TTRootKeyboardIgnore(enabled: !showAIChat))
     }
 
     private func openAIChat() {
-        mountAIChat = true
-        // Overlay owns the morph spring — avoid a second competing animation here.
-        showAIChat = true
+        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+            showAIChat = true
+        }
     }
 }
 

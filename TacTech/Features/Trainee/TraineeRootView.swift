@@ -46,9 +46,10 @@ struct TraineeRootView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-            .modifier(TTRootKeyboardIgnore(enabled: !showAIChat))
+            // Tab chrome never lifts with keyboard; AI overlay tracks keyboard height itself.
+            .modifier(TTRootKeyboardIgnore(enabled: true))
 
-            // Outside the tab GeometryReader so keyboard safe-area insets apply.
+            // Overlay owns keyboard attachment (manual height).
             if showAIChat {
                 TTAICoachChatOverlay(
                     isPresented: $showAIChat,

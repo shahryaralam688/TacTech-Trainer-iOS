@@ -49,6 +49,8 @@ struct AICoachView: View {
 
             composer
         }
+        // Opaque fill so keyboard resize never flashes through to the dim overlay.
+        .background(Color.white.opacity(0.01))
         .task {
             // Never gate chrome on network — bootstrap in background.
             await store.bootstrap()

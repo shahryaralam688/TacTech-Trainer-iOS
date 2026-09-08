@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+import UIKit
 
 // MARK: - Audience (shared with AICoachView)
 
@@ -45,14 +47,18 @@ struct TTAICoachChatOverlay: View {
 
     @State private var store = CoachStore()
     @State private var expanded = false
+    /// Manual keyboard tracking — avoids SwiftUI double-counting keyboard safe-area + resized height.
+    @State private var keyboardHeight: CGFloat = 0
 
     private let orange = TTColor.actionOrange
     private let present = Animation.spring(response: 0.46, dampingFraction: 0.88)
     private let resize = Animation.spring(response: 0.34, dampingFraction: 0.98)
 
-    private let sidePad: CGFloat = 14
-    private let topGap: CGFloat = 10
-    private let bottomGap: CGFloat = 12
+    private let sidePad: CGFloat = 12
+    /// Small gap under Dynamic Island / status bar (camera bar).
+    private let topGap: CGFloat = 6
+    private let bottomGapResting: CGFloat = 12
+    private let bottomGapKeyboard: CGFloat = 6
 
     var body: some View {
         ZStack {
@@ -66,16 +72,27 @@ struct TTAICoachChatOverlay: View {
                 .allowsHitTesting(expanded)
 
             GeometryReader { geo in
+                let keyboardOpen = keyboardHeight > 0
+                // Full-screen reader ignores keyboard; `keyboardHeight` is screen-bottom based.
                 let topInset = geo.safeAreaInsets.top + topGap
-                let bottomInset = geo.safeAreaInsets.bottom + bottomGap
-                let maxBubbleHeight = max(280, geo.size.height - topInset - bottomInset)
-                let bubbleHeight = min(max(440, maxBubbleHeight * 0.9), maxBubbleHeight)
+                let keyboardOverlap = keyboardOpen
+                    ? max(0, keyboardHeight - geo.safeAreaInsets.bottom)
+                    : 0
+                let bottomInset = keyboardOpen
+                    ? keyboardOverlap + bottomGapKeyboard
+                    : geo.safeAreaInsets.bottom + bottomGapResting
+                let available = max(240, geo.size.height - topInset - bottomInset)
+                // Keyboard open → fill from under camera bar down to keyboard.
+                // Resting → slightly shorter floating bubble.
+                let bubbleHeight = keyboardOpen
+                    ? available
+                    : min(max(440, available * 0.9), available)
 
-                floatingBubble(height: bubbleHeight)
+                floatingBubble(height: bubbleHeight, keyboardOpen: keyboardOpen)
                     .padding(.horizontal, sidePad)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.top, topInset)
                     .padding(.bottom, bottomInset)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .scaleEffect(expanded ? 1 : 0.84, anchor: UnitPoint(x: 0.5, y: 1.0))
                     .opacity(expanded ? 1 : 0)
                     .offset(y: expanded ? 0 : 28)
@@ -84,20 +101,49 @@ struct TTAICoachChatOverlay: View {
                     .animation(resize, value: bottomInset)
                     .animation(resize, value: topInset)
             }
+            // Own keyboard insets — GeometryReader stays full-height; we pad with `keyboardHeight`.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onAppear(perform: openSequence)
+        .onReceive(keyboardPublisher) { height in
+            withAnimation(resize) { keyboardHeight = height }
+        }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: isPresented)
     }
 
-    private func floatingBubble(height: CGFloat) -> some View {
-        AICoachView(store: store, audience: audience, onClose: close)
+    private var keyboardPublisher: AnyPublisher<CGFloat, Never> {
+        let willShow = NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
+            .compactMap { notification -> CGFloat? in
+                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+                else { return nil }
+                return frame.height
+            }
+        let willChange = NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)
+            .compactMap { notification -> CGFloat? in
+                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+                else { return nil }
+                // 0 when keyboard fully dismissed off-screen.
+                let screenH = UIScreen.main.bounds.height
+                let visible = max(0, screenH - frame.origin.y)
+                return visible
+            }
+        let willHide = NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
+            .map { _ in CGFloat(0) }
+        return Publishers.Merge3(willShow, willChange, willHide)
+            .receive(on: RunLoop.main)
+            .eraseToAnyPublisher()
+    }
+
+    private func floatingBubble(height: CGFloat, keyboardOpen: Bool) -> some View {
+        let corner: CGFloat = keyboardOpen ? 24 : 32
+        return AICoachView(store: store, audience: audience, onClose: close)
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity)
             .frame(height: height, alignment: .top)
-            .background { liquidBackground }
-            .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
+            .background { liquidBackground(corner: corner) }
+            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 32, style: .continuous)
+                RoundedRectangle(cornerRadius: corner, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
                             colors: [
@@ -115,12 +161,12 @@ struct TTAICoachChatOverlay: View {
             .shadow(color: Color.black.opacity(expanded ? 0.16 : 0.06), radius: expanded ? 30 : 12, y: expanded ? 18 : 8)
     }
 
-    private var liquidBackground: some View {
+    private func liquidBackground(corner: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
                 .fill(.ultraThinMaterial)
-            RoundedRectangle(cornerRadius: 32, style: .continuous)
-                .fill(Color.white.opacity(0.88))
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(Color.white.opacity(0.94))
             Circle()
                 .fill(orange.opacity(0.14))
                 .frame(width: 180, height: 180)
@@ -151,7 +197,7 @@ extension View {
 }
 
 /// When enabled, root content ignores the keyboard safe area (tab bar stays put).
-/// Disabled while AI chat is open so the floating bubble can lift with the keyboard.
+/// AI coach overlay tracks keyboard height manually and must not double-count insets.
 struct TTRootKeyboardIgnore: ViewModifier {
     var enabled: Bool
 

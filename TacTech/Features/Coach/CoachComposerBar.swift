@@ -46,11 +46,15 @@ struct CoachComposerBar: View {
         .background(Color.white.opacity(0.55))
         .animation(soft, value: isRecording)
         .animation(soft, value: pendingImage != nil)
+        // One-way sync: FocusState → parent. Parent only dismisses (false → field).
+        // Bidirectional `if !=` loops fought the keyboard animation and re-entered focus.
         .onChange(of: fieldFocused) { _, focused in
             if isFocused != focused { isFocused = focused }
         }
         .onChange(of: isFocused) { _, focused in
-            if fieldFocused != focused { fieldFocused = focused }
+            if !focused, fieldFocused {
+                fieldFocused = false
+            }
         }
     }
 
@@ -223,11 +227,11 @@ struct CoachComposerBar: View {
     }
 
     private func restoreFocus() {
+        // Keep FocusState as the single source of truth for opening the keyboard.
         fieldFocused = true
-        isFocused = true
+        if !isFocused { isFocused = true }
         DispatchQueue.main.async {
-            fieldFocused = true
-            isFocused = true
+            if !fieldFocused { fieldFocused = true }
         }
     }
 

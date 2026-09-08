@@ -38,6 +38,37 @@ enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
 }
 
+// MARK: - Keyboard overlap (stable publisher — never recreate in View.body)
+
+/// Single metric for keyboard occlusion: visible height from the bottom of the screen.
+/// Recreating Combine publishers inside `body` / `onReceive` re-subscribes every render and
+/// was a major source of focus→keyboard hang (duplicate events + spring layout thrash).
+private enum TTKeyboardOverlap {
+    struct Event: Equatable {
+        var height: CGFloat
+        var duration: TimeInterval
+    }
+
+    /// Created once for the process. Prefer `willChangeFrame` only (covers show/move/hide end frames).
+    static let publisher: AnyPublisher<Event, Never> = {
+        NotificationCenter.default
+            .publisher(for: UIResponder.keyboardWillChangeFrameNotification)
+            .compactMap { note -> Event? in
+                guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+                    return nil
+                }
+                let screenH = UIScreen.main.bounds.height
+                let visible = max(0, screenH - frame.origin.y)
+                let duration = (note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? NSNumber)?
+                    .doubleValue ?? 0.25
+                return Event(height: visible, duration: duration)
+            }
+            .removeDuplicates { abs($0.height - $1.height) < 0.5 }
+            .receive(on: DispatchQueue.main)
+            .eraseToAnyPublisher()
+    }()
+}
+
 // MARK: - Liquid floating chat (Plus FAB → live CoachStore)
 
 struct TTAICoachChatOverlay: View {
@@ -52,13 +83,14 @@ struct TTAICoachChatOverlay: View {
 
     private let orange = TTColor.actionOrange
     private let present = Animation.spring(response: 0.46, dampingFraction: 0.88)
-    private let resize = Animation.spring(response: 0.34, dampingFraction: 0.98)
 
     private let sidePad: CGFloat = 12
     /// Small gap under Dynamic Island / status bar (camera bar).
     private let topGap: CGFloat = 6
     private let bottomGapResting: CGFloat = 12
     private let bottomGapKeyboard: CGFloat = 6
+    /// Stable corner — changing radius while the keyboard animates forces clip/shadow rebuilds.
+    private let bubbleCorner: CGFloat = 32
 
     var body: some View {
         ZStack {
@@ -72,8 +104,7 @@ struct TTAICoachChatOverlay: View {
                 .allowsHitTesting(expanded)
 
             GeometryReader { geo in
-                let keyboardOpen = keyboardHeight > 0
-                // Full-screen reader ignores keyboard; `keyboardHeight` is screen-bottom based.
+                let keyboardOpen = keyboardHeight > 0.5
                 let topInset = geo.safeAreaInsets.top + topGap
                 let keyboardOverlap = keyboardOpen
                     ? max(0, keyboardHeight - geo.safeAreaInsets.bottom)
@@ -88,7 +119,7 @@ struct TTAICoachChatOverlay: View {
                     ? available
                     : min(max(440, available * 0.9), available)
 
-                floatingBubble(height: bubbleHeight, keyboardOpen: keyboardOpen)
+                floatingBubble(height: bubbleHeight)
                     .padding(.horizontal, sidePad)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                     .padding(.top, topInset)
@@ -97,53 +128,37 @@ struct TTAICoachChatOverlay: View {
                     .opacity(expanded ? 1 : 0)
                     .offset(y: expanded ? 0 : 28)
                     .animation(present, value: expanded)
-                    .animation(resize, value: bubbleHeight)
-                    .animation(resize, value: bottomInset)
-                    .animation(resize, value: topInset)
             }
             // Own keyboard insets — GeometryReader stays full-height; we pad with `keyboardHeight`.
             .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .onAppear(perform: openSequence)
-        .onReceive(keyboardPublisher) { height in
-            withAnimation(resize) { keyboardHeight = height }
+        .onReceive(TTKeyboardOverlap.publisher) { event in
+            applyKeyboardHeight(event.height, duration: event.duration)
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: isPresented)
     }
 
-    private var keyboardPublisher: AnyPublisher<CGFloat, Never> {
-        let willShow = NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)
-            .compactMap { notification -> CGFloat? in
-                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
-                else { return nil }
-                return frame.height
-            }
-        let willChange = NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)
-            .compactMap { notification -> CGFloat? in
-                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
-                else { return nil }
-                // 0 when keyboard fully dismissed off-screen.
-                let screenH = UIScreen.main.bounds.height
-                let visible = max(0, screenH - frame.origin.y)
-                return visible
-            }
-        let willHide = NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)
-            .map { _ in CGFloat(0) }
-        return Publishers.Merge3(willShow, willChange, willHide)
-            .receive(on: RunLoop.main)
-            .eraseToAnyPublisher()
+    /// Match UIKit keyboard timing — do not stack a second spring on every frame.
+    private func applyKeyboardHeight(_ height: CGFloat, duration: TimeInterval) {
+        guard abs(keyboardHeight - height) >= 0.5 else { return }
+        let animation: Animation? = duration > 0 ? .easeOut(duration: duration) : nil
+        if let animation {
+            withAnimation(animation) { keyboardHeight = height }
+        } else {
+            keyboardHeight = height
+        }
     }
 
-    private func floatingBubble(height: CGFloat, keyboardOpen: Bool) -> some View {
-        let corner: CGFloat = keyboardOpen ? 24 : 32
-        return AICoachView(store: store, audience: audience, onClose: close)
+    private func floatingBubble(height: CGFloat) -> some View {
+        AICoachView(store: store, audience: audience, onClose: close)
             .frame(maxWidth: 560)
             .frame(maxWidth: .infinity)
             .frame(height: height, alignment: .top)
-            .background { liquidBackground(corner: corner) }
-            .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+            .background { liquidBackground }
+            .clipShape(RoundedRectangle(cornerRadius: bubbleCorner, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: corner, style: .continuous)
+                RoundedRectangle(cornerRadius: bubbleCorner, style: .continuous)
                     .strokeBorder(
                         LinearGradient(
                             colors: [
@@ -161,11 +176,11 @@ struct TTAICoachChatOverlay: View {
             .shadow(color: Color.black.opacity(expanded ? 0.16 : 0.06), radius: expanded ? 30 : 12, y: expanded ? 18 : 8)
     }
 
-    private func liquidBackground(corner: CGFloat) -> some View {
+    private var liquidBackground: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
+            RoundedRectangle(cornerRadius: bubbleCorner, style: .continuous)
                 .fill(.ultraThinMaterial)
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
+            RoundedRectangle(cornerRadius: bubbleCorner, style: .continuous)
                 .fill(Color.white.opacity(0.94))
             Circle()
                 .fill(orange.opacity(0.14))

@@ -5,6 +5,8 @@ import Observation
 @Observable
 final class AppStore {
     private let api = APIClient()
+    private let coachAPI = CoachAPI()
+    private var coachMemorySyncTask: Task<Void, Never>?
 
     var session: Session?
     var users: [User] = []
@@ -61,6 +63,7 @@ final class AppStore {
         do {
             try await refreshSession()
             refreshAssessmentFlag()
+            scheduleCoachMemorySync()
         } catch {
             clearLocalSession()
         }
@@ -73,6 +76,7 @@ final class AppStore {
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
+        scheduleCoachMemorySync()
     }
 
     func signup(name: String, email: String, password: String, role: UserRole, inviteCode: String?) async throws {
@@ -92,6 +96,18 @@ final class AppStore {
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
+        scheduleCoachMemorySync()
+    }
+
+    /// Debounced RAG memory sync for AI Coach (login, assessment, plan changes).
+    func scheduleCoachMemorySync(force: Bool = false) {
+        coachMemorySyncTask?.cancel()
+        coachMemorySyncTask = Task { [coachAPI] in
+            let delayNs: UInt64 = force ? 200_000_000 : 1_500_000_000
+            try? await Task.sleep(nanoseconds: delayNs)
+            guard !Task.isCancelled else { return }
+            _ = try? await coachAPI.syncMemory()
+        }
     }
 
     /// Apply profile-setup fields collected at signup (role-specific).
@@ -148,6 +164,7 @@ final class AppStore {
         }
         markAssessmentCompleted()
         persistAssessment(draft)
+        scheduleCoachMemorySync(force: true)
     }
 
     func submitTrainerAssessment(_ draft: TrainerAssessment) async throws {
@@ -164,6 +181,7 @@ final class AppStore {
         }
         markAssessmentCompleted()
         persistTrainerAssessment(draft)
+        scheduleCoachMemorySync(force: true)
     }
 
     func persistAssessment(_ draft: FitnessAssessment) {
@@ -278,6 +296,7 @@ final class AppStore {
             let remote = (try? await api.trainerPlans()) ?? []
             if !remote.isEmpty { plans = remote }
         }
+        scheduleCoachMemorySync(force: true)
     }
 
     func createPlan(title: String, focus: String, duration: Int, level: String, days: Int, exerciseDrafts: [WorkoutExercise]) async throws {

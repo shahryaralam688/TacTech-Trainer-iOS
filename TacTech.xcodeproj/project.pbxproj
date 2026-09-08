@@ -67,6 +67,14 @@
 		B7E4A91C2F8D4E01A1C0A002 /* TTAICoachChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4A91C2F8D4E01A1C0A001 /* TTAICoachChat.swift */; };
 		FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
+		C0ACH001MODELSWIFT02 /* CoachModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH001MODELSWIFT01 /* CoachModels.swift */; };
+		C0ACH002COACHAPI002 /* CoachAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH002COACHAPI001 /* CoachAPI.swift */; };
+		C0ACH003COACHSTORE02 /* CoachStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH003COACHSTORE01 /* CoachStore.swift */; };
+		C0ACH004AICOACHVW02 /* AICoachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH004AICOACHVW01 /* AICoachView.swift */; };
+		C0ACH005MSGBUBBLE02 /* CoachMessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */; };
+		C0ACH006COMPOSERB02 /* CoachComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH006COMPOSERB01 /* CoachComposerBar.swift */; };
+		C0ACH007CITATIONS02 /* CoachCitationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */; };
+		C0ACH008VOICECALL02 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -132,9 +140,30 @@
 		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
 		EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutUsView.swift; sourceTree = "<group>"; };
 		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
+		C0ACH001MODELSWIFT01 /* CoachModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachModels.swift; sourceTree = "<group>"; };
+		C0ACH002COACHAPI001 /* CoachAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAPI.swift; sourceTree = "<group>"; };
+		C0ACH003COACHSTORE01 /* CoachStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachStore.swift; sourceTree = "<group>"; };
+		C0ACH004AICOACHVW01 /* AICoachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICoachView.swift; sourceTree = "<group>"; };
+		C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMessageBubble.swift; sourceTree = "<group>"; };
+		C0ACH006COMPOSERB01 /* CoachComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachComposerBar.swift; sourceTree = "<group>"; };
+		C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCitationsSheet.swift; sourceTree = "<group>"; };
+		C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachVoiceCallView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		C0ACH009COACHGRP001 /* Coach */ = {
+			isa = PBXGroup;
+			children = (
+				C0ACH004AICOACHVW01 /* AICoachView.swift */,
+				C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */,
+				C0ACH006COMPOSERB01 /* CoachComposerBar.swift */,
+				C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */,
+				C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */,
+			);
+			path = Coach;
+			sourceTree = "<group>";
+		};
+
 		038473BFC514A3ACFC1BE220 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -175,6 +204,8 @@
 			isa = PBXGroup;
 			children = (
 				73FE3D8BD9971500A55153A0 /* APIClient.swift */,
+				C0ACH002COACHAPI001 /* CoachAPI.swift */,
+				C0ACH003COACHSTORE01 /* CoachStore.swift */,
 				4F1AE7E841FCF90D57066534 /* APIConfig.swift */,
 				3F487A7AA8D964BA49DD8EDB /* AppStore.swift */,
 				179A188E828A8873F4505090 /* SeedData.swift */,
@@ -236,6 +267,7 @@
 		A1B0FFD5E9FB389C2071F3FD /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				C0ACH009COACHGRP001 /* Coach */,
 				E5531C3C532CF30EC9303934 /* Authentication */,
 				87BB1621256BE6F8852AAD3F /* Trainee */,
 				D6590ACEA3AE5DCB37129869 /* Trainer */,
@@ -263,6 +295,7 @@
 		D4625652EBF91AE0A8825CE0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				C0ACH001MODELSWIFT01 /* CoachModels.swift */,
 				4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */,
 				DF1D3D88CBBC904995027746 /* Models.swift */,
 				135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */,
@@ -436,6 +469,14 @@
 				90C3AADBAC6CC3E291EE1DD7 /* TTSearchOverlay.swift in Sources */,
 				F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */,
 				B7E4A91C2F8D4E01A1C0A002 /* TTAICoachChat.swift in Sources */,
+				C0ACH001MODELSWIFT02 /* CoachModels.swift in Sources */,
+				C0ACH002COACHAPI002 /* CoachAPI.swift in Sources */,
+				C0ACH003COACHSTORE02 /* CoachStore.swift in Sources */,
+				C0ACH004AICOACHVW02 /* AICoachView.swift in Sources */,
+				C0ACH005MSGBUBBLE02 /* CoachMessageBubble.swift in Sources */,
+				C0ACH006COMPOSERB02 /* CoachComposerBar.swift in Sources */,
+				C0ACH007CITATIONS02 /* CoachCitationsSheet.swift in Sources */,
+				C0ACH008VOICECALL02 /* CoachVoiceCallView.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
 				87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */,

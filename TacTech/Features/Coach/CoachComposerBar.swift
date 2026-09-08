@@ -6,6 +6,7 @@ struct CoachComposerBar: View {
     @Binding var pendingImage: UIImage?
     var isBusy: Bool
     var isRecording: Bool
+    var recordingSecondsLeft: Int = 30
     var showImageChips: Bool
     var onSendText: () -> Void
     var onSendImage: (String?) -> Void
@@ -167,9 +168,14 @@ struct CoachComposerBar: View {
 
     private var voicePanel: some View {
         VStack(spacing: 12) {
-            Text("Listening… release to send")
+            Text("Listening… \(recordingSecondsLeft)s left")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(ink)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.18), value: recordingSecondsLeft)
+            Text("Max 30 seconds · release or tap Send")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(muted)
             HStack(spacing: 16) {
                 Button("Cancel", action: onCancelVoice)
                     .font(.system(size: 15, weight: .semibold))

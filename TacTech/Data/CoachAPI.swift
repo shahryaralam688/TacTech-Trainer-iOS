@@ -79,17 +79,15 @@ actor CoachAPI {
                         retry.httpBody = request.httpBody
                         retry.timeoutInterval = 180
                         let (retryBytes, retryResponse) = try await session.bytes(for: retry)
-                        guard let retryHTTP = retryResponse as? HTTPURLResponse,
-                              (200...299).contains(retryHTTP.statusCode) else {
-                            throw AppError.unauthorized
+                        guard let retryHTTP = retryResponse as? HTTPURLResponse else {
+                            throw AppError.api("Invalid stream response.")
                         }
+                        try await throwIfHTTPFailed(status: retryHTTP.statusCode, bytes: retryBytes, response: retryHTTP)
                         try await consumeSSE(bytes: retryBytes, continuation: continuation)
                         continuation.finish()
                         return
                     }
-                    guard (200...299).contains(http.statusCode) else {
-                        throw AppError.api("Chat stream failed (\(http.statusCode)).")
-                    }
+                    try await throwIfHTTPFailed(status: http.statusCode, bytes: bytes, response: http)
                     try await consumeSSE(bytes: bytes, continuation: continuation)
                     continuation.finish()
                 } catch {
@@ -98,6 +96,25 @@ actor CoachAPI {
             }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+
+    /// Reads a small error body from a failed streaming response, then throws.
+    private func throwIfHTTPFailed(
+        status: Int,
+        bytes: URLSession.AsyncBytes,
+        response: HTTPURLResponse
+    ) async throws {
+        if (200...299).contains(status) { return }
+        var errorData = Data()
+        do {
+            for try await byte in bytes {
+                errorData.append(byte)
+                if errorData.count >= 8_192 { break }
+            }
+        } catch {
+            // Still map from status / whatever we collected.
+        }
+        try Self.throwMappedFailure(status: status, data: errorData, response: response)
     }
 
     private func consumeSSE(
@@ -222,13 +239,7 @@ actor CoachAPI {
             try await refreshTokens()
             return try await sendMultipart(path: path, fields: fields, allowRetry: false)
         }
-        guard (200...299).contains(http.statusCode) else {
-            if http.statusCode == 401 {
-                TokenStore.clear()
-                throw AppError.unauthorized
-            }
-            throw AppError.api(Self.detail(from: data) ?? "Upload failed (\(http.statusCode)).")
-        }
+        try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
         do {
             return try decoder.decode(T.self, from: data)
         } catch {
@@ -305,15 +316,8 @@ actor CoachAPI {
             try await refreshTokens()
             return try await raw(path: path, method: method, body: body, authorized: authorized, allowRetry: false)
         }
-        if (200...299).contains(http.statusCode) { return data }
-        if http.statusCode == 401 {
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        if http.statusCode == 404 {
-            throw AppError.notFound(Self.detail(from: data) ?? "Not found.")
-        }
-        throw AppError.api(Self.detail(from: data) ?? "Request failed (\(http.statusCode)).")
+        try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
+        return data
     }
 
     private func makeRequest(path: String, method: HTTPMethod, authorized: Bool) throws -> URLRequest {
@@ -358,12 +362,63 @@ actor CoachAPI {
         throw AppError.unauthorized
     }
 
+    /// Maps HTTP failures to `AppError`, preferring server `detail` and handling 429 / RATE_LIMITED.
+    private static func throwMappedFailure(status: Int, data: Data, response: HTTPURLResponse) throws {
+        if (200...299).contains(status) { return }
+        let detail = detail(from: data)
+        let code = code(from: data)
+        if status == 401 {
+            TokenStore.clear()
+            throw AppError.unauthorized
+        }
+        if status == 404 {
+            throw AppError.notFound(detail ?? "Not found.")
+        }
+        if status == 429 || code == "RATE_LIMITED" {
+            let retryAfter = retryAfterSeconds(from: response) ?? 25
+            let message = detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                ?? "Too many AI requests. Please wait a moment."
+            throw AppError.rateLimited(message, retryAfter: retryAfter)
+        }
+        throw AppError.api(detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                           ?? "Request failed (\(status)).")
+    }
+
+    private static func code(from data: Data) -> String? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return object["code"] as? String
+    }
+
+    private static func retryAfterSeconds(from response: HTTPURLResponse) -> TimeInterval? {
+        if let value = response.value(forHTTPHeaderField: "Retry-After"),
+           let seconds = TimeInterval(value) {
+            return max(5, min(seconds, 120))
+        }
+        return nil
+    }
+
     private static func detail(from data: Data) -> String? {
         if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            if let detail = object["detail"] as? String { return detail }
-            if let message = object["message"] as? String { return message }
+            if let detail = object["detail"] as? String, !detail.isEmpty { return detail }
+            if let detail = object["detail"] as? [String: Any] {
+                if let msg = detail["msg"] as? String, !msg.isEmpty { return msg }
+                if let message = detail["message"] as? String, !message.isEmpty { return message }
+            }
+            if let detail = object["detail"] as? [[String: Any]] {
+                let messages = detail.compactMap { $0["msg"] as? String }.filter { !$0.isEmpty }
+                if !messages.isEmpty { return messages.joined(separator: " ") }
+            }
+            if let message = object["message"] as? String, !message.isEmpty { return message }
         }
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return raw?.isEmpty == false ? raw : nil
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        let t = trimmingCharacters(in: .whitespacesAndNewlines)
+        return t.isEmpty ? nil : t
     }
 }
 

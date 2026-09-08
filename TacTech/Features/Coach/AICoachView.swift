@@ -45,15 +45,16 @@ struct AICoachView: View {
                     .opacity(chromeVisible ? 1 : 0)
             }
 
-            if let err = store.lastError, store.messages.isEmpty {
+            if let err = store.lastError {
                 errorBanner(err)
             }
 
             CoachComposerBar(
                 draft: $draft,
                 pendingImage: $pendingImage,
-                isBusy: store.isBusy,
+                isBusy: store.isBusy || store.rateLimitSecondsRemaining > 0,
                 isRecording: store.isRecording,
+                recordingSecondsLeft: store.recordingSecondsLeft,
                 showImageChips: pendingImage != nil,
                 onSendText: sendDraft,
                 onSendImage: sendPendingImage,
@@ -236,8 +237,11 @@ struct AICoachView: View {
                                 }
                             },
                             onPlayAudio: {
-                                if let url = message.audioUrl {
+                                if let url = message.audioUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+                                   !url.isEmpty {
                                     store.playAudio(urlString: url)
+                                } else if !message.content.isEmpty {
+                                    store.speakLocally(message.content)
                                 }
                             },
                             onCitations: {
@@ -374,19 +378,30 @@ struct AICoachView: View {
     }
 
     private func errorBanner(_ text: String) -> some View {
-        HStack {
-            Text(text)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(Color.red.opacity(0.9))
-            Spacer()
-            Button("Retry") {
-                Task { await store.bootstrap(forceReload: true) }
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(text)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.red.opacity(0.9))
+                    .fixedSize(horizontal: false, vertical: true)
+                if store.rateLimitSecondsRemaining > 0 {
+                    Text("Auto-retry in \(store.rateLimitSecondsRemaining)s")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(muted)
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.18), value: store.rateLimitSecondsRemaining)
+                }
+            }
+            Spacer(minLength: 8)
+            Button(store.rateLimitSecondsRemaining > 0 ? "Retry now" : "Retry") {
+                store.retryLastFailure()
             }
             .font(.system(size: 13, weight: .bold))
             .foregroundStyle(orange)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
+        .background(Color.red.opacity(0.06))
     }
 
     private func sendDraft() {

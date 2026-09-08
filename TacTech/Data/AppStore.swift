@@ -1000,12 +1000,25 @@ enum AppError: LocalizedError, Equatable {
     case api(String)
     case unauthorized
     case notFound(String)
+    /// Coach / upstream rate limit — `retryAfter` is suggested wait in seconds.
+    case rateLimited(String, retryAfter: TimeInterval)
 
     var errorDescription: String? {
         switch self {
         case .invalidCredentials: "Email or password is incorrect."
         case .validation(let message), .api(let message), .notFound(let message): message
+        case .rateLimited(let message, _): message
         case .unauthorized: "Session expired. Please sign in again."
         }
+    }
+
+    var isRateLimited: Bool {
+        if case .rateLimited = self { return true }
+        return false
+    }
+
+    var retryAfterSeconds: TimeInterval? {
+        if case let .rateLimited(_, retryAfter) = self { return retryAfter }
+        return nil
     }
 }

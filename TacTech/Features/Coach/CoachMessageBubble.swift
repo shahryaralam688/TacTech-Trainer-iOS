@@ -144,7 +144,7 @@ struct CoachMessageBubble: View {
                 }
             }
 
-            if !isUser, message.audioUrl != nil {
+            if !isUser, let url = message.audioUrl, !url.isEmpty {
                 Button { onPlayAudio?() } label: {
                     Label("Play", systemImage: "speaker.wave.2.fill")
                         .font(.system(size: 11, weight: .semibold))

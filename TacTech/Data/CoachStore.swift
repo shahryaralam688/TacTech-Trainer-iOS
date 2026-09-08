@@ -3,9 +3,17 @@ import Foundation
 import Observation
 import UIKit
 
+private enum CoachPendingRetry: Equatable {
+    case text(String)
+    case image(jpeg: Data, caption: String?, preview: Data?)
+    case voice(Data)
+}
+
 @MainActor
 @Observable
 final class CoachStore {
+    static let maxRecordingSeconds: TimeInterval = 30
+
     private let api = CoachAPI()
 
     var conversations: [CoachConversation] = []
@@ -19,19 +27,38 @@ final class CoachStore {
     var isAnalyzingImage = false
     var isRecording = false
     var isPlaying = false
+    var recordingElapsed: TimeInterval = 0
     var partialAssistantText = ""
     var lastError: String?
+    var rateLimitSecondsRemaining: Int = 0
     var hapticTick = 0
 
     private var sendTask: Task<Void, Never>?
+    private var recordLimitTask: Task<Void, Never>?
+    private var rateLimitTask: Task<Void, Never>?
     private var streamAssistantId: String?
     private var audioRecorder: AVAudioRecorder?
     private var audioPlayer: AVPlayer?
     private var recordingURL: URL?
     private var playerObserver: NSObjectProtocol?
+    private var pendingRetry: CoachPendingRetry?
+    private let speechSynthesizer = AVSpeechSynthesizer()
+    private let speechDelegate = CoachSpeechDelegate()
 
-    var canSend: Bool { !isSending && !isStreaming && !isAnalyzingImage }
+    var canSend: Bool { !isSending && !isStreaming && !isAnalyzingImage && rateLimitSecondsRemaining == 0 }
     var isBusy: Bool { isSending || isStreaming || isAnalyzingImage }
+    var recordingSecondsLeft: Int {
+        max(0, Int((Self.maxRecordingSeconds - recordingElapsed).rounded(.down)))
+    }
+
+    init() {
+        speechDelegate.onFinish = { [weak self] in
+            Task { @MainActor in
+                self?.isPlaying = false
+            }
+        }
+        speechSynthesizer.delegate = speechDelegate
+    }
 
     // MARK: Bootstrap
 
@@ -54,7 +81,7 @@ final class CoachStore {
             }
             await syncMemoryDebounced()
         } catch {
-            lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = Self.userFacingError(error)
         }
     }
 
@@ -68,7 +95,7 @@ final class CoachStore {
             }
             lastError = nil
         } catch {
-            lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = Self.userFacingError(error)
         }
     }
 
@@ -82,7 +109,7 @@ final class CoachStore {
             partialAssistantText = ""
             lastError = nil
         } catch {
-            lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            lastError = Self.userFacingError(error)
         }
     }
 
@@ -180,10 +207,11 @@ final class CoachStore {
                 // superseded
             } catch {
                 self.failAssistant(localAssistantId, error: error)
+                let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
-                    self.messages[idx].status = .failed((error as? LocalizedError)?.errorDescription ?? "Send failed")
+                    self.messages[idx].status = .failed(detail)
                 }
-                self.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.handleFailure(error, pending: .text(text))
             }
         }
     }
@@ -223,7 +251,7 @@ final class CoachStore {
 
     private func failAssistant(_ id: String, error: Error) {
         if let idx = messages.firstIndex(where: { $0.id == id }) {
-            let msg = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+            let msg = Self.userFacingError(error)
             if messages[idx].content.isEmpty {
                 messages[idx].content = "Couldn’t get a reply."
             }
@@ -329,11 +357,15 @@ final class CoachStore {
             } catch is CancellationError {
                 // superseded
             } catch {
+                let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
-                    self.messages[idx].status = .failed((error as? LocalizedError)?.errorDescription ?? "Upload failed")
+                    self.messages[idx].status = .failed(detail)
                     self.messages[idx].content = trimmed ?? "Photo"
                 }
-                self.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.handleFailure(
+                    error,
+                    pending: .image(jpeg: jpeg, caption: trimmed, preview: thumb)
+                )
             }
         }
     }
@@ -355,17 +387,37 @@ final class CoachStore {
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
             let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.record()
+            recorder.record(forDuration: Self.maxRecordingSeconds)
             audioRecorder = recorder
             recordingURL = url
             isRecording = true
+            recordingElapsed = 0
             haptic()
+            startRecordingCapTimer()
         } catch {
-            lastError = (error as? LocalizedError)?.errorDescription ?? "Microphone unavailable."
+            lastError = Self.userFacingError(error)
+        }
+    }
+
+    private func startRecordingCapTimer() {
+        recordLimitTask?.cancel()
+        recordLimitTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                guard self.isRecording, let recorder = self.audioRecorder else { return }
+                self.recordingElapsed = min(recorder.currentTime, Self.maxRecordingSeconds)
+                if self.recordingElapsed >= Self.maxRecordingSeconds - 0.05 {
+                    self.stopAndSendVoice()
+                    return
+                }
+            }
         }
     }
 
     func cancelRecording() {
+        recordLimitTask?.cancel()
+        recordLimitTask = nil
         audioRecorder?.stop()
         audioRecorder = nil
         if let url = recordingURL {
@@ -373,13 +425,17 @@ final class CoachStore {
         }
         recordingURL = nil
         isRecording = false
+        recordingElapsed = 0
     }
 
     func stopAndSendVoice() {
         guard isRecording else { return }
+        recordLimitTask?.cancel()
+        recordLimitTask = nil
         audioRecorder?.stop()
         audioRecorder = nil
         isRecording = false
+        recordingElapsed = 0
         guard let url = recordingURL,
               let data = try? Data(contentsOf: url),
               !data.isEmpty else {
@@ -433,16 +489,21 @@ final class CoachStore {
                 }
                 self.messages.append(CoachDisplayMessage.fromServer(response.assistantMessage))
                 self.haptic()
-                if let audio = response.audioUrl ?? response.assistantMessage.audioUrl {
-                    self.playAudio(urlString: audio)
+                let remoteAudio = (response.audioUrl ?? response.assistantMessage.audioUrl)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let remoteAudio, !remoteAudio.isEmpty {
+                    self.playAudio(urlString: remoteAudio)
+                } else if !response.assistantMessage.content.isEmpty {
+                    self.speakLocally(response.assistantMessage.content)
                 }
             } catch is CancellationError {
             } catch {
+                let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
-                    self.messages[idx].status = .failed((error as? LocalizedError)?.errorDescription ?? "Voice failed")
+                    self.messages[idx].status = .failed(detail)
                     self.messages[idx].content = "Voice message failed"
                 }
-                self.lastError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.handleFailure(error, pending: .voice(data))
             }
         }
     }
@@ -450,7 +511,9 @@ final class CoachStore {
     // MARK: Audio playback
 
     func playAudio(urlString: String) {
-        guard let url = URL(string: urlString) else { return }
+        guard let url = URL(string: urlString) else {
+            return
+        }
         stopAudio()
         let player = AVPlayer(url: url)
         audioPlayer = player
@@ -467,7 +530,28 @@ final class CoachStore {
         }
     }
 
+    /// On-device TTS when `/coach/voice/turn` returns no `audioUrl`.
+    func speakLocally(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        stopAudio()
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
+            try session.setActive(true)
+        } catch {
+            // Continue anyway — synthesizer may still work.
+        }
+        let utterance = AVSpeechUtterance(string: trimmed)
+        utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.96
+        utterance.pitchMultiplier = 1.02
+        utterance.voice = AVSpeechSynthesisVoice(language: "en-US")
+        isPlaying = true
+        speechSynthesizer.speak(utterance)
+    }
+
     func stopAudio() {
+        speechSynthesizer.stopSpeaking(at: .immediate)
         audioPlayer?.pause()
         audioPlayer = nil
         isPlaying = false
@@ -475,6 +559,91 @@ final class CoachStore {
             NotificationCenter.default.removeObserver(observer)
             playerObserver = nil
         }
+    }
+
+    // MARK: Rate limit / retry
+
+    func retryLastFailure() {
+        rateLimitTask?.cancel()
+        rateLimitTask = nil
+        rateLimitSecondsRemaining = 0
+        guard let pending = pendingRetry else {
+            Task { await bootstrap(forceReload: true) }
+            return
+        }
+        pendingRetry = nil
+        lastError = nil
+        switch pending {
+        case let .text(text):
+            // Drop trailing failed turn bubbles before resending.
+            while let last = messages.last {
+                if case .failed = last.status {
+                    messages.removeLast()
+                    continue
+                }
+                break
+            }
+            sendText(text)
+        case let .image(jpeg, caption, preview):
+            let previewImage = preview.flatMap(UIImage.init(data:))
+            sendImageJPEG(jpeg, preview: previewImage, caption: caption, replaceId: nil)
+        case let .voice(data):
+            sendVoiceData(data)
+        }
+    }
+
+    private func handleFailure(_ error: Error, pending: CoachPendingRetry) {
+        if let appError = error as? AppError, case let .rateLimited(detail, retryAfter) = appError {
+            pendingRetry = pending
+            let seconds = Int(max(5, min(retryAfter, 120)).rounded())
+            lastError = Self.rateLimitMessage(serverDetail: detail, seconds: seconds)
+            beginRateLimitCountdown(seconds: seconds)
+            return
+        }
+        pendingRetry = pending
+        lastError = Self.userFacingError(error)
+    }
+
+    private func beginRateLimitCountdown(seconds: Int) {
+        rateLimitTask?.cancel()
+        rateLimitSecondsRemaining = seconds
+        let deadline = Date().addingTimeInterval(TimeInterval(seconds))
+        rateLimitTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let remaining = max(0, Int(ceil(deadline.timeIntervalSinceNow)))
+                self.rateLimitSecondsRemaining = remaining
+                if remaining <= 0 { break }
+                try? await Task.sleep(nanoseconds: 250_000_000)
+            }
+            guard !Task.isCancelled else { return }
+            self.rateLimitSecondsRemaining = 0
+            self.retryLastFailure()
+        }
+    }
+
+    static func userFacingError(_ error: Error) -> String {
+        if let app = error as? AppError, let description = app.errorDescription, !description.isEmpty {
+            return description
+        }
+        if let localized = (error as? LocalizedError)?.errorDescription, !localized.isEmpty {
+            return localized
+        }
+        return error.localizedDescription
+    }
+
+    private static func rateLimitMessage(serverDetail: String, seconds: Int) -> String {
+        let waitHint = "Try again in \(seconds)s."
+        let trimmed = serverDetail.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "AI Coach is rate-limited. \(waitHint)"
+        }
+        if trimmed.localizedCaseInsensitiveContains("wait")
+            || trimmed.localizedCaseInsensitiveContains("try again")
+            || trimmed.localizedCaseInsensitiveContains("rate") {
+            return trimmed
+        }
+        return "\(trimmed) \(waitHint)"
     }
 
     // MARK: RTC
@@ -488,11 +657,16 @@ final class CoachStore {
     func cancelInFlight() {
         sendTask?.cancel()
         sendTask = nil
+        recordLimitTask?.cancel()
+        recordLimitTask = nil
         if isRecording { cancelRecording() }
     }
 
     func onDisappear() {
         cancelInFlight()
+        rateLimitTask?.cancel()
+        rateLimitTask = nil
+        rateLimitSecondsRemaining = 0
         stopAudio()
     }
 
@@ -523,5 +697,19 @@ final class CoachStore {
         } else {
             conversations.insert(conversation, at: 0)
         }
+    }
+}
+
+// MARK: - Speech delegate
+
+private final class CoachSpeechDelegate: NSObject, AVSpeechSynthesizerDelegate {
+    var onFinish: (() -> Void)?
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        onFinish?()
+    }
+
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        onFinish?()
     }
 }

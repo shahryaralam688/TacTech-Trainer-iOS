@@ -32,6 +32,9 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     var onCenterTap: () -> Void
     /// Device home-indicator inset — passed from a full-screen GeometryReader.
     var bottomInset: CGFloat = 0
+    /// Shared with `TTAICoachChatOverlay` for Plus → chat morph.
+    var aiChatNamespace: Namespace.ID? = nil
+    var isAIChatPresented: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -157,14 +160,38 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
                 TTIcon(icon: .plus, filled: false, size: 20)
                     .foregroundStyle(.white)
+                    .rotationEffect(.degrees(isAIChatPresented ? 45 : 0))
             }
+            .modifier(TTAICoachFABMatchedModifier(namespace: aiChatNamespace, isPresented: isAIChatPresented))
         }
         .buttonStyle(TTTabBarCenterPressStyle())
-        .accessibilityLabel("Quick action")
+        .accessibilityLabel("Open TacTech AI chat")
+        .accessibilityHint("Talk or message your AI coach")
     }
 }
 
 // MARK: - Notch shape
+
+private struct TTAICoachFABMatchedModifier: ViewModifier {
+    var namespace: Namespace.ID?
+    var isPresented: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content
+                .matchedGeometryEffect(
+                    id: TTAICoachPortal.matchedID,
+                    in: namespace,
+                    isSource: !isPresented
+                )
+                .opacity(isPresented ? 0 : 1)
+                .allowsHitTesting(!isPresented)
+        } else {
+            content
+        }
+    }
+}
 
 /// Full-width bar: rounded top corners, square bottom, concave cradle for the FAB.
 struct TTTabBarNotchShape: Shape {

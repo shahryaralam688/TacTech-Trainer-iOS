@@ -6,7 +6,8 @@ enum TraineeTab: Hashable {
 
 struct TraineeRootView: View {
     @State private var tab: TraineeTab = .home
-    @State private var showQuickActions = false
+    @State private var showAIChat = false
+    @Namespace private var aiChatNamespace
 
     private let tabs: [TTTabBarItem<TraineeTab>] = [
         TTTabBarItem(.home, icon: .house1, label: "Home"),
@@ -14,6 +15,8 @@ struct TraineeRootView: View {
         TTTabBarItem(.nutrition, icon: .forkKnife, label: "Nutrition"),
         TTTabBarItem(.profile, icon: .user, label: "Profile")
     ]
+
+    private let morph = Animation.spring(response: 0.48, dampingFraction: 0.88)
 
     var body: some View {
         GeometryReader { geo in
@@ -36,18 +39,30 @@ struct TraineeRootView: View {
                 TTFloatingTabBar(
                     tabs: tabs,
                     selection: $tab,
-                    onCenterTap: { showQuickActions = true },
-                    bottomInset: geo.safeAreaInsets.bottom
+                    onCenterTap: openAIChat,
+                    bottomInset: geo.safeAreaInsets.bottom,
+                    aiChatNamespace: aiChatNamespace,
+                    isAIChatPresented: showAIChat
                 )
+
+                if showAIChat {
+                    TTAICoachChatOverlay(
+                        isPresented: $showAIChat,
+                        audience: .trainee,
+                        namespace: aiChatNamespace
+                    )
+                    .zIndex(40)
+                    .transition(.identity)
+                }
             }
         }
         .ignoresSafeArea(edges: .bottom)
         .ignoresSafeArea(.keyboard)
-        .confirmationDialog("Quick action", isPresented: $showQuickActions, titleVisibility: .visible) {
-            Button("Workouts") { tab = .workout }
-            Button("Nutrition") { tab = .nutrition }
-            Button("Profile") { tab = .profile }
-            Button("Cancel", role: .cancel) {}
+    }
+
+    private func openAIChat() {
+        withAnimation(morph) {
+            showAIChat = true
         }
     }
 }

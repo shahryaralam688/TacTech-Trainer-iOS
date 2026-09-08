@@ -1,4 +1,6 @@
+import Combine
 import SwiftUI
+import UIKit
 
 // MARK: - Models (UI-only for now)
 
@@ -53,10 +55,21 @@ enum TTAIChatAudience {
     }
 }
 
-// MARK: - Portal ID
+// MARK: - Portal / FAB frame
 
 enum TTAICoachPortal {
     static let matchedID = "tactech.aiCoach.portal"
+}
+
+struct TTAICoachFABFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .zero
+
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) {
+        let next = nextValue()
+        if next.width > 1, next.height > 1 {
+            value = next
+        }
+    }
 }
 
 // MARK: - Overlay (liquid glass floating panel from Plus FAB)
@@ -67,60 +80,103 @@ struct TTAICoachChatOverlay: View {
     @Binding var isPresented: Bool
     var audience: TTAIChatAudience
     var namespace: Namespace.ID
+    /// Global frame of the Plus FAB — panel morphs from this rect.
+    var fabFrameGlobal: CGRect
 
     @State private var messages: [TTAIChatMessage] = []
     @State private var draft = ""
     @State private var isRecording = false
     @State private var isThinking = false
     @State private var contentReady = false
+    @State private var morphProgress: CGFloat = 0
     @State private var wavePhase: CGFloat = 0
+    @State private var keyboardHeight: CGFloat = 0
     @FocusState private var fieldFocused: Bool
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
     private let muted = Color(white: 0.42)
-    private let morph = Animation.spring(response: 0.52, dampingFraction: 0.86)
+    private let morph = Animation.spring(response: 0.5, dampingFraction: 0.86)
     private let soft = Animation.spring(response: 0.42, dampingFraction: 0.84)
-    private let panelRadius: CGFloat = 32
 
     var body: some View {
         GeometryReader { geo in
+            let container = geo.frame(in: .global)
             let topPad = max(geo.safeAreaInsets.top, 10) + 6
-            let bottomClearance = TTFloatingTabBar<Int>.contentHeight + max(geo.safeAreaInsets.bottom, 8) + 10
-            let panelHeight = min(geo.size.height - topPad - bottomClearance, geo.size.height * 0.74)
+            let tabClearance = TTFloatingTabBar<Int>.contentHeight + max(geo.safeAreaInsets.bottom, 8) + 10
+            let keyboardLift = max(0, keyboardHeight - geo.safeAreaInsets.bottom)
+            let bottomPad = keyboardLift > 0 ? keyboardLift + 12 : tabClearance
+            let panelWidth = min(geo.size.width - 28, 520)
+            let available = geo.size.height - topPad - bottomPad
+            let panelHeight = min(max(available, 280), geo.size.height * 0.78)
 
-            ZStack(alignment: .bottom) {
-                // Soft glass scrim — tap outside to dismiss.
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                        .opacity(contentReady ? 1 : 0)
-                    Color.black.opacity(contentReady ? 0.18 : 0)
+            let fabLocal: CGRect = {
+                guard fabFrameGlobal.width > 1 else {
+                    return CGRect(
+                        x: geo.size.width / 2 - 28,
+                        y: geo.size.height - tabClearance - 28,
+                        width: 56,
+                        height: 56
+                    )
                 }
+                return CGRect(
+                    x: fabFrameGlobal.minX - container.minX,
+                    y: fabFrameGlobal.minY - container.minY,
+                    width: fabFrameGlobal.width,
+                    height: fabFrameGlobal.height
+                )
+            }()
+
+            let expanded = CGRect(
+                x: (geo.size.width - panelWidth) / 2,
+                y: geo.size.height - bottomPad - panelHeight,
+                width: panelWidth,
+                height: panelHeight
+            )
+
+            let frame = lerp(fabLocal, expanded, t: morphProgress)
+            let radius = 18 + (32 - 18) * morphProgress
+
+            ZStack {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    Color.black.opacity(0.16)
+                }
+                .opacity(Double(morphProgress))
                 .ignoresSafeArea()
                 .onTapGesture { close() }
-                .allowsHitTesting(contentReady)
+                .allowsHitTesting(morphProgress > 0.85 && keyboardLift == 0)
 
-                floatingPanel
-                    .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
-                    .frame(maxWidth: 520)
-                    .frame(height: contentReady ? panelHeight : 56)
-                    .padding(.horizontal, contentReady ? 14 : geo.size.width / 2 - 28)
-                    .padding(.bottom, contentReady ? bottomClearance : bottomClearance - 8)
-                    .scaleEffect(contentReady ? 1 : 0.92, anchor: .bottom)
-                    .opacity(contentReady ? 1 : 0.95)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                floatingPanel(cornerRadius: radius)
+                    .frame(width: frame.width, height: frame.height)
+                    .position(x: frame.midX, y: frame.midY)
             }
+            .animation(morph, value: keyboardHeight)
         }
         .ignoresSafeArea()
         .onAppear(perform: openSequence)
+        .onReceive(TTAIKeyboard.overlapHeight) { height in
+            withAnimation(.easeOut(duration: 0.28)) {
+                keyboardHeight = height
+            }
+        }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: isPresented)
         .sensoryFeedback(.selection, trigger: isRecording)
     }
 
+    private func lerp(_ a: CGRect, _ b: CGRect, t: CGFloat) -> CGRect {
+        let t = min(max(t, 0), 1)
+        return CGRect(
+            x: a.minX + (b.minX - a.minX) * t,
+            y: a.minY + (b.minY - a.minY) * t,
+            width: a.width + (b.width - a.width) * t,
+            height: a.height + (b.height - a.height) * t
+        )
+    }
+
     // MARK: Floating liquid glass panel
 
-    private var floatingPanel: some View {
+    private func floatingPanel(cornerRadius: CGFloat) -> some View {
         VStack(spacing: 0) {
             grabber
             header
@@ -143,10 +199,10 @@ struct TTAICoachChatOverlay: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background { liquidGlassBackground }
-        .clipShape(RoundedRectangle(cornerRadius: panelRadius, style: .continuous))
+        .background { liquidGlassBackground(cornerRadius: cornerRadius) }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -161,35 +217,39 @@ struct TTAICoachChatOverlay: View {
                     lineWidth: 1.4
                 )
         }
-        .shadow(color: Color.black.opacity(contentReady ? 0.22 : 0.12), radius: contentReady ? 36 : 12, y: contentReady ? 18 : 6)
-        .shadow(color: orange.opacity(contentReady ? 0.28 : 0.4), radius: contentReady ? 28 : 14, y: contentReady ? 10 : 4)
+        .shadow(color: Color.black.opacity(0.12 + 0.1 * morphProgress), radius: 12 + 24 * morphProgress, y: 6 + 12 * morphProgress)
+        .shadow(color: orange.opacity(0.25 + 0.08 * morphProgress), radius: 14 + 14 * morphProgress, y: 4 + 6 * morphProgress)
     }
 
-    private var liquidGlassBackground: some View {
+    private func liquidGlassBackground(cornerRadius: CGFloat) -> some View {
         ZStack {
-            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
-                .fill(.ultraThinMaterial)
+            if morphProgress < 0.35 {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(orange)
+            } else {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+            }
 
-            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.82),
-                            Color.white.opacity(0.68),
-                            Color.white.opacity(0.75)
+                            Color.white.opacity(0.15 + 0.67 * morphProgress),
+                            Color.white.opacity(0.05 + 0.63 * morphProgress),
+                            Color.white.opacity(0.1 + 0.65 * morphProgress)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
                 )
 
-            // Specular highlight (liquid glass sheen).
-            RoundedRectangle(cornerRadius: panelRadius, style: .continuous)
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color.white.opacity(0.55),
-                            Color.white.opacity(0.08),
+                            Color.white.opacity(0.55 * morphProgress),
+                            Color.white.opacity(0.08 * morphProgress),
                             Color.clear
                         ],
                         startPoint: .top,
@@ -199,9 +259,8 @@ struct TTAICoachChatOverlay: View {
                 .blendMode(.plusLighter)
                 .opacity(0.7)
 
-            // Soft orange bloom near the bottom (ties to FAB brand).
             Ellipse()
-                .fill(orange.opacity(0.14))
+                .fill(orange.opacity(0.14 * morphProgress))
                 .frame(width: 220, height: 120)
                 .blur(radius: 36)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -597,20 +656,27 @@ struct TTAICoachChatOverlay: View {
                 )
             ]
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-            withAnimation(morph) { contentReady = true }
+        morphProgress = 0
+        contentReady = false
+        withAnimation(morph) {
+            morphProgress = 1
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            withAnimation(soft) {
+                contentReady = true
+            }
         }
     }
 
     private func close() {
         fieldFocused = false
-        withAnimation(morph) {
+        keyboardHeight = 0
+        withAnimation(soft) {
             contentReady = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
-            withAnimation(morph) {
-                isPresented = false
-            }
+        withAnimation(morph) {
+            morphProgress = 0
+            isPresented = false
         }
     }
 
@@ -677,18 +743,19 @@ struct TTAICoachChatOverlay: View {
     }
 }
 
-// MARK: - FAB morph source helper
+// MARK: - Keyboard overlap
 
-extension View {
-    /// Apply on the orange Plus control so it can morph into `TTAICoachChatOverlay`.
-    func ttAICoachFABSource(namespace: Namespace.ID, isChatPresented: Bool) -> some View {
-        self
-            .matchedGeometryEffect(
-                id: TTAICoachPortal.matchedID,
-                in: namespace,
-                isSource: !isChatPresented
-            )
-            .opacity(isChatPresented ? 0 : 1)
-            .allowsHitTesting(!isChatPresented)
+enum TTAIKeyboard {
+    static var overlapHeight: AnyPublisher<CGFloat, Never> {
+        NotificationCenter.default
+            .publisher(for: UIResponder.keyboardWillChangeFrameNotification)
+            .compactMap { notification -> CGFloat? in
+                guard let frame = notification.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+                    return nil
+                }
+                let screenH = UIScreen.main.bounds.height
+                return max(0, screenH - frame.origin.y)
+            }
+            .eraseToAnyPublisher()
     }
 }

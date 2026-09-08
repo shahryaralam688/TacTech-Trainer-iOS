@@ -7,6 +7,8 @@ enum TrainerTab: Hashable {
 struct TrainerRootView: View {
     @State private var tab: TrainerTab = .dashboard
     @State private var showAIChat = false
+    @State private var mountAIChat = false
+    @State private var fabFrameGlobal: CGRect = .zero
     @Namespace private var aiChatNamespace
 
     private let tabs: [TTTabBarItem<TrainerTab>] = [
@@ -16,7 +18,7 @@ struct TrainerRootView: View {
         TTTabBarItem(.profile, icon: .user, label: "Profile")
     ]
 
-    private let morph = Animation.spring(response: 0.48, dampingFraction: 0.88)
+    private let morph = Animation.spring(response: 0.5, dampingFraction: 0.86)
 
     var body: some View {
         GeometryReader { geo in
@@ -45,22 +47,32 @@ struct TrainerRootView: View {
                     isAIChatPresented: showAIChat
                 )
 
-                if showAIChat {
+                if mountAIChat {
                     TTAICoachChatOverlay(
                         isPresented: $showAIChat,
                         audience: .trainer,
-                        namespace: aiChatNamespace
+                        namespace: aiChatNamespace,
+                        fabFrameGlobal: fabFrameGlobal
                     )
                     .zIndex(40)
                     .transition(.identity)
                 }
             }
+            .onPreferenceChange(TTAICoachFABFrameKey.self) { fabFrameGlobal = $0 }
         }
         .ignoresSafeArea(edges: .bottom)
         .ignoresSafeArea(.keyboard)
+        .onChange(of: showAIChat) { _, open in
+            if !open {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.55) {
+                    if !showAIChat { mountAIChat = false }
+                }
+            }
+        }
     }
 
     private func openAIChat() {
+        mountAIChat = true
         withAnimation(morph) {
             showAIChat = true
         }

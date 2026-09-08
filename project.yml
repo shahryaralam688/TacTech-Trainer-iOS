@@ -46,8 +46,10 @@ targets:
         UIUserInterfaceStyle: Automatic
         UIAppFonts:
           - WorkSans-Regular.ttf
+          - WorkSans-Medium.ttf
+          - WorkSans-SemiBold.ttf
           - WorkSans-Bold.ttf
-          - WorkSans-Variable.ttf
+          - WorkSans-ExtraBold.ttf
         NSAppTransportSecurity:
           NSExceptionDomains:
             sheryl-biocellate-sympathizingly.ngrok-free.dev:

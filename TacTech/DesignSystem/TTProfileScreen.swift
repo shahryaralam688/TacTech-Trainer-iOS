@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 // MARK: - Sandow Profile Screen
-// Layout matches Sandow UI Kit profile (gym hero + score chart + metric tiles).
+// Hero + overlapping avatar + sheet identity; header collapses on scroll.
 
 struct TTProfileMetric: Identifiable {
     let id: String
@@ -41,23 +41,36 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var selectedShort: String?
     @State private var rangeLabel = "Weekly"
     @State private var path = NavigationPath()
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let avatarSize: CGFloat = 112
-    /// Visible hero card height (includes status-bar bleed when ignoring top safe area).
-    private let heroCardHeight: CGFloat = 236
-    /// Content sheet top curve (moved off the hero card).
+    private let expandedAvatar: CGFloat = 112
+    private let collapsedAvatar: CGFloat = 44
+    private let expandedHero: CGFloat = 236
+    private let collapsedHero: CGFloat = 108
     private let contentTopRadius: CGFloat = 36
     private let chromeButton: CGFloat = 52
     private let chromeIcon: CGFloat = 22
     private let chromeBottomPad: CGFloat = 20
     private let chromeSidePad: CGFloat = 20
+    private let scrollSpace = "profileScreen"
 
     private enum ProfileRoute: Hashable {
         case accountSettings
         case personalInfo
+    }
+
+    private var p: CGFloat { scrollCollapse.progress }
+    private var expand: CGFloat { 1 - p }
+
+    private var heroHeight: CGFloat {
+        collapsedHero + (expandedHero - collapsedHero) * expand
+    }
+
+    private var avatarSide: CGFloat {
+        collapsedAvatar + (expandedAvatar - collapsedAvatar) * expand
     }
 
     private var activeDayId: String {
@@ -66,20 +79,45 @@ struct TTProfileScreen<Extra: View>: View {
 
     var body: some View {
         NavigationStack(path: $path) {
-            VStack(spacing: 0) {
-                staticHeader
+            GeometryReader { geo in
+                let topSafe = geo.safeAreaInsets.top
+                let width = geo.size.width
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 10) {
-                        sandowCard
-                        metricsRow
-                        extra()
+                ZStack(alignment: .top) {
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .frame(height: heroHeight)
+
+                        ScrollView(showsIndicators: false) {
+                            VStack(spacing: 0) {
+                                TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+
+                                VStack(spacing: 10) {
+                                    identityBlock
+                                    sandowCard
+                                    metricsRow
+                                    extra()
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.top, avatarSide / 2 + 14)
+                                .padding(.bottom, 20)
+                            }
+                        }
+                        .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
+                        .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 20)
+
+                    heroCard
+                        .frame(height: heroHeight)
+                        .frame(maxWidth: .infinity)
+                        .clipped()
+                        .allowsHitTesting(false)
+
+                    chromeButtons(topSafe: topSafe)
+
+                    overlappingAvatar(width: width)
                 }
-                .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
             .background(charcoal.ignoresSafeArea(edges: .top))
             .ignoresSafeArea(edges: .top)
@@ -95,46 +133,15 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: Static header (card + profile picture + identity)
+    // MARK: - Hero
 
-    private var staticHeader: some View {
-        ZStack(alignment: .top) {
-            staticTopCard
-                .overlay(alignment: .bottom) {
-                    HStack {
-                        profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
-                            if showsBack {
-                                dismiss()
-                            } else {
-                                path.append(ProfileRoute.personalInfo)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        profileChromeButton(icon: .gear1) {
-                            path.append(ProfileRoute.accountSettings)
-                        }
-                    }
-                    .padding(.horizontal, chromeSidePad)
-                    .padding(.bottom, chromeBottomPad)
-                }
-
-            VStack(spacing: 10) {
-                Color.clear
-                    .frame(height: heroCardHeight - avatarSize / 2)
-                profileAvatar
-                identity
-            }
-        }
-        .padding(.bottom, 4)
-    }
-
-    /// Static top card — bleeds under status bar; rectangular (curve on content sheet).
-    private var staticTopCard: some View {
+    private var heroCard: some View {
         ZStack {
             charcoal
             Image(heroImage)
                 .resizable()
                 .scaledToFill()
+                .opacity(0.55 + 0.45 * Double(expand))
             LinearGradient(
                 colors: [
                     Color.black.opacity(0.18),
@@ -145,47 +152,80 @@ struct TTProfileScreen<Extra: View>: View {
                 endPoint: .bottom
             )
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: heroCardHeight)
-        .clipped()
     }
 
-    private var profileAvatar: some View {
-        let corner = avatarSize * 0.28
-        return TTAvatarImage(
-            assetName: avatarAsset,
-            userId: avatarUserId,
-            initials: initials,
-            size: avatarSize
-        )
-        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(.white, lineWidth: 3.5)
-        )
-        .shadow(color: .black.opacity(0.16), radius: 12, y: 4)
+    // MARK: - Chrome (left / right) — rise on collapse
+
+    private func chromeButtons(topSafe: CGFloat) -> some View {
+        let collapsedTop = topSafe + 8
+        let expandedTop = heroHeight - chromeBottomPad - chromeButton
+        let top = collapsedTop + (expandedTop - collapsedTop) * expand
+        let buttonScale = 1 - 0.12 * p
+
+        return HStack {
+            profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
+                if showsBack {
+                    dismiss()
+                } else {
+                    path.append(ProfileRoute.personalInfo)
+                }
+            }
+            Spacer(minLength: 0)
+            profileChromeButton(icon: .gear1) {
+                path.append(ProfileRoute.accountSettings)
+            }
+        }
+        .scaleEffect(buttonScale, anchor: .top)
+        .padding(.horizontal, chromeSidePad)
+        .padding(.top, top)
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     private func profileChromeButton(icon: SandowIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            TTIcon(icon: icon, filled: true, size: chromeIcon)
+            TTIcon(icon: icon, filled: true, size: chromeIcon - 2 * p)
                 .foregroundStyle(.white)
-                .frame(width: chromeButton, height: chromeButton)
+                .frame(width: chromeButton - 6 * p, height: chromeButton - 6 * p)
                 .background(Color(white: 0.22).opacity(0.82))
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16 - 2 * p, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(icon == .gear1 ? "Settings" : (showsBack ? "Back" : "Edit"))
     }
 
-    // MARK: Identity
+    // MARK: - Avatar (half hero / half sheet → shrink + slide left)
 
-    private var identity: some View {
+    private func overlappingAvatar(width: CGFloat) -> some View {
+        let corner = avatarSide * 0.28
+        let expandedX = width / 2
+        let collapsedX = chromeSidePad + (chromeButton - 6) + 10 + avatarSide / 2
+        let x = expandedX + (collapsedX - expandedX) * p
+        let y = heroHeight
+
+        return TTAvatarImage(
+            assetName: avatarAsset,
+            userId: avatarUserId,
+            initials: initials,
+            size: avatarSide
+        )
+        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .strokeBorder(.white, lineWidth: 3.5 - p)
+        )
+        .shadow(color: .black.opacity(0.16 * Double(expand) + 0.08), radius: 12 - 6 * p, y: 4 - 2 * p)
+        .position(x: x, y: y)
+        .allowsHitTesting(false)
+    }
+
+    // MARK: - Identity (lives on the content sheet)
+
+    private var identityBlock: some View {
         VStack(spacing: 6) {
             Text(name)
-                .font(TTFont.workSans(24, weight: .bold))
-                .foregroundStyle(.white)
+                .font(TTFont.workSans(24 - 2 * p, weight: .bold))
+                .foregroundStyle(TTColor.ink)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 6) {
@@ -195,7 +235,7 @@ struct TTProfileScreen<Extra: View>: View {
                         .font(TTFont.textSM(.medium))
                 }
                 Circle()
-                    .fill(Color.white.opacity(0.45))
+                    .fill(TTColor.ink.opacity(0.25))
                     .frame(width: 3, height: 3)
                     .padding(.horizontal, 4)
                 HStack(spacing: 4) {
@@ -204,10 +244,11 @@ struct TTProfileScreen<Extra: View>: View {
                         .font(TTFont.textSM(.medium))
                 }
             }
-            .foregroundStyle(Color.white.opacity(0.72))
+            .foregroundStyle(TTColor.inkMuted)
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 24)
+        .padding(.horizontal, 8)
+        .opacity(Double(0.35 + 0.65 * expand))
     }
 
     // MARK: Sandow Score

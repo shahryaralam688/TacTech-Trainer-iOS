@@ -14,7 +14,6 @@ struct TraineeDashboardView: View {
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let canvas = Color(white: 0.98)
-    private let homeScrollSpace = "traineeHome"
 
     var body: some View {
         NavigationStack {
@@ -22,21 +21,24 @@ struct TraineeDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        // Execution first → snapshot → support
-                        todayWorkoutSection
-                        fitnessMetrics
-                        dietSection
-                        activitiesSection
-                        coachSection
-                        formInsightsSection
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollOffsetAnchor(space: "traineeHome")
+
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Execution first → snapshot → support
+                            todayWorkoutSection
+                            fitnessMetrics
+                            dietSection
+                            activitiesSection
+                            coachSection
+                            formInsightsSection
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 36)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 36)
-                    .ttHomeScrollOffset($scrollOffset, space: homeScrollSpace)
                 }
-                .coordinateSpace(name: homeScrollSpace)
+                .ttHomeScrollCollapseOffset($scrollOffset, space: "traineeHome")
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

@@ -11,7 +11,6 @@ struct TrainerDashboardView: View {
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let green = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
     private let canvas = Color.white
-    private let homeScrollSpace = "trainerHome"
 
     var body: some View {
         NavigationStack {
@@ -19,21 +18,24 @@ struct TrainerDashboardView: View {
                 darkHeader
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 22) {
-                        // Ops first → snapshot → roster → actions → recent
-                        weekStrip
-                        todayQueue
-                        coachingMetrics
-                        rosterSpotlight
-                        coachShortcuts
-                        recentForm
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollOffsetAnchor(space: "trainerHome")
+
+                        VStack(alignment: .leading, spacing: 22) {
+                            // Ops first → snapshot → roster → actions → recent
+                            weekStrip
+                            todayQueue
+                            coachingMetrics
+                            rosterSpotlight
+                            coachShortcuts
+                            recentForm
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 20)
+                        .padding(.bottom, 28)
                     }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
-                    .ttHomeScrollOffset($scrollOffset, space: homeScrollSpace)
                 }
-                .coordinateSpace(name: homeScrollSpace)
+                .ttHomeScrollCollapseOffset($scrollOffset, space: "trainerHome")
                 .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

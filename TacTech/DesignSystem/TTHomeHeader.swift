@@ -17,7 +17,7 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
 
 /// How far home must scroll before the header is fully compact (name + chevron).
 enum TTHomeHeaderCollapse {
-    static let distance: CGFloat = 92
+    static let distance: CGFloat = 72
 
     static func progress(for offset: CGFloat) -> CGFloat {
         min(1, max(0, offset / distance))
@@ -255,32 +255,41 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 
 // MARK: - Home scroll → header collapse
 
+extension View {
+    /// Attach to the home **ScrollView**. Pair content with `TTHomeScrollOffsetAnchor`.
+    func ttHomeScrollCollapseOffset(_ offset: Binding<CGFloat>, space: String = "ttHomeScroll") -> some View {
+        self
+            .coordinateSpace(name: space)
+            .onPreferenceChange(TTHomeScrollOffsetKey.self) { value in
+                var transaction = Transaction()
+                transaction.animation = nil
+                withTransaction(transaction) {
+                    offset.wrappedValue = max(0, value)
+                }
+            }
+    }
+}
+
+/// Put as the **first** child inside the home ScrollView content (above padding/sections).
+struct TTHomeScrollOffsetAnchor: View {
+    var space: String = "ttHomeScroll"
+
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear.preference(
+                key: TTHomeScrollOffsetKey.self,
+                value: -geo.frame(in: .named(space)).minY
+            )
+        }
+        .frame(width: 0, height: 0)
+        .accessibilityHidden(true)
+    }
+}
+
 private struct TTHomeScrollOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
         value = nextValue()
-    }
-}
-
-extension View {
-    /// Reads how far this view's top has scrolled (positive = down). Pair with `.coordinateSpace(name:)`.
-    func ttHomeScrollOffset(_ offset: Binding<CGFloat>, space: String) -> some View {
-        background(alignment: .top) {
-            GeometryReader { geo in
-                Color.clear.preference(
-                    key: TTHomeScrollOffsetKey.self,
-                    value: -geo.frame(in: .named(space)).minY
-                )
-            }
-            .frame(height: 0)
-        }
-        .onPreferenceChange(TTHomeScrollOffsetKey.self) { value in
-            var transaction = Transaction()
-            transaction.animation = nil
-            withTransaction(transaction) {
-                offset.wrappedValue = max(0, value)
-            }
-        }
     }
 }
 

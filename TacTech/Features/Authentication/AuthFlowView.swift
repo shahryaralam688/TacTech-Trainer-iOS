@@ -159,12 +159,13 @@ struct RoleSelectionView: View {
     @State private var inviteCode = ""
     @State private var error: String?
     @State private var isLoading = false
-    @State private var appeared = false
-    @State private var pulse = false
     @FocusState private var nameFocused: Bool
     @FocusState private var inviteFocused: Bool
 
     private let orange = TTColor.actionOrange
+    private let ink = Color.black
+    private let muted = Color(white: 0.42)
+    private let selectSpring = Animation.spring(response: 0.42, dampingFraction: 0.84)
 
     init(draft: SignupDraft) {
         self.draft = draft
@@ -173,70 +174,44 @@ struct RoleSelectionView: View {
 
     var body: some View {
         ZStack {
-            backgroundLayer
+            Color.white.ignoresSafeArea()
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                        .padding(.bottom, 18)
+                        .padding(.bottom, 20)
 
                     titleBlock
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 24)
 
                     roleCards
-                        .padding(.bottom, 22)
+                        .padding(.bottom, 24)
 
                     detailsBlock
-                        .padding(.bottom, 18)
+                        .padding(.bottom, 16)
 
                     if let error {
                         Text(error)
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.danger)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color(red: 0.86, green: 0.15, blue: 0.15))
                             .padding(.bottom, 12)
                             .transition(.opacity.combined(with: .move(edge: .top)))
                     }
 
                     continueButton
-                        .padding(.bottom, 28)
+                        .padding(.bottom, 32)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
             }
         }
+        .background(Color.white.ignoresSafeArea())
         .ttHideSystemNavigationBar()
         .preferredColorScheme(.light)
-        .onAppear {
-            withAnimation(.spring(response: 0.72, dampingFraction: 0.84)) {
-                appeared = true
-            }
-            withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
-                pulse = true
-            }
-        }
+        .toolbarBackground(Color.white, for: .navigationBar)
         .sensoryFeedback(.selection, trigger: role)
-    }
-
-    // MARK: - Background
-
-    private var backgroundLayer: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-
-            Circle()
-                .fill(orange.opacity(0.16))
-                .frame(width: 280, height: 280)
-                .blur(radius: 48)
-                .offset(x: pulse ? 40 : -30, y: pulse ? -120 : -80)
-                .ignoresSafeArea()
-
-            Circle()
-                .fill(Color.black.opacity(0.05))
-                .frame(width: 220, height: 220)
-                .blur(radius: 40)
-                .offset(x: pulse ? -90 : -50, y: pulse ? 420 : 380)
-                .ignoresSafeArea()
-        }
+        .animation(selectSpring, value: role)
+        .animation(selectSpring, value: error != nil)
     }
 
     // MARK: - Header / Title
@@ -246,54 +221,43 @@ struct RoleSelectionView: View {
             TTBackButton(style: .onLight) { dismiss() }
             Spacer()
             Text("STEP 2 OF 2")
-                .font(TTFont.caption(11))
-                .tracking(1.2)
-                .foregroundStyle(TTColor.inkMuted)
+                .font(.system(size: 11, weight: .bold))
+                .tracking(1.4)
+                .foregroundStyle(ink)
                 .padding(.horizontal, 12)
-                .padding(.vertical, 7)
+                .padding(.vertical, 8)
                 .background(Color(white: 0.94))
                 .clipShape(Capsule())
         }
-        .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : -12)
     }
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Choose your path")
                 .font(.system(size: 32, weight: .bold))
-                .foregroundStyle(TTColor.ink)
+                .foregroundStyle(ink)
 
-            Text("Pick how you’ll use TacTech. You can always coach or train with full tools for your role.")
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(TTColor.inkMuted)
+            Text("Pick Trainer or Trainee. Tools and screens will match the role you choose.")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : 18)
     }
 
     // MARK: - Role cards
 
     private var roleCards: some View {
-        HStack(alignment: .top, spacing: 14) {
+        VStack(spacing: 14) {
             ForEach(Array(UserRole.allCases.enumerated()), id: \.element.id) { index, option in
                 RolePathCard(
                     role: option,
                     isSelected: role == option,
-                    pulse: pulse
+                    index: index
                 ) {
-                    withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
-                        self.role = option
+                    withAnimation(selectSpring) {
+                        role = option
                     }
                 }
-                .opacity(appeared ? 1 : 0)
-                .offset(y: appeared ? 0 : 36)
-                .scaleEffect(appeared ? 1 : 0.92)
-                .animation(
-                    .spring(response: 0.62, dampingFraction: 0.82).delay(0.08 + Double(index) * 0.08),
-                    value: appeared
-                )
             }
         }
     }
@@ -302,36 +266,29 @@ struct RoleSelectionView: View {
 
     private var detailsBlock: some View {
         VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("YOUR NAME")
-                    .font(TTFont.caption(11))
-                    .foregroundStyle(TTColor.inkMuted)
-                HStack(spacing: 12) {
-                    TTIcon(icon: .user, size: 18)
-                        .foregroundStyle(nameFocused ? orange : TTColor.inkMuted)
-                    TextField("Full name", text: $name)
-                        .font(TTFont.body(16))
-                        .focused($nameFocused)
-                        .tint(orange)
-                }
-                .padding(.horizontal, 14)
-                .frame(height: 54)
-                .ttInputChrome(focused: nameFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
+            fieldLabel("Your name")
+            HStack(spacing: 12) {
+                TTIcon(icon: .user, size: 18)
+                    .foregroundStyle(nameFocused ? orange : ink.opacity(0.45))
+                TextField("Full name", text: $name)
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(ink)
+                    .focused($nameFocused)
+                    .tint(orange)
             }
-            .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 20)
-            .animation(.spring(response: 0.62, dampingFraction: 0.84).delay(0.22), value: appeared)
+            .padding(.horizontal, 14)
+            .frame(height: 54)
+            .ttInputChrome(focused: nameFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
 
             if role == .trainee {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("TRAINER INVITE (OPTIONAL)")
-                        .font(TTFont.caption(11))
-                        .foregroundStyle(TTColor.inkMuted)
+                    fieldLabel("Trainer invite (optional)")
                     HStack(spacing: 12) {
                         TTIcon(icon: .link1, size: 18)
-                            .foregroundStyle(inviteFocused ? orange : TTColor.inkMuted)
+                            .foregroundStyle(inviteFocused ? orange : ink.opacity(0.45))
                         TextField("e.g. TACT-MAYA", text: $inviteCode)
-                            .font(TTFont.body(16))
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(ink)
                             .textInputAutocapitalization(.characters)
                             .autocorrectionDisabled()
                             .focused($inviteFocused)
@@ -342,8 +299,8 @@ struct RoleSelectionView: View {
                     .ttInputChrome(focused: inviteFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
 
                     Text("Use TACT-MAYA to join the demo trainer.")
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(TTColor.inkSubtle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(muted)
                 }
                 .transition(
                     .asymmetric(
@@ -353,11 +310,18 @@ struct RoleSelectionView: View {
                 )
             }
         }
-        .animation(.spring(response: 0.45, dampingFraction: 0.86), value: role)
+    }
+
+    private func fieldLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .bold))
+            .tracking(0.8)
+            .foregroundStyle(ink.opacity(0.55))
     }
 
     private var continueButton: some View {
-        Button {
+        let canContinue = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return Button {
             Task { await createAccount() }
         } label: {
             HStack(spacing: 10) {
@@ -369,28 +333,21 @@ struct RoleSelectionView: View {
                     Spacer(minLength: 8)
                     Image(systemName: "arrow.right")
                         .font(.system(size: 16, weight: .semibold))
+                        .symbolEffect(.bounce, value: role)
                 }
             }
             .padding(.horizontal, 18)
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 58)
-            .background(
-                LinearGradient(
-                    colors: [Color.black, Color(white: 0.18)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            .background(Color.black)
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .shadow(color: Color.black.opacity(0.18), radius: 16, y: 8)
+            .shadow(color: Color.black.opacity(canContinue ? 0.16 : 0), radius: 14, y: 7)
         }
-        .buttonStyle(TTSearchPressStyle(scale: 0.98))
-        .disabled(isLoading || name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-        .opacity(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.55 : 1)
-        .opacity(appeared ? 1 : 0)
-        .offset(y: appeared ? 0 : 24)
-        .animation(.spring(response: 0.62, dampingFraction: 0.84).delay(0.3), value: appeared)
+        .buttonStyle(AssessmentCardPressStyle())
+        .disabled(isLoading || !canContinue)
+        .opacity(canContinue ? 1 : 0.45)
+        .animation(selectSpring, value: canContinue)
     }
 
     private func createAccount() async {
@@ -406,83 +363,88 @@ struct RoleSelectionView: View {
                 inviteCode: inviteCode.isEmpty ? nil : inviteCode
             )
         } catch {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.86)) {
+            withAnimation(selectSpring) {
                 self.error = error.localizedDescription
             }
         }
     }
 }
 
-// MARK: - Role path card
+// MARK: - Role path card (assessment-style motion)
 
 private struct RolePathCard: View {
     let role: UserRole
     let isSelected: Bool
-    var pulse: Bool
+    var index: Int = 0
     let onSelect: () -> Void
 
+    @State private var appeared = false
+
     private let orange = TTColor.actionOrange
+    private let ink = Color.black
+    private let muted = Color(white: 0.42)
+    private let selectSpring = Animation.spring(response: 0.42, dampingFraction: 0.84)
 
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .topTrailing) {
+            HStack(spacing: 0) {
+                ZStack {
                     Image(role.imageName)
                         .resizable()
                         .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 168)
-                        .clipped()
-                        .scaleEffect(isSelected ? 1.06 : 1.0)
-                        .animation(.spring(response: 0.55, dampingFraction: 0.84), value: isSelected)
+                        .frame(width: 118, height: 148)
+                        .scaleEffect(isSelected ? 1.08 : 1.0)
 
                     LinearGradient(
-                        colors: [
-                            .clear,
-                            .black.opacity(0.15),
-                            .black.opacity(0.72)
-                        ],
+                        colors: [.clear, .black.opacity(0.18)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-
-                    selectionBadge
-                        .padding(10)
                 }
-                .frame(height: 168)
+                .frame(width: 118, height: 148)
                 .clipped()
 
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        TTIcon(icon: role.sandowIcon, filled: true, size: 16)
-                            .foregroundStyle(isSelected ? orange : TTColor.inkMuted)
-                        Text(role.title)
-                            .font(.system(size: 17, weight: .bold))
-                            .foregroundStyle(TTColor.ink)
-                    }
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 8) {
+                                TTIcon(icon: role.sandowIcon, filled: true, size: 16)
+                                    .foregroundStyle(isSelected ? orange : ink)
+                                Text(role.title)
+                                    .font(.system(size: 18, weight: .bold))
+                                    .foregroundStyle(ink)
+                            }
+                            Text(role.headline)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(isSelected ? orange : muted)
+                        }
 
-                    Text(role.headline)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(isSelected ? orange : TTColor.inkMuted)
+                        Spacer(minLength: 8)
+
+                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(isSelected ? orange : Color(white: 0.72))
+                            .symbolEffect(.bounce, value: isSelected)
+                    }
 
                     VStack(alignment: .leading, spacing: 5) {
                         ForEach(role.perks, id: \.self) { perk in
-                            HStack(alignment: .top, spacing: 6) {
+                            HStack(alignment: .top, spacing: 7) {
                                 Circle()
-                                    .fill(isSelected ? orange : Color(white: 0.75))
+                                    .fill(isSelected ? orange : Color(white: 0.7))
                                     .frame(width: 5, height: 5)
                                     .padding(.top, 5)
                                 Text(perk)
                                     .font(.system(size: 12, weight: .medium))
-                                    .foregroundStyle(TTColor.inkMuted)
+                                    .foregroundStyle(ink.opacity(0.72))
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     }
-                    .padding(.top, 2)
                 }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity, minHeight: 148, alignment: .leading)
                 .background(Color.white)
             }
             .background(Color.white)
@@ -490,43 +452,29 @@ private struct RolePathCard: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(
-                        isSelected ? orange : Color.black.opacity(0.06),
+                        isSelected ? orange : Color.black.opacity(0.08),
                         lineWidth: isSelected ? 2.5 : 1
                     )
             )
             .shadow(
-                color: isSelected ? orange.opacity(pulse ? 0.34 : 0.18) : Color.black.opacity(0.08),
-                radius: isSelected ? 18 : 10,
-                y: isSelected ? 10 : 6
+                color: isSelected ? orange.opacity(0.22) : Color.black.opacity(0.06),
+                radius: isSelected ? 14 : 8,
+                y: isSelected ? 6 : 3
             )
-            .scaleEffect(isSelected ? 1.02 : 1.0)
-            .offset(y: isSelected ? -2 : 0)
+            .scaleEffect(appeared ? (isSelected ? 1.015 : 1) : 0.94)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 18)
         }
-        .buttonStyle(.plain)
-        .animation(.spring(response: 0.42, dampingFraction: 0.8), value: isSelected)
-        .accessibilityLabel("\(role.title). \(role.subtitle)")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
-
-    private var selectionBadge: some View {
-        ZStack {
-            Circle()
-                .fill(isSelected ? orange : Color.white.opacity(0.85))
-                .frame(width: 30, height: 30)
-                .shadow(color: .black.opacity(0.15), radius: 4, y: 2)
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .transition(.scale.combined(with: .opacity))
-            } else {
-                Circle()
-                    .strokeBorder(Color.black.opacity(0.2), lineWidth: 1.5)
-                    .frame(width: 18, height: 18)
+        .buttonStyle(AssessmentCardPressStyle())
+        .animation(selectSpring, value: isSelected)
+        .sensoryFeedback(.selection, trigger: isSelected)
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.84).delay(Double(index) * 0.06)) {
+                appeared = true
             }
         }
-        .animation(.spring(response: 0.38, dampingFraction: 0.7), value: isSelected)
+        .accessibilityLabel("\(role.title). \(role.subtitle)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 

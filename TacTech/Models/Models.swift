@@ -26,6 +26,36 @@ enum UserRole: String, Codable, CaseIterable, Identifiable {
         case .trainee: "figure.run"
         }
     }
+
+    var imageName: String {
+        switch self {
+        case .trainer: "RoleTrainer"
+        case .trainee: "RoleTrainee"
+        }
+    }
+
+    var headline: String {
+        switch self {
+        case .trainer: "Coach athletes"
+        case .trainee: "Train with AI"
+        }
+    }
+
+    var perks: [String] {
+        switch self {
+        case .trainer:
+            ["Build workout plans", "Assign trainees", "Review form & progress"]
+        case .trainee:
+            ["Follow your program", "Form AI feedback", "Track nutrition"]
+        }
+    }
+
+    var sandowIcon: SandowIcon {
+        switch self {
+        case .trainer: .whistle
+        case .trainee: .stepSneaker
+        }
+    }
 }
 
 struct User: Identifiable, Codable, Hashable {

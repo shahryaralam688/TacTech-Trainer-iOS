@@ -68,6 +68,7 @@ struct TTAICoachChatOverlay: View {
     @State private var isRecording = false
     @State private var isThinking = false
     @State private var expanded = false
+    @State private var chromeVisible = false
     @State private var wavePhase: CGFloat = 0
     @State private var pendingImage: UIImage?
     @State private var libraryItem: PhotosPickerItem?
@@ -79,7 +80,10 @@ struct TTAICoachChatOverlay: View {
     private let orange = TTColor.actionOrange
     private let ink = Color.black
     private let muted = Color(white: 0.42)
-    private let bubble = Animation.spring(response: 0.52, dampingFraction: 0.82)
+    /// Present / dismiss — Intercom-like soft spring.
+    private let present = Animation.spring(response: 0.46, dampingFraction: 0.88)
+    /// Keyboard / safe-area resize — critically damped so height doesn’t bounce.
+    private let resize = Animation.spring(response: 0.34, dampingFraction: 0.98)
     private let soft = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
     /// Resting gaps (unchanged visually when keyboard is hidden).
@@ -89,33 +93,35 @@ struct TTAICoachChatOverlay: View {
 
     var body: some View {
         ZStack {
-            // Scrim only — must not eat keyboard safe-area for the bubble.
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .overlay(Color.black.opacity(expanded ? 0.22 : 0))
                 .ignoresSafeArea()
                 .opacity(expanded ? 1 : 0)
+                .animation(present, value: expanded)
                 .onTapGesture { close() }
                 .allowsHitTesting(expanded)
 
             GeometryReader { geo in
-                // Dynamic insets: home indicator when idle, keyboard when focused.
                 let topInset = geo.safeAreaInsets.top + topGap
                 let bottomInset = geo.safeAreaInsets.bottom + bottomGap
                 let maxBubbleHeight = max(280, geo.size.height - topInset - bottomInset)
+                let bubbleHeight = min(max(440, maxBubbleHeight * 0.9), maxBubbleHeight)
 
-                floatingBubble(maxHeight: maxBubbleHeight)
+                floatingBubble(height: bubbleHeight)
                     .padding(.horizontal, sidePad)
                     .padding(.top, topInset)
                     .padding(.bottom, bottomInset)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                    .scaleEffect(expanded ? 1 : 0.18, anchor: .bottom)
-                    .opacity(expanded ? 1 : 0.01)
-                    .offset(y: expanded ? 0 : 36)
-                    .animation(.easeOut(duration: 0.25), value: geo.safeAreaInsets.bottom)
+                    .scaleEffect(expanded ? 1 : 0.84, anchor: UnitPoint(x: 0.5, y: 1.0))
+                    .opacity(expanded ? 1 : 0)
+                    .offset(y: expanded ? 0 : 28)
+                    .animation(present, value: expanded)
+                    .animation(resize, value: bubbleHeight)
+                    .animation(resize, value: bottomInset)
+                    .animation(resize, value: topInset)
             }
         }
-        // Do not ignore keyboard — system reports keyboard via safeAreaInsets.
         .onAppear(perform: openSequence)
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
@@ -142,29 +148,32 @@ struct TTAICoachChatOverlay: View {
 
     // MARK: Floating bubble
 
-    private func floatingBubble(maxHeight: CGFloat) -> some View {
+    private func floatingBubble(height: CGFloat) -> some View {
         VStack(spacing: 0) {
             grabber
             header
             Divider().opacity(0.10)
 
             messageList
+                .opacity(chromeVisible ? 1 : 0)
 
             if !audience.suggestions.isEmpty && draft.isEmpty && pendingImage == nil && !isRecording {
                 suggestionRow
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .opacity(chromeVisible ? 1 : 0)
+                    .transition(.opacity)
             }
 
             if isRecording {
                 voicePanel
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                    .transition(.opacity)
             } else {
                 composer
+                    .opacity(chromeVisible ? 1 : 0)
             }
         }
         .frame(maxWidth: 560)
         .frame(maxWidth: .infinity)
-        .frame(height: min(max(520, maxHeight * 0.92), maxHeight))
+        .frame(height: height, alignment: .top)
         .background { liquidBackground }
         .clipShape(RoundedRectangle(cornerRadius: 32, style: .continuous))
         .overlay(
@@ -182,9 +191,8 @@ struct TTAICoachChatOverlay: View {
                     lineWidth: 1.2
                 )
         )
-        .shadow(color: orange.opacity(0.22), radius: 28, y: 14)
-        .shadow(color: Color.black.opacity(0.16), radius: 30, y: 18)
-        .matchedGeometryEffect(id: TTAICoachPortal.matchedID, in: namespace, isSource: isPresented)
+        .shadow(color: orange.opacity(expanded ? 0.22 : 0.08), radius: expanded ? 28 : 10, y: expanded ? 14 : 6)
+        .shadow(color: Color.black.opacity(expanded ? 0.16 : 0.06), radius: expanded ? 30 : 12, y: expanded ? 18 : 8)
     }
 
     private var liquidBackground: some View {
@@ -262,6 +270,7 @@ struct TTAICoachChatOverlay: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
         .padding(.top, 4)
+        .opacity(chromeVisible ? 1 : 0)
     }
 
     // MARK: Messages
@@ -588,15 +597,27 @@ struct TTAICoachChatOverlay: View {
                 )
             ]
         }
+        chromeVisible = false
+        // Next run-loop so the view mounts at the collapsed state first.
         DispatchQueue.main.async {
-            withAnimation(bubble) { expanded = true }
+            withAnimation(present) {
+                expanded = true
+            }
+            withAnimation(present.delay(0.08)) {
+                chromeVisible = true
+            }
         }
     }
 
     private func close() {
         fieldFocused = false
-        withAnimation(bubble) {
+        withAnimation(present) {
+            chromeVisible = false
             expanded = false
+        }
+        // Keep the view alive until the spring finishes, then tear down.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) {
+            guard !expanded else { return }
             isPresented = false
         }
     }
@@ -683,12 +704,9 @@ struct TTAICoachChatOverlay: View {
 extension View {
     func ttAICoachFABSource(namespace: Namespace.ID, isChatPresented: Bool) -> some View {
         self
-            .matchedGeometryEffect(
-                id: TTAICoachPortal.matchedID,
-                in: namespace,
-                isSource: !isChatPresented
-            )
             .opacity(isChatPresented ? 0 : 1)
+            .scaleEffect(isChatPresented ? 0.82 : 1, anchor: .center)
+            .animation(.spring(response: 0.42, dampingFraction: 0.88), value: isChatPresented)
             .allowsHitTesting(!isChatPresented)
     }
 }

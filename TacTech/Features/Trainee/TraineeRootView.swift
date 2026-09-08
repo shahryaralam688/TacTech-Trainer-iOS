@@ -56,13 +56,16 @@ struct TraineeRootView: View {
                     namespace: aiChatNamespace
                 )
                 .zIndex(40)
-                .transition(.identity)
+                .transition(.opacity)
             }
         }
     }
 
     private func openAIChat() {
-        withAnimation(.spring(response: 0.52, dampingFraction: 0.82)) {
+        // Insert without animating the tree; the overlay owns its present spring.
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
             showAIChat = true
         }
     }

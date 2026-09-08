@@ -176,20 +176,12 @@ private struct TTAICoachFABMatchedModifier: ViewModifier {
     var namespace: Namespace.ID?
     var isPresented: Bool
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if let namespace {
-            content
-                .matchedGeometryEffect(
-                    id: TTAICoachPortal.matchedID,
-                    in: namespace,
-                    isSource: !isPresented
-                )
-                .opacity(isPresented ? 0 : 1)
-                .allowsHitTesting(!isPresented)
-        } else {
-            content
-        }
+        content
+            .opacity(isPresented ? 0 : 1)
+            .scaleEffect(isPresented ? 0.82 : 1, anchor: .center)
+            .animation(.spring(response: 0.42, dampingFraction: 0.88), value: isPresented)
+            .allowsHitTesting(!isPresented)
     }
 }
 

@@ -223,6 +223,7 @@ struct ExerciseTemplateCustomizeView: View {
     @Binding var saveAsTemplate: Bool
     let onDone: (ExerciseDraft) -> Void
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var nameFocused: Bool
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -250,9 +251,14 @@ struct ExerciseTemplateCustomizeView: View {
                             .foregroundStyle(TTColor.inkMuted)
                         TextField("e.g. Strength 5×5", text: $templateName)
                             .font(TTFont.body(16))
+                            .focused($nameFocused)
+                            .tint(orange)
                             .padding(12)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                            .ttInputChrome(
+                                focused: nameFocused,
+                                cornerRadius: 12,
+                                idleFill: .white
+                            )
                     }
                     .padding(14)
                     .background(cardFill)

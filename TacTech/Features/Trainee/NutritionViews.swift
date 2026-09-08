@@ -400,6 +400,8 @@ struct NutritionView: View {
                     Text("\(Int(calorieDraft)) kcal")
                         .font(TTFont.headingXL(.bold))
                         .foregroundStyle(.white)
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.18), value: Int(calorieDraft))
 
                     Spacer()
 
@@ -440,6 +442,7 @@ struct NutritionView: View {
             .background(orange)
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             .shadow(color: orange.opacity(0.35), radius: 16, y: 8)
+            .sensoryFeedback(.selection, trigger: Int(calorieDraft))
         }
     }
 
@@ -809,17 +812,24 @@ struct ManualMealView: View {
                         Text("600")
                     }
                     Text("\(Int(grams)) g")
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.18), value: Int(grams))
                 }
                 if let food = selectedFood {
                     Section("Estimate per portion") {
                         Text(food.name)
                         Text("\(scaled(food).calories) kcal")
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.18), value: scaled(food).calories)
                         Text("P \(Int(scaled(food).protein)) · C \(Int(scaled(food).carbs)) · F \(Int(scaled(food).fat))")
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.18), value: Int(grams))
                     }
                 }
             }
             .navigationTitle("Log meal")
             .navigationBarTitleDisplayMode(.inline)
+            .sensoryFeedback(.selection, trigger: Int(grams))
             .onAppear {
                 guard let prefillName, name.isEmpty else { return }
                 name = prefillName

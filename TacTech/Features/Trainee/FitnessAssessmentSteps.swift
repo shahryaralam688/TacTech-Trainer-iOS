@@ -92,9 +92,17 @@ struct AssessmentTextBox: View {
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(AssessmentColor.textBoxBorder, lineWidth: 1.5)
+                .strokeBorder(
+                    focused ? AssessmentColor.orange : AssessmentColor.textBoxBorder,
+                    lineWidth: focused ? 2 : 1.5
+                )
         )
-        .shadow(color: Color.black.opacity(0.06), radius: 10, y: 4)
+        .shadow(
+            color: focused ? AssessmentColor.orange.opacity(0.18) : Color.black.opacity(0.06),
+            radius: focused ? 12 : 10,
+            y: 4
+        )
+        .animation(.easeOut(duration: 0.18), value: focused)
     }
 
     private func toolButton(systemName: String, enabled: Bool, action: @escaping () -> Void) -> some View {
@@ -236,9 +244,11 @@ struct WeightStep: View {
                     .font(.system(size: 72, weight: .bold))
                     .foregroundStyle(AssessmentColor.ink)
                     .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.18), value: displayedWeight)
                 Text(draft.weightUnit)
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(AssessmentColor.grey)
+                    .animation(.snappy(duration: 0.18), value: draft.weightUnit)
             }
             .padding(.top, 36)
             AssessmentRuler(
@@ -251,6 +261,7 @@ struct WeightStep: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 8)
+        .sensoryFeedback(.selection, trigger: Int((displayedWeight * 10).rounded()))
     }
 
     private var displayNumber: String {
@@ -846,12 +857,16 @@ struct LimitationsStep: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
-        .background(AssessmentColor.white)
+        .background(isFieldFocused ? AssessmentColor.peach.opacity(0.35) : AssessmentColor.white)
         .overlay(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2)
+                .strokeBorder(
+                    isFieldFocused ? AssessmentColor.orange : AssessmentColor.orangeBorder,
+                    lineWidth: isFieldFocused ? 2 : 2
+                )
         )
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .animation(.easeOut(duration: 0.18), value: isFieldFocused)
     }
 
     private func selectedTag(_ title: String) -> some View {
@@ -1315,6 +1330,7 @@ struct SupplementPickStep: View {
     @Binding var draft: FitnessAssessment
     @State private var query = ""
     @State private var seeAll = false
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         AssessmentQuestion("Specify Supplement") {
@@ -1322,9 +1338,14 @@ struct SupplementPickStep: View {
                 .font(TTFont.body(15))
                 .foregroundStyle(TTColor.inkMuted)
             TextField("Search supplements...", text: $query)
+                .focused($searchFocused)
+                .tint(AssessmentColor.orange)
                 .padding(12)
-                .background(TTColor.surfaceAlt)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .ttInputChrome(
+                    focused: searchFocused,
+                    cornerRadius: 12,
+                    idleFill: TTColor.surfaceAlt
+                )
             Text(seeAll ? "All Supplements" : "Most Common")
                 .font(TTFont.caption(12))
                 .foregroundStyle(TTColor.inkMuted)
@@ -1360,11 +1381,14 @@ struct CalorieStep: View {
                 Text("Joule’s").tag("kJ")
             }
             .pickerStyle(.segmented)
-            Text(display)
+            Text("\(displayValue)")
                 .font(TTFont.display(36))
-            Text("calories daily")
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.18), value: displayValue)
+            Text(draft.calorieUnit == "kJ" ? "kJ daily" : "Kcal daily")
                 .font(TTFont.caption(13))
                 .foregroundStyle(TTColor.inkMuted)
+                .animation(.snappy(duration: 0.18), value: draft.calorieUnit)
             Slider(
                 value: Binding(
                     get: { Double(draft.calorieGoal) },
@@ -1375,13 +1399,14 @@ struct CalorieStep: View {
             )
             .tint(AssessmentColor.orange)
         }
+        .sensoryFeedback(.selection, trigger: draft.calorieGoal)
     }
 
-    private var display: String {
+    private var displayValue: Int {
         if draft.calorieUnit == "kJ" {
-            return "\(Int(Double(draft.calorieGoal) * 4.184)) kJ"
+            return Int(Double(draft.calorieGoal) * 4.184)
         }
-        return "\(draft.calorieGoal) Kcal"
+        return draft.calorieGoal
     }
 }
 

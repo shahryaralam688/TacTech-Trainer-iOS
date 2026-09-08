@@ -432,15 +432,16 @@ struct TTSearchOverlay: View {
         }
         .padding(.horizontal, 14)
         .frame(height: 52)
-        .background(canvas)
+        .background(fieldFocused ? TTInputChrome.activeFill : canvas)
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    fieldFocused ? TTColor.actionOrange.opacity(0.55) : Color.black.opacity(0.06),
-                    lineWidth: fieldFocused ? 1.5 : 1
+                    fieldFocused ? TTColor.actionOrange : Color.black.opacity(0.06),
+                    lineWidth: fieldFocused ? TTInputChrome.borderWidth : 1
                 )
         )
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .animation(.easeOut(duration: 0.18), value: fieldFocused)
         .matchedGeometryEffect(id: matchedID, in: namespace)
         .onTapGesture { enterFocusedPhase(focusField: true) }
     }

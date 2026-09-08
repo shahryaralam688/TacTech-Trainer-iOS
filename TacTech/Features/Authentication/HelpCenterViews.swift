@@ -125,6 +125,7 @@ private struct HelpFAQItem: Identifiable, Hashable {
 private struct HelpFAQPane: View {
     @State private var query = ""
     @State private var expandedId: String? = "what"
+    @FocusState private var faqSearchFocused: Bool
 
     private let orange = TTColor.actionOrange
     private let cardIdle = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
@@ -192,18 +193,21 @@ private struct HelpFAQPane: View {
                 .font(TTFont.body(15))
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
+                .focused($faqSearchFocused)
+                .tint(orange)
 
             TTIcon(icon: .magnifyingGlass, size: 18)
-                .foregroundStyle(TTColor.ink)
+                .foregroundStyle(faqSearchFocused ? orange : TTColor.ink)
         }
         .padding(.horizontal, 16)
         .frame(height: 52)
-        .background(Color.white)
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(orange.opacity(0.85), lineWidth: 1.5)
+        .ttInputChrome(
+            focused: faqSearchFocused,
+            cornerRadius: 18,
+            idleFill: .white,
+            showIdleBorder: true,
+            idleBorder: orange.opacity(0.35)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func faqRow(_ item: HelpFAQItem) -> some View {
@@ -493,7 +497,7 @@ struct LiveChatView: View {
                     // Voice capture reserved — keep affordance.
                 } label: {
                     TTIcon(icon: .microphone, size: 18)
-                        .foregroundStyle(TTColor.inkMuted)
+                        .foregroundStyle(focused ? orange : TTColor.inkMuted)
                 }
                 .buttonStyle(.plain)
 
@@ -501,18 +505,22 @@ struct LiveChatView: View {
                     .font(TTFont.body(15))
                     .lineLimit(1...4)
                     .focused($focused)
+                    .tint(orange)
                     .onSubmit(send)
 
                 Button { showPhotoSource = true } label: {
                     TTIcon(icon: .camera1, size: 18)
-                        .foregroundStyle(TTColor.inkMuted)
+                        .foregroundStyle(focused ? orange : TTColor.inkMuted)
                 }
                 .buttonStyle(.plain)
             }
             .padding(.horizontal, 14)
             .frame(minHeight: 52)
-            .background(Color(white: 0.93))
-            .clipShape(Capsule())
+            .ttInputChrome(
+                focused: focused,
+                cornerRadius: 26,
+                idleFill: Color(white: 0.93)
+            )
 
             Button(action: send) {
                 TTIcon(icon: .arrowRight, filled: true, size: 18)

@@ -539,7 +539,7 @@ private struct AuthLabeledField<Trailing: View>: View {
             HStack(spacing: 12) {
                 Image(systemName: icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(AuthPalette.ink)
+                    .foregroundStyle(isFocused ? AuthPalette.accent : AuthPalette.ink)
                     .frame(width: 20)
                 Group {
                     if isSecure {
@@ -553,33 +553,21 @@ private struct AuthLabeledField<Trailing: View>: View {
                 .keyboardType(keyboard)
                 .textInputAutocapitalization(keyboard == .emailAddress ? .never : .sentences)
                 .textContentType(keyboard == .emailAddress ? .emailAddress : (isSecure ? .password : nil))
+                .tint(AuthPalette.accent)
                 .modifier(AuthFocusModifier(field: field, focus: focus))
                 trailing
             }
             .padding(.horizontal, AuthLayout.fieldHorizontalPadding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .frame(height: 56)
-            .background(isFocused || isError ? Color.white : AuthPalette.field)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(border, lineWidth: isFocused || isError ? 1.5 : 0)
+            .ttInputChrome(
+                focused: isFocused,
+                isError: isError,
+                cornerRadius: 16,
+                idleFill: AuthPalette.field
             )
-            .shadow(color: glow, radius: isFocused || isError ? 8 : 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var border: Color {
-        if isError { return AuthPalette.error }
-        if isFocused { return AuthPalette.accent }
-        return .clear
-    }
-
-    private var glow: Color {
-        if isError { return AuthPalette.error.opacity(0.18) }
-        if isFocused { return AuthPalette.accent.opacity(0.22) }
-        return .clear
     }
 }
 

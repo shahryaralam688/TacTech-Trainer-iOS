@@ -166,7 +166,10 @@ struct TTTextField: View {
     let title: String
     var icon: String?
     var isSecure: Bool = false
+    var isError: Bool = false
+    var axis: Axis = .horizontal
     @Binding var text: String
+    @FocusState private var focused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -177,23 +180,63 @@ struct TTTextField: View {
             HStack(spacing: 10) {
                 if let icon {
                     Image(systemName: icon)
-                        .foregroundStyle(TTColor.inkMuted)
+                        .foregroundStyle(focused ? TTColor.actionOrange : TTColor.inkMuted)
                         .frame(width: 20)
                 }
                 Group {
                     if isSecure {
                         SecureField("", text: $text, prompt: Text(title).foregroundStyle(TTColor.inkSubtle))
                     } else {
-                        TextField("", text: $text, prompt: Text(title).foregroundStyle(TTColor.inkSubtle))
+                        TextField("", text: $text, prompt: Text(title).foregroundStyle(TTColor.inkSubtle), axis: axis)
                     }
                 }
                 .font(TTFont.body(16))
                 .foregroundStyle(TTColor.ink)
+                .focused($focused)
+                .tint(TTColor.actionOrange)
             }
             .padding(.horizontal, 14)
-            .frame(height: 54)
-            .background(TTColor.surfaceAlt)
-            .clipShape(RoundedRectangle(cornerRadius: TTRadius.sm, style: .continuous))
+            .padding(.vertical, axis == .vertical ? 12 : 0)
+            .frame(minHeight: TTSpace.fieldHeight, alignment: .leading)
+            .ttInputChrome(
+                focused: focused,
+                isError: isError,
+                cornerRadius: TTRadius.sm,
+                idleFill: TTColor.surfaceAlt
+            )
+        }
+    }
+}
+
+/// Labeled Sandow text field with Inputs-1 active orange border (no SF Symbol required).
+struct TTSandowLabeledField: View {
+    let title: String
+    var prompt: String = ""
+    var axis: Axis = .horizontal
+    var isError: Bool = false
+    var idleFill: Color = TTInputChrome.whiteFill
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(TTFont.caption(11))
+                .foregroundStyle(TTColor.inkMuted)
+            TextField("", text: $text, prompt: Text(prompt.isEmpty ? title : prompt).foregroundStyle(TTColor.inkSubtle), axis: axis)
+                .lineLimit(axis == .vertical ? 3...6 : 1...1)
+                .font(TTFont.body(16))
+                .foregroundStyle(TTColor.ink)
+                .focused($focused)
+                .tint(TTColor.actionOrange)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .ttInputChrome(
+                    focused: focused,
+                    isError: isError,
+                    cornerRadius: 12,
+                    idleFill: idleFill
+                )
         }
     }
 }

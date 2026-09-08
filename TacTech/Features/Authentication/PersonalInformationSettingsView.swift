@@ -160,7 +160,7 @@ struct PersonalInformationSettingsView: View {
 
             HStack(spacing: 12) {
                 TTIcon(icon: icon, size: 18)
-                    .foregroundStyle(Color(white: 0.55))
+                    .foregroundStyle(focusedField == field ? orange : Color(white: 0.55))
                 TextField(title, text: text)
                     .font(TTFont.body(15))
                     .foregroundStyle(TTColor.ink)
@@ -168,13 +168,17 @@ struct PersonalInformationSettingsView: View {
                     .textInputAutocapitalization(keyboard == .emailAddress ? .never : .words)
                     .autocorrectionDisabled(keyboard == .emailAddress)
                     .focused($focusedField, equals: field)
+                    .tint(orange)
                 TTIcon(icon: .pencil1, size: 16)
-                    .foregroundStyle(Color(white: 0.55))
+                    .foregroundStyle(focusedField == field ? orange : Color(white: 0.55))
             }
             .padding(.horizontal, 14)
             .frame(height: 52)
-            .background(fieldBG)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .ttInputChrome(
+                focused: focusedField == field,
+                cornerRadius: 18,
+                idleFill: fieldBG
+            )
         }
     }
 
@@ -206,11 +210,10 @@ struct PersonalInformationSettingsView: View {
             }
             .padding(.horizontal, 14)
             .frame(height: 52)
-            .background(fieldBG)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(focusedField == .password ? orange : .clear, lineWidth: 1.5)
+            .ttInputChrome(
+                focused: focusedField == .password,
+                cornerRadius: 18,
+                idleFill: fieldBG
             )
         }
     }
@@ -225,11 +228,14 @@ struct PersonalInformationSettingsView: View {
                 Text("\(Int(weightKg)) kilograms")
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkMuted)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.18), value: Int(weightKg))
             }
 
             Slider(value: $weightKg, in: 35...180, step: 1)
                 .tint(orange)
         }
+        .sensoryFeedback(.selection, trigger: Int(weightKg))
     }
 
     private var genderRow: some View {

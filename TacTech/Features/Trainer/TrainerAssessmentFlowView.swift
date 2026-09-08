@@ -201,9 +201,10 @@ struct TrainerYearsStep: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
                 .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.15), value: draft.yearsExperience)
+                .animation(.snappy(duration: 0.18), value: draft.yearsExperience)
                 .padding(.bottom, 12)
         }
+        .sensoryFeedback(.selection, trigger: draft.yearsExperience)
     }
 }
 
@@ -606,7 +607,7 @@ struct TrainerCapacityStep: View {
                 .foregroundStyle(AssessmentColor.ink)
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.38, dampingFraction: 0.86), value: draft.maxClients)
+                .animation(.snappy(duration: 0.18), value: draft.maxClients)
 
             Text("active clients")
                 .font(.system(size: 16, weight: .semibold))
@@ -630,7 +631,7 @@ struct TrainerCapacityStep: View {
                 .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
                 .contentTransition(.numericText())
-                .animation(.easeInOut(duration: 0.15), value: draft.maxClients)
+                .animation(.snappy(duration: 0.18), value: draft.maxClients)
                 .padding(.top, 20)
 
             Spacer(minLength: 16)
@@ -781,6 +782,7 @@ private struct CapacityCustomStepper: View {
                 .foregroundStyle(AssessmentColor.ink)
                 .frame(minWidth: 72)
                 .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.18), value: value)
 
             stepButton(systemName: "plus") {
                 value = min(200, value + 1)
@@ -799,11 +801,7 @@ private struct CapacityCustomStepper: View {
     }
 
     private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.84)) {
-                action()
-            }
-        } label: {
+        Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 18, weight: .bold))
                 .foregroundStyle(AssessmentColor.white)
@@ -865,12 +863,12 @@ struct TrainerDaysStep: View {
                 .foregroundStyle(AssessmentColor.ink)
                 .monospacedDigit()
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.38, dampingFraction: 0.86), value: clamped)
+                .animation(.snappy(duration: 0.18), value: clamped)
 
             Text(clamped == 1 ? "day every week" : "days every week")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
-                .animation(.easeInOut(duration: 0.15), value: clamped)
+                .animation(.snappy(duration: 0.18), value: clamped)
 
             // Tap or drag across 1…7.
             DaysPerWeekDragSlider(value: daysBinding)
@@ -888,6 +886,7 @@ struct TrainerDaysStep: View {
             )
             .font(.system(size: 16, weight: .medium))
             .padding(.top, 20)
+            .animation(.snappy(duration: 0.18), value: clamped)
 
             Spacer(minLength: 20)
         }

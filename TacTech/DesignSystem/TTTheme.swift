@@ -479,9 +479,49 @@ enum TTNeu {
     static let pressedScale: CGFloat = 0.98
 }
 
+// MARK: Sandow Inputs 1 — text field chrome
+
+/// Design-system input states from Sandow Inputs 1:
+/// idle = soft gray fill, no border; active = orange border + peach fill; error = red.
+enum TTInputChrome {
+    static let cornerRadius: CGFloat = 16
+    static let borderWidth: CGFloat = 1.5
+    static let idleFill = Color(white: 0.96)
+    static let whiteFill = Color.white
+    /// Soft peach tint behind active fields (Figma Inputs 1).
+    static var activeFill: Color { TTColor.actionOrange.opacity(0.08) }
+    static var errorFill: Color { TTColor.dangerSoft }
+    static var activeBorder: Color { TTColor.actionOrange }
+    static var errorBorder: Color { TTColor.danger }
+    static let idleBorder = Color.clear
+    /// Mega / OTP cell when selected.
+    static var megaActiveFill: Color { TTColor.actionOrange }
+}
+
 // MARK: View modifiers
 
 extension View {
+    /// Applies Sandow Inputs-1 chrome. Pass `focused` from `@FocusState`.
+    func ttInputChrome(
+        focused: Bool,
+        isError: Bool = false,
+        cornerRadius: CGFloat = TTInputChrome.cornerRadius,
+        idleFill: Color = TTInputChrome.idleFill,
+        showIdleBorder: Bool = false,
+        idleBorder: Color = Color(white: 0.86)
+    ) -> some View {
+        modifier(
+            TTInputChromeModifier(
+                isFocused: focused,
+                isError: isError,
+                cornerRadius: cornerRadius,
+                idleFill: idleFill,
+                showIdleBorder: showIdleBorder,
+                idleBorder: idleBorder
+            )
+        )
+    }
+
     func ttCard(padding: CGFloat = TTSpace.md) -> some View {
         self
             .padding(padding)
@@ -540,6 +580,37 @@ extension View {
             .tracking(style.tracking)
             .lineSpacing(style.lineSpacing)
             .textCase(style.isUppercase ? .uppercase : nil)
+    }
+}
+
+private struct TTInputChromeModifier: ViewModifier {
+    let isFocused: Bool
+    var isError: Bool = false
+    var cornerRadius: CGFloat = TTInputChrome.cornerRadius
+    var idleFill: Color = TTInputChrome.idleFill
+    var showIdleBorder: Bool = false
+    var idleBorder: Color = Color(white: 0.86)
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let fill: Color = {
+            if isError { return TTInputChrome.errorFill }
+            if isFocused { return TTInputChrome.activeFill }
+            return idleFill
+        }()
+        let stroke: Color = {
+            if isError { return TTInputChrome.errorBorder }
+            if isFocused { return TTInputChrome.activeBorder }
+            return showIdleBorder ? idleBorder : TTInputChrome.idleBorder
+        }()
+        let lineWidth: CGFloat = (isFocused || isError || showIdleBorder) ? TTInputChrome.borderWidth : 0
+
+        content
+            .background(fill)
+            .clipShape(shape)
+            .overlay(shape.strokeBorder(stroke, lineWidth: lineWidth))
+            .animation(.easeOut(duration: 0.18), value: isFocused)
+            .animation(.easeOut(duration: 0.18), value: isError)
     }
 }
 

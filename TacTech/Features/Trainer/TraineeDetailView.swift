@@ -6,6 +6,7 @@ struct TraineeDetailView: View {
     @State private var selectedPlanId: String = ""
     @State private var note = ""
     @State private var selectedDay = Date()
+    @FocusState private var noteFocused: Bool
 
     var body: some View {
         ScrollView {
@@ -192,9 +193,14 @@ struct TraineeDetailView: View {
             }
             TextField("Write a note for this trainee", text: $note, axis: .vertical)
                 .lineLimit(3...6)
+                .focused($noteFocused)
+                .tint(TTColor.actionOrange)
                 .padding(12)
-                .background(TTColor.surfaceAlt)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .ttInputChrome(
+                    focused: noteFocused,
+                    cornerRadius: 12,
+                    idleFill: TTColor.surfaceAlt
+                )
             TTButton(title: "Send feedback", icon: "paperplane.fill") {
                 guard let trainer = store.currentTrainer, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
                 let text = note

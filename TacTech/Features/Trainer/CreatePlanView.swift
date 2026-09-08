@@ -225,17 +225,7 @@ struct CreatePlanView: View {
         prompt: String,
         axis: Axis = .horizontal
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
-                .font(TTFont.caption(11))
-                .foregroundStyle(TTColor.inkMuted)
-            TextField("", text: text, prompt: Text(prompt).foregroundStyle(TTColor.inkSubtle), axis: axis)
-                .lineLimit(axis == .vertical ? 3...6 : 1...1)
-                .font(TTFont.body(16))
-                .padding(12)
-                .background(Color.white)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
+        TTSandowLabeledField(title: title, prompt: prompt, axis: axis, idleFill: .white, text: text)
     }
 
     // MARK: Logic
@@ -549,14 +539,8 @@ struct SessionEditor: View {
 
     private var sessionFields: some View {
         VStack(alignment: .leading, spacing: 14) {
-            labeled("Session name") {
-                TextField("Lower strength", text: $draft.title)
-                    .font(TTFont.body(15))
-            }
-            labeled("Focus") {
-                TextField("Squat pattern + hamstrings", text: $draft.focus)
-                    .font(TTFont.body(15))
-            }
+            TTSandowLabeledField(title: "Session name", prompt: "Lower strength", idleFill: .white, text: $draft.title)
+            TTSandowLabeledField(title: "Focus", prompt: "Squat pattern + hamstrings", idleFill: .white, text: $draft.focus)
 
             HStack(spacing: 12) {
                 labeled("When") {
@@ -594,21 +578,27 @@ struct SessionEditor: View {
                 }
             }
 
-            labeled("How to start (warm-up)") {
-                TextField("Warm-up", text: $draft.warmup, axis: .vertical)
-                    .font(TTFont.body(14))
-                    .lineLimit(2...4)
-            }
-            labeled("How to finish (cool-down)") {
-                TextField("Cool-down", text: $draft.cooldown, axis: .vertical)
-                    .font(TTFont.body(14))
-                    .lineLimit(2...4)
-            }
-            labeled("How they should do this day") {
-                TextField("Pace, rest rules, form priority…", text: $draft.coachNotes, axis: .vertical)
-                    .font(TTFont.body(14))
-                    .lineLimit(2...5)
-            }
+            TTSandowLabeledField(
+                title: "How to start (warm-up)",
+                prompt: "Warm-up",
+                axis: .vertical,
+                idleFill: .white,
+                text: $draft.warmup
+            )
+            TTSandowLabeledField(
+                title: "How to finish (cool-down)",
+                prompt: "Cool-down",
+                axis: .vertical,
+                idleFill: .white,
+                text: $draft.cooldown
+            )
+            TTSandowLabeledField(
+                title: "How they should do this day",
+                prompt: "Pace, rest rules, form priority…",
+                axis: .vertical,
+                idleFill: .white,
+                text: $draft.coachNotes
+            )
         }
     }
 
@@ -656,6 +646,7 @@ struct SessionEditor: View {
 struct ExerciseDraftEditor: View {
     @Environment(AppStore.self) private var store
     @Binding var draft: ExerciseDraft
+    @FocusState private var howToFocused: Bool
 
     private let orange = TTColor.actionOrange
 
@@ -809,6 +800,14 @@ struct ExerciseDraftEditor: View {
                         TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
                             .font(TTFont.body(14))
                             .lineLimit(2...5)
+                            .focused($howToFocused)
+                            .tint(orange)
+                            .padding(10)
+                            .ttInputChrome(
+                                focused: howToFocused,
+                                cornerRadius: 12,
+                                idleFill: Color(white: 0.97)
+                            )
                     }
                 }
                 .padding(.horizontal, 12)
@@ -840,6 +839,7 @@ struct ExerciseLibrarySheet: View {
     let onPick: (ExerciseDraft) -> Void
 
     @State private var query = ""
+    @FocusState private var searchFocused: Bool
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
@@ -872,14 +872,19 @@ struct ExerciseLibrarySheet: View {
                     VStack(spacing: 12) {
                         HStack(spacing: 10) {
                             TTIcon(icon: .magnifyingGlass, size: 16)
-                                .foregroundStyle(TTColor.inkMuted)
+                                .foregroundStyle(searchFocused ? orange : TTColor.inkMuted)
                             TextField("Search exercises", text: $query)
                                 .font(TTFont.body(15))
+                                .focused($searchFocused)
+                                .tint(orange)
                         }
                         .padding(.horizontal, 14)
                         .frame(height: 48)
-                        .background(cardFill)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .ttInputChrome(
+                            focused: searchFocused,
+                            cornerRadius: 16,
+                            idleFill: cardFill
+                        )
 
                         if filtered.isEmpty {
                             Text("No matches")

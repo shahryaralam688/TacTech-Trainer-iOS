@@ -18,8 +18,15 @@ struct ProfileCompletionFlowView: View {
     @State private var biometricOK = false
     @State private var score = 55
     @State private var isGenerating = false
+    @FocusState private var focusedProfileField: ProfileField?
+    @FocusState private var otpFocusIndex: Int?
+
+    private enum ProfileField: Hashable {
+        case fullName, email, password, confirm, weight, location
+    }
 
     private let totalSteps = 8
+    private let accent = TTColor.actionOrange
 
     var body: some View {
         VStack(spacing: 0) {
@@ -159,8 +166,8 @@ struct ProfileCompletionFlowView: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
 
-                boxedField("Full Name", icon: "person", text: $draft.name)
-                boxedField("Email Address", icon: "envelope", text: .constant(store.currentUser?.email ?? ""), disabled: true)
+                boxedField("Full Name", icon: "person", text: $draft.name, field: .fullName)
+                boxedField("Email Address", icon: "envelope", text: .constant(store.currentUser?.email ?? ""), field: .email, disabled: true)
 
                 Text("Gender")
                     .font(.system(size: 14, weight: .semibold))
@@ -188,12 +195,15 @@ struct ProfileCompletionFlowView: View {
                 if store.session?.role == .trainee {
                     Text("Height · \(Int(draft.heightCm)) cm")
                         .font(.system(size: 14, weight: .semibold))
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.18), value: Int(draft.heightCm))
                     Slider(value: $draft.heightCm, in: 140...210, step: 1)
-                        .tint(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
-                    boxedField("Weight (kg)", icon: "scalemass", text: $draft.weightText, keyboard: .decimalPad)
+                        .tint(accent)
+                        .sensoryFeedback(.selection, trigger: Int(draft.heightCm))
+                    boxedField("Weight (kg)", icon: "scalemass", text: $draft.weightText, field: .weight, keyboard: .decimalPad)
                 }
 
-                boxedField("Location", icon: "mappin.and.ellipse", text: $draft.location)
+                boxedField("Location", icon: "mappin.and.ellipse", text: $draft.location, field: .location)
             }
             .padding(22)
         }
@@ -209,8 +219,8 @@ struct ProfileCompletionFlowView: View {
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
 
-            secureField("Password", text: $draft.password)
-            secureField("Confirm Password", text: $draft.confirmPassword)
+            secureField("Password", text: $draft.password, field: .password)
+            secureField("Confirm Password", text: $draft.confirmPassword, field: .confirm)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Password Strength")
@@ -264,20 +274,31 @@ struct ProfileCompletionFlowView: View {
 
             HStack(spacing: 12) {
                 ForEach(0..<4, id: \.self) { index in
+                    let cellFocused = otpFocusIndex == index
+                    let hasValue = !otpInput[index].isEmpty
                     TextField("", text: $otpInput[index])
                         .keyboardType(.numberPad)
                         .multilineTextAlignment(.center)
                         .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(cellFocused && hasValue ? .white : .primary)
+                        .focused($otpFocusIndex, equals: index)
+                        .tint(accent)
                         .frame(width: 64, height: 64)
-                        .background(Color(white: 0.96))
+                        .background(cellFocused ? (hasValue ? accent : TTInputChrome.activeFill) : Color(white: 0.96))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .strokeBorder(Color(white: 0.78), lineWidth: 1.2)
+                                .strokeBorder(
+                                    cellFocused || hasValue ? accent : Color(white: 0.78),
+                                    lineWidth: cellFocused ? 2 : 1.2
+                                )
                         )
                         .onChange(of: otpInput[index]) { _, newValue in
                             if newValue.count > 1 {
                                 otpInput[index] = String(newValue.prefix(1))
+                            }
+                            if newValue.count == 1, index < 3 {
+                                otpFocusIndex = index + 1
                             }
                         }
                 }
@@ -363,6 +384,8 @@ struct ProfileCompletionFlowView: View {
                     Text("+\(score)")
                         .font(.system(size: 72, weight: .bold))
                         .foregroundStyle(.black)
+                        .contentTransition(.numericText())
+                        .animation(.snappy(duration: 0.18), value: score)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 28)
                         .background(Color.white)
@@ -374,6 +397,7 @@ struct ProfileCompletionFlowView: View {
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 32)
+                        .animation(.snappy(duration: 0.18), value: score)
 
                     Spacer()
 
@@ -514,6 +538,7 @@ struct ProfileCompletionFlowView: View {
         _ title: String,
         icon: String,
         text: Binding<String>,
+        field: ProfileField,
         keyboard: UIKeyboardType = .default,
         disabled: Bool = false
     ) -> some View {
@@ -522,35 +547,39 @@ struct ProfileCompletionFlowView: View {
                 .font(.system(size: 14, weight: .semibold))
             HStack(spacing: 12) {
                 Image(systemName: icon)
-                    .foregroundStyle(Color(white: 0.45))
+                    .foregroundStyle(focusedProfileField == field ? accent : Color(white: 0.45))
                     .frame(width: 20)
                 TextField(title, text: text)
                     .keyboardType(keyboard)
                     .disabled(disabled)
+                    .focused($focusedProfileField, equals: field)
+                    .tint(accent)
             }
             .padding(.horizontal, 14)
             .frame(height: 52)
-            .background(Color(white: 0.97))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(Color(white: 0.78), lineWidth: 1.2)
+            .ttInputChrome(
+                focused: focusedProfileField == field,
+                cornerRadius: 14,
+                idleFill: Color(white: 0.97),
+                showIdleBorder: true
             )
         }
     }
 
-    private func secureField(_ title: String, text: Binding<String>) -> some View {
+    private func secureField(_ title: String, text: Binding<String>, field: ProfileField) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(.system(size: 14, weight: .semibold))
             SecureField(title, text: text)
+                .focused($focusedProfileField, equals: field)
+                .tint(accent)
                 .padding(.horizontal, 14)
                 .frame(height: 52)
-                .background(Color(white: 0.97))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color(white: 0.78), lineWidth: 1.2)
+                .ttInputChrome(
+                    focused: focusedProfileField == field,
+                    cornerRadius: 14,
+                    idleFill: Color(white: 0.97),
+                    showIdleBorder: true
                 )
         }
     }

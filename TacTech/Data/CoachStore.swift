@@ -65,24 +65,33 @@ final class CoachStore {
     func bootstrap(forceReload: Bool = false) async {
         if isBootstrapping { return }
         isBootstrapping = true
-        lastError = nil
         defer { isBootstrapping = false }
+
+        // Soft-load provider status — never block the empty chat chrome.
+        if let provider = try? await api.status() {
+            status = provider
+        }
+
         do {
-            async let provider = api.status()
-            async let list = api.listConversations()
-            status = try await provider
-            conversations = try await list
-            if let active = activeConversationId ?? conversations.first?.id {
+            let list = try await api.listConversations()
+            conversations = list
+            if let active = activeConversationId ?? list.first?.id {
                 activeConversationId = active
                 if forceReload || messages.isEmpty {
                     let server = try await api.listMessages(conversationId: active)
                     messages = server.map(CoachDisplayMessage.fromServer)
                 }
             }
-            await syncMemoryDebounced()
+            lastError = nil
         } catch {
-            lastError = Self.userFacingError(error)
+            // Empty chat still usable — first send creates a conversation server-side.
+            if messages.isEmpty {
+                lastError = Self.userFacingError(error)
+            }
         }
+
+        // Memory sync off the critical path.
+        Task { await syncMemoryDebounced() }
     }
 
     func refreshMessages() async {

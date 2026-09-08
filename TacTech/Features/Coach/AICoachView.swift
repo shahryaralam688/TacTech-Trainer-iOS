@@ -17,7 +17,6 @@ struct AICoachView: View {
     @State private var showCall = false
     @State private var citationsToShow: [CoachCitation]?
     @State private var fullscreenImage: UIImage?
-    @State private var chromeVisible = false
     @State private var userPinnedScroll = false
     @State private var wavePhase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,7 +33,6 @@ struct AICoachView: View {
             Divider().opacity(0.10)
 
             messageList
-                .opacity(chromeVisible ? 1 : 0)
                 .refreshable {
                     await store.syncMemoryDebounced(force: true)
                     await store.refreshMessages()
@@ -42,7 +40,6 @@ struct AICoachView: View {
 
             if shouldShowSuggestions {
                 suggestionRow
-                    .opacity(chromeVisible ? 1 : 0)
             }
 
             if let err = store.lastError {
@@ -64,13 +61,10 @@ struct AICoachView: View {
                 onStopVoice: { store.stopAndSendVoice() },
                 onCancelVoice: { store.cancelRecording() }
             )
-            .opacity(chromeVisible ? 1 : 0)
         }
         .task {
+            // Never gate chrome on network — bootstrap in background.
             await store.bootstrap()
-            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : soft) {
-                chromeVisible = true
-            }
         }
         .onDisappear { store.onDisappear() }
         .onChange(of: libraryItem) { _, item in
@@ -210,14 +204,13 @@ struct AICoachView: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
         .padding(.top, 4)
-        .opacity(chromeVisible ? 1 : 0)
     }
 
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 12) {
-                    if store.messages.isEmpty, !store.isBootstrapping {
+                    if store.messages.isEmpty {
                         welcomeCard
                             .id("welcome")
                     }

@@ -516,7 +516,7 @@ func trainerListHeader(
     .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
 }
 
-// MARK: - Quick assign / duplicate sheets
+// MARK: - Quick assign / assignments list
 
 struct PlanQuickAssignSheet: View {
     @Environment(AppStore.self) private var store
@@ -608,83 +608,116 @@ struct PlanQuickAssignSheet: View {
     }
 }
 
-struct PlanDuplicateSheet: View {
+/// Roster of which trainee currently has which plan.
+struct PlanAssignmentsListSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    @State private var planId = ""
-    @State private var isWorking = false
 
+    private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
 
-    private var plans: [WorkoutPlan] {
-        store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+    private struct Row: Identifiable {
+        let id: String
+        let traineeName: String
+        let planTitle: String
+        let assignedAt: Date?
+        let hasPlan: Bool
+    }
+
+    private var rows: [Row] {
+        guard let trainer = store.currentTrainer else { return [] }
+        return store.trainees(for: trainer).map { trainee in
+            let plan = store.assignedPlan(for: trainee)
+            let assignment = store.assignments
+                .filter { $0.traineeId == trainee.id }
+                .sorted { $0.assignedAt > $1.assignedAt }
+                .first
+            return Row(
+                id: trainee.id,
+                traineeName: store.user(forTrainee: trainee)?.name ?? "Trainee",
+                planTitle: plan?.title ?? "No plan assigned",
+                assignedAt: assignment?.assignedAt,
+                hasPlan: plan != nil
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.hasPlan != rhs.hasPlan { return lhs.hasPlan && !rhs.hasPlan }
+            return lhs.traineeName.localizedCaseInsensitiveCompare(rhs.traineeName) == .orderedAscending
+        }
     }
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Pick a plan to copy. You’ll get a new draft you can tweak.")
-                    .font(TTFont.body(14))
-                    .foregroundStyle(TTColor.inkMuted)
-
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Plan")
-                        .font(TTFont.workSans(14, weight: .bold))
-                    Picker("Plan", selection: $planId) {
-                        Text("Select plan").tag("")
-                        ForEach(plans) { plan in
-                            Text(plan.title).tag(plan.id)
+            Group {
+                if rows.isEmpty {
+                    VStack(spacing: 12) {
+                        TTIcon(icon: .usersTwo, filled: true, size: 28)
+                            .foregroundStyle(TTColor.actionOrange)
+                        Text("No trainees yet")
+                            .font(TTFont.workSans(17, weight: .bold))
+                        Text("When athletes join your roster, their assigned plans show up here.")
+                            .font(TTFont.body(14))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 28)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 10) {
+                            ForEach(rows) { row in
+                                assignmentRow(row)
+                            }
                         }
+                        .padding(16)
+                        .padding(.bottom, 12)
                     }
-                    .pickerStyle(.menu)
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(cardFill)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Spacer()
-
-                Button {
-                    guard let source = plans.first(where: { $0.id == planId }) else { return }
-                    isWorking = true
-                    Task {
-                        var copy = source
-                        copy.id = UUID().uuidString
-                        copy.title = source.title.hasSuffix(" Copy") ? source.title : "\(source.title) Copy"
-                        try? await store.createPlan(copy)
-                        isWorking = false
-                        dismiss()
-                    }
-                } label: {
-                    HStack(spacing: 8) {
-                        if isWorking { ProgressView().tint(.white) }
-                        Text("Duplicate plan")
-                            .font(TTFont.workSans(16, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 52)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(planId.isEmpty || isWorking)
-                .opacity(planId.isEmpty || isWorking ? 0.45 : 1)
             }
-            .padding(20)
-            .background(Color(white: 0.97).ignoresSafeArea())
-            .navigationTitle("Duplicate plan")
+            .background(canvas.ignoresSafeArea())
+            .navigationTitle("Plan assignments")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
                 }
             }
-            .onAppear {
-                if planId.isEmpty { planId = plans.first?.id ?? "" }
-            }
         }
+    }
+
+    private func assignmentRow(_ row: Row) -> some View {
+        HStack(spacing: 12) {
+            TTAvatar(name: row.traineeName, size: 48)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.traineeName)
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Text(row.planTitle)
+                    .font(TTFont.caption(13))
+                    .foregroundStyle(row.hasPlan ? TTColor.actionOrange : TTColor.inkMuted)
+                    .lineLimit(2)
+                if let date = row.assignedAt, row.hasPlan {
+                    Text("Assigned \(date.formatted(date: .abbreviated, time: .omitted))")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
+            }
+
+            Spacer(minLength: 8)
+
+            Text(row.hasPlan ? "Active" : "Idle")
+                .font(TTFont.caption(11))
+                .fontWeight(.bold)
+                .foregroundStyle(row.hasPlan ? TTColor.success : TTColor.inkMuted)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background((row.hasPlan ? TTColor.success : TTColor.inkMuted).opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 }
 
@@ -698,4 +731,9 @@ struct PlanDuplicateSheet: View {
         WorkoutPlanDetailView(plan: TTPreview.samplePlan)
             .ttPreviewTrainer()
     }
+}
+
+#Preview("Assignments list") {
+    PlanAssignmentsListSheet()
+        .ttPreviewTrainer()
 }

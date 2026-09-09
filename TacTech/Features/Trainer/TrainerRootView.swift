@@ -11,7 +11,7 @@ struct TrainerRootView: View {
     @State private var showLiquidMenu = false
     @State private var showCreatePlan = false
     @State private var showAssignSheet = false
-    @State private var showDuplicateSheet = false
+    @State private var showAssignmentsList = false
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -98,8 +98,8 @@ struct TrainerRootView: View {
         .sheet(isPresented: $showAssignSheet) {
             PlanQuickAssignSheet()
         }
-        .sheet(isPresented: $showDuplicateSheet) {
-            PlanDuplicateSheet()
+        .sheet(isPresented: $showAssignmentsList) {
+            PlanAssignmentsListSheet()
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))
@@ -123,8 +123,8 @@ struct TrainerRootView: View {
             mounted.insert(.plans)
         case "assign":
             showAssignSheet = true
-        case "duplicate":
-            showDuplicateSheet = true
+        case "assignments":
+            showAssignmentsList = true
         default:
             break
         }

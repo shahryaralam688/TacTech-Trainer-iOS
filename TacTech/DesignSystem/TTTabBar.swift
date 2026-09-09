@@ -198,7 +198,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             isSource: !isCenterMenuPresented && !isAIChatPresented
         ))
         .accessibilityLabel("Open quick actions")
-        .accessibilityHint("AI assistant, create plan, assign, or duplicate")
+        .accessibilityHint("AI assistant, create plan, assign, or view assignments")
     }
 }
 

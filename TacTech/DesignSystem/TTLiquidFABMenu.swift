@@ -43,10 +43,10 @@ extension TTLiquidFABAction {
             icon: .userCheck
         ),
         TTLiquidFABAction(
-            id: "duplicate",
-            title: "Duplicate plan",
-            subtitle: "Copy and tweak",
-            icon: .copy1
+            id: "assignments",
+            title: "Plan assignments",
+            subtitle: "Who has which plan",
+            icon: .listThreeCheck
         )
     ]
 }

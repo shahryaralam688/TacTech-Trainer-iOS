@@ -7,6 +7,8 @@ struct AICoachView: View {
     @Bindable var store: CoachStore
     var audience: TTAIChatAudience
     var onClose: () -> Void
+    /// Floating bubble chrome used a grabber; full-screen presents without it.
+    var showsGrabber: Bool = true
 
     @State private var draft = ""
     @State private var pendingImage: UIImage?
@@ -29,7 +31,9 @@ struct AICoachView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            grabber
+            if showsGrabber {
+                grabber
+            }
             header
             Divider().opacity(0.10)
 
@@ -50,7 +54,7 @@ struct AICoachView: View {
             composer
         }
         // Opaque fill so keyboard resize never flashes through to the dim overlay.
-        .background(Color.white.opacity(0.01))
+        .background(Color.white)
         .task {
             // Never gate chrome on network — bootstrap in background.
             await store.bootstrap()
@@ -214,7 +218,7 @@ struct AICoachView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
-        .padding(.top, 4)
+        .padding(.top, showsGrabber ? 4 : 12)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
     }

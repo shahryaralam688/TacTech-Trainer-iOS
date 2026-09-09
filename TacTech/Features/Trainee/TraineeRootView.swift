@@ -58,37 +58,26 @@ struct TraineeRootView: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-            // Tab chrome never lifts with keyboard; AI overlay tracks keyboard height itself.
             .modifier(TTRootKeyboardIgnore(enabled: true))
-
-            // Overlay owns keyboard attachment (manual height).
-            if showAIChat {
-                TTAICoachChatOverlay(
-                    isPresented: $showAIChat,
-                    audience: .trainee,
-                    namespace: aiChatNamespace
-                )
-                .zIndex(40)
-                .transition(.opacity)
-            }
+        }
+        .fullScreenCover(isPresented: $showAIChat) {
+            TTAICoachChatOverlay(
+                isPresented: $showAIChat,
+                audience: .trainee,
+                namespace: aiChatNamespace
+            )
         }
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
         }
         .task {
-            // Warm Profile after first frame so the first Profile tap isn't a cold Chart mount.
             try? await Task.sleep(for: .milliseconds(600))
             mounted.insert(.profile)
         }
     }
 
     private func openAIChat() {
-        // Insert without animating the tree; the overlay owns its present spring.
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            showAIChat = true
-        }
+        showAIChat = true
     }
 }
 

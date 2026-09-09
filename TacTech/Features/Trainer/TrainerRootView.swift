@@ -67,16 +67,6 @@ struct TrainerRootView: View {
             .ignoresSafeArea(edges: .bottom)
             .modifier(TTRootKeyboardIgnore(enabled: true))
 
-            if showAIChat {
-                TTAICoachChatOverlay(
-                    isPresented: $showAIChat,
-                    audience: .trainer,
-                    namespace: aiChatNamespace
-                )
-                .zIndex(40)
-                .transition(.opacity)
-            }
-
             if showLiquidMenu {
                 TTLiquidFABOverlay(
                     isPresented: $showLiquidMenu,
@@ -88,6 +78,13 @@ struct TrainerRootView: View {
                 .zIndex(50)
                 .transition(.opacity)
             }
+        }
+        .fullScreenCover(isPresented: $showAIChat) {
+            TTAICoachChatOverlay(
+                isPresented: $showAIChat,
+                audience: .trainer,
+                namespace: aiChatNamespace
+            )
         }
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
@@ -134,11 +131,7 @@ struct TrainerRootView: View {
     }
 
     private func openAIChat() {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            showAIChat = true
-        }
+        showAIChat = true
     }
 }
 

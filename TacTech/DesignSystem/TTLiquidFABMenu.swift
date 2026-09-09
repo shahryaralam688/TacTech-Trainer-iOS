@@ -31,6 +31,12 @@ extension TTLiquidFABAction {
             highlighted: true
         ),
         TTLiquidFABAction(
+            id: "traineeChat",
+            title: "Trainee chat",
+            subtitle: "Message your athletes",
+            icon: .chat
+        ),
+        TTLiquidFABAction(
             id: "create",
             title: "Create workout plan",
             subtitle: "Build manually",

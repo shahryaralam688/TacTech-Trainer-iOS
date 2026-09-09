@@ -12,6 +12,7 @@ struct TrainerRootView: View {
     @State private var showCreatePlan = false
     @State private var showAssignSheet = false
     @State private var showAssignmentsList = false
+    @State private var showTraineeChat = false
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -101,6 +102,9 @@ struct TrainerRootView: View {
         .sheet(isPresented: $showAssignmentsList) {
             PlanAssignmentsListSheet()
         }
+        .fullScreenCover(isPresented: $showTraineeChat) {
+            TrainerTraineeChatView()
+        }
         .task {
             try? await Task.sleep(for: .milliseconds(600))
             mounted.insert(.profile)
@@ -117,6 +121,8 @@ struct TrainerRootView: View {
         switch action.id {
         case "ai":
             openAIChat()
+        case "traineeChat":
+            showTraineeChat = true
         case "create":
             showCreatePlan = true
             tab = .plans

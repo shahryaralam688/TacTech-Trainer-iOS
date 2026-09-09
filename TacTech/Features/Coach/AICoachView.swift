@@ -22,6 +22,11 @@ struct AICoachView: View {
     @State private var userPinnedScroll = false
     @State private var wavePhase: CGFloat = 0
     @State private var composerFocused = false
+    /// After first paint, allow soft scroll / insert motion — avoids open “whizz” through history.
+    @State private var enableListMotion = false
+    @State private var showChatsSheet = false
+    @State private var localSessions: [LocalAIChatSession] = []
+    @State private var activeSessionId = ""
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let orange = TTColor.actionOrange
@@ -53,13 +58,28 @@ struct AICoachView: View {
 
             composer
         }
-        // Opaque fill so keyboard resize never flashes through to the dim overlay.
         .background(Color.white)
         .task {
-            // Never gate chrome on network — bootstrap in background.
+            ensureLocalSessionSeed()
             await store.bootstrap()
+            await MainActor.run {
+                persistActiveSession()
+                finishInitialScrollGate()
+            }
         }
-        .onDisappear { store.onDisappear() }
+        .onDisappear {
+            persistActiveSession()
+            store.onDisappear()
+        }
+        .sheet(isPresented: $showChatsSheet) {
+            AIChatsSheet(
+                sessions: localSessions,
+                activeId: activeSessionId,
+                onSelect: { switchToSession($0) },
+                onNew: { startLocalNewChat() }
+            )
+            .presentationDetents([.medium, .large])
+        }
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
         }
@@ -190,9 +210,22 @@ struct AICoachView: View {
 
             Spacer(minLength: 8)
 
+            Button {
+                persistActiveSession()
+                showChatsSheet = true
+            } label: {
+                Image(systemName: "bubble.left.and.bubble.right")
+                    .font(TTFont.workSans(18, weight: .medium))
+                    .foregroundStyle(ink.opacity(0.7))
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(Circle())
+            }
+            .accessibilityLabel("Chats")
+
             Menu {
-                Button("New conversation") {
-                    Task { await store.startNewConversation() }
+                Button("New chat") {
+                    startLocalNewChat()
                 }
                 Button("Sync memory") {
                     Task { await store.syncMemoryDebounced(force: true) }
@@ -260,10 +293,7 @@ struct AICoachView: View {
                             onFullscreenImage: { fullscreenImage = $0 }
                         )
                         .id(message.id)
-                        .transition(reduceMotion ? .opacity : .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .move(edge: .bottom)),
-                            removal: .opacity
-                        ))
+                        .transition(messageTransition)
                     }
 
                     if store.isStreaming && store.partialAssistantText.isEmpty {
@@ -275,16 +305,28 @@ struct AICoachView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 10)
                 .padding(.bottom, 8)
-                .animation(reduceMotion ? nil : soft, value: store.messages.count)
+                .animation(enableListMotion && !reduceMotion ? soft : nil, value: store.messages.count)
             }
+            .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.never)
-            .onChange(of: store.messages.count) { _, _ in
+            .onAppear {
+                jumpToBottom(proxy, animated: false)
+            }
+            .onChange(of: store.messages.count) { oldCount, newCount in
                 guard !userPinnedScroll else { return }
-                scrollToEnd(proxy)
+                // First bulk load / history restore → hard jump. Later sends → soft follow.
+                let animated = enableListMotion && abs(newCount - oldCount) <= 2
+                jumpToBottom(proxy, animated: animated)
             }
             .onChange(of: store.partialAssistantText) { _, _ in
-                guard !userPinnedScroll, store.isStreaming else { return }
-                scrollToEnd(proxy)
+                guard !userPinnedScroll, store.isStreaming, enableListMotion else { return }
+                jumpToBottom(proxy, animated: true)
+            }
+            .onChange(of: store.isBootstrapping) { _, bootstrapping in
+                if !bootstrapping {
+                    jumpToBottom(proxy, animated: false)
+                    finishInitialScrollGate()
+                }
             }
             .simultaneousGesture(
                 DragGesture(minimumDistance: 12).onChanged { value in
@@ -295,11 +337,18 @@ struct AICoachView: View {
             )
             .onTapGesture {
                 userPinnedScroll = false
-                // Explicit dismiss — send must not hide the keyboard.
                 composerFocused = false
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var messageTransition: AnyTransition {
+        guard enableListMotion, !reduceMotion else { return .identity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .move(edge: .bottom)),
+            removal: .opacity
+        )
     }
 
     private var welcomeCard: some View {
@@ -421,6 +470,7 @@ struct AICoachView: View {
         draft = ""
         store.sendText(text)
         userPinnedScroll = false
+        persistActiveSession()
     }
 
     private func sendPendingImage(_ caption: String?) {
@@ -429,6 +479,7 @@ struct AICoachView: View {
         draft = ""
         store.sendImage(image, caption: caption)
         userPinnedScroll = false
+        persistActiveSession()
     }
 
     private func importLibrary(_ item: PhotosPickerItem?) async {
@@ -439,11 +490,161 @@ struct AICoachView: View {
         libraryItem = nil
     }
 
-    private func scrollToEnd(_ proxy: ScrollViewProxy, id: String = "bottom") {
+    private func jumpToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
         DispatchQueue.main.async {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
-                proxy.scrollTo(id, anchor: .bottom)
+            if animated {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
+            } else {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    proxy.scrollTo("bottom", anchor: .bottom)
+                }
             }
+        }
+    }
+
+    private func finishInitialScrollGate() {
+        guard !enableListMotion else { return }
+        // One more frame so LazyVStack finishes laying out history.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            enableListMotion = true
+        }
+    }
+
+    private func ensureLocalSessionSeed() {
+        guard localSessions.isEmpty else { return }
+        let id = UUID().uuidString
+        localSessions = [
+            LocalAIChatSession(
+                id: id,
+                title: "Chat 1",
+                preview: "New conversation",
+                messages: [],
+                updatedAt: .now
+            )
+        ]
+        activeSessionId = id
+    }
+
+    private func persistActiveSession() {
+        guard let idx = localSessions.firstIndex(where: { $0.id == activeSessionId }) else { return }
+        localSessions[idx].messages = store.messages
+        localSessions[idx].updatedAt = .now
+        if let last = store.messages.last {
+            let clip = last.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            localSessions[idx].preview = clip.isEmpty ? "Attachment" : String(clip.prefix(42))
+            if localSessions[idx].title.hasPrefix("Chat ") || localSessions[idx].title == "New chat" {
+                localSessions[idx].title = String(clip.prefix(28)).isEmpty
+                    ? localSessions[idx].title
+                    : String(clip.prefix(28))
+            }
+        }
+    }
+
+    private func startLocalNewChat() {
+        persistActiveSession()
+        let id = UUID().uuidString
+        let session = LocalAIChatSession(
+            id: id,
+            title: "New chat",
+            preview: "Empty conversation",
+            messages: [],
+            updatedAt: .now
+        )
+        localSessions.insert(session, at: 0)
+        activeSessionId = id
+        enableListMotion = false
+        store.beginLocalNewChat()
+        userPinnedScroll = false
+        showChatsSheet = false
+        finishInitialScrollGate()
+    }
+
+    private func switchToSession(_ id: String) {
+        guard id != activeSessionId else {
+            showChatsSheet = false
+            return
+        }
+        persistActiveSession()
+        activeSessionId = id
+        enableListMotion = false
+        let msgs = localSessions.first(where: { $0.id == id })?.messages ?? []
+        store.replaceMessagesLocally(msgs)
+        userPinnedScroll = false
+        showChatsSheet = false
+        finishInitialScrollGate()
+    }
+}
+
+// MARK: - Local multi-chat (UI only — backend later)
+
+private struct LocalAIChatSession: Identifiable, Hashable {
+    let id: String
+    var title: String
+    var preview: String
+    var messages: [CoachDisplayMessage]
+    var updatedAt: Date
+}
+
+private struct AIChatsSheet: View {
+    let sessions: [LocalAIChatSession]
+    let activeId: String
+    var onSelect: (String) -> Void
+    var onNew: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button(action: onNew) {
+                        Label("New chat", systemImage: "plus.bubble")
+                            .font(TTFont.workSans(16, weight: .semibold))
+                            .foregroundStyle(TTColor.actionOrange)
+                    }
+                }
+
+                Section("Your chats") {
+                    ForEach(sessions) { session in
+                        Button {
+                            onSelect(session.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(TTColor.actionOrange.opacity(0.14))
+                                    TTIcon(icon: .chat, filled: true, size: 16)
+                                        .foregroundStyle(TTColor.actionOrange)
+                                }
+                                .frame(width: 40, height: 40)
+
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(session.title)
+                                        .font(TTFont.workSans(15, weight: .bold))
+                                        .foregroundStyle(TTColor.ink)
+                                        .lineLimit(1)
+                                    Text(session.preview)
+                                        .font(TTFont.caption(12))
+                                        .foregroundStyle(TTColor.inkMuted)
+                                        .lineLimit(1)
+                                }
+
+                                Spacer()
+
+                                if session.id == activeId {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(TTColor.actionOrange)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Chats")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

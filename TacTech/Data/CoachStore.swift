@@ -122,6 +122,26 @@ final class CoachStore {
         }
     }
 
+    /// Local multi-chat (no backend) — clears the active thread for a fresh UI session.
+    func beginLocalNewChat() {
+        cancelInFlight()
+        activeConversationId = nil
+        messages = []
+        partialAssistantText = ""
+        lastError = nil
+        pendingRetry = nil
+    }
+
+    /// Restore a locally cached thread without hitting the network.
+    func replaceMessagesLocally(_ msgs: [CoachDisplayMessage]) {
+        cancelInFlight()
+        activeConversationId = nil
+        messages = msgs
+        partialAssistantText = ""
+        lastError = nil
+        pendingRetry = nil
+    }
+
     // MARK: Memory
 
     private static var lastMemorySync: Date?

@@ -134,7 +134,7 @@ struct AccountSettingsView: View {
                     Text("Close Account")
                         .font(TTFont.workSans(16, weight: .semibold))
                     Spacer()
-                    Image(systemName: "chevron.right")
+                    settingsChevron(color: .white)
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 16)
@@ -152,9 +152,7 @@ struct AccountSettingsView: View {
                 Task { await store.logout() }
             } label: {
                 settingsRowLabel(title: "Sign Out", icon: "rectangle.portrait.and.arrow.right", trailing: {
-                    Image(systemName: "chevron.right")
-                        .font(TTFont.workSans(13, weight: .semibold))
-                        .foregroundStyle(Color(white: 0.55))
+                    settingsChevron()
                 })
             }
             .buttonStyle(.plain)
@@ -214,9 +212,7 @@ struct AccountSettingsView: View {
     private func navRow(_ title: String, icon: String, badge: String? = nil, route: AccountSettingsRoute) -> some View {
         NavigationLink(value: route) {
             settingsRowLabel(title: title, icon: icon, badge: badge) {
-                Image(systemName: "chevron.right")
-                    .font(TTFont.workSans(13, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.55))
+                settingsChevron()
             }
         }
         .buttonStyle(.plain)
@@ -229,13 +225,19 @@ struct AccountSettingsView: View {
                     Text(value)
                         .font(TTFont.workSans(13, weight: .medium))
                         .foregroundStyle(Color(white: 0.45))
-                    Image(systemName: "chevron.right")
-                        .font(TTFont.workSans(13, weight: .semibold))
-                        .foregroundStyle(Color(white: 0.55))
+                    settingsChevron()
                 }
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// Same Sandow chevron as the header back control, mirrored to point right.
+    private func settingsChevron(color: Color = Color(white: 0.55)) -> some View {
+        TTIcon(icon: .chevronLeft, size: 14)
+            .scaleEffect(x: -1, y: 1)
+            .foregroundStyle(color)
+            .accessibilityHidden(true)
     }
 
     private func toggleRow(

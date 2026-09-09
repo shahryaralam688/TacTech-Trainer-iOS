@@ -75,6 +75,9 @@ struct TrainerRootView: View {
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
+            openAIChat()
+        }
         .task {
             // Warm Profile after first frame so the first Profile tap isn't a cold Chart mount.
             try? await Task.sleep(for: .milliseconds(600))

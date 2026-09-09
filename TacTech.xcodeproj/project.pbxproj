@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F8C1A2B3D4E5F6071890ABCE /* TTLiquidFABMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */; };
 		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
 		0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */; };
@@ -81,6 +82,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTLiquidFABMenu.swift; sourceTree = "<group>"; };
 		0174D61D79D430362B65F837 /* TrainerProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgressView.swift; sourceTree = "<group>"; };
 		01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInformationSettingsView.swift; sourceTree = "<group>"; };
 		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@
 				63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
+				F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */,
 				263477F1D52EA623D59CA93C /* TTProfileScreen.swift */,
 				0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */,
 				1FD00EDF8EF45C0DEAD848FD /* TTSearchCore.swift */,
@@ -475,6 +478,7 @@
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
+				F8C1A2B3D4E5F6071890ABCE /* TTLiquidFABMenu.swift in Sources */,
 				96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */,
 				FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */,
 				4B4456229E8BA0159B4D0740 /* TTSearchCore.swift in Sources */,

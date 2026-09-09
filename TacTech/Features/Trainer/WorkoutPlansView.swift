@@ -7,6 +7,9 @@ struct WorkoutPlansView: View {
     @Namespace private var searchNS
     @State private var showCreate = false
     @State private var showSearch = false
+    @State private var showLiquidMenu = false
+    @State private var showAssignSheet = false
+    @State private var showDuplicateSheet = false
     @State private var query = ""
     @State private var focusFilter: String?
     @State private var selectedPlan: WorkoutPlan?
@@ -16,62 +19,113 @@ struct WorkoutPlansView: View {
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "workoutPlans"
 
+    private var liquidActions: [TTLiquidFABAction] {
+        [
+            TTLiquidFABAction(
+                id: "ai",
+                title: "AI Assistant",
+                subtitle: "Chat · draft plans · cues",
+                icon: .sparkle2,
+                highlighted: true
+            ),
+            TTLiquidFABAction(
+                id: "create",
+                title: "Create workout plan",
+                subtitle: "Build manually",
+                icon: .clipboard
+            ),
+            TTLiquidFABAction(
+                id: "assign",
+                title: "Assign to trainee",
+                subtitle: "Attach an existing plan",
+                icon: .userCheck
+            ),
+            TTLiquidFABAction(
+                id: "duplicate",
+                title: "Duplicate plan",
+                subtitle: "Copy and tweak",
+                icon: .copy1
+            )
+        ]
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                trainerListHeader(
-                    title: "Workout Plans",
-                    subtitle: "\(filtered.count) programs",
-                    trailingIcon: .plus,
-                    collapseProgress: scrollCollapse.progress
-                ) {
-                    showCreate = true
-                }
+            ZStack {
+                VStack(spacing: 0) {
+                    trainerListHeader(
+                        title: "Workout Plans",
+                        subtitle: "\(filtered.count) programs",
+                        trailingIcon: .plus,
+                        collapseProgress: scrollCollapse.progress,
+                        isMenuOpen: showLiquidMenu
+                    ) {
+                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+                            showLiquidMenu = true
+                        }
+                    }
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                        VStack(alignment: .leading, spacing: 12) {
-                            TTSearchEntryPill(
-                                placeholder: TTSearchCopy.plans.pillPlaceholder,
-                                query: displayQuery,
-                                namespace: searchNS
-                            ) {
-                                showSearch = true
-                            }
+                            VStack(alignment: .leading, spacing: 12) {
+                                TTSearchEntryPill(
+                                    placeholder: TTSearchCopy.plans.pillPlaceholder,
+                                    query: displayQuery,
+                                    namespace: searchNS
+                                ) {
+                                    showSearch = true
+                                }
 
-                            if filtered.isEmpty {
-                                emptyCard(
-                                    icon: .clipboard,
-                                    title: plans.isEmpty ? "No plans yet" : "No matches",
-                                    message: plans.isEmpty
-                                        ? "Tap + to build a detailed weekly plan for your athletes."
-                                        : "Try a different search."
-                                )
-                            } else {
-                                ForEach(filtered) { plan in
-                                    NavigationLink {
-                                        WorkoutPlanDetailView(plan: plan)
-                                    } label: {
-                                        planCard(plan)
+                                if filtered.isEmpty {
+                                    emptyCard(
+                                        icon: .clipboard,
+                                        title: plans.isEmpty ? "No plans yet" : "No matches",
+                                        message: plans.isEmpty
+                                            ? "Tap + to build a detailed weekly plan for your athletes."
+                                            : "Try a different search."
+                                    )
+                                } else {
+                                    ForEach(filtered) { plan in
+                                        NavigationLink {
+                                            WorkoutPlanDetailView(plan: plan)
+                                        } label: {
+                                            planCard(plan)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 24)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 24)
                     }
+                    .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                    .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+                .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+
+                if showLiquidMenu {
+                    TTLiquidFABOverlay(
+                        isPresented: $showLiquidMenu,
+                        actions: liquidActions,
+                        onSelect: handleLiquidAction
+                    )
+                    .zIndex(50)
+                    .transition(.opacity)
+                }
             }
-            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
+            }
+            .sheet(isPresented: $showAssignSheet) {
+                PlanQuickAssignSheet()
+            }
+            .sheet(isPresented: $showDuplicateSheet) {
+                PlanDuplicateSheet()
             }
             .navigationDestination(item: $selectedPlan) { plan in
                 WorkoutPlanDetailView(plan: plan)
@@ -82,6 +136,21 @@ struct WorkoutPlansView: View {
                 namespace: searchNS,
                 onOutcome: handleSearchOutcome
             )
+        }
+    }
+
+    private func handleLiquidAction(_ action: TTLiquidFABAction) {
+        switch action.id {
+        case "ai":
+            NotificationCenter.default.post(name: .ttOpenAICoachChat, object: nil)
+        case "create":
+            showCreate = true
+        case "assign":
+            showAssignSheet = true
+        case "duplicate":
+            showDuplicateSheet = true
+        default:
+            break
         }
     }
 
@@ -462,6 +531,7 @@ func trainerListHeader(
     subtitle: String,
     trailingIcon: SandowIcon,
     collapseProgress: CGFloat = 0,
+    isMenuOpen: Bool = false,
     action: @escaping () -> Void
 ) -> some View {
     let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
@@ -492,11 +562,15 @@ func trainerListHeader(
             Button(action: action) {
                 TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
                     .foregroundStyle(.white)
+                    .rotationEffect(.degrees(isMenuOpen ? 45 : 0))
                     .frame(width: 44 - 4 * p, height: 44 - 4 * p)
-                    .background(TTColor.actionOrange)
+                    .background(isMenuOpen ? Color.black : TTColor.actionOrange)
                     .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
+                    .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isMenuOpen)
             }
             .buttonStyle(.plain)
+            .opacity(isMenuOpen ? 0 : 1)
+            .allowsHitTesting(!isMenuOpen)
         }
     }
     .padding(.horizontal, 20)
@@ -509,6 +583,178 @@ func trainerListHeader(
             .ignoresSafeArea(edges: .top)
     }
     .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
+}
+
+// MARK: - Quick assign / duplicate sheets
+
+private struct PlanQuickAssignSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var planId = ""
+    @State private var traineeId = ""
+
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+
+    private var plans: [WorkoutPlan] {
+        store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+    }
+
+    private var trainees: [TraineeProfile] {
+        guard let trainer = store.currentTrainer else { return [] }
+        return store.trainees(for: trainer)
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                section("Plan") {
+                    Picker("Plan", selection: $planId) {
+                        Text("Select plan").tag("")
+                        ForEach(plans) { plan in
+                            Text(plan.title).tag(plan.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                section("Trainee") {
+                    Picker("Trainee", selection: $traineeId) {
+                        Text("Select trainee").tag("")
+                        ForEach(trainees) { trainee in
+                            Text(store.user(forTrainee: trainee)?.name ?? "Trainee").tag(trainee.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+
+                Spacer()
+
+                Button {
+                    Task {
+                        try? await store.assign(planId: planId, to: traineeId)
+                        dismiss()
+                    }
+                } label: {
+                    Text("Assign plan")
+                        .font(TTFont.workSans(16, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(planId.isEmpty || traineeId.isEmpty)
+                .opacity(planId.isEmpty || traineeId.isEmpty ? 0.45 : 1)
+            }
+            .padding(20)
+            .background(Color(white: 0.97).ignoresSafeArea())
+            .navigationTitle("Assign to trainee")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .onAppear {
+                if planId.isEmpty { planId = plans.first?.id ?? "" }
+                if traineeId.isEmpty { traineeId = trainees.first?.id ?? "" }
+            }
+        }
+    }
+
+    private func section<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(TTFont.workSans(14, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(14)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+    }
+}
+
+private struct PlanDuplicateSheet: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    @State private var planId = ""
+    @State private var isWorking = false
+
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+
+    private var plans: [WorkoutPlan] {
+        store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Pick a plan to copy. You’ll get a new draft you can tweak.")
+                    .font(TTFont.body(14))
+                    .foregroundStyle(TTColor.inkMuted)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Plan")
+                        .font(TTFont.workSans(14, weight: .bold))
+                    Picker("Plan", selection: $planId) {
+                        Text("Select plan").tag("")
+                        ForEach(plans) { plan in
+                            Text(plan.title).tag(plan.id)
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                Spacer()
+
+                Button {
+                    guard let source = plans.first(where: { $0.id == planId }) else { return }
+                    isWorking = true
+                    Task {
+                        var copy = source
+                        copy.id = UUID().uuidString
+                        copy.title = source.title.hasSuffix(" Copy") ? source.title : "\(source.title) Copy"
+                        try? await store.createPlan(copy)
+                        isWorking = false
+                        dismiss()
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isWorking { ProgressView().tint(.white) }
+                        Text("Duplicate plan")
+                            .font(TTFont.workSans(16, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(planId.isEmpty || isWorking)
+                .opacity(planId.isEmpty || isWorking ? 0.45 : 1)
+            }
+            .padding(20)
+            .background(Color(white: 0.97).ignoresSafeArea())
+            .navigationTitle("Duplicate plan")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+            .onAppear {
+                if planId.isEmpty { planId = plans.first?.id ?? "" }
+            }
+        }
+    }
 }
 
 #Preview("Workout Plans") {

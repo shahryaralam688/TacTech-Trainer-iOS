@@ -16,16 +16,46 @@ extension Notification.Name {
     static let ttOpenAICoachChat = Notification.Name("ttOpenAICoachChat")
 }
 
-// MARK: - Overlay (reference: bottom-trailing liquid FAB → options rise out)
+extension TTLiquidFABAction {
+    /// Trainer center-tab quick actions.
+    static let trainerCenterMenu: [TTLiquidFABAction] = [
+        TTLiquidFABAction(
+            id: "ai",
+            title: "AI Assistant",
+            subtitle: "Chat · draft plans · cues",
+            icon: .sparkle2,
+            highlighted: true
+        ),
+        TTLiquidFABAction(
+            id: "create",
+            title: "Create workout plan",
+            subtitle: "Build manually",
+            icon: .clipboard
+        ),
+        TTLiquidFABAction(
+            id: "assign",
+            title: "Assign to trainee",
+            subtitle: "Attach an existing plan",
+            icon: .userCheck
+        ),
+        TTLiquidFABAction(
+            id: "duplicate",
+            title: "Duplicate plan",
+            subtitle: "Copy and tweak",
+            icon: .copy1
+        )
+    ]
+}
 
-/// Full-screen liquid action menu. Pills pour upward from the black FAB with a
-/// gooey orange backbone — matches `docs/references/tactech-liquid-fab-reference.png`.
+// MARK: - Overlay (rises from bottom center tab +)
+
+/// Full-screen liquid action menu. Pills pour upward from the center tab FAB.
 struct TTLiquidFABOverlay: View {
     @Binding var isPresented: Bool
     let actions: [TTLiquidFABAction]
     var onSelect: (TTLiquidFABAction) -> Void
-    /// Clears space above the home-indicator / tab cradle.
-    var bottomReserve: CGFloat = 28
+    /// Space above home indicator so the morph sits on the tab cradle.
+    var bottomReserve: CGFloat = 24
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
@@ -37,21 +67,19 @@ struct TTLiquidFABOverlay: View {
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .bottomTrailing) {
+            ZStack(alignment: .bottom) {
                 scrim
 
-                ZStack(alignment: .bottomTrailing) {
+                ZStack(alignment: .bottom) {
                     liquidBackbone
                         .allowsHitTesting(false)
-                        .offset(x: -10, y: -4)
 
-                    VStack(alignment: .trailing, spacing: 12) {
-                        // Top → bottom: AI … Duplicate, then FAB (reference order).
+                    VStack(spacing: 12) {
                         ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
                             actionPill(action)
                                 .opacity(expanded ? 1 : 0)
                                 .offset(y: expanded ? 0 : emergeOffset(for: index))
-                                .scaleEffect(expanded ? 1 : 0.35, anchor: .bottomTrailing)
+                                .scaleEffect(expanded ? 1 : 0.35, anchor: .bottom)
                                 .animation(
                                     reduceMotion
                                         ? .easeOut(duration: 0.16)
@@ -63,7 +91,6 @@ struct TTLiquidFABOverlay: View {
                         fabButton
                     }
                 }
-                .padding(.trailing, 18)
                 .padding(.bottom, max(geo.safeAreaInsets.bottom, 8) + bottomReserve)
             }
             .ignoresSafeArea()
@@ -89,16 +116,17 @@ struct TTLiquidFABOverlay: View {
             .onTapGesture { dismiss() }
     }
 
+    /// Matches the tab-bar center control (orange squircle → X).
     private var fabButton: some View {
         Button {
             dismiss()
         } label: {
             ZStack {
-                Circle()
-                    .fill(orange.opacity(0.6))
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(orange.opacity(0.55))
                     .frame(width: 72, height: 72)
                     .blur(radius: 16)
-                    .scaleEffect(pulse && expanded ? 1.22 : 0.92)
+                    .scaleEffect(pulse && expanded ? 1.2 : 0.92)
                     .animation(
                         reduceMotion
                             ? nil
@@ -106,10 +134,10 @@ struct TTLiquidFABOverlay: View {
                         value: pulse
                     )
 
-                Circle()
-                    .fill(Color.black)
-                    .frame(width: 58, height: 58)
-                    .shadow(color: orange.opacity(0.5), radius: 18, y: 8)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(expanded ? Color.black : orange)
+                    .frame(width: 56, height: 56)
+                    .shadow(color: orange.opacity(0.45), radius: 14, y: 6)
 
                 TTIcon(icon: .plus, filled: true, size: 22)
                     .foregroundStyle(.white)
@@ -195,7 +223,7 @@ struct TTLiquidFABOverlay: View {
             .padding(.leading, 10)
             .padding(.trailing, 18)
             .padding(.vertical, 11)
-            .frame(width: 278, alignment: .leading)
+            .frame(width: 300, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color.white)
@@ -211,7 +239,6 @@ struct TTLiquidFABOverlay: View {
         .buttonStyle(TTLiquidFABPillPressStyle())
     }
 
-    /// Collapse toward the FAB (downward) so open feels like rising out of it.
     private func emergeOffset(for index: Int) -> CGFloat {
         let fromBottom = actions.count - 1 - index
         return CGFloat(fromBottom + 1) * 22 + 36
@@ -242,38 +269,12 @@ private struct TTLiquidFABPillPressStyle: ButtonStyle {
     }
 }
 
-#Preview("Liquid FAB") {
+#Preview("Liquid FAB · Center") {
     ZStack {
         Color(white: 0.92).ignoresSafeArea()
         TTLiquidFABOverlay(
             isPresented: .constant(true),
-            actions: [
-                TTLiquidFABAction(
-                    id: "ai",
-                    title: "AI Assistant",
-                    subtitle: "Chat · draft plans · cues",
-                    icon: .sparkle2,
-                    highlighted: true
-                ),
-                TTLiquidFABAction(
-                    id: "create",
-                    title: "Create workout plan",
-                    subtitle: "Build manually",
-                    icon: .clipboard
-                ),
-                TTLiquidFABAction(
-                    id: "assign",
-                    title: "Assign to trainee",
-                    subtitle: "Attach an existing plan",
-                    icon: .userCheck
-                ),
-                TTLiquidFABAction(
-                    id: "dup",
-                    title: "Duplicate plan",
-                    subtitle: "Copy and tweak",
-                    icon: .copy1
-                )
-            ],
+            actions: TTLiquidFABAction.trainerCenterMenu,
             onSelect: { _ in }
         )
     }

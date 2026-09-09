@@ -8,6 +8,10 @@ struct TrainerRootView: View {
     @State private var tab: TrainerTab = .dashboard
     @State private var mounted: Set<TrainerTab> = [.dashboard]
     @State private var showAIChat = false
+    @State private var showLiquidMenu = false
+    @State private var showCreatePlan = false
+    @State private var showAssignSheet = false
+    @State private var showDuplicateSheet = false
     @Namespace private var aiChatNamespace
 
     private let tabs: [TTTabBarItem<TrainerTab>] = [
@@ -49,19 +53,18 @@ struct TrainerRootView: View {
                     TTFloatingTabBar(
                         tabs: tabs,
                         selection: $tab,
-                        onCenterTap: openAIChat,
+                        onCenterTap: openLiquidMenu,
                         bottomInset: geo.safeAreaInsets.bottom,
                         aiChatNamespace: aiChatNamespace,
-                        isAIChatPresented: showAIChat
+                        isAIChatPresented: showAIChat,
+                        isCenterMenuPresented: showLiquidMenu
                     )
                     .zIndex(20)
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-            // Tab chrome never lifts with keyboard; AI overlay tracks keyboard height itself.
             .modifier(TTRootKeyboardIgnore(enabled: true))
 
-            // Overlay owns keyboard attachment (manual height).
             if showAIChat {
                 TTAICoachChatOverlay(
                     isPresented: $showAIChat,
@@ -71,6 +74,17 @@ struct TrainerRootView: View {
                 .zIndex(40)
                 .transition(.opacity)
             }
+
+            if showLiquidMenu {
+                TTLiquidFABOverlay(
+                    isPresented: $showLiquidMenu,
+                    actions: TTLiquidFABAction.trainerCenterMenu,
+                    onSelect: handleLiquidAction,
+                    bottomReserve: 18
+                )
+                .zIndex(50)
+                .transition(.opacity)
+            }
         }
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
@@ -78,15 +92,45 @@ struct TrainerRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
             openAIChat()
         }
+        .sheet(isPresented: $showCreatePlan) {
+            CreatePlanView()
+        }
+        .sheet(isPresented: $showAssignSheet) {
+            PlanQuickAssignSheet()
+        }
+        .sheet(isPresented: $showDuplicateSheet) {
+            PlanDuplicateSheet()
+        }
         .task {
-            // Warm Profile after first frame so the first Profile tap isn't a cold Chart mount.
             try? await Task.sleep(for: .milliseconds(600))
             mounted.insert(.profile)
         }
     }
 
+    private func openLiquidMenu() {
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
+            showLiquidMenu = true
+        }
+    }
+
+    private func handleLiquidAction(_ action: TTLiquidFABAction) {
+        switch action.id {
+        case "ai":
+            openAIChat()
+        case "create":
+            showCreatePlan = true
+            tab = .plans
+            mounted.insert(.plans)
+        case "assign":
+            showAssignSheet = true
+        case "duplicate":
+            showDuplicateSheet = true
+        default:
+            break
+        }
+    }
+
     private func openAIChat() {
-        // Insert without animating the tree; the overlay owns its present spring.
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {

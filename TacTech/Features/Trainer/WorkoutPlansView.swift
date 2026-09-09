@@ -7,9 +7,6 @@ struct WorkoutPlansView: View {
     @Namespace private var searchNS
     @State private var showCreate = false
     @State private var showSearch = false
-    @State private var showLiquidMenu = false
-    @State private var showAssignSheet = false
-    @State private var showDuplicateSheet = false
     @State private var query = ""
     @State private var focusFilter: String?
     @State private var selectedPlan: WorkoutPlan?
@@ -19,114 +16,62 @@ struct WorkoutPlansView: View {
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "workoutPlans"
 
-    private var liquidActions: [TTLiquidFABAction] {
-        [
-            TTLiquidFABAction(
-                id: "ai",
-                title: "AI Assistant",
-                subtitle: "Chat · draft plans · cues",
-                icon: .sparkle2,
-                highlighted: true
-            ),
-            TTLiquidFABAction(
-                id: "create",
-                title: "Create workout plan",
-                subtitle: "Build manually",
-                icon: .clipboard
-            ),
-            TTLiquidFABAction(
-                id: "assign",
-                title: "Assign to trainee",
-                subtitle: "Attach an existing plan",
-                icon: .userCheck
-            ),
-            TTLiquidFABAction(
-                id: "duplicate",
-                title: "Duplicate plan",
-                subtitle: "Copy and tweak",
-                icon: .copy1
-            )
-        ]
-    }
-
     var body: some View {
         NavigationStack {
-            ZStack {
-                VStack(spacing: 0) {
-                    trainerListHeader(
-                        title: "Workout Plans",
-                        subtitle: "\(filtered.count) programs",
-                        trailingIcon: .plus,
-                        collapseProgress: scrollCollapse.progress,
-                        isMenuOpen: showLiquidMenu
-                    ) {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                            showLiquidMenu = true
-                        }
-                    }
+            VStack(spacing: 0) {
+                trainerListHeader(
+                    title: "Workout Plans",
+                    subtitle: "\(filtered.count) programs",
+                    trailingIcon: .plus,
+                    collapseProgress: scrollCollapse.progress
+                ) {
+                    showCreate = true
+                }
 
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 0) {
-                            TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                            VStack(alignment: .leading, spacing: 12) {
-                                TTSearchEntryPill(
-                                    placeholder: TTSearchCopy.plans.pillPlaceholder,
-                                    query: displayQuery,
-                                    namespace: searchNS
-                                ) {
-                                    showSearch = true
-                                }
+                        VStack(alignment: .leading, spacing: 12) {
+                            TTSearchEntryPill(
+                                placeholder: TTSearchCopy.plans.pillPlaceholder,
+                                query: displayQuery,
+                                namespace: searchNS
+                            ) {
+                                showSearch = true
+                            }
 
-                                if filtered.isEmpty {
-                                    emptyCard(
-                                        icon: .clipboard,
-                                        title: plans.isEmpty ? "No plans yet" : "No matches",
-                                        message: plans.isEmpty
-                                            ? "Tap + to build a detailed weekly plan for your athletes."
-                                            : "Try a different search."
-                                    )
-                                } else {
-                                    ForEach(filtered) { plan in
-                                        NavigationLink {
-                                            WorkoutPlanDetailView(plan: plan)
-                                        } label: {
-                                            planCard(plan)
-                                        }
-                                        .buttonStyle(.plain)
+                            if filtered.isEmpty {
+                                emptyCard(
+                                    icon: .clipboard,
+                                    title: plans.isEmpty ? "No plans yet" : "No matches",
+                                    message: plans.isEmpty
+                                        ? "Tap + to build a detailed weekly plan for your athletes."
+                                        : "Try a different search."
+                                )
+                            } else {
+                                ForEach(filtered) { plan in
+                                    NavigationLink {
+                                        WorkoutPlanDetailView(plan: plan)
+                                    } label: {
+                                        planCard(plan)
                                     }
+                                    .buttonStyle(.plain)
                                 }
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .padding(.bottom, 24)
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .padding(.bottom, 24)
                     }
-                    .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                    .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                 }
-                .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
-
-                // Menu is presented full-screen so liquid FAB sits above the tab bar.
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             }
+            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
-            .fullScreenCover(isPresented: $showLiquidMenu) {
-                TTLiquidFABOverlay(
-                    isPresented: $showLiquidMenu,
-                    actions: liquidActions,
-                    onSelect: handleLiquidAction,
-                    bottomReserve: TTFloatingTabBar<TrainerTab>.barBodyHeight
-                )
-                .presentationBackground(.clear)
-            }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
-            }
-            .sheet(isPresented: $showAssignSheet) {
-                PlanQuickAssignSheet()
-            }
-            .sheet(isPresented: $showDuplicateSheet) {
-                PlanDuplicateSheet()
             }
             .navigationDestination(item: $selectedPlan) { plan in
                 WorkoutPlanDetailView(plan: plan)
@@ -137,21 +82,6 @@ struct WorkoutPlansView: View {
                 namespace: searchNS,
                 onOutcome: handleSearchOutcome
             )
-        }
-    }
-
-    private func handleLiquidAction(_ action: TTLiquidFABAction) {
-        switch action.id {
-        case "ai":
-            NotificationCenter.default.post(name: .ttOpenAICoachChat, object: nil)
-        case "create":
-            showCreate = true
-        case "assign":
-            showAssignSheet = true
-        case "duplicate":
-            showDuplicateSheet = true
-        default:
-            break
         }
     }
 
@@ -588,7 +518,7 @@ func trainerListHeader(
 
 // MARK: - Quick assign / duplicate sheets
 
-private struct PlanQuickAssignSheet: View {
+struct PlanQuickAssignSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var planId = ""
@@ -678,7 +608,7 @@ private struct PlanQuickAssignSheet: View {
     }
 }
 
-private struct PlanDuplicateSheet: View {
+struct PlanDuplicateSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var planId = ""

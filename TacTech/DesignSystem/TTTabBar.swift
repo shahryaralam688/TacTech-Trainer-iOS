@@ -35,6 +35,8 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     /// Shared with `TTAICoachChatOverlay` for Plus → chat morph.
     var aiChatNamespace: Namespace.ID? = nil
     var isAIChatPresented: Bool = false
+    /// Center liquid action menu — hides the docked + so the overlay FAB owns the morph.
+    var isCenterMenuPresented: Bool = false
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -172,8 +174,10 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             }
         }
         .buttonStyle(TTTabBarCenterPressStyle())
-        .accessibilityLabel("Open TacTech AI chat")
-        .accessibilityHint("Talk or message your AI coach")
+        .opacity(isCenterMenuPresented || isAIChatPresented ? 0 : 1)
+        .allowsHitTesting(!(isCenterMenuPresented || isAIChatPresented))
+        .accessibilityLabel("Open quick actions")
+        .accessibilityHint("AI assistant, create plan, assign, or duplicate")
     }
 }
 

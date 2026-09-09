@@ -47,7 +47,10 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     private let indicatorWidth: CGFloat = 16
     private let indicatorHeight: CGFloat = 3
 
-    /// Height above the home indicator (FAB overhang + icon row).
+    /// Solid docked bar height (excludes FAB overhang). Use this for content bottom padding
+    /// so the page can show through the cradle behind the plus — no phantom strip.
+    static var barBodyHeight: CGFloat { 70 }
+    /// Full chrome height including FAB overhang (tab bar’s own layout).
     static var contentHeight: CGFloat { 24 + 70 }
 
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
@@ -56,6 +59,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
+                // Only the notched shape is filled — never a full rectangle behind the FAB.
                 TTTabBarNotchShape(
                     topCornerRadius: topCornerRadius,
                     notchRadius: centerSize * 0.62,
@@ -91,12 +95,11 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             .frame(height: fabLift + barHeight)
             .frame(maxWidth: .infinity)
 
-            // Same fill as the bar — no separate strip under the home indicator.
+            // Home-indicator strip only (matches bar fill, not a second “bar” behind the FAB).
             barFill
                 .frame(height: max(bottomInset, 0))
                 .frame(maxWidth: .infinity)
         }
-        .background(barFill)
         .accessibilityElement(children: .contain)
     }
 

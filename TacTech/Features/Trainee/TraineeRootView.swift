@@ -44,7 +44,7 @@ struct TraineeRootView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.bottom, TTFloatingTabBar<TraineeTab>.contentHeight + geo.safeAreaInsets.bottom)
+                    .padding(.bottom, TTFloatingTabBar<TraineeTab>.barBodyHeight + geo.safeAreaInsets.bottom)
 
                     TTFloatingTabBar(
                         tabs: tabs,

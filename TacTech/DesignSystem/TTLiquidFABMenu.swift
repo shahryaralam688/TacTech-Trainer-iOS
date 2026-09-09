@@ -16,69 +16,62 @@ extension Notification.Name {
     static let ttOpenAICoachChat = Notification.Name("ttOpenAICoachChat")
 }
 
-// MARK: - Overlay (options emerge from the + with liquid morph)
+// MARK: - Overlay (reference: bottom-trailing liquid FAB → options rise out)
 
-/// Full-screen liquid action menu. Options spring out of the trailing FAB with a
-/// gooey orange backbone — designed to match the TacTech liquid FAB reference.
+/// Full-screen liquid action menu. Pills pour upward from the black FAB with a
+/// gooey orange backbone — matches `docs/references/tactech-liquid-fab-reference.png`.
 struct TTLiquidFABOverlay: View {
     @Binding var isPresented: Bool
     let actions: [TTLiquidFABAction]
     var onSelect: (TTLiquidFABAction) -> Void
+    /// Clears space above the home-indicator / tab cradle.
+    var bottomReserve: CGFloat = 28
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
     @State private var pulse = false
 
     private let orange = TTColor.actionOrange
-    private let spring = Animation.spring(response: 0.48, dampingFraction: 0.78)
-    private let settle = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    private let spring = Animation.spring(response: 0.52, dampingFraction: 0.76)
+    private let settle = Animation.spring(response: 0.36, dampingFraction: 0.88)
 
     var body: some View {
         GeometryReader { geo in
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottomTrailing) {
                 scrim
 
-                VStack(alignment: .trailing, spacing: 0) {
-                    Color.clear.frame(height: geo.safeAreaInsets.top + 10)
+                ZStack(alignment: .bottomTrailing) {
+                    liquidBackbone
+                        .allowsHitTesting(false)
+                        .offset(x: -10, y: -4)
 
-                    ZStack(alignment: .topTrailing) {
-                        liquidBackbone
-                            .allowsHitTesting(false)
-
-                        VStack(alignment: .trailing, spacing: 12) {
-                            fabButton
-
-                            ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
-                                actionPill(action)
-                                    .opacity(expanded ? 1 : 0)
-                                    .offset(y: expanded ? 0 : emergeOffset(for: index))
-                                    .scaleEffect(expanded ? 1 : 0.42, anchor: .topTrailing)
-                                    .rotation3DEffect(
-                                        .degrees(expanded ? 0 : 12),
-                                        axis: (x: 1, y: 0, z: 0),
-                                        anchor: .top,
-                                        perspective: 0.85
-                                    )
-                                    .animation(
-                                        reduceMotion
-                                            ? .easeOut(duration: 0.18)
-                                            : spring.delay(Double(index) * 0.045),
-                                        value: expanded
-                                    )
-                            }
+                    VStack(alignment: .trailing, spacing: 12) {
+                        // Top → bottom: AI … Duplicate, then FAB (reference order).
+                        ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                            actionPill(action)
+                                .opacity(expanded ? 1 : 0)
+                                .offset(y: expanded ? 0 : emergeOffset(for: index))
+                                .scaleEffect(expanded ? 1 : 0.35, anchor: .bottomTrailing)
+                                .animation(
+                                    reduceMotion
+                                        ? .easeOut(duration: 0.16)
+                                        : spring.delay(Double(actions.count - 1 - index) * 0.05),
+                                    value: expanded
+                                )
                         }
-                    }
-                    .padding(.trailing, 16)
 
-                    Spacer(minLength: 0)
+                        fabButton
+                    }
                 }
+                .padding(.trailing, 18)
+                .padding(.bottom, max(geo.safeAreaInsets.bottom, 8) + bottomReserve)
             }
             .ignoresSafeArea()
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: expanded)
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: expanded)
         .onAppear {
             pulse = true
-            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : spring) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.18) : spring) {
                 expanded = true
             }
         }
@@ -89,7 +82,7 @@ struct TTLiquidFABOverlay: View {
     private var scrim: some View {
         Rectangle()
             .fill(.ultraThinMaterial)
-            .overlay(Color.black.opacity(expanded ? 0.38 : 0))
+            .overlay(Color.black.opacity(expanded ? 0.42 : 0))
             .ignoresSafeArea()
             .opacity(expanded ? 1 : 0)
             .animation(settle, value: expanded)
@@ -101,29 +94,29 @@ struct TTLiquidFABOverlay: View {
             dismiss()
         } label: {
             ZStack {
-                // Soft liquid halo under the control.
                 Circle()
-                    .fill(orange.opacity(0.55))
-                    .frame(width: 64, height: 64)
-                    .blur(radius: 14)
-                    .scaleEffect(pulse && expanded ? 1.18 : 0.9)
+                    .fill(orange.opacity(0.6))
+                    .frame(width: 72, height: 72)
+                    .blur(radius: 16)
+                    .scaleEffect(pulse && expanded ? 1.22 : 0.92)
                     .animation(
                         reduceMotion
                             ? nil
-                            : .easeInOut(duration: 1.35).repeatForever(autoreverses: true),
+                            : .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
                         value: pulse
                     )
 
                 Circle()
                     .fill(Color.black)
-                    .frame(width: 52, height: 52)
-                    .shadow(color: orange.opacity(0.45), radius: 16, y: 6)
+                    .frame(width: 58, height: 58)
+                    .shadow(color: orange.opacity(0.5), radius: 18, y: 8)
 
-                TTIcon(icon: .plus, filled: true, size: 20)
+                TTIcon(icon: .plus, filled: true, size: 22)
                     .foregroundStyle(.white)
                     .rotationEffect(.degrees(expanded ? 45 : 0))
+                    .animation(spring, value: expanded)
             }
-            .frame(width: 64, height: 64)
+            .frame(width: 72, height: 72)
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Close menu")
@@ -131,47 +124,46 @@ struct TTLiquidFABOverlay: View {
 
     private var liquidBackbone: some View {
         let count = max(actions.count, 1)
-        let openHeight: CGFloat = 64 + CGFloat(count) * 72
+        let openHeight: CGFloat = 70 + CGFloat(count) * 74
 
-        return ZStack(alignment: .top) {
+        return ZStack(alignment: .bottom) {
             Capsule(style: .continuous)
-                .fill(orange.opacity(0.9))
-                .frame(width: 44, height: expanded ? openHeight : 44)
-                .blur(radius: 22)
-                .opacity(expanded ? 1 : 0.35)
+                .fill(orange.opacity(0.92))
+                .frame(width: 48, height: expanded ? openHeight : 48)
+                .blur(radius: 24)
+                .opacity(expanded ? 1 : 0.25)
 
             Capsule(style: .continuous)
                 .fill(
                     LinearGradient(
-                        colors: [orange, orange.opacity(0.75)],
+                        colors: [orange.opacity(0.7), orange],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .frame(width: 28, height: expanded ? openHeight - 12 : 28)
-                .blur(radius: 10)
-                .opacity(expanded ? 0.95 : 0.4)
+                .frame(width: 30, height: expanded ? openHeight - 16 : 30)
+                .blur(radius: 11)
+                .opacity(expanded ? 0.95 : 0.3)
 
-            // Metaball nodes behind each emerging pill.
-            VStack(spacing: 28) {
+            VStack(spacing: 30) {
                 ForEach(0..<count, id: \.self) { i in
+                    let delayIndex = count - 1 - i
                     Circle()
-                        .fill(orange.opacity(expanded ? 0.85 : 0.2))
-                        .frame(width: expanded ? 36 : 12, height: expanded ? 36 : 12)
-                        .blur(radius: 8)
+                        .fill(orange.opacity(expanded ? 0.9 : 0.15))
+                        .frame(width: expanded ? 40 : 10, height: expanded ? 40 : 10)
+                        .blur(radius: 9)
                         .animation(
                             reduceMotion
-                                ? .easeOut(duration: 0.15)
-                                : spring.delay(Double(i) * 0.05),
+                                ? .easeOut(duration: 0.14)
+                                : spring.delay(Double(delayIndex) * 0.05),
                             value: expanded
                         )
                 }
             }
-            .padding(.top, 70)
+            .padding(.bottom, 78)
         }
-        .frame(width: 72, alignment: .top)
-        .padding(.trailing, 6)
-        .animation(reduceMotion ? .easeOut(duration: 0.2) : spring, value: expanded)
+        .frame(width: 80, alignment: .bottom)
+        .animation(reduceMotion ? .easeOut(duration: 0.18) : spring, value: expanded)
     }
 
     private func actionPill(_ action: TTLiquidFABAction) -> some View {
@@ -185,41 +177,44 @@ struct TTLiquidFABOverlay: View {
                     TTIcon(icon: action.icon, filled: true, size: 16)
                         .foregroundStyle(.white)
                 }
-                .frame(width: 40, height: 40)
+                .frame(width: 42, height: 42)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
                         .font(TTFont.workSans(15, weight: .bold))
                         .foregroundStyle(TTColor.ink)
+                        .lineLimit(1)
                     Text(action.subtitle)
                         .font(TTFont.caption(12))
                         .foregroundStyle(TTColor.inkMuted)
+                        .lineLimit(1)
                 }
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 4)
             }
             .padding(.leading, 10)
-            .padding(.trailing, 16)
-            .padding(.vertical, 10)
-            .frame(width: 268, alignment: .leading)
+            .padding(.trailing, 18)
+            .padding(.vertical, 11)
+            .frame(width: 278, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.12), radius: 18, y: 8)
+                    .shadow(color: Color.black.opacity(0.14), radius: 20, y: 10)
             )
             .overlay {
                 if action.highlighted {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .stroke(orange.opacity(0.35), lineWidth: 1.2)
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(orange.opacity(0.4), lineWidth: 1.4)
                 }
             }
         }
         .buttonStyle(TTLiquidFABPillPressStyle())
     }
 
+    /// Collapse toward the FAB (downward) so open feels like rising out of it.
     private func emergeOffset(for index: Int) -> CGFloat {
-        // Collapse toward the FAB so pills feel like they pour out of it.
-        -CGFloat(index + 1) * 18 - 28
+        let fromBottom = actions.count - 1 - index
+        return CGFloat(fromBottom + 1) * 22 + 36
     }
 
     private func select(_ action: TTLiquidFABAction) {
@@ -229,10 +224,10 @@ struct TTLiquidFABOverlay: View {
     }
 
     private func dismiss(completion: (() -> Void)? = nil) {
-        withAnimation(reduceMotion ? .easeOut(duration: 0.15) : settle) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : settle) {
             expanded = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.12 : 0.28)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.1 : 0.3)) {
             isPresented = false
             completion?()
         }
@@ -242,7 +237,7 @@ struct TTLiquidFABOverlay: View {
 private struct TTLiquidFABPillPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }

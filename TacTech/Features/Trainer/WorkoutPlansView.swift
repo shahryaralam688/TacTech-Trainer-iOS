@@ -107,17 +107,18 @@ struct WorkoutPlansView: View {
                 }
                 .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
 
-                if showLiquidMenu {
-                    TTLiquidFABOverlay(
-                        isPresented: $showLiquidMenu,
-                        actions: liquidActions,
-                        onSelect: handleLiquidAction
-                    )
-                    .zIndex(50)
-                    .transition(.opacity)
-                }
+                // Menu is presented full-screen so liquid FAB sits above the tab bar.
             }
             .ttHideSystemNavigationBar()
+            .fullScreenCover(isPresented: $showLiquidMenu) {
+                TTLiquidFABOverlay(
+                    isPresented: $showLiquidMenu,
+                    actions: liquidActions,
+                    onSelect: handleLiquidAction,
+                    bottomReserve: TTFloatingTabBar<TrainerTab>.barBodyHeight
+                )
+                .presentationBackground(.clear)
+            }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
             }

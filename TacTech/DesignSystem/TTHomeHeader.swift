@@ -57,14 +57,15 @@ struct TTHomeProfileHeader: View {
         VStack(alignment: .leading, spacing: 22 * expand) {
             topRow
                 .opacity(Double(expand))
-                .frame(height: 44 * expand, alignment: .top)
+                // Extra height so the notification badge isn’t clipped at rest.
+                .frame(height: 54 * expand, alignment: .top)
                 .clipped()
                 .allowsHitTesting(p < 0.35)
 
             profileRow
         }
         .padding(.horizontal, 22)
-        .padding(.top, 10 - 2 * p)
+        .padding(.top, 12 - 2 * p)
         .padding(.bottom, 22 - 10 * p)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background {
@@ -115,9 +116,16 @@ struct TTHomeProfileHeader: View {
                             .frame(width: 18, height: 18)
                             .background(orange)
                             .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.black, lineWidth: 1.5)
+                            )
                             .offset(x: 4, y: -4)
                     }
                 }
+                // Keep badge inside the hit target so parent `.clipped()` can’t crop it.
+                .padding(.top, 4)
+                .padding(.trailing, 4)
             }
             .buttonStyle(TTHomeHeaderPressStyle())
         }

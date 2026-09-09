@@ -16,6 +16,10 @@ extension Notification.Name {
     static let ttOpenAICoachChat = Notification.Name("ttOpenAICoachChat")
 }
 
+enum TTLiquidFABPortal {
+    static let matchedID = "tactech.liquid.centerFAB"
+}
+
 extension TTLiquidFABAction {
     /// Trainer center-tab quick actions.
     static let trainerCenterMenu: [TTLiquidFABAction] = [
@@ -55,15 +59,18 @@ struct TTLiquidFABOverlay: View {
     let actions: [TTLiquidFABAction]
     var onSelect: (TTLiquidFABAction) -> Void
     /// Space above home indicator so the morph sits on the tab cradle.
-    var bottomReserve: CGFloat = 24
+    var bottomReserve: CGFloat = TTFloatingTabBar<Int>.liquidMenuFABBottomReserve
+    var namespace: Namespace.ID? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
     @State private var pulse = false
+    @State private var scrimVisible = false
 
     private let orange = TTColor.actionOrange
-    private let spring = Animation.spring(response: 0.52, dampingFraction: 0.76)
-    private let settle = Animation.spring(response: 0.36, dampingFraction: 0.88)
+    private let fabSize: CGFloat = TTFloatingTabBar<Int>.centerFABSize
+    private let spring = Animation.spring(response: 0.48, dampingFraction: 0.82)
+    private let settle = Animation.spring(response: 0.34, dampingFraction: 0.9)
 
     var body: some View {
         GeometryReader { geo in
@@ -82,8 +89,8 @@ struct TTLiquidFABOverlay: View {
                                 .scaleEffect(expanded ? 1 : 0.35, anchor: .bottom)
                                 .animation(
                                     reduceMotion
-                                        ? .easeOut(duration: 0.16)
-                                        : spring.delay(Double(actions.count - 1 - index) * 0.05),
+                                        ? .easeOut(duration: 0.14)
+                                        : spring.delay(Double(actions.count - 1 - index) * 0.04),
                                     value: expanded
                                 )
                         }
@@ -91,15 +98,16 @@ struct TTLiquidFABOverlay: View {
                         fabButton
                     }
                 }
-                .padding(.bottom, max(geo.safeAreaInsets.bottom, 8) + bottomReserve)
+                .padding(.bottom, geo.safeAreaInsets.bottom + bottomReserve)
             }
             .ignoresSafeArea()
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: expanded)
         .onAppear {
             pulse = true
-            withAnimation(reduceMotion ? .easeOut(duration: 0.18) : spring) {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : spring) {
                 expanded = true
+                scrimVisible = true
             }
         }
     }
@@ -109,24 +117,25 @@ struct TTLiquidFABOverlay: View {
     private var scrim: some View {
         Rectangle()
             .fill(.ultraThinMaterial)
-            .overlay(Color.black.opacity(expanded ? 0.42 : 0))
+            .overlay(Color.black.opacity(scrimVisible ? 0.42 : 0))
             .ignoresSafeArea()
-            .opacity(expanded ? 1 : 0)
-            .animation(settle, value: expanded)
+            .opacity(scrimVisible ? 1 : 0)
+            .animation(settle, value: scrimVisible)
             .onTapGesture { dismiss() }
     }
 
-    /// Matches the tab-bar center control (orange squircle → X).
+    /// Exact cradle twin (56×56 orange squircle) so close morphs without a snap.
     private var fabButton: some View {
         Button {
             dismiss()
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(orange.opacity(0.55))
-                    .frame(width: 72, height: 72)
-                    .blur(radius: 16)
-                    .scaleEffect(pulse && expanded ? 1.2 : 0.92)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(orange.opacity(0.5))
+                    .frame(width: fabSize + 16, height: fabSize + 16)
+                    .blur(radius: 14)
+                    .scaleEffect(pulse && expanded ? 1.16 : 0.95)
+                    .opacity(expanded ? 1 : 0)
                     .animation(
                         reduceMotion
                             ? nil
@@ -136,30 +145,34 @@ struct TTLiquidFABOverlay: View {
 
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(expanded ? Color.black : orange)
-                    .frame(width: 56, height: 56)
-                    .shadow(color: orange.opacity(0.45), radius: 14, y: 6)
+                    .frame(width: fabSize, height: fabSize)
+                    .shadow(color: orange.opacity(expanded ? 0.45 : 0.42), radius: expanded ? 14 : 10, y: 6)
 
-                TTIcon(icon: .plus, filled: true, size: 22)
+                TTIcon(icon: .plus, filled: true, size: 20)
                     .foregroundStyle(.white)
                     .rotationEffect(.degrees(expanded ? 45 : 0))
-                    .animation(spring, value: expanded)
             }
-            .frame(width: 72, height: 72)
+            .frame(width: fabSize, height: fabSize)
         }
         .buttonStyle(.plain)
+        .modifier(TTLiquidFABMatched(
+            id: TTLiquidFABPortal.matchedID,
+            namespace: namespace,
+            isSource: true
+        ))
         .accessibilityLabel("Close menu")
     }
 
     private var liquidBackbone: some View {
         let count = max(actions.count, 1)
-        let openHeight: CGFloat = 70 + CGFloat(count) * 74
+        let openHeight: CGFloat = fabSize + CGFloat(count) * 74
 
         return ZStack(alignment: .bottom) {
             Capsule(style: .continuous)
                 .fill(orange.opacity(0.92))
-                .frame(width: 48, height: expanded ? openHeight : 48)
+                .frame(width: 48, height: expanded ? openHeight : fabSize)
                 .blur(radius: 24)
-                .opacity(expanded ? 1 : 0.25)
+                .opacity(expanded ? 1 : 0)
 
             Capsule(style: .continuous)
                 .fill(
@@ -169,29 +182,29 @@ struct TTLiquidFABOverlay: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(width: 30, height: expanded ? openHeight - 16 : 30)
+                .frame(width: 30, height: expanded ? openHeight - 16 : fabSize * 0.5)
                 .blur(radius: 11)
-                .opacity(expanded ? 0.95 : 0.3)
+                .opacity(expanded ? 0.95 : 0)
 
             VStack(spacing: 30) {
                 ForEach(0..<count, id: \.self) { i in
                     let delayIndex = count - 1 - i
                     Circle()
-                        .fill(orange.opacity(expanded ? 0.9 : 0.15))
-                        .frame(width: expanded ? 40 : 10, height: expanded ? 40 : 10)
+                        .fill(orange.opacity(expanded ? 0.9 : 0))
+                        .frame(width: expanded ? 40 : 8, height: expanded ? 40 : 8)
                         .blur(radius: 9)
                         .animation(
                             reduceMotion
-                                ? .easeOut(duration: 0.14)
-                                : spring.delay(Double(delayIndex) * 0.05),
+                                ? .easeOut(duration: 0.12)
+                                : spring.delay(Double(delayIndex) * 0.04),
                             value: expanded
                         )
                 }
             }
-            .padding(.bottom, 78)
+            .padding(.bottom, fabSize + 22)
         }
         .frame(width: 80, alignment: .bottom)
-        .animation(reduceMotion ? .easeOut(duration: 0.18) : spring, value: expanded)
+        .animation(reduceMotion ? .easeOut(duration: 0.16) : spring, value: expanded)
     }
 
     private func actionPill(_ action: TTLiquidFABAction) -> some View {
@@ -251,12 +264,36 @@ struct TTLiquidFABOverlay: View {
     }
 
     private func dismiss(completion: (() -> Void)? = nil) {
-        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : settle) {
+        let collapse = reduceMotion ? Animation.easeOut(duration: 0.14) : settle
+        // 1) Collapse pills + morph X → + while still covering the cradle.
+        withAnimation(collapse) {
             expanded = false
+            scrimVisible = false
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.1 : 0.3)) {
-            isPresented = false
-            completion?()
+        // 2) Hand off to the tab-bar + in the same animated transaction (no snap).
+        let handoff: TimeInterval = reduceMotion ? 0.12 : 0.28
+        DispatchQueue.main.asyncAfter(deadline: .now() + handoff) {
+            withAnimation(collapse) {
+                isPresented = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                completion?()
+            }
+        }
+    }
+}
+
+private struct TTLiquidFABMatched: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID?
+    var isSource: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedGeometryEffect(id: id, in: namespace, isSource: isSource)
+        } else {
+            content
         }
     }
 }

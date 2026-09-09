@@ -37,6 +37,8 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     var isAIChatPresented: Bool = false
     /// Center liquid action menu — hides the docked + so the overlay FAB owns the morph.
     var isCenterMenuPresented: Bool = false
+    /// Shared with `TTLiquidFABOverlay` so close morphs back into the cradle + without a snap.
+    var liquidFABNamespace: Namespace.ID? = nil
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -54,6 +56,12 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     static var barBodyHeight: CGFloat { 70 }
     /// Full chrome height including FAB overhang (tab bar’s own layout).
     static var contentHeight: CGFloat { 24 + 70 }
+    static var centerFABSize: CGFloat { 56 }
+    static var fabLiftAmount: CGFloat { 24 }
+    /// Overlay FAB bottom padding above the home-indicator so it sits on the cradle +.
+    static var liquidMenuFABBottomReserve: CGFloat {
+        barBodyHeight - centerFABSize + fabLiftAmount // 38
+    }
 
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
@@ -176,8 +184,37 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
         .buttonStyle(TTTabBarCenterPressStyle())
         .opacity(isCenterMenuPresented || isAIChatPresented ? 0 : 1)
         .allowsHitTesting(!(isCenterMenuPresented || isAIChatPresented))
+        .animation(
+            .spring(response: 0.34, dampingFraction: 0.9),
+            value: isCenterMenuPresented
+        )
+        .animation(
+            .spring(response: 0.34, dampingFraction: 0.9),
+            value: isAIChatPresented
+        )
+        .modifier(TTOptionalMatchedGeometry(
+            id: TTLiquidFABPortal.matchedID,
+            namespace: liquidFABNamespace,
+            isSource: !isCenterMenuPresented && !isAIChatPresented
+        ))
         .accessibilityLabel("Open quick actions")
         .accessibilityHint("AI assistant, create plan, assign, or duplicate")
+    }
+}
+
+/// Applies `matchedGeometryEffect` only when a namespace is provided.
+private struct TTOptionalMatchedGeometry: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID?
+    var isSource: Bool = true
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedGeometryEffect(id: id, in: namespace, isSource: isSource)
+        } else {
+            content
+        }
     }
 }
 

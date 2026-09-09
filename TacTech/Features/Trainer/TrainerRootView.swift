@@ -13,6 +13,7 @@ struct TrainerRootView: View {
     @State private var showAssignSheet = false
     @State private var showDuplicateSheet = false
     @Namespace private var aiChatNamespace
+    @Namespace private var liquidFABNamespace
 
     private let tabs: [TTTabBarItem<TrainerTab>] = [
         TTTabBarItem(.dashboard, icon: .house1, label: "Home"),
@@ -57,7 +58,8 @@ struct TrainerRootView: View {
                         bottomInset: geo.safeAreaInsets.bottom,
                         aiChatNamespace: aiChatNamespace,
                         isAIChatPresented: showAIChat,
-                        isCenterMenuPresented: showLiquidMenu
+                        isCenterMenuPresented: showLiquidMenu,
+                        liquidFABNamespace: liquidFABNamespace
                     )
                     .zIndex(20)
                 }
@@ -80,7 +82,8 @@ struct TrainerRootView: View {
                     isPresented: $showLiquidMenu,
                     actions: TTLiquidFABAction.trainerCenterMenu,
                     onSelect: handleLiquidAction,
-                    bottomReserve: 18
+                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve,
+                    namespace: liquidFABNamespace
                 )
                 .zIndex(50)
                 .transition(.opacity)

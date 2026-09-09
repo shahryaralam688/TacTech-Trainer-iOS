@@ -513,7 +513,6 @@ func trainerListHeader(
             .fill(charcoal)
             .ignoresSafeArea(edges: .top)
     }
-    .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
 }
 
 // MARK: - Quick assign / assignments list

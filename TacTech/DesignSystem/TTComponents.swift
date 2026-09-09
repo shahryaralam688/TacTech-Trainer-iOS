@@ -148,7 +148,7 @@ struct TTDarkPageHeader: View {
                 .fill(charcoal)
                 .ignoresSafeArea(edges: .top)
         }
-        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
+        // Scroll-driven only — spring here lagged expand on the way back down.
     }
 }
 

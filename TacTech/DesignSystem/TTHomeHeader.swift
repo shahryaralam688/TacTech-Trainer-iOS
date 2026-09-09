@@ -78,7 +78,7 @@ struct TTHomeProfileHeader: View {
         }
         .contentShape(Rectangle())
         .allowsHitTesting(true)
-        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
+        // No spring on `p` — collapse must track scroll 1:1 (esp. expand on scroll-down).
     }
 
     // MARK: - Rows
@@ -283,6 +283,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
 
     private var lastProgress: CGFloat = 0
+    private var lastRawY: CGFloat = 0
     private var isUserScrolling = false
 
     func setUserScrolling(_ active: Bool) {
@@ -306,20 +307,29 @@ final class TTHomeScrollCollapseModel: ObservableObject {
             return
         }
 
-        // Undo UIKit’s offset compensation when the header height changes.
-        let compensated = max(0, y + layoutTravel * lastProgress)
-        let next = TTHomeHeaderCollapse.progress(for: compensated)
-        // Finer steps while dragging keep the morph feeling live / interactive.
-        let stepped = (next * 60).rounded() / 60
+        let rawY = max(0, y)
+        // Fixed-point solve so expand isn't sticky: p == f(y + travel * p).
+        // Using only `lastProgress` lags one frame and fights scroll-down expand.
+        var p = lastProgress
+        for _ in 0..<3 {
+            let compensated = max(0, rawY + layoutTravel * p)
+            p = TTHomeHeaderCollapse.progress(for: compensated)
+        }
 
-        guard abs(stepped - lastProgress) >= (1.0 / 60.0 - 0.0001) else { return }
+        let stepped = (p * 100).rounded() / 100
+        let deltaRaw = rawY - lastRawY
+        lastRawY = rawY
 
-        // Ignore tiny reverse blips that aren’t from a finger (layout echo).
-        if !isUserScrolling, stepped < lastProgress, (lastProgress - stepped) < 0.12 {
+        guard abs(stepped - lastProgress) >= 0.005 else { return }
+
+        // Idle layout echo can nudge collapse upward — ignore tiny phantom increases.
+        // Never block decreases (expand); that's what felt "slow / stuck" on scroll-down.
+        if !isUserScrolling, stepped > lastProgress, (stepped - lastProgress) < 0.08, abs(deltaRaw) < 1.5 {
             return
         }
 
-        apply(stepped, animated: !isUserScrolling)
+        // Track the finger 1:1 — any spring here makes expand feel laggy.
+        apply(stepped, animated: false)
     }
 
     private func apply(_ stepped: CGFloat, animated: Bool) {
@@ -327,7 +337,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         lastProgress = stepped
         var transaction = Transaction()
         transaction.animation = animated
-            ? .interactiveSpring(response: 0.32, dampingFraction: 0.9)
+            ? .interactiveSpring(response: 0.28, dampingFraction: 0.92)
             : nil
         withTransaction(transaction) {
             progress = stepped

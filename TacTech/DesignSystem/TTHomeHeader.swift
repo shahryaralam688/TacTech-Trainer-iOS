@@ -78,6 +78,7 @@ struct TTHomeProfileHeader: View {
         }
         .contentShape(Rectangle())
         .allowsHitTesting(true)
+        .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.9), value: p)
     }
 
     // MARK: - Rows
@@ -267,13 +268,15 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 ///
 /// Collapsing a header **above** a ScrollView shortens the scroll view’s frame;
 /// UIKit then compensates `contentOffset`, which without correction fights the
-/// header and feels like a vibrator / hang. We undo that layout delta.
+/// header. We undo that layout delta.
 ///
-/// Short lists (barely scrollable) are locked expanded — rubber-band offsets
-/// must not drive collapse when there isn’t real scroll room.
+/// Short content: scrolling / bounce is disabled (so the header never fights
+/// rubber-band). Tall content: scrolling stays on and collapse stays interactive.
 @MainActor
 final class TTHomeScrollCollapseModel: ObservableObject {
     @Published private(set) var progress: CGFloat = 0
+    /// `false` when content fits the viewport — ScrollView should not move.
+    @Published private(set) var allowsScrolling = true
 
     /// How many points the header chrome shrinks from expanded → compact.
     /// Matches `TTDarkPageHeader` / `trainerListHeader` travel by default.
@@ -281,57 +284,51 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
     private var lastProgress: CGFloat = 0
     private var isUserScrolling = false
-    /// `contentSize.height - visibleHeight`. Negative / tiny = not really scrollable.
-    private var scrollableOverflow: CGFloat = .greatestFiniteMagnitude
-
-    /// Need at least a full collapse travel of real scroll room (not rubber-band).
-    private var minOverflowToCollapse: CGFloat {
-        TTHomeHeaderCollapse.distance + 24
-    }
 
     func setUserScrolling(_ active: Bool) {
         isUserScrolling = active
     }
 
     func setScrollableOverflow(_ overflow: CGFloat) {
-        scrollableOverflow = overflow
-        if overflow < minOverflowToCollapse {
-            lockExpanded()
+        // >1pt = real overflow; otherwise content fits → no scroll / no bounce.
+        let canScroll = overflow > 1
+        if allowsScrolling != canScroll {
+            allowsScrolling = canScroll
+        }
+        if !canScroll {
+            apply(0, animated: true)
         }
     }
 
     func setOffsetY(_ y: CGFloat) {
-        // Few items: bounce still reports offset, but collapsing hangs the UI.
-        guard scrollableOverflow >= minOverflowToCollapse else {
-            lockExpanded()
+        guard allowsScrolling else {
+            apply(0, animated: false)
             return
         }
 
         // Undo UIKit’s offset compensation when the header height changes.
         let compensated = max(0, y + layoutTravel * lastProgress)
         let next = TTHomeHeaderCollapse.progress(for: compensated)
-        // Coarser steps → fewer layout passes (less jitter on short lists).
-        let stepped = (next * 40).rounded() / 40
+        // Finer steps while dragging keep the morph feeling live / interactive.
+        let stepped = (next * 60).rounded() / 60
 
-        guard abs(stepped - lastProgress) >= 0.024 else { return }
+        guard abs(stepped - lastProgress) >= (1.0 / 60.0 - 0.0001) else { return }
 
         // Ignore tiny reverse blips that aren’t from a finger (layout echo).
         if !isUserScrolling, stepped < lastProgress, (lastProgress - stepped) < 0.12 {
             return
         }
 
-        apply(stepped)
+        apply(stepped, animated: !isUserScrolling)
     }
 
-    private func lockExpanded() {
-        guard lastProgress != 0 || progress != 0 else { return }
-        apply(0)
-    }
-
-    private func apply(_ stepped: CGFloat) {
+    private func apply(_ stepped: CGFloat, animated: Bool) {
+        guard abs(stepped - lastProgress) > 0.0001 || abs(progress - stepped) > 0.0001 else { return }
         lastProgress = stepped
         var transaction = Transaction()
-        transaction.animation = nil
+        transaction.animation = animated
+            ? .interactiveSpring(response: 0.32, dampingFraction: 0.9)
+            : nil
         withTransaction(transaction) {
             progress = stepped
         }
@@ -340,6 +337,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
 extension View {
     /// Put on the **ScrollView**. Pairs with `TTHomeScrollCollapseProbe` inside the content (iOS 17).
+    /// Also gates bounce/scroll when content fits the screen.
     func ttObserveHomeScrollCollapse(
         _ model: TTHomeScrollCollapseModel,
         space: String
@@ -379,13 +377,17 @@ private struct TTHomeScrollCollapseMetrics: Equatable {
 
 /// One measurement path only — dual PreferenceKey + geometry observers fought and jittered.
 private struct TTHomeScrollCollapseObserver: ViewModifier {
-    let model: TTHomeScrollCollapseModel
+    @ObservedObject var model: TTHomeScrollCollapseModel
     let space: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
+        let gated = content
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollDisabled(!model.allowsScrolling)
+
         if #available(iOS 18.0, *) {
-            content
+            gated
                 .onScrollGeometryChange(for: TTHomeScrollCollapseMetrics.self) { geometry in
                     TTHomeScrollCollapseMetrics(
                         offset: max(0, geometry.contentOffset.y + geometry.contentInsets.top),
@@ -399,7 +401,7 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
                     model.setUserScrolling(phase != .idle)
                 }
         } else {
-            content
+            gated
                 .coordinateSpace(name: space)
                 .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
                     model.setOffsetY(value)

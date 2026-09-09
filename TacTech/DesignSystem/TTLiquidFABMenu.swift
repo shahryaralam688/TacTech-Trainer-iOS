@@ -51,26 +51,38 @@ extension TTLiquidFABAction {
     ]
 }
 
-// MARK: - Overlay (rises from bottom center tab +)
+// MARK: - Overlay (liquid rise from center tab +)
 
-/// Full-screen liquid action menu. Pills pour upward from the center tab FAB.
+/// Full-screen liquid action menu — gooey backbone, staggered pill pour, morphing FAB.
 struct TTLiquidFABOverlay: View {
     @Binding var isPresented: Bool
     let actions: [TTLiquidFABAction]
     var onSelect: (TTLiquidFABAction) -> Void
-    /// Space above home indicator so the morph sits on the tab cradle.
     var bottomReserve: CGFloat = TTFloatingTabBar<Int>.liquidMenuFABBottomReserve
     var namespace: Namespace.ID? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var expanded = false
-    @State private var pulse = false
     @State private var scrimVisible = false
+    @State private var fabBoost = false
+    @State private var liquidWave = false
+    @State private var highlightedId: String?
+    @State private var appearTick = 0
 
     private let orange = TTColor.actionOrange
     private let fabSize: CGFloat = TTFloatingTabBar<Int>.centerFABSize
-    private let spring = Animation.spring(response: 0.48, dampingFraction: 0.82)
-    private let settle = Animation.spring(response: 0.34, dampingFraction: 0.9)
+
+    /// Open — soft overshoot so pills “pop” out of the liquid.
+    private var openSpring: Animation {
+        .spring(response: 0.55, dampingFraction: 0.72, blendDuration: 0.15)
+    }
+    /// Close — tighter so handoff to cradle + stays clean.
+    private var closeSpring: Animation {
+        .spring(response: 0.32, dampingFraction: 0.92)
+    }
+    private var pillSpring: Animation {
+        .spring(response: 0.5, dampingFraction: 0.68, blendDuration: 0.12)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -78,21 +90,12 @@ struct TTLiquidFABOverlay: View {
                 scrim
 
                 ZStack(alignment: .bottom) {
-                    liquidBackbone
+                    liquidColumn
                         .allowsHitTesting(false)
 
-                    VStack(spacing: 12) {
+                    VStack(spacing: 14) {
                         ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
-                            actionPill(action)
-                                .opacity(expanded ? 1 : 0)
-                                .offset(y: expanded ? 0 : emergeOffset(for: index))
-                                .scaleEffect(expanded ? 1 : 0.35, anchor: .bottom)
-                                .animation(
-                                    reduceMotion
-                                        ? .easeOut(duration: 0.14)
-                                        : spring.delay(Double(actions.count - 1 - index) * 0.04),
-                                    value: expanded
-                                )
+                            actionPill(action, index: index)
                         }
 
                         fabButton
@@ -102,57 +105,121 @@ struct TTLiquidFABOverlay: View {
             }
             .ignoresSafeArea()
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.75), trigger: expanded)
-        .onAppear {
-            pulse = true
-            withAnimation(reduceMotion ? .easeOut(duration: 0.16) : spring) {
-                expanded = true
-                scrimVisible = true
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: appearTick)
+        .sensoryFeedback(.selection, trigger: highlightedId)
+        .onAppear { present() }
+    }
+
+    // MARK: - Present / dismiss
+
+    private func present() {
+        if reduceMotion {
+            expanded = true
+            scrimVisible = true
+            appearTick += 1
+            return
+        }
+        // Tiny kick so the FAB feels alive before pills pour out.
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
+            fabBoost = true
+        }
+        withAnimation(openSpring.delay(0.04)) {
+            expanded = true
+            scrimVisible = true
+            liquidWave = true
+        }
+        appearTick += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+                // Keep a gentle liquid breathe while open.
+                liquidWave = true
             }
         }
     }
 
-    // MARK: - Pieces
+    private func dismiss(completion: (() -> Void)? = nil) {
+        let collapse = reduceMotion ? Animation.easeOut(duration: 0.14) : closeSpring
+        withAnimation(collapse) {
+            expanded = false
+            scrimVisible = false
+            fabBoost = false
+            liquidWave = false
+            highlightedId = nil
+        }
+        let handoff: TimeInterval = reduceMotion ? 0.1 : 0.26
+        DispatchQueue.main.asyncAfter(deadline: .now() + handoff) {
+            withAnimation(collapse) {
+                isPresented = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                completion?()
+            }
+        }
+    }
+
+    private func select(_ action: TTLiquidFABAction) {
+        highlightedId = action.id
+        dismiss {
+            onSelect(action)
+        }
+    }
+
+    // MARK: - Scrim
 
     private var scrim: some View {
         Rectangle()
             .fill(.ultraThinMaterial)
-            .overlay(Color.black.opacity(scrimVisible ? 0.42 : 0))
+            .overlay(
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(scrimVisible ? 0.22 : 0),
+                        Color.black.opacity(scrimVisible ? 0.5 : 0)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
             .ignoresSafeArea()
             .opacity(scrimVisible ? 1 : 0)
-            .animation(settle, value: scrimVisible)
+            .animation(closeSpring, value: scrimVisible)
             .onTapGesture { dismiss() }
     }
 
-    /// Exact cradle twin (56×56 orange squircle) so close morphs without a snap.
+    // MARK: - FAB
+
     private var fabButton: some View {
         Button {
             dismiss()
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(orange.opacity(0.5))
-                    .frame(width: fabSize + 16, height: fabSize + 16)
-                    .blur(radius: 14)
-                    .scaleEffect(pulse && expanded ? 1.16 : 0.95)
-                    .opacity(expanded ? 1 : 0)
-                    .animation(
-                        reduceMotion
-                            ? nil
-                            : .easeInOut(duration: 1.4).repeatForever(autoreverses: true),
-                        value: pulse
+                // Breathing orange bloom (only while open).
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [orange.opacity(0.55), orange.opacity(0)],
+                            center: .center,
+                            startRadius: 8,
+                            endRadius: 42
+                        )
                     )
+                    .frame(width: 88, height: 88)
+                    .scaleEffect(expanded ? (liquidWave ? 1.18 : 1.05) : 0.7)
+                    .opacity(expanded ? 1 : 0)
 
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(expanded ? Color.black : orange)
                     .frame(width: fabSize, height: fabSize)
-                    .shadow(color: orange.opacity(expanded ? 0.45 : 0.42), radius: expanded ? 14 : 10, y: 6)
+                    .shadow(color: orange.opacity(expanded ? 0.55 : 0.4), radius: expanded ? 18 : 10, y: 8)
+                    .scaleEffect(fabBoost && expanded ? 1.06 : 1)
 
                 TTIcon(icon: .plus, filled: true, size: 20)
                     .foregroundStyle(.white)
                     .rotationEffect(.degrees(expanded ? 45 : 0))
+                    .scaleEffect(expanded ? 1.05 : 1)
             }
             .frame(width: fabSize, height: fabSize)
+            .animation(reduceMotion ? .easeOut(duration: 0.12) : openSpring, value: expanded)
+            .animation(reduceMotion ? nil : .easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: liquidWave)
         }
         .buttonStyle(.plain)
         .modifier(TTLiquidFABMatched(
@@ -163,62 +230,86 @@ struct TTLiquidFABOverlay: View {
         .accessibilityLabel("Close menu")
     }
 
-    private var liquidBackbone: some View {
+    // MARK: - Liquid column (gooey)
+
+    private var liquidColumn: some View {
         let count = max(actions.count, 1)
-        let openHeight: CGFloat = fabSize + CGFloat(count) * 74
+        let openHeight: CGFloat = fabSize + 20 + CGFloat(count) * 76
+        let breathe: CGFloat = liquidWave && expanded ? 1.06 : 1
 
         return ZStack(alignment: .bottom) {
+            // Soft outer glow
             Capsule(style: .continuous)
-                .fill(orange.opacity(0.92))
-                .frame(width: 48, height: expanded ? openHeight : fabSize)
-                .blur(radius: 24)
+                .fill(orange.opacity(0.35))
+                .frame(width: 64 * breathe, height: expanded ? openHeight + 24 : fabSize)
+                .blur(radius: 28)
                 .opacity(expanded ? 1 : 0)
 
-            Capsule(style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [orange.opacity(0.7), orange],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: 30, height: expanded ? openHeight - 16 : fabSize * 0.5)
-                .blur(radius: 11)
-                .opacity(expanded ? 0.95 : 0)
+            // Gooey stack — blur + contrast merges blobs into liquid.
+            ZStack(alignment: .bottom) {
+                Capsule(style: .continuous)
+                    .fill(orange)
+                    .frame(width: 36, height: expanded ? openHeight : fabSize * 0.6)
 
-            VStack(spacing: 30) {
                 ForEach(0..<count, id: \.self) { i in
-                    let delayIndex = count - 1 - i
+                    let fromBottom = count - 1 - i
                     Circle()
-                        .fill(orange.opacity(expanded ? 0.9 : 0))
-                        .frame(width: expanded ? 40 : 8, height: expanded ? 40 : 8)
-                        .blur(radius: 9)
-                        .animation(
-                            reduceMotion
-                                ? .easeOut(duration: 0.12)
-                                : spring.delay(Double(delayIndex) * 0.04),
-                            value: expanded
-                        )
+                        .fill(orange)
+                        .frame(width: expanded ? 44 : 10, height: expanded ? 44 : 10)
+                        .offset(y: expanded ? -CGFloat(fromBottom + 1) * 72 : 0)
+                        .scaleEffect(expanded ? (liquidWave && i % 2 == 0 ? 1.08 : 1) : 0.2)
                 }
+
+                // FAB node
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(orange)
+                    .frame(width: fabSize * 0.85, height: fabSize * 0.85)
             }
-            .padding(.bottom, fabSize + 22)
+            .frame(width: 90, height: expanded ? openHeight + 40 : fabSize)
+            .blur(radius: expanded ? 16 : 4)
+            .opacity(expanded ? 1 : 0)
+            // High contrast after blur ≈ metaball / liquid merge.
+            .contrast(expanded ? 1.35 : 1)
+            .brightness(expanded ? 0.02 : 0)
+
+            // Sharp highlight rim so liquid reads premium, not muddy.
+            Capsule(style: .continuous)
+                .stroke(Color.white.opacity(0.22), lineWidth: 1)
+                .frame(width: 22, height: expanded ? openHeight * 0.72 : 12)
+                .blur(radius: 1)
+                .opacity(expanded ? 0.7 : 0)
+                .offset(y: -fabSize * 0.15)
         }
-        .frame(width: 80, alignment: .bottom)
-        .animation(reduceMotion ? .easeOut(duration: 0.16) : spring, value: expanded)
+        .scaleEffect(x: breathe, y: 1, anchor: .bottom)
+        .animation(reduceMotion ? .easeOut(duration: 0.14) : openSpring, value: expanded)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 1.55).repeatForever(autoreverses: true), value: liquidWave)
     }
 
-    private func actionPill(_ action: TTLiquidFABAction) -> some View {
-        Button {
+    // MARK: - Pills
+
+    private func actionPill(_ action: TTLiquidFABAction, index: Int) -> some View {
+        let fromBottom = actions.count - 1 - index
+        let delay = Double(fromBottom) * 0.055
+        let isHot = highlightedId == action.id
+
+        return Button {
             select(action)
         } label: {
             HStack(spacing: 12) {
                 ZStack {
                     Circle()
                         .fill(action.highlighted ? orange : Color.black)
+                        .shadow(
+                            color: (action.highlighted ? orange : Color.black).opacity(0.25),
+                            radius: 8,
+                            y: 3
+                        )
                     TTIcon(icon: action.icon, filled: true, size: 16)
                         .foregroundStyle(.white)
+                        .symbolEffect(.bounce, value: expanded && action.highlighted)
                 }
-                .frame(width: 42, height: 42)
+                .frame(width: 44, height: 44)
+                .scaleEffect(expanded ? 1 : 0.5)
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(action.title)
@@ -232,56 +323,52 @@ struct TTLiquidFABOverlay: View {
                 }
 
                 Spacer(minLength: 4)
+
+                TTIcon(icon: .chevronRight, size: 12)
+                    .foregroundStyle(TTColor.inkSubtle)
+                    .opacity(expanded ? 0.7 : 0)
             }
             .padding(.leading, 10)
-            .padding(.trailing, 18)
-            .padding(.vertical, 11)
-            .frame(width: 300, alignment: .leading)
-            .background(
+            .padding(.trailing, 16)
+            .padding(.vertical, 12)
+            .frame(width: 308, alignment: .leading)
+            .background {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.14), radius: 20, y: 10)
-            )
-            .overlay {
-                if action.highlighted {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .stroke(orange.opacity(0.4), lineWidth: 1.4)
-                }
+                    .shadow(color: Color.black.opacity(0.12), radius: 22, y: 12)
+                    .shadow(color: orange.opacity(action.highlighted ? 0.18 : 0), radius: 16, y: 6)
             }
+            .overlay {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(
+                        action.highlighted ? orange.opacity(0.45) : Color.white.opacity(0.8),
+                        lineWidth: action.highlighted ? 1.4 : 0.5
+                    )
+            }
+            .scaleEffect(isHot ? 0.96 : 1)
         }
         .buttonStyle(TTLiquidFABPillPressStyle())
-    }
-
-    private func emergeOffset(for index: Int) -> CGFloat {
-        let fromBottom = actions.count - 1 - index
-        return CGFloat(fromBottom + 1) * 22 + 36
-    }
-
-    private func select(_ action: TTLiquidFABAction) {
-        dismiss {
-            onSelect(action)
-        }
-    }
-
-    private func dismiss(completion: (() -> Void)? = nil) {
-        let collapse = reduceMotion ? Animation.easeOut(duration: 0.14) : settle
-        // 1) Collapse pills + morph X → + while still covering the cradle.
-        withAnimation(collapse) {
-            expanded = false
-            scrimVisible = false
-        }
-        // 2) Hand off to the tab-bar + in the same animated transaction (no snap).
-        let handoff: TimeInterval = reduceMotion ? 0.12 : 0.28
-        DispatchQueue.main.asyncAfter(deadline: .now() + handoff) {
-            withAnimation(collapse) {
-                isPresented = false
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
-                completion?()
-            }
-        }
+        .opacity(expanded ? 1 : 0)
+        .offset(y: expanded ? 0 : CGFloat(fromBottom + 1) * 28 + 48)
+        .scaleEffect(expanded ? 1 : 0.42, anchor: .bottom)
+        .rotation3DEffect(
+            .degrees(expanded ? 0 : 18),
+            axis: (x: 1, y: 0, z: 0),
+            anchor: .bottom,
+            perspective: 0.7
+        )
+        .blur(radius: expanded ? 0 : 6)
+        .animation(
+            reduceMotion
+                ? .easeOut(duration: 0.12)
+                : pillSpring.delay(delay),
+            value: expanded
+        )
+        .animation(.easeOut(duration: 0.12), value: isHot)
     }
 }
+
+// MARK: - Helpers
 
 private struct TTLiquidFABMatched: ViewModifier {
     let id: String
@@ -301,8 +388,9 @@ private struct TTLiquidFABMatched: ViewModifier {
 private struct TTLiquidFABPillPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.95 : 1)
+            .brightness(configuration.isPressed ? -0.02 : 0)
+            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

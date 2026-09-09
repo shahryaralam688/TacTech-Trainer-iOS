@@ -230,39 +230,51 @@ struct WorkoutPlanDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let plan: WorkoutPlan
     @State private var selectedTraineeId = ""
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let scrollSpace = "workoutPlanDetail"
 
     var body: some View {
         VStack(spacing: 0) {
-            TTDarkPageHeader(title: plan.title) { dismiss() }
+            TTDarkPageHeader(
+                title: plan.title,
+                collapseProgress: scrollCollapse.progress
+            ) {
+                dismiss()
+            }
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    overviewCard
+                VStack(alignment: .leading, spacing: 0) {
+                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                    if plan.scheduledDays.isEmpty {
-                        sectionLabel("Exercise plan")
-                        ForEach(Array(plan.exercises.enumerated()), id: \.element.id) { index, item in
-                            ExercisePrescriptionCard(index: index + 1, item: item)
+                    VStack(alignment: .leading, spacing: 12) {
+                        overviewCard
+
+                        if plan.scheduledDays.isEmpty {
+                            sectionLabel("Exercise plan")
+                            ForEach(Array(plan.exercises.enumerated()), id: \.element.id) { index, item in
+                                ExercisePrescriptionCard(index: index + 1, item: item)
+                            }
+                        } else {
+                            ForEach(plan.scheduledDays) { day in
+                                PlanDayDetailCard(day: day)
+                            }
                         }
-                    } else {
-                        ForEach(plan.scheduledDays) { day in
-                            PlanDayDetailCard(day: day)
+
+                        if let trainer = store.currentTrainer {
+                            sectionLabel("Assign")
+                            assignCard(trainer: trainer)
                         }
                     }
-
-                    if let trainer = store.currentTrainer {
-                        sectionLabel("Assign")
-                        assignCard(trainer: trainer)
-                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
             }
             .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()

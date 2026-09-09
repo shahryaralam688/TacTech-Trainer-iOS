@@ -33,7 +33,7 @@ struct AppRootView: View {
         .animation(.easeInOut(duration: 0.25), value: store.session?.userId)
         .animation(.easeInOut(duration: 0.25), value: store.assessmentCompleted)
         .task {
-            try? await Task.sleep(for: .milliseconds(2600))
+            try? await Task.sleep(for: .milliseconds(1400))
             splashElapsed = true
         }
     }

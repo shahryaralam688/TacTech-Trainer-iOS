@@ -50,6 +50,18 @@ struct TTBackButton: View {
     }
 }
 
+/// Trailing disclosure chevron — same Sandow mark as `TTBackButton`, mirrored to point right.
+struct TTChevronForward: View {
+    var size: CGFloat = 14
+    var color: Color = Color(white: 0.55)
+
+    var body: some View {
+        TTIcon(icon: .chevronRight, size: size)
+            .foregroundStyle(color)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Shared dark settings header — rectangular top bar, status-bar bleed.
 /// Scroll collapse morphs the title from under the back button to beside it.
 struct TTDarkPageHeader: View {

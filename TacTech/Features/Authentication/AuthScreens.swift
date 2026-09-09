@@ -783,9 +783,7 @@ private struct ResetMethodRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(TTFont.workSans(13, weight: .semibold))
-                .foregroundStyle(Color(white: 0.72))
+            TTChevronForward(size: 13, color: Color(white: 0.72))
         }
         .padding(14)
         .background(Color(white: 0.96))

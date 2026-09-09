@@ -31,8 +31,7 @@ struct WorkoutHubView: View {
                                         .foregroundStyle(TTColor.inkMuted)
                                 }
                                 Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(TTColor.inkSubtle)
+                                TTChevronForward(size: 14, color: TTColor.inkSubtle)
                             }
                             .ttCard()
                         }
@@ -169,8 +168,7 @@ struct WorkoutHubView: View {
                         .foregroundStyle(TTColor.inkMuted)
                 }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .foregroundStyle(TTColor.inkSubtle)
+                TTChevronForward(size: 14, color: TTColor.inkSubtle)
             }
             ForEach(item.workingSets.prefix(4)) { set in
                 HStack {

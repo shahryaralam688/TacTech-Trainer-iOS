@@ -637,9 +637,7 @@ struct TraineeDashboardView: View {
 
                                 Spacer(minLength: 0)
 
-                                Image(systemName: "chevron.right")
-                                    .font(TTFont.workSans(13, weight: .semibold))
-                                    .foregroundStyle(Color(white: 0.35))
+                                TTChevronForward(size: 13, color: Color(white: 0.35))
                             }
                             .padding(12)
                             .background(Color.white)

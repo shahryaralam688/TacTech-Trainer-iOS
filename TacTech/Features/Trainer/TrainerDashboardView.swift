@@ -171,9 +171,7 @@ struct TrainerDashboardView: View {
                                     .background(item.tint.opacity(0.14))
                                     .clipShape(Capsule())
 
-                                Image(systemName: "chevron.right")
-                                    .font(TTFont.workSans(12, weight: .bold))
-                                    .foregroundStyle(Color(white: 0.45))
+                                TTChevronForward(size: 12, color: Color(white: 0.45))
                             }
                             .padding(14)
                             .background(Color(white: 0.96))
@@ -405,9 +403,7 @@ struct TrainerDashboardView: View {
                     .lineLimit(1)
             }
             Spacer()
-            Image(systemName: "chevron.right")
-                .font(TTFont.workSans(12, weight: .bold))
-                .foregroundStyle(Color(white: 0.55))
+            TTChevronForward(size: 12, color: Color(white: 0.55))
         }
         .padding(14)
         .background(Color(white: 0.96))

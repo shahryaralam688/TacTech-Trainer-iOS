@@ -3261,11 +3261,16 @@ struct TTIcon: View {
     var size: CGFloat = 24
 
     var body: some View {
-        Image(icon.asset(filled: filled))
+        // Always use the Sandow back-chevron glyph for forward affordances (mirrored).
+        let usesForwardMirror = icon == .chevronRight
+        let resolved = usesForwardMirror ? SandowIcon.chevronLeft : icon
+
+        Image(resolved.asset(filled: filled))
             .renderingMode(.template)
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
+            .scaleEffect(x: usesForwardMirror ? -1 : 1, y: 1)
     }
 }
 

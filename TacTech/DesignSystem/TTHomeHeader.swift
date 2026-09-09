@@ -17,13 +17,14 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
 
 /// How far home must scroll before the header is fully compact.
 enum TTHomeHeaderCollapse {
-    /// Slightly longer travel so the shrink feels paced, not abrupt.
-    static let distance: CGFloat = 110
+    /// Longer travel = shrink/expand feels paced, not sudden.
+    static let distance: CGFloat = 168
 
-    /// Smoothstep 0…1 so layout eases in/out with the finger.
+    /// Smootherstep 0…1 — gentle ease at both ends for nicer UX.
     static func progress(for offset: CGFloat) -> CGFloat {
         let raw = min(1, max(0, offset / distance))
-        return raw * raw * (3 - 2 * raw)
+        // Ken Perlin smootherstep
+        return raw * raw * raw * (raw * (raw * 6 - 15) + 10)
     }
 }
 
@@ -303,33 +304,38 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
     func setOffsetY(_ y: CGFloat) {
         guard allowsScrolling else {
-            apply(0, animated: false)
+            apply(0, animated: true)
             return
         }
 
         let rawY = max(0, y)
         // Fixed-point solve so expand isn't sticky: p == f(y + travel * p).
-        // Using only `lastProgress` lags one frame and fights scroll-down expand.
-        var p = lastProgress
+        var solved = lastProgress
         for _ in 0..<3 {
-            let compensated = max(0, rawY + layoutTravel * p)
-            p = TTHomeHeaderCollapse.progress(for: compensated)
+            let compensated = max(0, rawY + layoutTravel * solved)
+            solved = TTHomeHeaderCollapse.progress(for: compensated)
         }
+        let target = min(1, max(0, solved))
 
-        let stepped = (p * 100).rounded() / 100
         let deltaRaw = rawY - lastRawY
         lastRawY = rawY
 
-        guard abs(stepped - lastProgress) >= 0.005 else { return }
+        // Micro-blend while dragging = butter without lag. Stronger blend when idle.
+        let blend: CGFloat = isUserScrolling ? 0.72 : 0.42
+        var next = lastProgress + (target - lastProgress) * blend
+        // Snap when essentially there so we don't creep forever.
+        if abs(target - next) < 0.004 { next = target }
+
+        guard abs(next - lastProgress) >= 0.002 else { return }
 
         // Idle layout echo can nudge collapse upward — ignore tiny phantom increases.
-        // Never block decreases (expand); that's what felt "slow / stuck" on scroll-down.
-        if !isUserScrolling, stepped > lastProgress, (stepped - lastProgress) < 0.08, abs(deltaRaw) < 1.5 {
+        // Never block decreases (expand).
+        if !isUserScrolling, next > lastProgress, (next - lastProgress) < 0.06, abs(deltaRaw) < 1.5 {
             return
         }
 
-        // Track the finger 1:1 — any spring here makes expand feel laggy.
-        apply(stepped, animated: false)
+        // Tight interactive spring — smooth UX, still follows the finger.
+        apply(next, animated: true)
     }
 
     private func apply(_ stepped: CGFloat, animated: Bool) {
@@ -337,7 +343,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         lastProgress = stepped
         var transaction = Transaction()
         transaction.animation = animated
-            ? .interactiveSpring(response: 0.28, dampingFraction: 0.92)
+            ? .interactiveSpring(response: 0.2, dampingFraction: 0.96)
             : nil
         withTransaction(transaction) {
             progress = stepped

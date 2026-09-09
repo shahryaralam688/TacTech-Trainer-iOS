@@ -51,12 +51,12 @@ struct TTBackButton: View {
 }
 
 /// Shared dark settings header — rectangular top bar, status-bar bleed.
-/// Pass `collapseProgress` (0…1) to shrink on scroll like home / plans.
+/// Scroll collapse morphs the title from under the back button to beside it.
 struct TTDarkPageHeader: View {
     /// Same card height everywhere (below status bar content area).
     static let cardHeight: CGFloat = 148
-    /// Compact height when fully collapsed.
-    static let compactHeight: CGFloat = 72
+    /// Compact single-row height (back + title side by side).
+    static let compactHeight: CGFloat = 64
     /// Radius for the content sheet under this header (was previously on the header bottom).
     static let bottomRadius: CGFloat = 36
     static var contentTopRadius: CGFloat { bottomRadius }
@@ -95,25 +95,42 @@ struct TTDarkPageHeader: View {
         Self.compactHeight + (Self.cardHeight - Self.compactHeight) * expand
     }
 
+    /// Title slides from below the back control into the same row.
+    private var titleOffsetX: CGFloat {
+        guard showsBack else { return 0 }
+        return (TTBackButton.size + 12) * p
+    }
+
+    private var titleOffsetY: CGFloat {
+        guard showsBack else { return 4 * expand }
+        // Expanded: under the back button. Collapsed: vertically centered with it.
+        let expandedY = TTBackButton.size + 14
+        let collapsedY = (TTBackButton.size - (28 - 10 * p)) / 2
+        return expandedY * expand + collapsedY * p
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 14 * expand) {
+        ZStack(alignment: .topLeading) {
             if showsBack {
                 TTBackButton(style: .onDark) {
                     onBack?()
                 }
-                .scaleEffect(1 - 0.1 * p, anchor: .topLeading)
+                .scaleEffect(1 - 0.06 * p, anchor: .topLeading)
             }
 
             Text(title)
-                .font(TTFont.workSans(28 - 8 * p, weight: .bold))
+                .font(TTFont.workSans(28 - 10 * p, weight: .bold))
                 .foregroundStyle(.white)
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
+                .lineLimit(p > 0.55 ? 1 : 2)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, titleOffsetX + 4)
+                .offset(x: titleOffsetX, y: titleOffsetY)
         }
         .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .topLeading)
         .padding(.horizontal, 20)
-        .padding(.top, (showsBack ? 10 : 18) - 4 * p)
-        .padding(.bottom, 20 - 8 * p)
+        .padding(.top, 10 - 2 * p)
+        .padding(.bottom, 16 - 6 * p)
         .background {
             Rectangle()
                 .fill(charcoal)

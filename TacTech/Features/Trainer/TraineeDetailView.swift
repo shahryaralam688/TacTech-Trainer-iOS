@@ -8,9 +8,11 @@ struct TraineeDetailView: View {
     @State private var note = ""
     @State private var selectedDay = Date()
     @FocusState private var noteFocused: Bool
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let scrollSpace = "traineeDetail"
 
     private var displayName: String {
         store.user(forTrainee: trainee)?.name ?? "Trainee"
@@ -18,27 +20,37 @@ struct TraineeDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            TTDarkPageHeader(title: displayName) { dismiss() }
+            TTDarkPageHeader(
+                title: displayName,
+                collapseProgress: scrollCollapse.progress
+            ) {
+                dismiss()
+            }
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    profileCard
-                    sectionLabel("Assigned plan")
-                    assignCard
-                    sectionLabel("Nutrition")
-                    nutritionCard
-                    sectionLabel("Workout history")
-                    historyCard
-                    sectionLabel("Form analysis")
-                    formCard
-                    sectionLabel("Feedback")
-                    feedbackCard
+                VStack(alignment: .leading, spacing: 0) {
+                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        profileCard
+                        sectionLabel("Assigned plan")
+                        assignCard
+                        sectionLabel("Nutrition")
+                        nutritionCard
+                        sectionLabel("Workout history")
+                        historyCard
+                        sectionLabel("Form analysis")
+                        formCard
+                        sectionLabel("Feedback")
+                        feedbackCard
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
             }
             .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             .scrollDismissesKeyboard(.interactively)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))

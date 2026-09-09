@@ -306,13 +306,26 @@ struct WorkoutPlanDetailView: View {
     }
 
     private func assignCard(trainer: TrainerProfile) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Picker("Trainee", selection: $selectedTraineeId) {
-                ForEach(store.trainees(for: trainer)) { trainee in
-                    Text(store.user(forTrainee: trainee)?.name ?? "Trainee").tag(trainee.id)
+        let trainees = store.trainees(for: trainer)
+        return VStack(alignment: .leading, spacing: 12) {
+            if trainees.isEmpty {
+                Text("No trainees on your roster yet.")
+                    .font(TTFont.body(14))
+                    .foregroundStyle(TTColor.inkMuted)
+            } else {
+                Picker("Trainee", selection: $selectedTraineeId) {
+                    Text("Select trainee").tag("")
+                    ForEach(trainees) { trainee in
+                        Text(store.user(forTrainee: trainee)?.name ?? "Trainee").tag(trainee.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .onAppear {
+                    if selectedTraineeId.isEmpty || !trainees.contains(where: { $0.id == selectedTraineeId }) {
+                        selectedTraineeId = trainees.first?.id ?? ""
+                    }
                 }
             }
-            .pickerStyle(.menu)
 
             Button {
                 Task { try? await store.assign(planId: plan.id, to: selectedTraineeId) }

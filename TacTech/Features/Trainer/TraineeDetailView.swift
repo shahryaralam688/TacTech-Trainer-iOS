@@ -102,14 +102,27 @@ struct TraineeDetailView: View {
     }
 
     private var assignCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Picker("Plan", selection: $selectedPlanId) {
-                ForEach(store.plans.filter { $0.trainerId == store.currentTrainer?.id }) { plan in
-                    Text(plan.title).tag(plan.id)
+        let plans = store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+        return VStack(alignment: .leading, spacing: 12) {
+            if plans.isEmpty {
+                Text("No plans to assign yet.")
+                    .font(TTFont.body(14))
+                    .foregroundStyle(TTColor.inkMuted)
+            } else {
+                Picker("Plan", selection: $selectedPlanId) {
+                    Text("Select plan").tag("")
+                    ForEach(plans) { plan in
+                        Text(plan.title).tag(plan.id)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(TTColor.actionOrange)
+                .onAppear {
+                    if selectedPlanId.isEmpty || !plans.contains(where: { $0.id == selectedPlanId }) {
+                        selectedPlanId = store.assignedPlan(for: trainee)?.id ?? plans.first?.id ?? ""
+                    }
                 }
             }
-            .pickerStyle(.menu)
-            .tint(TTColor.actionOrange)
 
             Button {
                 Task { try? await store.assign(planId: selectedPlanId, to: trainee.id) }

@@ -263,17 +263,40 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 
 // MARK: - Scroll → header collapse (reliable on cold launch)
 
-/// Shared collapse progress for home dashboards.
+/// Shared collapse progress for home / list / detail chrome.
+///
+/// Collapsing a header **above** a ScrollView shortens the scroll view’s frame;
+/// UIKit then compensates `contentOffset`, which without correction fights the
+/// header and feels like a vibrator / hang. We undo that layout delta.
 @MainActor
 final class TTHomeScrollCollapseModel: ObservableObject {
     @Published private(set) var progress: CGFloat = 0
 
-    private var lastProgress: CGFloat = -1
+    /// How many points the header chrome shrinks from expanded → compact.
+    /// Matches `TTDarkPageHeader` / `trainerListHeader` travel by default.
+    var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
+
+    private var lastProgress: CGFloat = 0
+    private var isUserScrolling = false
+
+    func setUserScrolling(_ active: Bool) {
+        isUserScrolling = active
+    }
 
     func setOffsetY(_ y: CGFloat) {
-        let next = TTHomeHeaderCollapse.progress(for: max(0, y))
-        let stepped = (next * 80).rounded() / 80
-        guard abs(stepped - lastProgress) > 0.0001 else { return }
+        // Undo UIKit’s offset compensation when the header height changes.
+        let compensated = max(0, y + layoutTravel * lastProgress)
+        let next = TTHomeHeaderCollapse.progress(for: compensated)
+        // Coarser steps → fewer layout passes (less jitter on short lists).
+        let stepped = (next * 40).rounded() / 40
+
+        guard abs(stepped - lastProgress) >= 0.024 else { return }
+
+        // Ignore tiny reverse blips that aren’t from a finger (layout echo).
+        if !isUserScrolling, stepped < lastProgress, (lastProgress - stepped) < 0.12 {
+            return
+        }
+
         lastProgress = stepped
         var transaction = Transaction()
         transaction.animation = nil
@@ -284,21 +307,16 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 }
 
 extension View {
-    /// Put on the home **ScrollView**. Pairs with `TTHomeScrollCollapseProbe` inside the content.
+    /// Put on the **ScrollView**. Pairs with `TTHomeScrollCollapseProbe` inside the content (iOS 17).
     func ttObserveHomeScrollCollapse(
         _ model: TTHomeScrollCollapseModel,
         space: String
     ) -> some View {
-        self
-            .coordinateSpace(name: space)
-            .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
-                model.setOffsetY(value)
-            }
-            .modifier(TTHomeScrollGeometryCollapseModifier(model: model))
+        modifier(TTHomeScrollCollapseObserver(model: model, space: space))
     }
 }
 
-/// **Must** be the first child inside the home ScrollView content.
+/// **Must** be the first child inside the ScrollView content (fallback / cold launch on iOS 17).
 struct TTHomeScrollCollapseProbe: View {
     let model: TTHomeScrollCollapseModel
     let space: String
@@ -322,20 +340,29 @@ private struct TTHomeScrollOffsetPreferenceKey: PreferenceKey {
     }
 }
 
-/// iOS 18+ extra path on the ScrollView (probe + preference remain the cold-launch source of truth).
-private struct TTHomeScrollGeometryCollapseModifier: ViewModifier {
+/// One measurement path only — dual PreferenceKey + geometry observers fought and jittered.
+private struct TTHomeScrollCollapseObserver: ViewModifier {
     let model: TTHomeScrollCollapseModel
+    let space: String
 
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geometry in
-                max(0, geometry.contentOffset.y + geometry.contentInsets.top)
-            } action: { _, newValue in
-                model.setOffsetY(newValue)
-            }
+            content
+                .onScrollGeometryChange(for: CGFloat.self) { geometry in
+                    max(0, geometry.contentOffset.y + geometry.contentInsets.top)
+                } action: { _, newValue in
+                    model.setOffsetY(newValue)
+                }
+                .onScrollPhaseChange { _, phase in
+                    model.setUserScrolling(phase != .idle)
+                }
         } else {
             content
+                .coordinateSpace(name: space)
+                .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
+                    model.setOffsetY(value)
+                }
         }
     }
 }

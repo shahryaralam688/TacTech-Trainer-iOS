@@ -31,6 +31,7 @@ iOS `CoachAPI` / `CoachStore` / `AICoachView` already expect:
 | POST | `/coach/memory/sync` | RAG memory sync |
 | GET | `/coach/conversations` | List threads |
 | POST | `/coach/conversations` | Create thread |
+| DELETE | `/coach/conversations/{id}` | Delete thread + messages (iOS drawer) |
 | GET | `/coach/conversations/{id}/messages` | History |
 | POST | `/coach/chat` | Text chat (`stream: true` → SSE) |
 | POST | `/coach/chat/image` | Multipart image + optional caption |
@@ -217,6 +218,28 @@ Sorted by `updatedAt` desc. Only current user’s threads.
 ### `POST /coach/conversations`
 Empty body `{}` → create titled “New chat” (or localized equivalent).
 Return full `CoachConversation`.
+
+### `DELETE /coach/conversations/{id}`
+**iOS already calls this** (`CoachAPI.deleteConversation` / drawer swipe + trash).
+
+Hard-delete (or soft-delete + hide) the conversation **and all of its messages** for the authenticated user only.
+
+**Auth:** Bearer JWT required.  
+**Ownership:** `{id}` must belong to `userId` from JWT — otherwise **403** `{ "detail": "You can’t delete this chat.", "code": "FORBIDDEN" }`.  
+**Missing / already deleted:** **404** `{ "detail": "Chat not found.", "code": "NOT_FOUND" }`  
+(iOS treats 404 as success-ish / already gone — still prefer correct 404.)
+
+**Response:**
+- Preferred: **204 No Content** (empty body)
+- Also accepted: **200** with `{ "id": "c1", "deleted": true }`
+
+**Side effects (required):**
+1. Delete or tombstone all `CoachMessage` rows for this conversation  
+2. Remove / expire any stored media (image/audio) tied only to this conversation  
+3. If an open RTC session is bound to this `conversationId`, hang up (`hangup`) and close it  
+4. Do **not** delete other users’ data; do **not** affect trainer↔trainee `/chat/*` or `/support/*`
+
+**Idempotency:** Second DELETE on same id → 404 (or 204 if you prefer soft idempotent delete — document which; iOS is fine with either).
 
 ### `GET /coach/conversations/{id}/messages`
 Array of messages oldest→newest (or document reverse — iOS displays in array order; prefer chronological ascending).

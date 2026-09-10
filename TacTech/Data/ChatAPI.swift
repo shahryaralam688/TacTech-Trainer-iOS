@@ -236,7 +236,7 @@ actor ChatAPI {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
-        if jsonContentType, method == .post || method == .patch {
+        if jsonContentType, method == .post || method == .put || method == .patch || method == .delete {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if authorized {

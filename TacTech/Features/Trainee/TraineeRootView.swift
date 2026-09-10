@@ -10,6 +10,7 @@ struct TraineeRootView: View {
     @State private var showAIChat = false
     @State private var showLiquidMenu = false
     @State private var showCoachChat = false
+    @State private var pendingChatThreadId: String?
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -85,13 +86,21 @@ struct TraineeRootView: View {
             )
         }
         .fullScreenCover(isPresented: $showCoachChat) {
-            HumanPeerChatView(audience: .trainee)
+            HumanPeerChatView(audience: .trainee, preferredThreadId: pendingChatThreadId)
         }
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
             openAIChat()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenHumanChat)) { note in
+            pendingChatThreadId = note.userInfo?["threadId"] as? String
+            TTKeyboard.dismiss()
+            showCoachChat = true
+        }
+        .onChange(of: showCoachChat) { _, open in
+            if !open { pendingChatThreadId = nil }
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))

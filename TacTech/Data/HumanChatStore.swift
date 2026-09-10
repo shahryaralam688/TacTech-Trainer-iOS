@@ -119,6 +119,11 @@ final class HumanChatStore {
         return (messagesByPeer[peerUserId] ?? []).filter { !$0.isOutgoing && !$0.isRead }.count
     }
 
+    /// Resolve peer user id for a backend chat thread id (after inbox bootstrap).
+    func peerUserId(forThreadId threadId: String) -> String? {
+        peerByThread[threadId]
+    }
+
     // MARK: - Open thread
 
     func openThread(_ peer: HumanChatPeer) async {
@@ -529,6 +534,8 @@ final class HumanChatStore {
             }
         case .callIncoming, .callEnded:
             break
+        case .notificationCreated(let note):
+            NotificationStore.shared.handleCreated(note)
         }
     }
 

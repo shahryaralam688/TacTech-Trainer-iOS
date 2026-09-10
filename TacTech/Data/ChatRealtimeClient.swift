@@ -12,6 +12,7 @@ final class ChatRealtimeClient {
         case typing(threadId: String, userId: String, isTyping: Bool)
         case callIncoming(threadId: String, sessionId: String, fromUserId: String, fromName: String?, signalingPath: String?)
         case callEnded(threadId: String, sessionId: String, reason: String?)
+        case notificationCreated(AppNotificationDTO)
     }
 
     var onEvent: ((Event) -> Void)?
@@ -258,6 +259,12 @@ final class ChatRealtimeClient {
                     sessionId: sessionId,
                     reason: dict["reason"] as? String
                 ))
+            }
+        case "notification.created":
+            if let dict = body as? [String: Any],
+               let msgData = try? JSONSerialization.data(withJSONObject: dict),
+               let dto = try? decoder.decode(AppNotificationDTO.self, from: msgData) {
+                onEvent?(.notificationCreated(dto))
             }
         default:
             break

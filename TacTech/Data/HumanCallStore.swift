@@ -304,6 +304,15 @@ final class HumanCallStore {
                 }
             }
 
+        case .notificationCreated(let note):
+            NotificationStore.shared.handleCreated(note)
+            // Call push may arrive as inbox row while Socket call event is delayed.
+            if note.type == "chat_call" {
+                var info: [AnyHashable: Any] = ["type": "chat_call"]
+                for (k, v) in note.data { info[k] = v }
+                NotificationStore.shared.handleUserInfo(info, fromUserTap: false)
+            }
+
         default:
             break
         }

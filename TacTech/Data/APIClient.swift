@@ -344,6 +344,7 @@ extension PlanDayBody {
 enum HTTPMethod: String {
     case get = "GET"
     case post = "POST"
+    case put = "PUT"
     case patch = "PATCH"
     case delete = "DELETE"
 }
@@ -644,7 +645,7 @@ actor APIClient {
         request.httpMethod = method.rawValue
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
-        if method == .post || method == .patch {
+        if method == .post || method == .put || method == .patch || method == .delete {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         }
         if authorized {

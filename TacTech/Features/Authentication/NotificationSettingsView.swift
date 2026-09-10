@@ -12,6 +12,8 @@ struct NotificationSettingsView: View {
     @AppStorage("notifications.sound") private var soundEnabled = true
     @AppStorage("notifications.appUpdate") private var appUpdateEnabled = true
     @AppStorage("notifications.resources") private var resourcesEnabled = false
+    @AppStorage("notifications.chatMessages") private var chatMessagesEnabled = true
+    @AppStorage("notifications.chatCalls") private var chatCallsEnabled = true
     @AppStorage("notifications.offersDevice") private var offersDevice = ""
 
     @State private var draftPush = true
@@ -21,7 +23,12 @@ struct NotificationSettingsView: View {
     @State private var draftSound = true
     @State private var draftAppUpdate = true
     @State private var draftResources = false
+    @State private var draftChatMessages = true
+    @State private var draftChatCalls = true
+    @State private var draftOffersDevice = false
     @State private var savedFlash = false
+    @State private var saveError: String?
+    @State private var isSaving = false
 
     private let canvas = Color(red: 248 / 255, green: 249 / 255, blue: 250 / 255)
     private let cardFill = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
@@ -40,6 +47,16 @@ struct NotificationSettingsView: View {
                             icon: .bell1,
                             title: "Push Notifications",
                             isOn: $draftPush
+                        )
+                        iconToggleRow(
+                            icon: .chat,
+                            title: "Chat Messages",
+                            isOn: $draftChatMessages
+                        )
+                        iconToggleRow(
+                            icon: .video,
+                            title: "Video Calls",
+                            isOn: $draftChatCalls
                         )
                         iconToggleRow(
                             icon: .robotFace1,
@@ -67,10 +84,10 @@ struct NotificationSettingsView: View {
                     }
 
                     section("Misc") {
-                        navValueRow(
+                        iconToggleRow(
                             icon: .currencyUsd,
                             title: "Offers",
-                            value: deviceLabel
+                            isOn: $draftOffersDevice
                         )
                         iconToggleRow(
                             icon: .cloudDownload1,
@@ -82,6 +99,13 @@ struct NotificationSettingsView: View {
                             subtitle: "Enable resource notification when there's a new resources.",
                             isOn: $draftResources
                         )
+                    }
+
+                    if let saveError {
+                        Text(saveError)
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.danger)
+                            .frame(maxWidth: .infinity)
                     }
 
                     if savedFlash {
@@ -100,7 +124,7 @@ struct NotificationSettingsView: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .onAppear(perform: hydrate)
+        .task { await hydrateFromServer() }
     }
 
     // MARK: - Header
@@ -110,7 +134,7 @@ struct NotificationSettingsView: View {
             TTBackButton(style: .onLight) { dismiss() }
 
             Text("Notification Settings")
-                .font(TTFont.workSans(20, weight: .bold))
+                .font(TTFont.workSans(20, weight: .semibold))
                 .foregroundStyle(TTColor.ink)
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
@@ -132,7 +156,7 @@ struct NotificationSettingsView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(title)
-                    .font(TTFont.workSans(17, weight: .bold))
+                    .font(TTFont.workSans(17, weight: .semibold))
                     .foregroundStyle(TTColor.ink)
                 Spacer()
                 TTIcon(icon: .kebab, size: 16)
@@ -152,7 +176,7 @@ struct NotificationSettingsView: View {
         HStack(spacing: 12) {
             iconTileView(icon)
             Text(title)
-                .font(TTFont.workSans(15, weight: .semibold))
+                .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(TTColor.ink)
                 .lineLimit(2)
             Spacer(minLength: 8)
@@ -171,7 +195,7 @@ struct NotificationSettingsView: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(TTFont.workSans(15, weight: .bold))
+                    .font(TTFont.workSans(15, weight: .semibold))
                     .foregroundStyle(TTColor.ink)
                 Text(subtitle)
                     .font(TTFont.body(13))
@@ -190,32 +214,6 @@ struct NotificationSettingsView: View {
         .shadow(color: .black.opacity(0.03), radius: 6, y: 2)
     }
 
-    private func navValueRow(icon: SandowIcon, title: String, value: String) -> some View {
-        Button {
-            // Device picker reserved — shows current device for now.
-        } label: {
-            HStack(spacing: 12) {
-                iconTileView(icon)
-                Text(title)
-                    .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(TTColor.ink)
-                Spacer(minLength: 8)
-                Text(value)
-                    .font(TTFont.body(13))
-                    .foregroundStyle(TTColor.inkMuted)
-                    .lineLimit(1)
-                TTIcon(icon: .chevronRight, size: 14)
-                    .foregroundStyle(TTColor.inkSubtle)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(cardFill)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .shadow(color: .black.opacity(0.03), radius: 6, y: 2)
-        }
-        .buttonStyle(TTSearchPressStyle(scale: 0.99))
-    }
-
     private func iconTileView(_ icon: SandowIcon) -> some View {
         ZStack {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -231,11 +229,16 @@ struct NotificationSettingsView: View {
 
     private var saveBar: some View {
         VStack(spacing: 0) {
-            Button(action: save) {
+            Button(action: { Task { await save() } }) {
                 HStack(spacing: 8) {
-                    Text("Save Settings")
-                        .font(TTFont.workSans(16, weight: .bold))
-                    TTIcon(icon: .check, filled: true, size: 14)
+                    if isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text("Save Settings")
+                            .font(TTFont.workSans(16, weight: .semibold))
+                        TTIcon(icon: .check, filled: true, size: 14)
+                    }
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
@@ -243,6 +246,7 @@ struct NotificationSettingsView: View {
                 .background(ctaFill)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
+            .disabled(isSaving)
             .buttonStyle(TTSearchPressStyle(scale: 0.98))
             .padding(.horizontal, 18)
             .padding(.top, 12)
@@ -255,14 +259,26 @@ struct NotificationSettingsView: View {
         )
     }
 
-    private var deviceLabel: String {
-        let stored = offersDevice.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !stored.isEmpty { return stored }
-        let name = UIDevice.current.name
-        return name.isEmpty ? "iPhone" : name
+    private func hydrateFromServer() async {
+        applyLocalDefaults()
+        await NotificationStore.shared.loadPreferences()
+        let prefs = NotificationStore.shared.preferences
+        draftPush = prefs.push
+        draftAICoach = prefs.aiCoach
+        draftMetrics = prefs.metrics
+        draftVibrations = prefs.vibrations
+        draftSound = prefs.sound
+        draftAppUpdate = prefs.appUpdate
+        draftResources = prefs.resources
+        draftChatMessages = prefs.chatMessages
+        draftChatCalls = prefs.chatCalls
+        draftOffersDevice = prefs.offersDevice
+        if offersDevice.isEmpty {
+            offersDevice = UIDevice.current.name
+        }
     }
 
-    private func hydrate() {
+    private func applyLocalDefaults() {
         draftPush = pushEnabled
         draftAICoach = aiCoachEnabled
         draftMetrics = metricsEnabled
@@ -270,27 +286,52 @@ struct NotificationSettingsView: View {
         draftSound = soundEnabled
         draftAppUpdate = appUpdateEnabled
         draftResources = resourcesEnabled
-        if offersDevice.isEmpty {
-            offersDevice = UIDevice.current.name
-        }
+        draftChatMessages = chatMessagesEnabled
+        draftChatCalls = chatCallsEnabled
     }
 
-    private func save() {
-        pushEnabled = draftPush
-        aiCoachEnabled = draftAICoach
-        metricsEnabled = draftMetrics
-        vibrationsEnabled = draftVibrations
-        soundEnabled = draftSound
-        appUpdateEnabled = draftAppUpdate
-        resourcesEnabled = draftResources
-        withAnimation(.easeOut(duration: 0.2)) {
-            savedFlash = true
-        }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-            withAnimation(.easeOut(duration: 0.2)) {
-                savedFlash = false
+    private func save() async {
+        isSaving = true
+        saveError = nil
+        defer { isSaving = false }
+
+        var prefs = NotificationPreferencesDTO()
+        prefs.push = draftPush
+        prefs.aiCoach = draftAICoach
+        prefs.metrics = draftMetrics
+        prefs.vibrations = draftVibrations
+        prefs.sound = draftSound
+        prefs.appUpdate = draftAppUpdate
+        prefs.resources = draftResources
+        prefs.offersDevice = draftOffersDevice
+        prefs.chatMessages = draftChatMessages
+        prefs.chatCalls = draftChatCalls
+
+        do {
+            try await NotificationStore.shared.savePreferences(prefs)
+            pushEnabled = draftPush
+            aiCoachEnabled = draftAICoach
+            metricsEnabled = draftMetrics
+            vibrationsEnabled = draftVibrations
+            soundEnabled = draftSound
+            appUpdateEnabled = draftAppUpdate
+            resourcesEnabled = draftResources
+            chatMessagesEnabled = draftChatMessages
+            chatCallsEnabled = draftChatCalls
+            if draftPush {
+                await NotificationStore.shared.requestAuthorizationAndRegister()
             }
+            withAnimation(.easeOut(duration: 0.2)) {
+                savedFlash = true
+            }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    savedFlash = false
+                }
+            }
+        } catch {
+            saveError = error.localizedDescription
         }
     }
 }

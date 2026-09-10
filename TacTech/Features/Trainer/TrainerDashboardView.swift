@@ -5,7 +5,9 @@ struct TrainerDashboardView: View {
     @Environment(\.selectTrainerTab) private var selectTrainerTab
     @State private var selectedDay = Date()
     @State private var showProfile = false
+    @State private var showNotifications = false
     @State private var copiedInvite = false
+    @Bindable private var notificationStore = NotificationStore.shared
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
         model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
@@ -46,6 +48,7 @@ struct TrainerDashboardView: View {
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showProfile) { TrainerProfileView(showsBack: true) }
+            .sheet(isPresented: $showNotifications) { NotificationsInboxView() }
         }
     }
 
@@ -56,7 +59,7 @@ struct TrainerDashboardView: View {
             name: firstName,
             avatarSymbol: TTAvatarCatalog.saved(for: store.session?.userId),
             avatarUserId: store.session?.userId,
-            badgeCount: attentionQueue.count,
+            badgeCount: notificationStore.unreadCount,
             metrics: [
                 TTHomeProfileMetric(
                     id: "trainees",
@@ -72,7 +75,8 @@ struct TrainerDashboardView: View {
                 )
             ],
             collapseProgress: scrollCollapse.progress,
-            onProfileTap: { showProfile = true }
+            onProfileTap: { showProfile = true },
+            onNotificationTap: { showNotifications = true }
         )
     }
 

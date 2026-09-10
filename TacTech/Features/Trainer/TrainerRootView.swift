@@ -25,6 +25,7 @@ struct TrainerRootView: View {
     @State private var showAssignSheet = false
     @State private var showAssignmentsList = false
     @State private var showTraineeChat = false
+    @State private var pendingChatThreadId: String?
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -116,7 +117,15 @@ struct TrainerRootView: View {
             PlanAssignmentsListSheet()
         }
         .fullScreenCover(isPresented: $showTraineeChat) {
-            HumanPeerChatView(audience: .trainer)
+            HumanPeerChatView(audience: .trainer, preferredThreadId: pendingChatThreadId)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenHumanChat)) { note in
+            pendingChatThreadId = note.userInfo?["threadId"] as? String
+            TTKeyboard.dismiss()
+            showTraineeChat = true
+        }
+        .onChange(of: showTraineeChat) { _, open in
+            if !open { pendingChatThreadId = nil }
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))

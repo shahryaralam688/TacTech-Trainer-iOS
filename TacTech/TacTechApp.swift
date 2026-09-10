@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct TacTechApp: App {
+    @UIApplicationDelegateAdaptor(PushNotificationDelegate.self) private var pushDelegate
     @State private var store = AppStore()
     @Environment(\.scenePhase) private var scenePhase
 
@@ -14,7 +15,7 @@ struct TacTechApp: App {
                     guard store.session != nil else { return }
                     if phase == .active {
                         HumanCallStore.shared.startMonitoring()
-                        // Cold resume / Home tab — pull ringing sessions immediately.
+                        NotificationStore.shared.start()
                         NotificationCenter.default.post(name: .ttRefreshIncomingCalls, object: nil)
                     }
                 }

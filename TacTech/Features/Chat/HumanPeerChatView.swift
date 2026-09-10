@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 /// Trainer↔trainee messaging — AI chat chrome, WhatsApp-like media + live video call.
 struct HumanPeerChatView: View {
     var audience: HumanChatAudience
+    /// When set (push / inbox deep link), open this thread after bootstrap.
+    var preferredThreadId: String? = nil
 
     @Environment(AppStore.self) private var appStore
     @Environment(\.dismiss) private var dismiss
@@ -75,7 +77,14 @@ struct HumanPeerChatView: View {
         }
         .task {
             await chatStore.bootstrap()
-            if audience == .trainee, peers.count == 1, selectedPeerId == nil {
+            if let preferredThreadId,
+               let peerId = chatStore.peerUserId(forThreadId: preferredThreadId)
+                ?? peers.first(where: { $0.threadId == preferredThreadId })?.id {
+                selectedPeerId = peerId
+                if let peer = peers.first(where: { $0.id == peerId }) {
+                    await chatStore.openThread(peer)
+                }
+            } else if audience == .trainee, peers.count == 1, selectedPeerId == nil {
                 let peer = peers[0]
                 selectedPeerId = peer.id
                 await chatStore.openThread(peer)

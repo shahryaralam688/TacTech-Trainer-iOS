@@ -56,8 +56,11 @@ struct AppRootView: View {
             if newId == nil {
                 postLoginBridgeDone = false
                 HumanCallStore.shared.stopMonitoring()
+                Task { await NotificationStore.shared.unregisterCurrentToken() }
+                NotificationStore.shared.stop()
             } else {
                 HumanCallStore.shared.startMonitoring()
+                NotificationStore.shared.start()
             }
         }
         .task {
@@ -65,6 +68,7 @@ struct AppRootView: View {
             splashElapsed = true
             if store.session != nil {
                 HumanCallStore.shared.startMonitoring()
+                NotificationStore.shared.start()
             }
         }
         // Must be overlay (not another fullScreenCover) — roots already present chat/AI covers.

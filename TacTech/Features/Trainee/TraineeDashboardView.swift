@@ -8,6 +8,8 @@ struct TraineeDashboardView: View {
     @State private var showProgress = false
     @State private var showNutrition = false
     @State private var showWorkouts = false
+    @State private var showNotifications = false
+    @Bindable private var notificationStore = NotificationStore.shared
 
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
@@ -56,6 +58,7 @@ struct TraineeDashboardView: View {
             .sheet(isPresented: $showProgress) { TraineeProgressView() }
             .sheet(isPresented: $showNutrition) { NutritionView() }
             .sheet(isPresented: $showWorkouts) { WorkoutHubView() }
+            .sheet(isPresented: $showNotifications) { NotificationsInboxView() }
         }
     }
 
@@ -66,7 +69,7 @@ struct TraineeDashboardView: View {
             name: firstName,
             avatarSymbol: avatarSymbol,
             avatarUserId: store.session?.userId,
-            badgeCount: notificationCount,
+            badgeCount: notificationStore.unreadCount,
             metrics: [
                 TTHomeProfileMetric(
                     id: "health",
@@ -82,7 +85,8 @@ struct TraineeDashboardView: View {
                 )
             ],
             collapseProgress: scrollCollapse.progress,
-            onProfileTap: { showProfile = true }
+            onProfileTap: { showProfile = true },
+            onNotificationTap: { showNotifications = true }
         )
     }
 
@@ -698,10 +702,6 @@ struct TraineeDashboardView: View {
 
     private var workoutCount: Int {
         store.currentTrainee.map { store.logs(for: $0.id).count } ?? 0
-    }
-
-    private var notificationCount: Int {
-        store.currentTrainee.map { store.feedback(for: $0.id).count } ?? 0
     }
 
     private var avatarSymbol: String? {

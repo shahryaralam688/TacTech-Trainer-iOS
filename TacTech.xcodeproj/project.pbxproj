@@ -10,13 +10,16 @@
 		006385AC48339C20E0342D1E /* WorkSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9A35F24F2608809F390CF211 /* WorkSans-SemiBold.ttf */; };
 		015859815B85324A32F67AD8 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F2924C538BB72898F38872 /* ChatModels.swift */; };
 		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
+		0915832788886634DA1EE543 /* NotificationAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = A17F54D8038C6EEE28FA8559 /* NotificationAPI.swift */; };
 		0B280F9459012068E1CA0EAD /* HumanPeerChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */; };
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
 		0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */; };
 		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
 		100F62BE5C27D821140CE444 /* CoachCitationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B773A497F51A70D5BF3221E /* CoachCitationsSheet.swift */; };
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
+		14DB94C16E36B171C2D8546F /* NotificationsInboxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079A58FBA5C4599FFA995BB2 /* NotificationsInboxView.swift */; };
 		18594AEEA468D728FACE4737 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A70DAFDFB21AC3A620021 /* SplashView.swift */; };
+		1A2A80DCEDB00B21FA61B87C /* PushNotificationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF0347D57808A216A1EE6F0 /* PushNotificationDelegate.swift */; };
 		1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */; };
 		1D8036CB00F538055B65D014 /* HumanChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F19A98CF146A275C1793650 /* HumanChatModels.swift */; };
 		1EEE2B6B1D522E9336AE309A /* CoachComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92E9F1F2CD610257AAE63443 /* CoachComposerBar.swift */; };
@@ -29,6 +32,7 @@
 		319EDF5E2A33DD4870508238 /* CoachAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */; };
 		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
 		368A0A6900024F7BB3291049 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A51C57990D5BA2493E7D2C3 /* CoachVoiceCallView.swift */; };
+		372477CCC057743104CEA6E8 /* NotificationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5E8EB855C0975825F982A68 /* NotificationModels.swift */; };
 		3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */; };
 		3ED6378F2DA808DDB68D678C /* ChatAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2598002E6583EEFE1C123267 /* ChatAPI.swift */; };
 		3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */; };
@@ -74,6 +78,7 @@
 		B38DBEA30370C9839249DB9A /* HumanCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CFDC711456575E4EA577B3 /* HumanCallView.swift */; };
 		B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
+		BA67300B2FACEF53B89BC71F /* NotificationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F76BDACCB42E6FCBC0CD87F9 /* NotificationStore.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
 		C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */; };
@@ -97,6 +102,7 @@
 		01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInformationSettingsView.swift; sourceTree = "<group>"; };
 		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
 		05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCompletionFlowView.swift; sourceTree = "<group>"; };
+		079A58FBA5C4599FFA995BB2 /* NotificationsInboxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsInboxView.swift; sourceTree = "<group>"; };
 		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchCatalogs.swift; sourceTree = "<group>"; };
 		135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessment.swift; sourceTree = "<group>"; };
@@ -130,6 +136,7 @@
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitFeedbackView.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
+		5AF0347D57808A216A1EE6F0 /* PushNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationDelegate.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
 		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -156,6 +163,7 @@
 		9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAICoachChat.swift; sourceTree = "<group>"; };
 		9EAE572E154B70853178C11F /* PostLoginBridgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLoginBridgeView.swift; sourceTree = "<group>"; };
 		9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Bold.ttf"; sourceTree = "<group>"; };
+		A17F54D8038C6EEE28FA8559 /* NotificationAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationAPI.swift; sourceTree = "<group>"; };
 		AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodRecognizer.swift; sourceTree = "<group>"; };
 		AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodScannerView.swift; sourceTree = "<group>"; };
@@ -163,6 +171,7 @@
 		B3CFDC711456575E4EA577B3 /* HumanCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanCallView.swift; sourceTree = "<group>"; };
 		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
 		B7F2924C538BB72898F38872 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
+		C0EDA5A7A06C9051F6A208A1 /* TacTech.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TacTech.entitlements; sourceTree = "<group>"; };
 		C444537605D1609043AAB75E /* HumanChatBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatBubble.swift; sourceTree = "<group>"; };
 		C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchOverlay.swift; sourceTree = "<group>"; };
 		C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Regular.ttf"; sourceTree = "<group>"; };
@@ -172,10 +181,12 @@
 		D97F31457C9C15FC0721DA2D /* CoachMessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMessageBubble.swift; sourceTree = "<group>"; };
 		DF1D3D88CBBC904995027746 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViews.swift; sourceTree = "<group>"; };
+		E5E8EB855C0975825F982A68 /* NotificationModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationModels.swift; sourceTree = "<group>"; };
 		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
 		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
 		EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutUsView.swift; sourceTree = "<group>"; };
 		F68D8C43041780C78A7B7810 /* HumanCallStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanCallStore.swift; sourceTree = "<group>"; };
+		F76BDACCB42E6FCBC0CD87F9 /* NotificationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationStore.swift; sourceTree = "<group>"; };
 		F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanPeerChatView.swift; sourceTree = "<group>"; };
 		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -221,6 +232,14 @@
 			path = DesignSystem;
 			sourceTree = "<group>";
 		};
+		3EB0E9316CBD42E340FDB18E /* Notifications */ = {
+			isa = PBXGroup;
+			children = (
+				079A58FBA5C4599FFA995BB2 /* NotificationsInboxView.swift */,
+			);
+			path = Notifications;
+			sourceTree = "<group>";
+		};
 		523FADC0168D3529B791E44B /* Coach */ = {
 			isa = PBXGroup;
 			children = (
@@ -245,6 +264,8 @@
 				5027E2E77E119E7AA2A1F865 /* CoachStore.swift */,
 				F68D8C43041780C78A7B7810 /* HumanCallStore.swift */,
 				313E5224E36B4E42DC90206F /* HumanChatStore.swift */,
+				A17F54D8038C6EEE28FA8559 /* NotificationAPI.swift */,
+				F76BDACCB42E6FCBC0CD87F9 /* NotificationStore.swift */,
 				179A188E828A8873F4505090 /* SeedData.swift */,
 			);
 			path = Data;
@@ -254,6 +275,7 @@
 			isa = PBXGroup;
 			children = (
 				64AE96CE9682FE6E0A9BD1D8 /* Info.plist */,
+				C0EDA5A7A06C9051F6A208A1 /* TacTech.entitlements */,
 				587AE07BF381E435AE227C43 /* TacTechApp.swift */,
 				EE6090405D7B0A799ABE4DAA /* App */,
 				8F069CAF2CA49BC7A3FF0596 /* Core */,
@@ -307,6 +329,7 @@
 				E5531C3C532CF30EC9303934 /* Authentication */,
 				B5CBBE0AF59279F2AD6C666F /* Chat */,
 				523FADC0168D3529B791E44B /* Coach */,
+				3EB0E9316CBD42E340FDB18E /* Notifications */,
 				87BB1621256BE6F8852AAD3F /* Trainee */,
 				D6590ACEA3AE5DCB37129869 /* Trainer */,
 			);
@@ -349,6 +372,7 @@
 				4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */,
 				6F19A98CF146A275C1793650 /* HumanChatModels.swift */,
 				DF1D3D88CBBC904995027746 /* Models.swift */,
+				E5E8EB855C0975825F982A68 /* NotificationModels.swift */,
 				135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */,
 			);
 			path = Models;
@@ -396,6 +420,7 @@
 			isa = PBXGroup;
 			children = (
 				206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */,
+				5AF0347D57808A216A1EE6F0 /* PushNotificationDelegate.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -523,13 +548,18 @@
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
+				0915832788886634DA1EE543 /* NotificationAPI.swift in Sources */,
+				372477CCC057743104CEA6E8 /* NotificationModels.swift in Sources */,
 				A205CD2CCD673B15566C5E1C /* NotificationSettingsView.swift in Sources */,
+				BA67300B2FACEF53B89BC71F /* NotificationStore.swift in Sources */,
+				14DB94C16E36B171C2D8546F /* NotificationsInboxView.swift in Sources */,
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
 				B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
 				EA7132C3D9EAC206CA1B4DE3 /* PostLoginBridgeView.swift in Sources */,
 				75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */,
 				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,
+				1A2A80DCEDB00B21FA61B87C /* PushNotificationDelegate.swift in Sources */,
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				91E75FD194F5C532A243D440 /* SecuritySettingsView.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
@@ -698,6 +728,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TacTech/TacTech.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -727,6 +758,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = TacTech/TacTech.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;

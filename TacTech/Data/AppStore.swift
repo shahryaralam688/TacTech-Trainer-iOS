@@ -283,6 +283,9 @@ final class AppStore {
     }
 
     func logout() async {
+        await NotificationStore.shared.unregisterCurrentToken()
+        NotificationStore.shared.stop()
+        HumanCallStore.shared.stopMonitoring()
         let refresh = TokenStore.refreshToken()
         if let refresh {
             await api.logout(refreshToken: refresh)

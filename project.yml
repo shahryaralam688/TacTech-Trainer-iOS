@@ -44,6 +44,7 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: TacTech/TacTech.entitlements
         # Shahryar personal team (Xcode Accounts). Change if you add another paid team.
         DEVELOPMENT_TEAM: 7L4359M6G7
     info:
@@ -53,6 +54,8 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        UIBackgroundModes:
+          - remote-notification
         NSCameraUsageDescription: TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.
         NSMicrophoneUsageDescription: TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.
         NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.

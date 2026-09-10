@@ -122,25 +122,28 @@ final class HumanChatStore {
         let ext = fileURL.pathExtension.isEmpty ? "mp4" : fileURL.pathExtension
         let path = storeMedia(data: data, peerId: peerId, ext: ext)
         let trimmed = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let duration = Self.videoDuration(url: mediaURL(relativePath: path) ?? fileURL)
-        append(
-            HumanChatMessage(
-                id: UUID().uuidString,
-                peerId: peerId,
-                isOutgoing: true,
-                kind: .video,
-                text: trimmed,
-                sentAt: .now,
-                isRead: true,
-                localMediaPath: path,
-                attachmentKind: .video,
-                durationSeconds: duration
-            ),
-            peerId: peerId
-        )
-        drafts[peerId] = ""
-        haptic()
-        scheduleMockReply(peerId: peerId, kindHint: .video)
+        let resolved = mediaURL(relativePath: path) ?? fileURL
+        Task { @MainActor in
+            let duration = await Self.videoDuration(url: resolved)
+            self.append(
+                HumanChatMessage(
+                    id: UUID().uuidString,
+                    peerId: peerId,
+                    isOutgoing: true,
+                    kind: .video,
+                    text: trimmed,
+                    sentAt: .now,
+                    isRead: true,
+                    localMediaPath: path,
+                    attachmentKind: .video,
+                    durationSeconds: duration
+                ),
+                peerId: peerId
+            )
+            self.drafts[peerId] = ""
+            self.haptic()
+            self.scheduleMockReply(peerId: peerId, kindHint: .video)
+        }
     }
 
     func sendVoiceNote(to peerId: String, data: Data, duration: TimeInterval) {
@@ -395,9 +398,14 @@ final class HumanChatStore {
         }
     }
 
-    private static func videoDuration(url: URL) -> Double? {
+    private static func videoDuration(url: URL) async -> Double? {
         let asset = AVURLAsset(url: url)
-        let seconds = CMTimeGetSeconds(asset.duration)
-        return seconds.isFinite ? seconds : nil
+        do {
+            let duration = try await asset.load(.duration)
+            let seconds = CMTimeGetSeconds(duration)
+            return seconds.isFinite ? seconds : nil
+        } catch {
+            return nil
+        }
     }
 }

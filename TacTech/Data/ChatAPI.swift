@@ -122,6 +122,19 @@ actor ChatAPI {
         try await send(path: "/chat/rtc/sessions", method: .post, body: ChatCreateRtcRequest(threadId: threadId))
     }
 
+    /// Active ringing sessions for the current user (works even outside chat UI).
+    func listIncomingCalls() async throws -> [ChatIncomingCallDTO] {
+        let data = try await raw(path: "/chat/rtc/incoming", method: .get, body: Optional<EmptyBody>.none, authorized: true)
+        if data.isEmpty { return [] }
+        if let wrapped = try? decoder.decode(ChatIncomingCallsResponse.self, from: data) {
+            return wrapped.items
+        }
+        if let items = try? decoder.decode([ChatIncomingCallDTO].self, from: data) {
+            return items
+        }
+        return []
+    }
+
     // MARK: - Internals
 
     private enum MultipartFormField {

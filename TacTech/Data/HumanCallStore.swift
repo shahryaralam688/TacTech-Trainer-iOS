@@ -149,6 +149,7 @@ final class HumanCallStore {
     func startMonitoring() {
         if monitoring {
             realtime.connect()
+            Task { await pollForIncomingInvites() }
             return
         }
         monitoring = true
@@ -158,6 +159,11 @@ final class HumanCallStore {
         }
         realtime.connect()
         startInvitePolling()
+    }
+
+    /// Force one `GET /chat/rtc/incoming` (scene active / push wake).
+    func refreshIncomingNow() async {
+        await pollForIncomingInvites()
     }
 
     func stopMonitoring() {
@@ -327,35 +333,58 @@ final class HumanCallStore {
         Task { await HumanChatStore.shared.refreshInbox() }
     }
 
-    /// Poll threads for REST invite markers (works when Socket.IO event is missing).
+    /// Poll `GET /chat/rtc/incoming` (primary) + legacy message markers.
     private func startInvitePolling() {
         pollTask?.cancel()
         pollTask = Task { [weak self] in
+            // Immediate cold-start check so relaunch / Home tab still rings.
+            await self?.pollForIncomingInvites()
             while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.5))
                 await self?.pollForIncomingInvites()
-                try? await Task.sleep(for: .seconds(2))
             }
         }
     }
 
     private func pollForIncomingInvites() async {
-        guard monitoring, phase == .idle else { return }
+        guard monitoring else { return }
+        // If already in a call UI, still watch for end via empty incoming list.
+        do {
+            let items = try await api.listIncomingCalls()
+            if phase == .idle, let first = items.first {
+                presentIncoming(
+                    sessionId: first.sessionId,
+                    threadId: first.threadId,
+                    fromUserId: first.fromUserId,
+                    fromName: first.fromName,
+                    signalingPath: first.signalingPath
+                )
+                return
+            }
+            if let active = activeInvite,
+               (phase == .incomingRinging || phase == .outgoingRinging),
+               !items.contains(where: { $0.sessionId == active.sessionId }),
+               phase == .incomingRinging {
+                // Remote cancelled before accept.
+                hangupLocal(outcome: nil, notifyPeer: false)
+            }
+        } catch {
+            // Soft fail — keep socket + legacy poll.
+        }
+
+        guard phase == .idle else { return }
+        // Legacy message-marker fallback (older builds / partial backends).
         do {
             let threads = try await api.listThreads()
             let me = myUserId ?? Self.jwtUserId()
-            for thread in threads.prefix(10) {
+            for thread in threads.prefix(6) {
                 if let updated = thread.lastMessageAt,
                    Date().timeIntervalSince(updated) > 90 {
                     continue
                 }
-                let page = try await api.listMessages(threadId: thread.id, limit: 15)
+                let page = try await api.listMessages(threadId: thread.id, limit: 10)
                 for dto in page.items.sorted(by: { $0.createdAt > $1.createdAt }) {
-                    if let outcome = dto.callOutcome, CallInviteCodec.isEndMarker(outcome) {
-                        // Newer end marker than invite → skip this session.
-                        continue
-                    }
                     guard let invite = CallInviteCodec.parse(fromMessage: dto) else { continue }
-                    // If a newer end marker exists for same session, skip.
                     let ended = page.items.contains {
                         guard let o = $0.callOutcome, CallInviteCodec.isEndMarker(o) else { return false }
                         return o.contains(invite.sessionId) && $0.createdAt >= dto.createdAt
@@ -373,8 +402,30 @@ final class HumanCallStore {
                 }
             }
         } catch {
-            // Soft fail — keep polling.
+            // Soft fail.
         }
+    }
+
+    /// Handle push / cold deep-link payloads: `{ type: chat_call, sessionId, threadId, ... }`.
+    func handlePushPayload(_ userInfo: [AnyHashable: Any]) {
+        let type = (userInfo["type"] as? String)
+            ?? ((userInfo["data"] as? [AnyHashable: Any])?["type"] as? String)
+        guard type == "chat_call" else { return }
+        let data = (userInfo["data"] as? [AnyHashable: Any]) ?? userInfo
+        let sessionId = (data["sessionId"] as? String) ?? ""
+        let threadId = (data["threadId"] as? String) ?? ""
+        let fromUserId = (data["fromUserId"] as? String) ?? ""
+        guard !sessionId.isEmpty, !threadId.isEmpty, !fromUserId.isEmpty else {
+            Task { await pollForIncomingInvites() }
+            return
+        }
+        presentIncoming(
+            sessionId: sessionId,
+            threadId: threadId,
+            fromUserId: fromUserId,
+            fromName: data["fromName"] as? String,
+            signalingPath: data["signalingPath"] as? String
+        )
     }
 
     // MARK: Signaling

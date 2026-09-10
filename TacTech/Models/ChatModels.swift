@@ -75,6 +75,20 @@ struct ChatRtcSessionDTO: Decodable {
     var createdAt: Date?
 }
 
+struct ChatIncomingCallDTO: Codable, Identifiable, Hashable {
+    var id: String { sessionId }
+    var threadId: String
+    var sessionId: String
+    var fromUserId: String
+    var fromName: String
+    var signalingPath: String
+    var createdAt: Date
+}
+
+struct ChatIncomingCallsResponse: Decodable {
+    var items: [ChatIncomingCallDTO]
+}
+
 struct ChatRtcIceServer: Codable, Hashable {
     var urls: [String]?
     var url: String?

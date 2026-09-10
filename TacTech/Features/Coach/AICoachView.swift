@@ -158,7 +158,9 @@ struct AICoachView: View {
                 let id = pendingDelete.id
                 self.pendingDelete = nil
                 deleteHaptic &+= 1
-                Task { await store.deleteConversation(id) }
+                withAnimation(reduceMotion ? .easeOut(duration: 0.18) : soft) {
+                    Task { await store.deleteConversation(id) }
+                }
             }
             Button("Cancel", role: .cancel) {
                 pendingDelete = nil
@@ -410,6 +412,7 @@ struct AICoachView: View {
             .listStyle(.plain)
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 52)
+            .animation(reduceMotion ? .easeOut(duration: 0.18) : soft, value: store.conversations.map(\.id))
 
             Spacer(minLength: 0)
 

@@ -198,9 +198,7 @@ final class CoachStore {
     func deleteConversation(_ id: String) async {
         let wasActive = activeConversationId == id
         let snapshot = conversations
-        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-            conversations.removeAll { $0.id == id }
-        }
+        conversations.removeAll { $0.id == id }
         CoachChatDiskCache.removeConversation(id: id)
         CoachChatDiskCache.saveConversations(conversations)
 
@@ -229,13 +227,11 @@ final class CoachStore {
             lastError = nil
         } catch {
             // Soft restore if server rejects (404 still OK — already gone).
-            if case .notFound = error {
+            if let appError = error as? AppError, case .notFound = appError {
                 lastError = nil
                 return
             }
-            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
-                conversations = snapshot
-            }
+            conversations = snapshot
             CoachChatDiskCache.saveConversations(snapshot)
             lastError = Self.userFacingError(error)
         }

@@ -24,7 +24,8 @@ struct AICoachView: View {
     @State private var composerFocused = false
     /// After first paint, allow soft scroll / insert motion — avoids open “whizz” through history.
     @State private var enableListMotion = false
-    @State private var showChatsSheet = false
+    /// ChatGPT / Claude-style leading history drawer.
+    @State private var isDrawerOpen = false
     /// Coalesce scroll-to-bottom so streaming `partialAssistantText` can’t
     /// fire `onChange(of: String)` layout updates multiple times per frame.
     @State private var scrollBottomScheduled = false
@@ -34,32 +35,46 @@ struct AICoachView: View {
     private let ink = Color.black
     private let muted = Color(white: 0.42)
     private let soft = Animation.spring(response: 0.38, dampingFraction: 0.86)
+    private let drawerWidthRatio: CGFloat = 0.82
+
+    private var activeTitle: String {
+        if let id = store.activeConversationId,
+           let match = store.conversations.first(where: { $0.id == id }),
+           !match.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return match.title
+        }
+        return "TacTech AI"
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if showsGrabber {
-                grabber
-            }
-            header
-            Divider().opacity(0.10)
+        GeometryReader { geo in
+            let drawerWidth = min(320, geo.size.width * drawerWidthRatio)
+            ZStack(alignment: .leading) {
+                mainColumn
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .offset(x: isDrawerOpen ? drawerWidth * 0.12 : 0)
+                    .disabled(isDrawerOpen)
+                    .overlay {
+                        if isDrawerOpen {
+                            Color.black.opacity(0.38)
+                                .ignoresSafeArea()
+                                .onTapGesture { closeDrawer() }
+                                .transition(.opacity)
+                        }
+                    }
 
-            messageList
-                .refreshable {
-                    await store.syncMemoryDebounced(force: true)
-                    await store.refreshMessages()
+                if isDrawerOpen {
+                    drawerPanel(width: drawerWidth)
+                        .frame(width: drawerWidth)
+                        .frame(maxHeight: .infinity)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                        .zIndex(2)
                 }
-
-            if shouldShowSuggestions {
-                suggestionRow
             }
-
-            if let err = store.lastError {
-                errorBanner(err)
-            }
-
-            composer
+            .animation(reduceMotion ? .easeOut(duration: 0.16) : soft, value: isDrawerOpen)
+            .gesture(drawerEdgeGesture)
         }
-        .background(Color.white)
+        .background(Color(white: 0.98))
         .task {
             await store.bootstrap()
             await MainActor.run {
@@ -68,35 +83,6 @@ struct AICoachView: View {
         }
         .onDisappear {
             store.onDisappear()
-        }
-        .sheet(isPresented: $showChatsSheet) {
-            AIChatsSheet(
-                conversations: store.conversations,
-                activeId: store.activeConversationId ?? "",
-                onSelect: { id in
-                    Task {
-                        await store.selectConversation(id)
-                        await MainActor.run {
-                            enableListMotion = false
-                            userPinnedScroll = false
-                            showChatsSheet = false
-                            finishInitialScrollGate()
-                        }
-                    }
-                },
-                onNew: {
-                    Task {
-                        await store.startNewConversation()
-                        await MainActor.run {
-                            enableListMotion = false
-                            userPinnedScroll = false
-                            showChatsSheet = false
-                            finishInitialScrollGate()
-                        }
-                    }
-                }
-            )
-            .presentationDetents([.medium, .large])
         }
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
@@ -158,6 +144,224 @@ struct AICoachView: View {
         .sensoryFeedback(.selection, trigger: store.isRecording)
     }
 
+    private var mainColumn: some View {
+        VStack(spacing: 0) {
+            if showsGrabber {
+                grabber
+            }
+            header
+            Divider().opacity(0.08)
+
+            messageList
+                .refreshable {
+                    await store.syncMemoryDebounced(force: true)
+                    await store.refreshMessages()
+                }
+
+            if shouldShowSuggestions {
+                suggestionRow
+            }
+
+            if let err = store.lastError {
+                errorBanner(err)
+            }
+
+            composer
+        }
+        .background(Color.white)
+    }
+
+    private func openDrawer() {
+        TTKeyboard.dismiss()
+        composerFocused = false
+        Task { await store.refreshConversations() }
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : soft) {
+            isDrawerOpen = true
+        }
+    }
+
+    private func closeDrawer() {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.14) : soft) {
+            isDrawerOpen = false
+        }
+    }
+
+    private func startNewChatFromUI() {
+        closeDrawer()
+        Task {
+            await store.startNewConversation()
+            await MainActor.run {
+                enableListMotion = false
+                userPinnedScroll = false
+                finishInitialScrollGate()
+            }
+        }
+    }
+
+    private func selectChatFromDrawer(_ id: String) {
+        closeDrawer()
+        Task {
+            await store.selectConversation(id)
+            await MainActor.run {
+                enableListMotion = false
+                userPinnedScroll = false
+                finishInitialScrollGate()
+            }
+        }
+    }
+
+    private var drawerEdgeGesture: some Gesture {
+        DragGesture(minimumDistance: 20, coordinateSpace: .global)
+            .onEnded { value in
+                let fromLeftEdge = value.startLocation.x < 28
+                let horizontal = value.translation.width
+                if !isDrawerOpen, fromLeftEdge, horizontal > 56 {
+                    openDrawer()
+                } else if isDrawerOpen, horizontal < -56 {
+                    closeDrawer()
+                }
+            }
+    }
+
+    @ViewBuilder
+    private func drawerPanel(width: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [orange, orange.opacity(0.72)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 36, height: 36)
+                    TTIcon(icon: .robotFace1, filled: true, size: 16)
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("TacTech AI")
+                        .font(TTFont.workSans(17, weight: .bold))
+                        .foregroundStyle(ink)
+                    Text(audience.headerSubtitle)
+                        .font(TTFont.workSans(11, weight: .medium))
+                        .foregroundStyle(muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button(action: closeDrawer) {
+                    Image(systemName: "xmark")
+                        .font(TTFont.workSans(13, weight: .bold))
+                        .foregroundStyle(ink.opacity(0.55))
+                        .frame(width: 32, height: 32)
+                        .background(Color.black.opacity(0.05))
+                        .clipShape(Circle())
+                }
+                .accessibilityLabel("Close sidebar")
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, showsGrabber ? 8 : 16)
+            .padding(.bottom, 14)
+
+            Button(action: startNewChatFromUI) {
+                HStack(spacing: 10) {
+                    Image(systemName: "square.and.pencil")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                    Text("New chat")
+                        .font(TTFont.workSans(15, weight: .bold))
+                    Spacer(minLength: 0)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 13)
+                .background(orange)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(AssessmentCardPressStyle())
+            .padding(.horizontal, 14)
+            .padding(.bottom, 12)
+
+            Text("Your chats")
+                .font(TTFont.workSans(12, weight: .bold))
+                .foregroundStyle(muted)
+                .textCase(.uppercase)
+                .tracking(0.4)
+                .padding(.horizontal, 18)
+                .padding(.bottom, 8)
+
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 4) {
+                    if store.conversations.isEmpty {
+                        Text("No chats yet — start a new one.")
+                            .font(TTFont.workSans(13, weight: .medium))
+                            .foregroundStyle(muted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                            .padding(.top, 8)
+                    }
+                    ForEach(store.conversations) { conversation in
+                        let isActive = conversation.id == store.activeConversationId
+                        Button {
+                            selectChatFromDrawer(conversation.id)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(TTFont.workSans(13, weight: .medium))
+                                    .foregroundStyle(isActive ? orange : ink.opacity(0.45))
+                                    .frame(width: 22)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
+                                        .font(TTFont.workSans(14, weight: isActive ? .bold : .semibold))
+                                        .foregroundStyle(ink)
+                                        .lineLimit(1)
+                                    Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                                        .font(TTFont.workSans(11, weight: .medium))
+                                        .foregroundStyle(muted)
+                                        .lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 11)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(isActive ? orange.opacity(0.12) : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, 8)
+                    }
+                }
+                .padding(.bottom, 20)
+            }
+
+            Spacer(minLength: 0)
+
+            Divider().opacity(0.1)
+            Button {
+                Task { await store.syncMemoryDebounced(force: true) }
+            } label: {
+                Label("Sync memory", systemImage: "arrow.triangle.2.circlepath")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.7))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(width: width, maxHeight: .infinity, alignment: .top)
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.black.opacity(0.06))
+                .frame(width: 1)
+                .ignoresSafeArea()
+        }
+        .shadow(color: Color.black.opacity(0.18), radius: 24, x: 8, y: 0)
+    }
+
     private var composer: some View {
         CoachComposerBar(
             draft: $draft,
@@ -197,88 +401,60 @@ struct AICoachView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [orange, orange.opacity(0.72)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 42, height: 42)
-                    .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
-                TTIcon(icon: .robotFace1, filled: true, size: 20)
-                    .foregroundStyle(.white)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("TacTech AI")
-                    .font(TTFont.workSans(17, weight: .bold))
-                    .foregroundStyle(ink)
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(store.status?.chatConfigured == true
-                              ? Color(red: 0.2, green: 0.78, blue: 0.45)
-                              : Color.orange)
-                        .frame(width: 7, height: 7)
-                    Text(audience.headerSubtitle)
-                        .font(TTFont.workSans(12, weight: .medium))
-                        .foregroundStyle(muted)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 8)
-
-            Button {
-                Task { await store.refreshConversations() }
-                showChatsSheet = true
-            } label: {
-                Image(systemName: "bubble.left.and.bubble.right")
-                    .font(TTFont.workSans(18, weight: .medium))
-                    .foregroundStyle(ink.opacity(0.7))
+        HStack(spacing: 10) {
+            Button(action: openDrawer) {
+                Image(systemName: "line.3.horizontal")
+                    .font(TTFont.workSans(17, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.75))
                     .frame(width: 36, height: 36)
                     .background(Color.black.opacity(0.05))
                     .clipShape(Circle())
             }
-            .accessibilityLabel("Chats")
+            .accessibilityLabel("Open chat history")
 
-            Menu {
-                Button("New chat") {
-                    Task {
-                        await store.startNewConversation()
-                        enableListMotion = false
-                        userPinnedScroll = false
-                        finishInitialScrollGate()
-                    }
+            VStack(spacing: 1) {
+                Text(activeTitle)
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(ink)
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Circle()
+                        .fill(store.status?.chatConfigured == true
+                              ? Color(red: 0.2, green: 0.78, blue: 0.45)
+                              : Color.orange)
+                        .frame(width: 6, height: 6)
+                    Text(audience.headerSubtitle)
+                        .font(TTFont.workSans(11, weight: .medium))
+                        .foregroundStyle(muted)
+                        .lineLimit(1)
                 }
-                Button("Sync memory") {
-                    Task { await store.syncMemoryDebounced(force: true) }
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-                    .font(TTFont.workSans(20, weight: .medium))
-                    .foregroundStyle(ink.opacity(0.7))
             }
+            .frame(maxWidth: .infinity)
+
+            Button(action: startNewChatFromUI) {
+                Image(systemName: "square.and.pencil")
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.75))
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.05))
+                    .clipShape(Circle())
+            }
+            .accessibilityLabel("New chat")
 
             Button(action: onClose) {
-                ZStack {
-                    Circle()
-                        .fill(Color.black.opacity(0.06))
-                        .frame(width: 36, height: 36)
-                    Image(systemName: "xmark")
-                        .font(TTFont.workSans(13, weight: .bold))
-                        .foregroundStyle(ink)
-                }
+                Image(systemName: "xmark")
+                    .font(TTFont.workSans(13, weight: .bold))
+                    .foregroundStyle(ink)
+                    .frame(width: 36, height: 36)
+                    .background(Color.black.opacity(0.06))
+                    .clipShape(Circle())
             }
             .buttonStyle(AssessmentCardPressStyle())
             .accessibilityLabel("Close AI chat")
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 12)
-        .padding(.top, showsGrabber ? 4 : 12)
+        .padding(.horizontal, 14)
+        .padding(.bottom, 10)
+        .padding(.top, showsGrabber ? 2 : 10)
         .contentShape(Rectangle())
         .onTapGesture { composerFocused = false }
     }
@@ -380,20 +556,32 @@ struct AICoachView: View {
     }
 
     private var welcomeCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(audience.welcome)
-                .font(TTFont.workSans(15, weight: .medium))
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [orange, orange.opacity(0.72)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .frame(width: 56, height: 56)
+                TTIcon(icon: .robotFace1, filled: true, size: 26)
+                    .foregroundStyle(.white)
+            }
+            Text("How can I help?")
+                .font(TTFont.workSans(22, weight: .bold))
                 .foregroundStyle(ink)
+            Text(audience.welcome)
+                .font(TTFont.workSans(14, weight: .medium))
+                .foregroundStyle(muted)
+                .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.92))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-        )
+        .padding(.horizontal, 22)
+        .padding(.vertical, 28)
+        .frame(maxWidth: .infinity)
     }
 
     private var skeletonRows: some View {
@@ -548,73 +736,6 @@ struct AICoachView: View {
         // One more frame so LazyVStack finishes laying out history.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             enableListMotion = true
-        }
-    }
-}
-
-// MARK: - Chats sheet (server + disk-backed list)
-
-private struct AIChatsSheet: View {
-    let conversations: [CoachConversation]
-    let activeId: String
-    var onSelect: (String) -> Void
-    var onNew: () -> Void
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button(action: onNew) {
-                        Label("New chat", systemImage: "plus.bubble")
-                            .font(TTFont.workSans(16, weight: .semibold))
-                            .foregroundStyle(TTColor.actionOrange)
-                    }
-                }
-
-                Section("Your chats") {
-                    if conversations.isEmpty {
-                        Text("No chats yet — start a new one.")
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.inkMuted)
-                    }
-                    ForEach(conversations) { conversation in
-                        Button {
-                            onSelect(conversation.id)
-                        } label: {
-                            HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(TTColor.actionOrange.opacity(0.14))
-                                    TTIcon(icon: .chat, filled: true, size: 16)
-                                        .foregroundStyle(TTColor.actionOrange)
-                                }
-                                .frame(width: 40, height: 40)
-
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
-                                        .font(TTFont.workSans(15, weight: .bold))
-                                        .foregroundStyle(TTColor.ink)
-                                        .lineLimit(1)
-                                    Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(TTFont.caption(12))
-                                        .foregroundStyle(TTColor.inkMuted)
-                                        .lineLimit(1)
-                                }
-
-                                Spacer()
-
-                                if conversation.id == activeId {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(TTColor.actionOrange)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-            .navigationTitle("Chats")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

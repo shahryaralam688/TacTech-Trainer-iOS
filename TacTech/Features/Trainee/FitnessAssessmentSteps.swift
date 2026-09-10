@@ -1794,12 +1794,13 @@ final class AssessmentVoiceRecorder {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .default)
         try session.setActive(true)
-        if session.recordPermission == .denied {
+        let micPermission = AVAudioApplication.shared.recordPermission
+        if micPermission == .denied {
             throw AppError.validation("Microphone permission is required.")
         }
-        if session.recordPermission == .undetermined {
+        if micPermission == .undetermined {
             try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-                session.requestRecordPermission { allowed in
+                AVAudioApplication.requestRecordPermission { allowed in
                     if allowed { cont.resume() } else {
                         cont.resume(throwing: AppError.validation("Microphone permission is required."))
                     }

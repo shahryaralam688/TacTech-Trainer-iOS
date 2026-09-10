@@ -158,9 +158,7 @@ struct AICoachView: View {
                 let id = pendingDelete.id
                 self.pendingDelete = nil
                 deleteHaptic &+= 1
-                withAnimation(reduceMotion ? .easeOut(duration: 0.18) : soft) {
-                    Task { await store.deleteConversation(id) }
-                }
+                Task { await store.deleteConversation(id) }
             }
             Button("Cancel", role: .cancel) {
                 pendingDelete = nil

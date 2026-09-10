@@ -274,7 +274,7 @@ actor CoachAPI {
     }
 
     private func sendEmpty(path: String, method: HTTPMethod, allowRetry: Bool = true) async throws {
-        var request = try makeRequest(path: path, method: method, authorized: true)
+        let request = try makeRequest(path: path, method: method, authorized: true)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw AppError.api("Invalid response from server.")

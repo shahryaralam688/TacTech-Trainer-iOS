@@ -218,7 +218,7 @@ final class CoachStore {
             } else {
                 activeConversationId = nil
                 messages = []
-                UserDefaults.standard.removeObject(forKey: "tactech.coach.activeConversationId.v1")
+                // Active id cleared via scoped cache when list is empty.
             }
         }
 
@@ -884,44 +884,94 @@ final class CoachStore {
     }
 }
 
-// MARK: - Disk cache (survive terminate; merge with server list)
+// MARK: - Disk cache (survive terminate; **per-user** scoped)
 
 enum CoachChatDiskCache {
-    private static let conversationsKey = "tactech.coach.conversations.v1"
-    private static let activeIdKey = "tactech.coach.activeConversationId.v1"
-    private static func messagesKey(_ id: String) -> String { "tactech.coach.messages.v1.\(id)" }
+    private static let legacyConversationsKey = "tactech.coach.conversations.v1"
+    private static let legacyActiveIdKey = "tactech.coach.activeConversationId.v1"
+
+    private static func conversationsKey(_ scope: String) -> String {
+        "tactech.coach.conversations.v2.\(scope)"
+    }
+    private static func activeIdKey(_ scope: String) -> String {
+        "tactech.coach.activeConversationId.v2.\(scope)"
+    }
+    private static func messagesKey(_ scope: String, _ id: String) -> String {
+        "tactech.coach.messages.v2.\(scope).\(id)"
+    }
 
     private static var encoder: JSONEncoder { JSONEncoder.tactech }
     private static var decoder: JSONDecoder { JSONDecoder.tactech }
 
+    /// Scope cache to the logged-in user so User A never reads User B’s local history.
+    private static var scope: String {
+        jwtUserId(from: TokenStore.accessToken()) ?? "signed-out"
+    }
+
+    private static func jwtUserId(from token: String?) -> String? {
+        guard let token, !token.isEmpty else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload.append("=") }
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        if let userId = json["userId"] as? String, !userId.isEmpty { return userId }
+        if let userId = json["user_id"] as? String, !userId.isEmpty { return userId }
+        if let sub = json["sub"] as? String, !sub.isEmpty { return sub }
+        return nil
+    }
+
     static func saveConversations(_ items: [CoachConversation]) {
-        guard let data = try? encoder.encode(items) else { return }
-        UserDefaults.standard.set(data, forKey: conversationsKey)
+        let s = scope
+        guard s != "signed-out", let data = try? encoder.encode(items) else { return }
+        UserDefaults.standard.set(data, forKey: conversationsKey(s))
     }
 
     static func loadConversations() -> [CoachConversation] {
-        guard let data = UserDefaults.standard.data(forKey: conversationsKey),
-              let items = try? decoder.decode([CoachConversation].self, from: data) else {
-            return []
+        let s = scope
+        guard s != "signed-out" else { return [] }
+        if let data = UserDefaults.standard.data(forKey: conversationsKey(s)),
+           let items = try? decoder.decode([CoachConversation].self, from: data) {
+            return items.sorted { $0.updatedAt > $1.updatedAt }
         }
-        return items.sorted { $0.updatedAt > $1.updatedAt }
+        // One-time migrate legacy unscoped cache only when empty for this user.
+        if let data = UserDefaults.standard.data(forKey: legacyConversationsKey),
+           let items = try? decoder.decode([CoachConversation].self, from: data) {
+            saveConversations(items)
+            UserDefaults.standard.removeObject(forKey: legacyConversationsKey)
+            UserDefaults.standard.removeObject(forKey: legacyActiveIdKey)
+            return items.sorted { $0.updatedAt > $1.updatedAt }
+        }
+        return []
     }
 
     static func saveActiveId(_ id: String) {
-        UserDefaults.standard.set(id, forKey: activeIdKey)
+        let s = scope
+        guard s != "signed-out" else { return }
+        UserDefaults.standard.set(id, forKey: activeIdKey(s))
     }
 
     static func loadActiveId() -> String? {
-        UserDefaults.standard.string(forKey: activeIdKey)
+        let s = scope
+        guard s != "signed-out" else { return nil }
+        return UserDefaults.standard.string(forKey: activeIdKey(s))
     }
 
     static func saveMessages(_ messages: [CoachMessage], conversationId: String) {
-        guard let data = try? encoder.encode(messages) else { return }
-        UserDefaults.standard.set(data, forKey: messagesKey(conversationId))
+        let s = scope
+        guard s != "signed-out", let data = try? encoder.encode(messages) else { return }
+        UserDefaults.standard.set(data, forKey: messagesKey(s, conversationId))
     }
 
     static func loadMessages(conversationId: String) -> [CoachMessage]? {
-        guard let data = UserDefaults.standard.data(forKey: messagesKey(conversationId)),
+        let s = scope
+        guard s != "signed-out" else { return nil }
+        guard let data = UserDefaults.standard.data(forKey: messagesKey(s, conversationId)),
               let items = try? decoder.decode([CoachMessage].self, from: data) else {
             return nil
         }
@@ -929,20 +979,26 @@ enum CoachChatDiskCache {
     }
 
     static func removeConversation(id: String) {
-        UserDefaults.standard.removeObject(forKey: messagesKey(id))
-        var list = loadConversations().filter { $0.id != id }
+        let s = scope
+        guard s != "signed-out" else { return }
+        UserDefaults.standard.removeObject(forKey: messagesKey(s, id))
+        let list = loadConversations().filter { $0.id != id }
         saveConversations(list)
         if loadActiveId() == id {
-            UserDefaults.standard.set(list.first?.id, forKey: activeIdKey)
+            if let next = list.first?.id {
+                saveActiveId(next)
+            } else {
+                UserDefaults.standard.removeObject(forKey: activeIdKey(s))
+            }
         }
     }
 
-    /// Server wins on id collision; keep cached-only threads so history isn’t lost if API returns a short list.
+    /// Server list is source of truth (no cross-user / deleted-thread resurrection).
     static func merge(server: [CoachConversation], cached: [CoachConversation]) -> [CoachConversation] {
-        var byId: [String: CoachConversation] = [:]
-        for item in cached { byId[item.id] = item }
-        for item in server { byId[item.id] = item }
-        return byId.values.sorted { $0.updatedAt > $1.updatedAt }
+        if !server.isEmpty {
+            return server.sorted { $0.updatedAt > $1.updatedAt }
+        }
+        return cached.sorted { $0.updatedAt > $1.updatedAt }
     }
 }
 

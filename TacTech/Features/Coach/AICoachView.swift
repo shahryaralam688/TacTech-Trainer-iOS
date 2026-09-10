@@ -26,9 +26,11 @@ struct AICoachView: View {
     @State private var enableListMotion = false
     /// ChatGPT / Claude-style leading history drawer.
     @State private var isDrawerOpen = false
+    @State private var pendingDelete: CoachConversation?
     /// Coalesce scroll-to-bottom so streaming `partialAssistantText` can’t
     /// fire `onChange(of: String)` layout updates multiple times per frame.
     @State private var scrollBottomScheduled = false
+    @State private var deleteHaptic = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let orange = TTColor.actionOrange
@@ -142,6 +144,30 @@ struct AICoachView: View {
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: store.hapticTick)
         .sensoryFeedback(.selection, trigger: store.isRecording)
+        .sensoryFeedback(.warning, trigger: deleteHaptic)
+        .confirmationDialog(
+            "Delete this chat?",
+            isPresented: Binding(
+                get: { pendingDelete != nil },
+                set: { if !$0 { pendingDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                guard let pendingDelete else { return }
+                let id = pendingDelete.id
+                self.pendingDelete = nil
+                deleteHaptic &+= 1
+                Task { await store.deleteConversation(id) }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: {
+            if let pendingDelete {
+                Text("“\(pendingDelete.title.isEmpty ? "AI Coach" : pendingDelete.title)” will be removed. This can’t be undone.")
+            }
+        }
     }
 
     private var mainColumn: some View {
@@ -208,6 +234,59 @@ struct AICoachView: View {
                 finishInitialScrollGate()
             }
         }
+    }
+
+    private func confirmDelete(_ conversation: CoachConversation) {
+        pendingDelete = conversation
+    }
+
+    private func drawerChatRow(_ conversation: CoachConversation) -> some View {
+        let isActive = conversation.id == store.activeConversationId
+        return HStack(spacing: 8) {
+            Button {
+                selectChatFromDrawer(conversation.id)
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "bubble.left.and.bubble.right")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(isActive ? orange : ink.opacity(0.45))
+                        .frame(width: 22)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
+                            .font(TTFont.workSans(14, weight: isActive ? .bold : .semibold))
+                            .foregroundStyle(ink)
+                            .lineLimit(1)
+                        Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(TTFont.workSans(11, weight: .medium))
+                            .foregroundStyle(muted)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.leading, 12)
+                .padding(.vertical, 11)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                confirmDelete(conversation)
+            } label: {
+                Image(systemName: "trash")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(Color.red.opacity(0.75))
+                    .frame(width: 36, height: 36)
+                    .background(Color.red.opacity(0.08))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Delete chat")
+            .padding(.trailing, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isActive ? orange.opacity(0.12) : Color.white.opacity(0.55))
+        )
     }
 
     private var drawerEdgeGesture: some Gesture {
@@ -288,53 +367,49 @@ struct AICoachView: View {
                 .textCase(.uppercase)
                 .tracking(0.4)
                 .padding(.horizontal, 18)
-                .padding(.bottom, 8)
+                .padding(.bottom, 6)
 
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 4) {
-                    if store.conversations.isEmpty {
-                        Text("No chats yet — start a new one.")
-                            .font(TTFont.workSans(13, weight: .medium))
-                            .foregroundStyle(muted)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 18)
-                            .padding(.top, 8)
-                    }
-                    ForEach(store.conversations) { conversation in
-                        let isActive = conversation.id == store.activeConversationId
-                        Button {
-                            selectChatFromDrawer(conversation.id)
-                        } label: {
-                            HStack(spacing: 10) {
-                                Image(systemName: "bubble.left.and.bubble.right")
-                                    .font(TTFont.workSans(13, weight: .medium))
-                                    .foregroundStyle(isActive ? orange : ink.opacity(0.45))
-                                    .frame(width: 22)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
-                                        .font(TTFont.workSans(14, weight: isActive ? .bold : .semibold))
-                                        .foregroundStyle(ink)
-                                        .lineLimit(1)
-                                    Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
-                                        .font(TTFont.workSans(11, weight: .medium))
-                                        .foregroundStyle(muted)
-                                        .lineLimit(1)
-                                }
-                                Spacer(minLength: 0)
+            List {
+                if store.conversations.isEmpty {
+                    Text("No chats yet — start a new one.")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(muted)
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                }
+                ForEach(store.conversations) { conversation in
+                    drawerChatRow(conversation)
+                        .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10))
+                        .listRowBackground(Color.clear)
+                        .listRowSeparator(.hidden)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                confirmDelete(conversation)
+                            } label: {
+                                Label("Delete", systemImage: "trash.fill")
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 11)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(isActive ? orange.opacity(0.12) : Color.clear)
-                            )
+                            .tint(Color.red.opacity(0.92))
                         }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 8)
+                        .contextMenu {
+                            Button(role: .destructive) {
+                                confirmDelete(conversation)
+                            } label: {
+                                Label("Delete chat", systemImage: "trash")
+                            }
+                        }
+                }
+                .onDelete { indexSet in
+                    let ids = indexSet.compactMap { store.conversations.indices.contains($0) ? store.conversations[$0].id : nil }
+                    for id in ids {
+                        if let conversation = store.conversations.first(where: { $0.id == id }) {
+                            confirmDelete(conversation)
+                        }
                     }
                 }
-                .padding(.bottom, 20)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 52)
 
             Spacer(minLength: 0)
 

@@ -41,6 +41,10 @@ actor CoachAPI {
         try await sendArray("/coach/conversations/\(conversationId)/messages")
     }
 
+    func deleteConversation(id: String) async throws {
+        try await sendEmpty(path: "/coach/conversations/\(id)", method: .delete)
+    }
+
     // MARK: Text chat (non-stream)
 
     func chat(message: String, conversationId: String?, stream: Bool = false) async throws -> CoachChatResponse {
@@ -267,6 +271,21 @@ actor CoachAPI {
         }
         body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
         return body
+    }
+
+    private func sendEmpty(path: String, method: HTTPMethod, allowRetry: Bool = true) async throws {
+        var request = try makeRequest(path: path, method: method, authorized: true)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AppError.api("Invalid response from server.")
+        }
+        if http.statusCode == 401, allowRetry {
+            try await refreshTokens()
+            return try await sendEmpty(path: path, method: method, allowRetry: false)
+        }
+        // 200 / 204 both OK for delete.
+        if http.statusCode == 204 { return }
+        try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
     }
 
     private func sendArray<T: Decodable>(_ path: String) async throws -> [T] {

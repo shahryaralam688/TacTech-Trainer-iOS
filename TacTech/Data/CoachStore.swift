@@ -194,6 +194,53 @@ final class CoachStore {
         }
     }
 
+    /// Removes a thread locally + on server. If it was active, selects the next chat or clears.
+    func deleteConversation(_ id: String) async {
+        let wasActive = activeConversationId == id
+        let snapshot = conversations
+        withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+            conversations.removeAll { $0.id == id }
+        }
+        CoachChatDiskCache.removeConversation(id: id)
+        CoachChatDiskCache.saveConversations(conversations)
+
+        if wasActive {
+            cancelInFlight()
+            partialAssistantText = ""
+            pendingRetry = nil
+            if let next = conversations.first {
+                activeConversationId = next.id
+                CoachChatDiskCache.saveActiveId(next.id)
+                if let cached = CoachChatDiskCache.loadMessages(conversationId: next.id) {
+                    messages = cached.map(CoachDisplayMessage.fromServer)
+                } else {
+                    messages = []
+                }
+                await refreshMessages()
+            } else {
+                activeConversationId = nil
+                messages = []
+                UserDefaults.standard.removeObject(forKey: "tactech.coach.activeConversationId.v1")
+            }
+        }
+
+        do {
+            try await api.deleteConversation(id: id)
+            lastError = nil
+        } catch {
+            // Soft restore if server rejects (404 still OK — already gone).
+            if case .notFound = error {
+                lastError = nil
+                return
+            }
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.86)) {
+                conversations = snapshot
+            }
+            CoachChatDiskCache.saveConversations(snapshot)
+            lastError = Self.userFacingError(error)
+        }
+    }
+
     /// Local multi-chat (no backend) — clears the active thread for a fresh UI session.
     func beginLocalNewChat() {
         cancelInFlight()
@@ -883,6 +930,15 @@ enum CoachChatDiskCache {
             return nil
         }
         return items
+    }
+
+    static func removeConversation(id: String) {
+        UserDefaults.standard.removeObject(forKey: messagesKey(id))
+        var list = loadConversations().filter { $0.id != id }
+        saveConversations(list)
+        if loadActiveId() == id {
+            UserDefaults.standard.set(list.first?.id, forKey: activeIdKey)
+        }
     }
 
     /// Server wins on id collision; keep cached-only threads so history isn’t lost if API returns a short list.

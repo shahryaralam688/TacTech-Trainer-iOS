@@ -54,8 +54,6 @@ targets:
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIBackgroundModes:
-          - remote-notification
         NSCameraUsageDescription: TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.
         NSMicrophoneUsageDescription: TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.
         NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.

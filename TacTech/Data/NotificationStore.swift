@@ -188,6 +188,8 @@ final class NotificationStore {
     func requestAuthorizationAndRegister() async {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
+        // Personal (free) Apple teams cannot use Push Notifications / aps-environment.
+        // Registration is attempted when available; failure is ignored and inbox/socket still work.
         await MainActor.run {
             UIApplication.shared.registerForRemoteNotifications()
         }

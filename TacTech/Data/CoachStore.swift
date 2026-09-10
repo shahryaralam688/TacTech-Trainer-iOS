@@ -72,20 +72,48 @@ final class CoachStore {
             status = provider
         }
 
+        // Prefer disk cache instantly so previous chats appear before network returns.
+        let cachedList = CoachChatDiskCache.loadConversations()
+        if conversations.isEmpty, !cachedList.isEmpty {
+            conversations = cachedList
+        }
+        if activeConversationId == nil {
+            activeConversationId = CoachChatDiskCache.loadActiveId() ?? cachedList.first?.id
+        }
+
         do {
             let list = try await api.listConversations()
-            conversations = list
-            if let active = activeConversationId ?? list.first?.id {
+            conversations = CoachChatDiskCache.merge(server: list, cached: CoachChatDiskCache.loadConversations())
+            CoachChatDiskCache.saveConversations(conversations)
+
+            let active = activeConversationId
+                ?? CoachChatDiskCache.loadActiveId()
+                ?? conversations.first?.id
+            if let active {
                 activeConversationId = active
+                CoachChatDiskCache.saveActiveId(active)
                 if forceReload || messages.isEmpty {
+                    if let cached = CoachChatDiskCache.loadMessages(conversationId: active), messages.isEmpty {
+                        messages = cached.map(CoachDisplayMessage.fromServer)
+                    }
                     let server = try await api.listMessages(conversationId: active)
                     messages = server.map(CoachDisplayMessage.fromServer)
+                    CoachChatDiskCache.saveMessages(server, conversationId: active)
                 }
             }
             lastError = nil
         } catch {
-            // Empty chat still usable — first send creates a conversation server-side.
-            if messages.isEmpty {
+            // Fall back to disk — terminate/relaunch still shows previous chats.
+            if conversations.isEmpty {
+                conversations = cachedList
+            }
+            if let active = activeConversationId ?? conversations.first?.id {
+                activeConversationId = active
+                if messages.isEmpty,
+                   let cached = CoachChatDiskCache.loadMessages(conversationId: active) {
+                    messages = cached.map(CoachDisplayMessage.fromServer)
+                }
+            } else if messages.isEmpty {
                 lastError = Self.userFacingError(error)
             }
         }
@@ -101,11 +129,49 @@ final class CoachStore {
             // Preserve optimistic failures / analyzing if still in-flight
             if !isBusy {
                 messages = server.map(CoachDisplayMessage.fromServer)
+                CoachChatDiskCache.saveMessages(server, conversationId: id)
             }
             lastError = nil
         } catch {
+            if messages.isEmpty,
+               let cached = CoachChatDiskCache.loadMessages(conversationId: id) {
+                messages = cached.map(CoachDisplayMessage.fromServer)
+            }
             lastError = Self.userFacingError(error)
         }
+    }
+
+    /// Reload conversation list from server (and merge disk cache so kill/relaunch keeps history).
+    func refreshConversations() async {
+        do {
+            let list = try await api.listConversations()
+            conversations = CoachChatDiskCache.merge(server: list, cached: CoachChatDiskCache.loadConversations())
+            CoachChatDiskCache.saveConversations(conversations)
+            lastError = nil
+        } catch {
+            if conversations.isEmpty {
+                conversations = CoachChatDiskCache.loadConversations()
+            }
+            if conversations.isEmpty {
+                lastError = Self.userFacingError(error)
+            }
+        }
+    }
+
+    func selectConversation(_ id: String) async {
+        guard id != activeConversationId || messages.isEmpty else { return }
+        cancelInFlight()
+        partialAssistantText = ""
+        pendingRetry = nil
+        activeConversationId = id
+        CoachChatDiskCache.saveActiveId(id)
+
+        if let cached = CoachChatDiskCache.loadMessages(conversationId: id) {
+            messages = cached.map(CoachDisplayMessage.fromServer)
+        } else {
+            messages = []
+        }
+        await refreshMessages()
     }
 
     func startNewConversation() async {
@@ -117,7 +183,13 @@ final class CoachStore {
             messages = []
             partialAssistantText = ""
             lastError = nil
+            pendingRetry = nil
+            CoachChatDiskCache.saveActiveId(created.id)
+            CoachChatDiskCache.saveConversations(conversations)
+            CoachChatDiskCache.saveMessages([], conversationId: created.id)
         } catch {
+            // Offline / API down — still allow a fresh local thread; first send creates server-side.
+            beginLocalNewChat()
             lastError = Self.userFacingError(error)
         }
     }
@@ -273,6 +345,19 @@ final class CoachStore {
             }
             partialAssistantText = message.content
             activeConversationId = message.conversationId
+            upsertConversationId(message.conversationId)
+            // Refresh title from first user line when still generic.
+            if let idx = conversations.firstIndex(where: { $0.id == message.conversationId }),
+               conversations[idx].title == "AI Coach" || conversations[idx].title == "New chat",
+               let user = messages.last(where: { $0.role == .user }) {
+                let title = String(user.content.prefix(28))
+                if !title.isEmpty {
+                    conversations[idx].title = title
+                    conversations[idx].updatedAt = Date()
+                    CoachChatDiskCache.saveConversations(conversations)
+                }
+            }
+            persistMessagesToDisk()
         case .unknown:
             break
         }
@@ -718,6 +803,10 @@ final class CoachStore {
                 at: 0
             )
         }
+        activeConversationId = id
+        CoachChatDiskCache.saveActiveId(id)
+        CoachChatDiskCache.saveConversations(conversations)
+        persistMessagesToDisk()
     }
 
     private func upsertConversation(_ conversation: CoachConversation) {
@@ -726,6 +815,82 @@ final class CoachStore {
         } else {
             conversations.insert(conversation, at: 0)
         }
+        activeConversationId = conversation.id
+        CoachChatDiskCache.saveActiveId(conversation.id)
+        CoachChatDiskCache.saveConversations(conversations)
+        persistMessagesToDisk()
+    }
+
+    private func persistMessagesToDisk() {
+        guard let id = activeConversationId else { return }
+        let serverShaped: [CoachMessage] = messages.compactMap { display in
+            guard display.role != .system else { return nil }
+            return CoachMessage(
+                id: display.serverId ?? display.id,
+                conversationId: id,
+                role: display.role,
+                content: display.content,
+                modality: display.modality,
+                audioUrl: display.audioUrl,
+                imageUrl: display.imageUrl,
+                citations: display.citations,
+                createdAt: display.createdAt
+            )
+        }
+        CoachChatDiskCache.saveMessages(serverShaped, conversationId: id)
+    }
+}
+
+// MARK: - Disk cache (survive terminate; merge with server list)
+
+enum CoachChatDiskCache {
+    private static let conversationsKey = "tactech.coach.conversations.v1"
+    private static let activeIdKey = "tactech.coach.activeConversationId.v1"
+    private static func messagesKey(_ id: String) -> String { "tactech.coach.messages.v1.\(id)" }
+
+    private static var encoder: JSONEncoder { JSONEncoder.tactech }
+    private static var decoder: JSONDecoder { JSONDecoder.tactech }
+
+    static func saveConversations(_ items: [CoachConversation]) {
+        guard let data = try? encoder.encode(items) else { return }
+        UserDefaults.standard.set(data, forKey: conversationsKey)
+    }
+
+    static func loadConversations() -> [CoachConversation] {
+        guard let data = UserDefaults.standard.data(forKey: conversationsKey),
+              let items = try? decoder.decode([CoachConversation].self, from: data) else {
+            return []
+        }
+        return items.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    static func saveActiveId(_ id: String) {
+        UserDefaults.standard.set(id, forKey: activeIdKey)
+    }
+
+    static func loadActiveId() -> String? {
+        UserDefaults.standard.string(forKey: activeIdKey)
+    }
+
+    static func saveMessages(_ messages: [CoachMessage], conversationId: String) {
+        guard let data = try? encoder.encode(messages) else { return }
+        UserDefaults.standard.set(data, forKey: messagesKey(conversationId))
+    }
+
+    static func loadMessages(conversationId: String) -> [CoachMessage]? {
+        guard let data = UserDefaults.standard.data(forKey: messagesKey(conversationId)),
+              let items = try? decoder.decode([CoachMessage].self, from: data) else {
+            return nil
+        }
+        return items
+    }
+
+    /// Server wins on id collision; keep cached-only threads so history isn’t lost if API returns a short list.
+    static func merge(server: [CoachConversation], cached: [CoachConversation]) -> [CoachConversation] {
+        var byId: [String: CoachConversation] = [:]
+        for item in cached { byId[item.id] = item }
+        for item in server { byId[item.id] = item }
+        return byId.values.sorted { $0.updatedAt > $1.updatedAt }
     }
 }
 

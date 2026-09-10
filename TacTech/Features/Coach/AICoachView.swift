@@ -25,8 +25,6 @@ struct AICoachView: View {
     /// After first paint, allow soft scroll / insert motion — avoids open “whizz” through history.
     @State private var enableListMotion = false
     @State private var showChatsSheet = false
-    @State private var localSessions: [LocalAIChatSession] = []
-    @State private var activeSessionId = ""
     /// Coalesce scroll-to-bottom so streaming `partialAssistantText` can’t
     /// fire `onChange(of: String)` layout updates multiple times per frame.
     @State private var scrollBottomScheduled = false
@@ -63,23 +61,40 @@ struct AICoachView: View {
         }
         .background(Color.white)
         .task {
-            ensureLocalSessionSeed()
             await store.bootstrap()
             await MainActor.run {
-                persistActiveSession()
                 finishInitialScrollGate()
             }
         }
         .onDisappear {
-            persistActiveSession()
             store.onDisappear()
         }
         .sheet(isPresented: $showChatsSheet) {
             AIChatsSheet(
-                sessions: localSessions,
-                activeId: activeSessionId,
-                onSelect: { switchToSession($0) },
-                onNew: { startLocalNewChat() }
+                conversations: store.conversations,
+                activeId: store.activeConversationId ?? "",
+                onSelect: { id in
+                    Task {
+                        await store.selectConversation(id)
+                        await MainActor.run {
+                            enableListMotion = false
+                            userPinnedScroll = false
+                            showChatsSheet = false
+                            finishInitialScrollGate()
+                        }
+                    }
+                },
+                onNew: {
+                    Task {
+                        await store.startNewConversation()
+                        await MainActor.run {
+                            enableListMotion = false
+                            userPinnedScroll = false
+                            showChatsSheet = false
+                            finishInitialScrollGate()
+                        }
+                    }
+                }
             )
             .presentationDetents([.medium, .large])
         }
@@ -218,7 +233,7 @@ struct AICoachView: View {
             Spacer(minLength: 8)
 
             Button {
-                persistActiveSession()
+                Task { await store.refreshConversations() }
                 showChatsSheet = true
             } label: {
                 Image(systemName: "bubble.left.and.bubble.right")
@@ -232,7 +247,12 @@ struct AICoachView: View {
 
             Menu {
                 Button("New chat") {
-                    startLocalNewChat()
+                    Task {
+                        await store.startNewConversation()
+                        enableListMotion = false
+                        userPinnedScroll = false
+                        finishInitialScrollGate()
+                    }
                 }
                 Button("Sync memory") {
                     Task { await store.syncMemoryDebounced(force: true) }
@@ -478,7 +498,6 @@ struct AICoachView: View {
         draft = ""
         store.sendText(text)
         userPinnedScroll = false
-        persistActiveSession()
     }
 
     private func sendPendingImage(_ caption: String?) {
@@ -487,7 +506,6 @@ struct AICoachView: View {
         draft = ""
         store.sendImage(image, caption: caption)
         userPinnedScroll = false
-        persistActiveSession()
     }
 
     private func importLibrary(_ item: PhotosPickerItem?) async {
@@ -532,84 +550,12 @@ struct AICoachView: View {
             enableListMotion = true
         }
     }
-
-    private func ensureLocalSessionSeed() {
-        guard localSessions.isEmpty else { return }
-        let id = UUID().uuidString
-        localSessions = [
-            LocalAIChatSession(
-                id: id,
-                title: "Chat 1",
-                preview: "New conversation",
-                messages: [],
-                updatedAt: .now
-            )
-        ]
-        activeSessionId = id
-    }
-
-    private func persistActiveSession() {
-        guard let idx = localSessions.firstIndex(where: { $0.id == activeSessionId }) else { return }
-        localSessions[idx].messages = store.messages
-        localSessions[idx].updatedAt = .now
-        if let last = store.messages.last {
-            let clip = last.content.trimmingCharacters(in: .whitespacesAndNewlines)
-            localSessions[idx].preview = clip.isEmpty ? "Attachment" : String(clip.prefix(42))
-            if localSessions[idx].title.hasPrefix("Chat ") || localSessions[idx].title == "New chat" {
-                localSessions[idx].title = String(clip.prefix(28)).isEmpty
-                    ? localSessions[idx].title
-                    : String(clip.prefix(28))
-            }
-        }
-    }
-
-    private func startLocalNewChat() {
-        persistActiveSession()
-        let id = UUID().uuidString
-        let session = LocalAIChatSession(
-            id: id,
-            title: "New chat",
-            preview: "Empty conversation",
-            messages: [],
-            updatedAt: .now
-        )
-        localSessions.insert(session, at: 0)
-        activeSessionId = id
-        enableListMotion = false
-        store.beginLocalNewChat()
-        userPinnedScroll = false
-        showChatsSheet = false
-        finishInitialScrollGate()
-    }
-
-    private func switchToSession(_ id: String) {
-        guard id != activeSessionId else {
-            showChatsSheet = false
-            return
-        }
-        persistActiveSession()
-        activeSessionId = id
-        enableListMotion = false
-        let msgs = localSessions.first(where: { $0.id == id })?.messages ?? []
-        store.replaceMessagesLocally(msgs)
-        userPinnedScroll = false
-        showChatsSheet = false
-        finishInitialScrollGate()
-    }
 }
 
-// MARK: - Local multi-chat (UI only — backend later)
-
-private struct LocalAIChatSession: Identifiable, Hashable {
-    let id: String
-    var title: String
-    var preview: String
-    var messages: [CoachDisplayMessage]
-    var updatedAt: Date
-}
+// MARK: - Chats sheet (server + disk-backed list)
 
 private struct AIChatsSheet: View {
-    let sessions: [LocalAIChatSession]
+    let conversations: [CoachConversation]
     let activeId: String
     var onSelect: (String) -> Void
     var onNew: () -> Void
@@ -626,9 +572,14 @@ private struct AIChatsSheet: View {
                 }
 
                 Section("Your chats") {
-                    ForEach(sessions) { session in
+                    if conversations.isEmpty {
+                        Text("No chats yet — start a new one.")
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                    ForEach(conversations) { conversation in
                         Button {
-                            onSelect(session.id)
+                            onSelect(conversation.id)
                         } label: {
                             HStack(spacing: 12) {
                                 ZStack {
@@ -640,11 +591,11 @@ private struct AIChatsSheet: View {
                                 .frame(width: 40, height: 40)
 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text(session.title)
+                                    Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
                                         .font(TTFont.workSans(15, weight: .bold))
                                         .foregroundStyle(TTColor.ink)
                                         .lineLimit(1)
-                                    Text(session.preview)
+                                    Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
                                         .font(TTFont.caption(12))
                                         .foregroundStyle(TTColor.inkMuted)
                                         .lineLimit(1)
@@ -652,7 +603,7 @@ private struct AIChatsSheet: View {
 
                                 Spacer()
 
-                                if session.id == activeId {
+                                if conversation.id == activeId {
                                     Image(systemName: "checkmark.circle.fill")
                                         .foregroundStyle(TTColor.actionOrange)
                                 }

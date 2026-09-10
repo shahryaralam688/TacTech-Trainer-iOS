@@ -4,6 +4,18 @@ enum TrainerTab: Hashable {
     case dashboard, plans, trainees, profile
 }
 
+private struct TrainerTabRouterKey: EnvironmentKey {
+    static let defaultValue: (TrainerTab) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Switch the trainer root tab (Home / Plans / Trainees / Profile).
+    var selectTrainerTab: (TrainerTab) -> Void {
+        get { self[TrainerTabRouterKey.self] }
+        set { self[TrainerTabRouterKey.self] = newValue }
+    }
+}
+
 struct TrainerRootView: View {
     @State private var tab: TrainerTab = .dashboard
     @State private var mounted: Set<TrainerTab> = [.dashboard]
@@ -80,6 +92,7 @@ struct TrainerRootView: View {
                 .transition(.opacity)
             }
         }
+        .environment(\.selectTrainerTab, selectTab)
         .fullScreenCover(isPresented: $showAIChat) {
             TTAICoachChatOverlay(
                 isPresented: $showAIChat,
@@ -111,6 +124,15 @@ struct TrainerRootView: View {
         }
     }
 
+    private func selectTab(_ newTab: TrainerTab) {
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            tab = newTab
+            mounted.insert(newTab)
+        }
+    }
+
     private func openLiquidMenu() {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
             showLiquidMenu = true
@@ -125,8 +147,7 @@ struct TrainerRootView: View {
             showTraineeChat = true
         case "create":
             showCreatePlan = true
-            tab = .plans
-            mounted.insert(.plans)
+            selectTab(.plans)
         case "assign":
             showAssignSheet = true
         case "assignments":

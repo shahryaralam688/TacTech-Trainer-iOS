@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TrainerDashboardView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.selectTrainerTab) private var selectTrainerTab
     @State private var selectedDay = Date()
     @State private var showProfile = false
     @State private var copiedInvite = false
@@ -109,8 +110,8 @@ struct TrainerDashboardView: View {
                 Text("Today’s Queue")
                     .font(TTFont.headingSM(.bold))
                 Spacer()
-                NavigationLink {
-                    MyTraineesView()
+                Button {
+                    selectTrainerTab(.trainees)
                 } label: {
                     Text("See All")
                         .font(TTFont.textMD(.semibold))
@@ -192,8 +193,8 @@ struct TrainerDashboardView: View {
                 Text("Coaching Snapshot")
                     .font(TTFont.headingSM(.bold))
                 Spacer()
-                NavigationLink {
-                    MyTraineesView()
+                Button {
+                    selectTrainerTab(.trainees)
                 } label: {
                     Text("See All")
                         .font(TTFont.textMD(.semibold))
@@ -204,7 +205,9 @@ struct TrainerDashboardView: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
-                    NavigationLink { MyTraineesView() } label: {
+                    Button {
+                        selectTrainerTab(.trainees)
+                    } label: {
                         metricCard(
                             title: "Trainees",
                             value: "\(clients.count)",
@@ -223,7 +226,9 @@ struct TrainerDashboardView: View {
                         subtitle: selectedDay.formatted(.dateTime.weekday(.wide))
                     )
 
-                    NavigationLink { WorkoutPlansView() } label: {
+                    Button {
+                        selectTrainerTab(.plans)
+                    } label: {
                         metricCard(
                             title: "Plans",
                             value: "\(planCount)",
@@ -283,8 +288,8 @@ struct TrainerDashboardView: View {
                 Text("Roster")
                     .font(TTFont.headingSM(.bold))
                 Spacer()
-                NavigationLink {
-                    MyTraineesView()
+                Button {
+                    selectTrainerTab(.trainees)
                 } label: {
                     Text("Manage")
                         .font(TTFont.textMD(.semibold))
@@ -343,8 +348,8 @@ struct TrainerDashboardView: View {
                 .font(TTFont.headingSM(.bold))
 
             VStack(spacing: 10) {
-                NavigationLink {
-                    MyTraineesView()
+                Button {
+                    selectTrainerTab(.trainees)
                 } label: {
                     shortcutRow(
                         title: "Manage trainees",
@@ -354,8 +359,8 @@ struct TrainerDashboardView: View {
                 }
                 .buttonStyle(.plain)
 
-                NavigationLink {
-                    WorkoutPlansView()
+                Button {
+                    selectTrainerTab(.plans)
                 } label: {
                     shortcutRow(
                         title: "Assign plans",

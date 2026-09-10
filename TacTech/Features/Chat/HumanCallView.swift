@@ -173,22 +173,23 @@ struct HumanCallView: View {
     }
 }
 
-/// Presents call UI globally whenever `HumanCallStore` is not idle.
+/// Presents call UI globally as a ZStack overlay (not fullScreenCover) so it
+/// never fights chat / AI / camera sheets — SwiftUI only allows one sheet at a time.
 struct HumanCallOverlayHost: ViewModifier {
     @Bindable private var callStore = HumanCallStore.shared
 
     func body(content: Content) -> some View {
         content
-            .fullScreenCover(isPresented: Binding(
-                get: { callStore.phase != .idle },
-                set: { presented in
-                    if !presented, callStore.phase != .idle {
-                        callStore.endCall()
-                    }
+            .overlay {
+                if callStore.phase != .idle {
+                    HumanCallView()
+                        .transition(.opacity)
+                        .zIndex(10_000)
+                        // Block touches to whatever sheet/cover is underneath.
+                        .allowsHitTesting(true)
                 }
-            )) {
-                HumanCallView()
             }
+            .animation(.easeInOut(duration: 0.2), value: callStore.phase != .idle)
     }
 }
 

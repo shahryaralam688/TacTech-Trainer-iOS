@@ -67,6 +67,7 @@ struct AppRootView: View {
                 HumanCallStore.shared.startMonitoring()
             }
         }
+        // Must be overlay (not another fullScreenCover) — roots already present chat/AI covers.
         .humanCallOverlay()
     }
 

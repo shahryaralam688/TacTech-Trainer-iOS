@@ -116,7 +116,7 @@ struct TrainerRootView: View {
             PlanAssignmentsListSheet()
         }
         .fullScreenCover(isPresented: $showTraineeChat) {
-            TrainerTraineeChatView()
+            HumanPeerChatView(audience: .trainer)
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))

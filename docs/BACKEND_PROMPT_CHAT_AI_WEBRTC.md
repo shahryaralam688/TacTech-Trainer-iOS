@@ -482,9 +482,36 @@ ChatThread
 
 ChatMessage
   id, threadId, senderUserId, senderRole ("trainer"|"trainee"),
-  text?, attachmentUrl?, attachmentType? ("image"|"file"),
+  text?, attachmentUrl?, attachmentType? ("image"|"file"|"video"|"voice"),
+  durationSeconds? (voice/video),
   clientId? (idempotency), createdAt, readAt?
+
+Call / system messages (optional):
+  kind?: "text"|"attachment"|"call_event"
+  callOutcome?: string  // e.g. "Call · 02:14"
 ```
+
+### Attachments (extended)
+| Type | Max | Notes |
+|------|-----|--------|
+| image | 8MB | jpeg/png/heic |
+| video | 50MB | mp4/mov — form clips |
+| voice | 5MB / 60s | m4a AAC voice notes |
+| file | 15MB | generic docs (optional) |
+
+### Live video call (trainer↔trainee)
+Separate from AI `/coach/rtc/*`.
+
+```
+POST /chat/rtc/sessions
+  { "threadId": "t1" }
+→ { "sessionId", "signalingUrl", "iceServers": [...] }
+
+WebSocket signaling (same TURN/ICE pattern as coach RTC Phase 2):
+  offer / answer / ice-candidate / hangup / joined
+```
+
+iOS ships a video-call UI shell now; wire WebRTC media when this lands.
 
 ## REST API (new — iOS will adopt)
 
@@ -542,7 +569,9 @@ JSON:
 ```
 OR multipart:
 - `text` optional
-- `file` optional image
+- `file` optional (image / video / voice)
+- `attachmentType` optional (`image`|`video`|`voice`|`file`) — server may also sniff MIME
+- `durationSeconds` optional (voice/video)
 - `clientId` optional
 
 Response 201: full message.
@@ -550,7 +579,7 @@ Response 201: full message.
 Rules:
 - Trim empty text without file → 400
 - Max text 4000 chars
-- Image max 8MB
+- Image max 8MB; video max 50MB; voice max 5MB / 60s
 - Update thread preview + unread for peer
 - Emit realtime event to peer
 - Trigger push notification if peer not connected

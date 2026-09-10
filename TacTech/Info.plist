@@ -33,20 +33,12 @@
 			</dict>
 		</dict>
 	</dict>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>TacTech uses the microphone for vocal fitness assessment and AI Coach voice chat.</string>
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>TacTech uses your photos for profile pictures, meal estimates, and AI Coach form or progress analysis.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>TacTech uses the camera for profile photos, body assessment, live form correction, food scanning, and AI Coach photo coaching.</string>
-	<key>UILaunchScreen</key>
-	<dict/>
-	<key>UISupportedInterfaceOrientations</key>
-	<array>
-		<string>UIInterfaceOrientationPortrait</string>
-	</array>
-	<key>UIUserInterfaceStyle</key>
-	<string>Automatic</string>
+	<string>TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>TacTech uses your photos for profile pictures and to estimate nutrition from meals.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>WorkSans-Regular.ttf</string>
@@ -55,5 +47,13 @@
 		<string>WorkSans-Bold.ttf</string>
 		<string>WorkSans-ExtraBold.ttf</string>
 	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<key>UIUserInterfaceStyle</key>
+	<string>Automatic</string>
 </dict>
 </plist>

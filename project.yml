@@ -29,7 +29,7 @@ targets:
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSCameraUsageDescription: TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.
-        INFOPLIST_KEY_NSMicrophoneUsageDescription: TacTech uses the microphone for vocal fitness assessment.
+        INFOPLIST_KEY_NSMicrophoneUsageDescription: TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
@@ -41,7 +41,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSCameraUsageDescription: TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.
-        NSMicrophoneUsageDescription: TacTech uses the microphone for vocal fitness assessment.
+        NSMicrophoneUsageDescription: TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.
         NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         UIUserInterfaceStyle: Automatic
         UIAppFonts:

@@ -33,7 +33,7 @@ extension TTLiquidFABAction {
         TTLiquidFABAction(
             id: "traineeChat",
             title: "Trainee chat",
-            subtitle: "Message your athletes",
+            subtitle: "Message · media · video call",
             icon: .chat
         ),
         TTLiquidFABAction(
@@ -53,6 +53,23 @@ extension TTLiquidFABAction {
             title: "Plan assignments",
             subtitle: "Who has which plan",
             icon: .listThreeCheck
+        )
+    ]
+
+    /// Trainee center-tab quick actions.
+    static let traineeCenterMenu: [TTLiquidFABAction] = [
+        TTLiquidFABAction(
+            id: "ai",
+            title: "AI Assistant",
+            subtitle: "Form · nutrition · cues",
+            icon: .sparkle2,
+            highlighted: true
+        ),
+        TTLiquidFABAction(
+            id: "coachChat",
+            title: "Coach chat",
+            subtitle: "Message · media · video call",
+            icon: .chat
         )
     ]
 }

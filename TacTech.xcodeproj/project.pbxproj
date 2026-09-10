@@ -7,24 +7,31 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		T1R2A3I4N5E6E7C8H9A0T002 /* TrainerTraineeChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = T1R2A3I4N5E6E7C8H9A0T001 /* TrainerTraineeChatView.swift */; };
-		F8C1A2B3D4E5F6071890ABCE /* TTLiquidFABMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */; };
+		006385AC48339C20E0342D1E /* WorkSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9A35F24F2608809F390CF211 /* WorkSans-SemiBold.ttf */; };
 		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
+		0B280F9459012068E1CA0EAD /* HumanPeerChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */; };
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
 		0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */; };
 		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
+		100F62BE5C27D821140CE444 /* CoachCitationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B773A497F51A70D5BF3221E /* CoachCitationsSheet.swift */; };
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
 		18594AEEA468D728FACE4737 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A70DAFDFB21AC3A620021 /* SplashView.swift */; };
-		ED043D508F2D4F45BCAA81C6 /* PostLoginBridgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */; };
 		1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */; };
+		1D8036CB00F538055B65D014 /* HumanChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F19A98CF146A275C1793650 /* HumanChatModels.swift */; };
+		1EEE2B6B1D522E9336AE309A /* CoachComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92E9F1F2CD610257AAE63443 /* CoachComposerBar.swift */; };
 		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
 		29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73FE3D8BD9971500A55153A0 /* APIClient.swift */; };
+		2DEFDC1678A8D4A3365F11A7 /* WorkSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 97B3157EEEF1EA2D8D43A89B /* WorkSans-ExtraBold.ttf */; };
+		2F9A557F06268FF9C03E46D8 /* HumanChatComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEB8AB97E6DB93BF78B79419 /* HumanChatComposerBar.swift */; };
 		319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F487A7AA8D964BA49DD8EDB /* AppStore.swift */; };
+		319EDF5E2A33DD4870508238 /* CoachAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */; };
 		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
+		368A0A6900024F7BB3291049 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A51C57990D5BA2493E7D2C3 /* CoachVoiceCallView.swift */; };
 		3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */; };
 		3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */; };
 		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
+		424B30CABEBB5177F898CB85 /* WorkSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9889310798072EE632BD56E1 /* WorkSans-Medium.ttf */; };
 		490C69513D91ED6AC26EDB3B /* AccountSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */; };
 		49EC3A1501EF2F496437C2DE /* TrainerAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */; };
 		4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F1AE7E841FCF90D57066534 /* APIConfig.swift */; };
@@ -32,6 +39,7 @@
 		5234EC9D7EC18B34641A9A9D /* TrainerDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */; };
 		55D77098DF165235690581BC /* CreatePlanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */; };
 		572287442B3248F7E68E53A6 /* FitnessAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */; };
+		58112EA45E5DA8D11D19483E /* AICoachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CB698A985F8064FB468AFAB /* AICoachView.swift */; };
 		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
 		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
 		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
@@ -40,9 +48,12 @@
 		667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */; };
 		71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */; };
 		75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */; };
+		79927F023CAABCF10EC27A12 /* CoachModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B1C69AE7500BC877B555AA /* CoachModels.swift */; };
 		867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */; };
 		87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */; };
 		8A335C3C3770A10F96BF5BAE /* TrainerProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CE907B791C2450F8D414132 /* TrainerProfileView.swift */; };
+		8C8D1C8C3C6D364EBE21D254 /* HumanChatStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 313E5224E36B4E42DC90206F /* HumanChatStore.swift */; };
+		8D5754EEAC7D8E20C30E672A /* CoachStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5027E2E77E119E7AA2A1F865 /* CoachStore.swift */; };
 		8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95304A4367FC245D3A00DF7F /* TrainerRootView.swift */; };
 		90C3AADBAC6CC3E291EE1DD7 /* TTSearchOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */; };
 		90D61686645F7482E317416A /* TacTechApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 587AE07BF381E435AE227C43 /* TacTechApp.swift */; };
@@ -52,9 +63,12 @@
 		9A507D32FEC3EF5ACE97972F /* TraineeProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */; };
 		9A91A8F06B4748C47F67A326 /* HelpCenterViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */; };
 		A205CD2CCD673B15566C5E1C /* NotificationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */; };
+		A64A35551AA30A0252359CB2 /* TTAICoachChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */; };
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
+		ABC6168C36D83CF5F09250C0 /* CoachMessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97F31457C9C15FC0721DA2D /* CoachMessageBubble.swift */; };
 		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
+		B38DBEA30370C9839249DB9A /* HumanCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CFDC711456575E4EA577B3 /* HumanCallView.swift */; };
 		B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */; };
 		BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BDE487A7E93D38999DE7C9F /* TTTheme.swift */; };
 		C50EEBB747698D4D09A05DDC /* TrainerProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0174D61D79D430362B65F837 /* TrainerProgressView.swift */; };
@@ -65,40 +79,27 @@
 		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
 		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
 		E94FD396B29C5C62C29E7400 /* AboutUsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */; };
+		E9C0FA42C39A5885DFB8289A /* TTLiquidFABMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 658862059D48AE92E7BE11F8 /* TTLiquidFABMenu.swift */; };
+		EA7132C3D9EAC206CA1B4DE3 /* PostLoginBridgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EAE572E154B70853178C11F /* PostLoginBridgeView.swift */; };
 		F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */; };
 		F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */; };
-		B7E4A91C2F8D4E01A1C0A002 /* TTAICoachChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7E4A91C2F8D4E01A1C0A001 /* TTAICoachChat.swift */; };
+		F7E68ED4E04ACA293025460B /* HumanChatBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = C444537605D1609043AAB75E /* HumanChatBubble.swift */; };
 		FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */; };
 		FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */; };
-		C0ACH001MODELSWIFT02 /* CoachModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH001MODELSWIFT01 /* CoachModels.swift */; };
-		C0ACH002COACHAPI002 /* CoachAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH002COACHAPI001 /* CoachAPI.swift */; };
-		C0ACH003COACHSTORE02 /* CoachStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH003COACHSTORE01 /* CoachStore.swift */; };
-		C0ACH004AICOACHVW02 /* AICoachView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH004AICOACHVW01 /* AICoachView.swift */; };
-		C0ACH005MSGBUBBLE02 /* CoachMessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */; };
-		C0ACH006COMPOSERB02 /* CoachComposerBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH006COMPOSERB01 /* CoachComposerBar.swift */; };
-		C0ACH007CITATIONS02 /* CoachCitationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */; };
-		C0ACH008VOICECALL02 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */; };
-		C0FONT01MEDIUMBLD001 /* WorkSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */; };
-		C0FONT02SEMIBLDFILE1 /* WorkSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */; };
-		C0FONT03EXTRABLDFILE /* WorkSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		T1R2A3I4N5E6E7C8H9A0T001 /* TrainerTraineeChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerTraineeChatView.swift; sourceTree = "<group>"; };
-		F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTLiquidFABMenu.swift; sourceTree = "<group>"; };
 		0174D61D79D430362B65F837 /* TrainerProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProgressView.swift; sourceTree = "<group>"; };
 		01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PersonalInformationSettingsView.swift; sourceTree = "<group>"; };
 		0404164478DA064625F44D7D /* MyTraineesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyTraineesView.swift; sourceTree = "<group>"; };
 		05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileCompletionFlowView.swift; sourceTree = "<group>"; };
-		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		0ED25703147A11C67180D88E /* TacTech.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = TacTech.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchCatalogs.swift; sourceTree = "<group>"; };
 		135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessment.swift; sourceTree = "<group>"; };
 		179A188E828A8873F4505090 /* SeedData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeedData.swift; sourceTree = "<group>"; };
 		18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Variable.ttf"; sourceTree = "<group>"; };
 		198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTabBar.swift; sourceTree = "<group>"; };
-		B7E4A91C2F8D4E01A1C0A001 /* TTAICoachChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAICoachChat.swift; sourceTree = "<group>"; };
 		1B9A70DAFDFB21AC3A620021 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
-		B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLoginBridgeView.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		1FD00EDF8EF45C0DEAD848FD /* TTSearchCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchCore.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
@@ -108,6 +109,8 @@
 		278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenterViews.swift; sourceTree = "<group>"; };
 		2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerDashboardView.swift; sourceTree = "<group>"; };
 		2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecuritySettingsView.swift; sourceTree = "<group>"; };
+		313E5224E36B4E42DC90206F /* HumanChatStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatStore.swift; sourceTree = "<group>"; };
+		3A51C57990D5BA2493E7D2C3 /* CoachVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachVoiceCallView.swift; sourceTree = "<group>"; };
 		3D734AAF44C48AB952E5505C /* FitnessAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FitnessAssessmentFlowView.swift; sourceTree = "<group>"; };
 		3F487A7AA8D964BA49DD8EDB /* AppStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppStore.swift; sourceTree = "<group>"; };
 		4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeOnboardingView.swift; sourceTree = "<group>"; };
@@ -117,65 +120,59 @@
 		4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageSettingsView.swift; sourceTree = "<group>"; };
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
+		5027E2E77E119E7AA2A1F865 /* CoachStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachStore.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitFeedbackView.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
 		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		658862059D48AE92E7BE11F8 /* TTLiquidFABMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTLiquidFABMenu.swift; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
+		67B1C69AE7500BC877B555AA /* CoachModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachModels.swift; sourceTree = "<group>"; };
 		699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExerciseTemplatePickerView.swift; sourceTree = "<group>"; };
+		6CB698A985F8064FB468AFAB /* AICoachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICoachView.swift; sourceTree = "<group>"; };
+		6F19A98CF146A275C1793650 /* HumanChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatModels.swift; sourceTree = "<group>"; };
 		73FE3D8BD9971500A55153A0 /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerAssessmentFlowView.swift; sourceTree = "<group>"; };
+		7B773A497F51A70D5BF3221E /* CoachCitationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCitationsSheet.swift; sourceTree = "<group>"; };
 		7BDE487A7E93D38999DE7C9F /* TTTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTheme.swift; sourceTree = "<group>"; };
 		89CD7D2571D7A03D718A7699 /* AuthScreens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreens.swift; sourceTree = "<group>"; };
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
+		92E9F1F2CD610257AAE63443 /* CoachComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachComposerBar.swift; sourceTree = "<group>"; };
 		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
+		97B3157EEEF1EA2D8D43A89B /* WorkSans-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-ExtraBold.ttf"; sourceTree = "<group>"; };
+		9889310798072EE632BD56E1 /* WorkSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Medium.ttf"; sourceTree = "<group>"; };
+		9A35F24F2608809F390CF211 /* WorkSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-SemiBold.ttf"; sourceTree = "<group>"; };
 		9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport.swift; sourceTree = "<group>"; };
 		9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDetailView.swift; sourceTree = "<group>"; };
+		9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAICoachChat.swift; sourceTree = "<group>"; };
+		9EAE572E154B70853178C11F /* PostLoginBridgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLoginBridgeView.swift; sourceTree = "<group>"; };
 		9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Bold.ttf"; sourceTree = "<group>"; };
 		AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationSettingsView.swift; sourceTree = "<group>"; };
 		AAB7964EB22013EAAC510923 /* FoodRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodRecognizer.swift; sourceTree = "<group>"; };
 		AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoodScannerView.swift; sourceTree = "<group>"; };
+		AEB8AB97E6DB93BF78B79419 /* HumanChatComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatComposerBar.swift; sourceTree = "<group>"; };
+		B3CFDC711456575E4EA577B3 /* HumanCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanCallView.swift; sourceTree = "<group>"; };
 		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
+		C444537605D1609043AAB75E /* HumanChatBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatBubble.swift; sourceTree = "<group>"; };
 		C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchOverlay.swift; sourceTree = "<group>"; };
 		C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Regular.ttf"; sourceTree = "<group>"; };
 		C98F6EE292BA04AF2A1CB231 /* PoseAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PoseAnalyzer.swift; sourceTree = "<group>"; };
 		D0E7B31ACC360641D9625359 /* SandowIcons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SandowIcons.swift; sourceTree = "<group>"; };
+		D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAPI.swift; sourceTree = "<group>"; };
+		D97F31457C9C15FC0721DA2D /* CoachMessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMessageBubble.swift; sourceTree = "<group>"; };
 		DF1D3D88CBBC904995027746 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NutritionViews.swift; sourceTree = "<group>"; };
 		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
 		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
 		EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutUsView.swift; sourceTree = "<group>"; };
+		F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanPeerChatView.swift; sourceTree = "<group>"; };
 		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
-		C0ACH001MODELSWIFT01 /* CoachModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachModels.swift; sourceTree = "<group>"; };
-		C0ACH002COACHAPI001 /* CoachAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachAPI.swift; sourceTree = "<group>"; };
-		C0ACH003COACHSTORE01 /* CoachStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachStore.swift; sourceTree = "<group>"; };
-		C0ACH004AICOACHVW01 /* AICoachView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AICoachView.swift; sourceTree = "<group>"; };
-		C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachMessageBubble.swift; sourceTree = "<group>"; };
-		C0ACH006COMPOSERB01 /* CoachComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachComposerBar.swift; sourceTree = "<group>"; };
-		C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachCitationsSheet.swift; sourceTree = "<group>"; };
-		C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachVoiceCallView.swift; sourceTree = "<group>"; };
-		C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Medium.ttf"; sourceTree = "<group>"; };
-		C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-SemiBold.ttf"; sourceTree = "<group>"; };
-		C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-ExtraBold.ttf"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
-		C0ACH009COACHGRP001 /* Coach */ = {
-			isa = PBXGroup;
-			children = (
-				C0ACH004AICOACHVW01 /* AICoachView.swift */,
-				C0ACH005MSGBUBBLE01 /* CoachMessageBubble.swift */,
-				C0ACH006COMPOSERB01 /* CoachComposerBar.swift */,
-				C0ACH007CITATIONS01 /* CoachCitationsSheet.swift */,
-				C0ACH008VOICECALL01 /* CoachVoiceCallView.swift */,
-			);
-			path = Coach;
-			sourceTree = "<group>";
-		};
-
 		038473BFC514A3ACFC1BE220 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -188,10 +185,10 @@
 			isa = PBXGroup;
 			children = (
 				9FF19DD39E22CB5215AC755E /* WorkSans-Bold.ttf */,
+				97B3157EEEF1EA2D8D43A89B /* WorkSans-ExtraBold.ttf */,
+				9889310798072EE632BD56E1 /* WorkSans-Medium.ttf */,
 				C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */,
-				C0FONT01MEDIUMREF001 /* WorkSans-Medium.ttf */,
-				C0FONT02SEMIBLDREF01 /* WorkSans-SemiBold.ttf */,
-				C0FONT03EXTRABLDREF1 /* WorkSans-ExtraBold.ttf */,
+				9A35F24F2608809F390CF211 /* WorkSans-SemiBold.ttf */,
 				18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */,
 			);
 			path = Fonts;
@@ -201,29 +198,42 @@
 			isa = PBXGroup;
 			children = (
 				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
+				9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */,
 				63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
-				F8C1A2B3D4E5F6071890ABCD /* TTLiquidFABMenu.swift */,
+				658862059D48AE92E7BE11F8 /* TTLiquidFABMenu.swift */,
 				263477F1D52EA623D59CA93C /* TTProfileScreen.swift */,
 				0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */,
 				1FD00EDF8EF45C0DEAD848FD /* TTSearchCore.swift */,
 				C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */,
 				198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */,
-				B7E4A91C2F8D4E01A1C0A001 /* TTAICoachChat.swift */,
 				7BDE487A7E93D38999DE7C9F /* TTTheme.swift */,
 			);
 			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		523FADC0168D3529B791E44B /* Coach */ = {
+			isa = PBXGroup;
+			children = (
+				6CB698A985F8064FB468AFAB /* AICoachView.swift */,
+				7B773A497F51A70D5BF3221E /* CoachCitationsSheet.swift */,
+				92E9F1F2CD610257AAE63443 /* CoachComposerBar.swift */,
+				D97F31457C9C15FC0721DA2D /* CoachMessageBubble.swift */,
+				3A51C57990D5BA2493E7D2C3 /* CoachVoiceCallView.swift */,
+			);
+			path = Coach;
 			sourceTree = "<group>";
 		};
 		76F9161D16057FCF6BDE6856 /* Data */ = {
 			isa = PBXGroup;
 			children = (
 				73FE3D8BD9971500A55153A0 /* APIClient.swift */,
-				C0ACH002COACHAPI001 /* CoachAPI.swift */,
-				C0ACH003COACHSTORE01 /* CoachStore.swift */,
 				4F1AE7E841FCF90D57066534 /* APIConfig.swift */,
 				3F487A7AA8D964BA49DD8EDB /* AppStore.swift */,
+				D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */,
+				5027E2E77E119E7AA2A1F865 /* CoachStore.swift */,
+				313E5224E36B4E42DC90206F /* HumanChatStore.swift */,
 				179A188E828A8873F4505090 /* SeedData.swift */,
 			);
 			path = Data;
@@ -283,8 +293,9 @@
 		A1B0FFD5E9FB389C2071F3FD /* Features */ = {
 			isa = PBXGroup;
 			children = (
-				C0ACH009COACHGRP001 /* Coach */,
 				E5531C3C532CF30EC9303934 /* Authentication */,
+				B5CBBE0AF59279F2AD6C666F /* Chat */,
+				523FADC0168D3529B791E44B /* Coach */,
 				87BB1621256BE6F8852AAD3F /* Trainee */,
 				D6590ACEA3AE5DCB37129869 /* Trainer */,
 			);
@@ -300,6 +311,17 @@
 			path = Resources;
 			sourceTree = "<group>";
 		};
+		B5CBBE0AF59279F2AD6C666F /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				B3CFDC711456575E4EA577B3 /* HumanCallView.swift */,
+				C444537605D1609043AAB75E /* HumanChatBubble.swift */,
+				AEB8AB97E6DB93BF78B79419 /* HumanChatComposerBar.swift */,
+				F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */,
+			);
+			path = Chat;
+			sourceTree = "<group>";
+		};
 		CE8C5D3950B9C2765A6DCFF9 /* Preview */ = {
 			isa = PBXGroup;
 			children = (
@@ -311,8 +333,9 @@
 		D4625652EBF91AE0A8825CE0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				C0ACH001MODELSWIFT01 /* CoachModels.swift */,
+				67B1C69AE7500BC877B555AA /* CoachModels.swift */,
 				4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */,
+				6F19A98CF146A275C1793650 /* HumanChatModels.swift */,
 				DF1D3D88CBBC904995027746 /* Models.swift */,
 				135C525DA69BDD5BA63661EB /* TrainerAssessment.swift */,
 			);
@@ -325,7 +348,6 @@
 				24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */,
 				699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */,
 				0404164478DA064625F44D7D /* MyTraineesView.swift */,
-				T1R2A3I4N5E6E7C8H9A0T001 /* TrainerTraineeChatView.swift */,
 				9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */,
 				7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */,
 				2ACB84464BEB7700CD1C3A8B /* TrainerDashboardView.swift */,
@@ -348,10 +370,10 @@
 				4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */,
 				AA20E4BD54DC33A57CCB94EA /* NotificationSettingsView.swift */,
 				01ECFC8485C4F0DEF419FADF /* PersonalInformationSettingsView.swift */,
+				9EAE572E154B70853178C11F /* PostLoginBridgeView.swift */,
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
 				2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */,
 				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
-				B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */,
 				5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
@@ -402,7 +424,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 2640;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					9DF553A43CA27081C301A067 = {
 						ProvisioningStyle = Automatic;
@@ -435,11 +457,11 @@
 			files = (
 				A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */,
 				0F47E98FA42C984E981BFDD7 /* WorkSans-Bold.ttf in Resources */,
+				2DEFDC1678A8D4A3365F11A7 /* WorkSans-ExtraBold.ttf in Resources */,
+				424B30CABEBB5177F898CB85 /* WorkSans-Medium.ttf in Resources */,
 				3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */,
+				006385AC48339C20E0342D1E /* WorkSans-SemiBold.ttf in Resources */,
 				1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */,
-				C0FONT03EXTRABLDFILE /* WorkSans-ExtraBold.ttf in Resources */,
-				C0FONT02SEMIBLDFILE1 /* WorkSans-SemiBold.ttf in Resources */,
-				C0FONT01MEDIUMBLD001 /* WorkSans-Medium.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -450,6 +472,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				58112EA45E5DA8D11D19483E /* AICoachView.swift in Sources */,
 				29293B1BECB922B1B7E4C62F /* APIClient.swift in Sources */,
 				4A902283909ED98ABDBF37FD /* APIConfig.swift in Sources */,
 				E94FD396B29C5C62C29E7400 /* AboutUsView.swift in Sources */,
@@ -458,6 +481,13 @@
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
 				C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */,
+				319EDF5E2A33DD4870508238 /* CoachAPI.swift in Sources */,
+				100F62BE5C27D821140CE444 /* CoachCitationsSheet.swift in Sources */,
+				1EEE2B6B1D522E9336AE309A /* CoachComposerBar.swift in Sources */,
+				ABC6168C36D83CF5F09250C0 /* CoachMessageBubble.swift in Sources */,
+				79927F023CAABCF10EC27A12 /* CoachModels.swift in Sources */,
+				8D5754EEAC7D8E20C30E672A /* CoachStore.swift in Sources */,
+				368A0A6900024F7BB3291049 /* CoachVoiceCallView.swift in Sources */,
 				55D77098DF165235690581BC /* CreatePlanView.swift in Sources */,
 				667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */,
 				DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */,
@@ -466,41 +496,38 @@
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
 				9A91A8F06B4748C47F67A326 /* HelpCenterViews.swift in Sources */,
+				B38DBEA30370C9839249DB9A /* HumanCallView.swift in Sources */,
+				F7E68ED4E04ACA293025460B /* HumanChatBubble.swift in Sources */,
+				2F9A557F06268FF9C03E46D8 /* HumanChatComposerBar.swift in Sources */,
+				1D8036CB00F538055B65D014 /* HumanChatModels.swift in Sources */,
+				8C8D1C8C3C6D364EBE21D254 /* HumanChatStore.swift in Sources */,
+				0B280F9459012068E1CA0EAD /* HumanPeerChatView.swift in Sources */,
 				3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,
 				08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */,
-				T1R2A3I4N5E6E7C8H9A0T002 /* TrainerTraineeChatView.swift in Sources */,
 				A205CD2CCD673B15566C5E1C /* NotificationSettingsView.swift in Sources */,
 				11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */,
 				B7F3A18263EFDA9898BA2EE6 /* PersonalInformationSettingsView.swift in Sources */,
 				FFA3BAF4E9F3006E65840E9A /* PoseAnalyzer.swift in Sources */,
+				EA7132C3D9EAC206CA1B4DE3 /* PostLoginBridgeView.swift in Sources */,
 				75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */,
 				DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */,
 				416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */,
 				91E75FD194F5C532A243D440 /* SecuritySettingsView.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
-				ED043D508F2D4F45BCAA81C6 /* PostLoginBridgeView.swift in Sources */,
 				71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */,
+				A64A35551AA30A0252359CB2 /* TTAICoachChat.swift in Sources */,
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
-				F8C1A2B3D4E5F6071890ABCE /* TTLiquidFABMenu.swift in Sources */,
+				E9C0FA42C39A5885DFB8289A /* TTLiquidFABMenu.swift in Sources */,
 				96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */,
 				FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */,
 				4B4456229E8BA0159B4D0740 /* TTSearchCore.swift in Sources */,
 				90C3AADBAC6CC3E291EE1DD7 /* TTSearchOverlay.swift in Sources */,
 				F7CEFFCB71383795BA573B98 /* TTTabBar.swift in Sources */,
-				B7E4A91C2F8D4E01A1C0A002 /* TTAICoachChat.swift in Sources */,
-				C0ACH001MODELSWIFT02 /* CoachModels.swift in Sources */,
-				C0ACH002COACHAPI002 /* CoachAPI.swift in Sources */,
-				C0ACH003COACHSTORE02 /* CoachStore.swift in Sources */,
-				C0ACH004AICOACHVW02 /* AICoachView.swift in Sources */,
-				C0ACH005MSGBUBBLE02 /* CoachMessageBubble.swift in Sources */,
-				C0ACH006COMPOSERB02 /* CoachComposerBar.swift in Sources */,
-				C0ACH007CITATIONS02 /* CoachCitationsSheet.swift in Sources */,
-				C0ACH008VOICECALL02 /* CoachVoiceCallView.swift in Sources */,
 				BA235065FFD4C8A81AE9B126 /* TTTheme.swift in Sources */,
 				90D61686645F7482E317416A /* TacTechApp.swift in Sources */,
 				87B8758A0DA651F894FF1E65 /* TraineeDashboardView.swift in Sources */,
@@ -527,10 +554,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -558,12 +584,10 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
 				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
@@ -572,7 +596,6 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -587,10 +610,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
 				CLANG_ANALYZER_NONNULL = YES;
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
 				CLANG_CXX_LIBRARY = "libc++";
 				CLANG_ENABLE_MODULES = YES;
 				CLANG_ENABLE_OBJC_ARC = YES;
@@ -618,12 +640,10 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -638,13 +658,12 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -657,12 +676,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
 				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos for profile pictures and to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
@@ -686,12 +704,11 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
 				INFOPLIST_KEY_NSCameraUsageDescription = "TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.";
-				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for vocal fitness assessment.";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "TacTech uses your photos for profile pictures and to estimate nutrition from meals.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;

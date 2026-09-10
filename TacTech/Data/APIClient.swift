@@ -34,6 +34,9 @@ struct MeResponse: Decodable {
     var email: String?
     var role: UserRole?
     var createdAt: Date?
+    /// Optional — when backend sends this, returning users skip assessment on new devices.
+    var assessmentCompleted: Bool?
+    var onboardingCompleted: Bool?
 
     var resolvedUser: APIUser? {
         if let user { return user }

@@ -23,6 +23,8 @@ final class AppStore {
     var isRestoringSession = true
     var assessmentCompleted = false
     var profileSetupCompleted = false
+    /// Set after interactive login/signup so AppRoot can show the post-login bridge once.
+    var pendingPostLoginBridge = false
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
     private var macrosByKey: [String: MacroEstimate] = [:]
@@ -76,6 +78,7 @@ final class AppStore {
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
+        pendingPostLoginBridge = true
         scheduleCoachMemorySync()
     }
 
@@ -96,6 +99,7 @@ final class AppStore {
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
+        pendingPostLoginBridge = true
         scheduleCoachMemorySync()
     }
 
@@ -214,9 +218,47 @@ final class AppStore {
             profileSetupCompleted = false
             return
         }
-        // Both trainer and trainee must complete their role-specific assessment once.
-        assessmentCompleted = UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)")
+        // Local completion flag (primary).
+        var completed = UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)")
+
+        // Returning user on a fresh install: local payload still counts as done.
+        if !completed {
+            let hasTraineePayload = UserDefaults.standard.data(forKey: "assessment.payload.\(userId)") != nil
+            let hasTrainerPayload = UserDefaults.standard.data(forKey: "trainer.assessment.payload.\(userId)") != nil
+            completed = hasTraineePayload || hasTrainerPayload
+        }
+
+        // Heuristic from server profile — already coached / trained before.
+        if !completed {
+            switch session?.role {
+            case .trainee:
+                if let trainee = currentTrainee {
+                    let hasGoal = !trainee.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let hasBody = trainee.weightKg > 0 || trainee.heightCm > 0
+                    completed = hasGoal && hasBody
+                }
+            case .trainer:
+                if let trainer = currentTrainer {
+                    let hasSpecialty = !trainer.specialty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    let hasExp = trainer.yearsExperience > 0
+                    let hasBio = !trainer.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    completed = hasSpecialty || hasExp || hasBio
+                }
+            case .none:
+                break
+            }
+        }
+
+        if completed, !UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)") {
+            UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
+        }
+
+        assessmentCompleted = completed
         profileSetupCompleted = UserDefaults.standard.bool(forKey: "profile.setup.completed.\(userId)")
+    }
+
+    func consumePostLoginBridge() {
+        pendingPostLoginBridge = false
     }
 
     private func composedTrainerBio(_ draft: TrainerAssessment) -> String {
@@ -588,6 +630,11 @@ final class AppStore {
             }
             if let trainer = me.trainer { upsert(trainer) }
             if let trainee = me.trainee { upsert(trainee) }
+            // Server onboarding flags — persist so assessment isn’t forced again.
+            if me.assessmentCompleted == true || me.onboardingCompleted == true,
+               let userId = session?.userId {
+                UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
+            }
         } catch {
             if session == nil { throw error }
         }
@@ -778,6 +825,7 @@ final class AppStore {
     private func clearLocalSession() {
         TokenStore.clear()
         session = nil
+        pendingPostLoginBridge = false
         users = []
         trainers = []
         trainees = []

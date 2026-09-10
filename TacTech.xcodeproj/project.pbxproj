@@ -15,6 +15,7 @@
 		0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF1D3D88CBBC904995027746 /* Models.swift */; };
 		11881536D83574CBF807AB5D /* NutritionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */; };
 		18594AEEA468D728FACE4737 /* SplashView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A70DAFDFB21AC3A620021 /* SplashView.swift */; };
+		ED043D508F2D4F45BCAA81C6 /* PostLoginBridgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */; };
 		1AA32BB7BDB8C1062EBC8020 /* WorkSans-Variable.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 18598EFA2D353DB4B895350F /* WorkSans-Variable.ttf */; };
 		25582115295CF16CFF7BBF39 /* TraineeRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */; };
 		2903A623A7F8D723E0C3BC65 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */; };
@@ -97,6 +98,7 @@
 		198DF04DE72BEB6EC0BA89C0 /* TTTabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTTabBar.swift; sourceTree = "<group>"; };
 		B7E4A91C2F8D4E01A1C0A001 /* TTAICoachChat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAICoachChat.swift; sourceTree = "<group>"; };
 		1B9A70DAFDFB21AC3A620021 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
+		B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PostLoginBridgeView.swift; sourceTree = "<group>"; };
 		1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveFormCorrectionView.swift; sourceTree = "<group>"; };
 		1FD00EDF8EF45C0DEAD848FD /* TTSearchCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchCore.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
@@ -349,6 +351,7 @@
 				05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */,
 				2C7718766EE993C0AE4FC3E9 /* SecuritySettingsView.swift */,
 				1B9A70DAFDFB21AC3A620021 /* SplashView.swift */,
+				B61F76278F1A48E79F3B0452 /* PostLoginBridgeView.swift */,
 				5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */,
 				4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */,
 			);
@@ -478,6 +481,7 @@
 				91E75FD194F5C532A243D440 /* SecuritySettingsView.swift in Sources */,
 				617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */,
 				18594AEEA468D728FACE4737 /* SplashView.swift in Sources */,
+				ED043D508F2D4F45BCAA81C6 /* PostLoginBridgeView.swift in Sources */,
 				71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */,
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,

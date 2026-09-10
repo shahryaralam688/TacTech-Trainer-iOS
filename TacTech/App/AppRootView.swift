@@ -3,20 +3,38 @@ import SwiftUI
 struct AppRootView: View {
     @Environment(AppStore.self) private var store
     @State private var splashElapsed = false
+    @State private var postLoginBridgeDone = false
 
     private var showsSplash: Bool {
         !splashElapsed || store.isRestoringSession
+    }
+
+    private var showsPostLoginBridge: Bool {
+        store.session != nil
+            && store.pendingPostLoginBridge
+            && !postLoginBridgeDone
+            && !showsSplash
     }
 
     var body: some View {
         ZStack {
             Group {
                 if let session = store.session {
-                    switch session.role {
-                    case .trainer:
-                        trainerDestination
-                    case .trainee:
-                        traineeDestination
+                    if showsPostLoginBridge {
+                        PostLoginBridgeView(
+                            mode: store.assessmentCompleted ? .welcomeBack : .firstSetup,
+                            name: store.currentUser?.name ?? "",
+                            role: session.role,
+                            onFinished: finishPostLoginBridge
+                        )
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    } else {
+                        switch session.role {
+                        case .trainer:
+                            trainerDestination
+                        case .trainee:
+                            traineeDestination
+                        }
                     }
                 } else if !store.isRestoringSession {
                     AuthFlowView()
@@ -30,11 +48,25 @@ struct AppRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.45), value: showsSplash)
+        .animation(.spring(response: 0.48, dampingFraction: 0.88), value: showsPostLoginBridge)
         .animation(.easeInOut(duration: 0.25), value: store.session?.userId)
         .animation(.easeInOut(duration: 0.25), value: store.assessmentCompleted)
+        .onChange(of: store.session?.userId) { _, newId in
+            // New account session → allow bridge again for that login.
+            if newId == nil {
+                postLoginBridgeDone = false
+            }
+        }
         .task {
             try? await Task.sleep(for: .milliseconds(1400))
             splashElapsed = true
+        }
+    }
+
+    private func finishPostLoginBridge() {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
+            postLoginBridgeDone = true
+            store.consumePostLoginBridge()
         }
     }
 

@@ -464,7 +464,7 @@ final class CoachStore {
                     self.messages.append(CoachDisplayMessage.fromServer(response.userMessage))
                 }
 
-                var assistant = CoachDisplayMessage.fromServer(response.assistantMessage)
+                let assistant = CoachDisplayMessage.fromServer(response.assistantMessage)
                 self.messages.append(assistant)
                 self.haptic()
                 _ = displayCaption
@@ -490,7 +490,7 @@ final class CoachStore {
         guard canSend, !isRecording else { return }
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
             try session.setActive(true)
             let url = FileManager.default.temporaryDirectory
                 .appendingPathComponent("coach-voice-\(UUID().uuidString).m4a")

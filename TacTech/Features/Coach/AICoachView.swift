@@ -351,7 +351,8 @@ struct AICoachView: View {
             }
             .buttonStyle(.plain)
         }
-        .frame(width: width, maxHeight: .infinity, alignment: .top)
+        .frame(width: width)
+        .frame(maxHeight: .infinity, alignment: .top)
         .background(Color(white: 0.97).ignoresSafeArea())
         .overlay(alignment: .trailing) {
             Rectangle()

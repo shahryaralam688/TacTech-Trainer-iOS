@@ -19,7 +19,6 @@ struct HumanPeerChatView: View {
     @State private var showLibrary = false
     @State private var cameraImage: UIImage?
     @State private var composerFocused = false
-    @State private var showCall = false
     @State private var fullscreenImage: UIImage?
     @State private var videoPlayerURL: URL?
     @State private var enableListMotion = false
@@ -85,6 +84,9 @@ struct HumanPeerChatView: View {
             enableListMotion = true
         }
         .onDisappear {
+            chatStore.closeThread()
+            // Keep Socket connected only while chat is open for messages;
+            // call ringing uses HumanCallStore's own socket (app-wide).
             chatStore.teardown()
         }
         .onChange(of: libraryItem) { _, item in
@@ -109,13 +111,6 @@ struct HumanPeerChatView: View {
         .sheet(isPresented: $showCamera) {
             CameraImagePicker(image: $cameraImage)
                 .ignoresSafeArea()
-        }
-        .fullScreenCover(isPresented: $showCall) {
-            if let peer = selectedPeer {
-                HumanCallView(peerName: peer.name, isPresented: $showCall) { outcome in
-                    chatStore.recordCallEvent(peerId: peer.id, outcome: outcome)
-                }
-            }
         }
         .fullScreenCover(isPresented: Binding(
             get: { fullscreenImage != nil },
@@ -286,7 +281,7 @@ struct HumanPeerChatView: View {
                     Button {
                         composerFocused = false
                         TTKeyboard.dismiss()
-                        showCall = true
+                        Task { await startCall(with: peer) }
                     } label: {
                         Image(systemName: "video.fill")
                             .font(.system(size: 15, weight: .semibold))
@@ -366,7 +361,7 @@ struct HumanPeerChatView: View {
                 onCall: {
                     composerFocused = false
                     TTKeyboard.dismiss()
-                    showCall = true
+                    Task { await startCall(with: peer) }
                 },
                 onStopVoice: {
                     chatStore.stopAndSendVoice(to: peer.id)
@@ -455,6 +450,19 @@ struct HumanPeerChatView: View {
     }
 
     // MARK: - Helpers
+
+    private func startCall(with peer: HumanChatPeer) async {
+        do {
+            let threadId = try await chatStore.ensureThreadId(peerUserId: peer.id)
+            await HumanCallStore.shared.startOutgoing(
+                peerUserId: peer.id,
+                peerName: peer.name,
+                threadId: threadId
+            )
+        } catch {
+            chatStore.lastError = (error as? AppError)?.errorDescription ?? error.localizedDescription
+        }
+    }
 
     private func draftBinding(for peerId: String) -> Binding<String> {
         Binding(

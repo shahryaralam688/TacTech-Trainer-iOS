@@ -48,6 +48,7 @@
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
 		667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */; };
+		6B044B87606CA988F46503B5 /* HumanCallStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F68D8C43041780C78A7B7810 /* HumanCallStore.swift */; };
 		71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */; };
 		75021A3A421D6029EFEADD10 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AAFCE62E221DC8AE284A43E /* PreviewSupport.swift */; };
 		79927F023CAABCF10EC27A12 /* CoachModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B1C69AE7500BC877B555AA /* CoachModels.swift */; };
@@ -174,6 +175,7 @@
 		E5F741D131ED7021F41824D1 /* TraineeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeDashboardView.swift; sourceTree = "<group>"; };
 		E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthFlowView.swift; sourceTree = "<group>"; };
 		EB3C7A3F804716ECFE8B7855 /* AboutUsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutUsView.swift; sourceTree = "<group>"; };
+		F68D8C43041780C78A7B7810 /* HumanCallStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanCallStore.swift; sourceTree = "<group>"; };
 		F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanPeerChatView.swift; sourceTree = "<group>"; };
 		FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeRootView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -241,6 +243,7 @@
 				51D18072B70BC4D551D23BB1 /* ChatRealtimeClient.swift */,
 				D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */,
 				5027E2E77E119E7AA2A1F865 /* CoachStore.swift */,
+				F68D8C43041780C78A7B7810 /* HumanCallStore.swift */,
 				313E5224E36B4E42DC90206F /* HumanChatStore.swift */,
 				179A188E828A8873F4505090 /* SeedData.swift */,
 			);
@@ -509,6 +512,7 @@
 				9433781B29B73BC6A0946EBF /* FoodRecognizer.swift in Sources */,
 				0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */,
 				9A91A8F06B4748C47F67A326 /* HelpCenterViews.swift in Sources */,
+				6B044B87606CA988F46503B5 /* HumanCallStore.swift in Sources */,
 				B38DBEA30370C9839249DB9A /* HumanCallView.swift in Sources */,
 				F7E68ED4E04ACA293025460B /* HumanChatBubble.swift in Sources */,
 				2F9A557F06268FF9C03E46D8 /* HumanChatComposerBar.swift in Sources */,

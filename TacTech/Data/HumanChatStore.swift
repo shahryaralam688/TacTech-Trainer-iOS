@@ -572,7 +572,7 @@ final class HumanChatStore {
 
     // MARK: - Helpers
 
-    private func ensureThreadId(peerUserId: String) async throws -> String {
+    func ensureThreadId(peerUserId: String) async throws -> String {
         if let id = threadIdByPeer[peerUserId] { return id }
         let peer = inbox.first(where: { $0.id == peerUserId })
         let thread = try await api.createOrGetThread(
@@ -585,6 +585,8 @@ final class HumanChatStore {
         realtime.join(threadId: thread.id)
         return thread.id
     }
+
+    // MARK: - Helpers (private continue below)
 
     private func appendLocal(_ message: HumanChatMessage, peerUserId: String) {
         var list = messagesByPeer[peerUserId] ?? []

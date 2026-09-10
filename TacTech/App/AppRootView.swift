@@ -55,12 +55,19 @@ struct AppRootView: View {
             // New account session → allow bridge again for that login.
             if newId == nil {
                 postLoginBridgeDone = false
+                HumanCallStore.shared.stopMonitoring()
+            } else {
+                HumanCallStore.shared.startMonitoring()
             }
         }
         .task {
             try? await Task.sleep(for: .milliseconds(1400))
             splashElapsed = true
+            if store.session != nil {
+                HumanCallStore.shared.startMonitoring()
+            }
         }
+        .humanCallOverlay()
     }
 
     private func finishPostLoginBridge() {

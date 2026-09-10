@@ -9,7 +9,7 @@ final class ChatRealtimeClient {
         case threadUpdated(ChatThreadDTO)
         case read(threadId: String, upToMessageId: String, readerUserId: String)
         case typing(threadId: String, userId: String, isTyping: Bool)
-        case callIncoming(threadId: String, sessionId: String, fromUserId: String, fromName: String?)
+        case callIncoming(threadId: String, sessionId: String, fromUserId: String, fromName: String?, signalingPath: String?)
         case callEnded(threadId: String, sessionId: String, reason: String?)
     }
 
@@ -170,7 +170,8 @@ final class ChatRealtimeClient {
                     threadId: threadId,
                     sessionId: sessionId,
                     fromUserId: from,
-                    fromName: dict["fromName"] as? String
+                    fromName: dict["fromName"] as? String,
+                    signalingPath: dict["signalingPath"] as? String
                 ))
             }
         case "chat.call.ended":

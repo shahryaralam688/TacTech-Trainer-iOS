@@ -1,130 +1,152 @@
 import AVFoundation
 import SwiftUI
 
-/// Live video call shell for trainer↔trainee. Local camera preview now; WebRTC peer media later.
+/// Trainer↔trainee call UI — outgoing ring, incoming Accept/Decline + ringtone, in-call controls.
 struct HumanCallView: View {
-    let peerName: String
-    @Binding var isPresented: Bool
-    var onEnded: (String) -> Void
-
-    @State private var muted = false
-    @State private var cameraOff = false
-    @State private var connecting = true
-    @State private var connectedAt: Date?
-    @State private var pulse = false
-    @State private var elapsedLabel = "00:00"
-    @State private var tickTask: Task<Void, Never>?
+    @Bindable private var callStore = HumanCallStore.shared
 
     private let orange = TTColor.actionOrange
-    private let ink = Color.black
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            if cameraOff {
-                peerPlaceholder
-            } else {
-                HumanCallCameraPreview()
-                    .ignoresSafeArea()
-                    .overlay {
-                        LinearGradient(
-                            colors: [.black.opacity(0.55), .clear, .black.opacity(0.7)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .ignoresSafeArea()
-                    }
+            if callStore.phase == .inCall || callStore.phase == .connecting {
+                inCallBackground
             }
 
             VStack(spacing: 0) {
-                HStack {
-                    Button {
-                        end(outcome: "Call ended")
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 15, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.18))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 14)
-
+                topBar
                 Spacer()
-
-                VStack(spacing: 10) {
-                    TTAvatar(name: peerName, size: 72)
-                        .overlay(
-                            Circle()
-                                .strokeBorder(orange.opacity(pulse ? 0.9 : 0.35), lineWidth: 2.5)
-                                .frame(width: pulse ? 88 : 80, height: pulse ? 88 : 80)
-                                .animation(.easeInOut(duration: 1.0).repeatForever(autoreverses: true), value: pulse)
-                        )
-                    Text(peerName)
-                        .font(TTFont.workSans(22, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(statusText)
-                        .font(TTFont.workSans(14, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.75))
-                }
-
+                centerBlock
                 Spacer()
-
-                HStack(spacing: 28) {
-                    callControl(
-                        systemName: muted ? "mic.slash.fill" : "mic.fill",
-                        label: muted ? "Unmute" : "Mute",
-                        tint: muted ? orange : .white
-                    ) {
-                        muted.toggle()
-                    }
-                    callControl(
-                        systemName: cameraOff ? "video.slash.fill" : "video.fill",
-                        label: cameraOff ? "Camera" : "Hide",
-                        tint: cameraOff ? orange : .white
-                    ) {
-                        cameraOff.toggle()
-                    }
-                    callControl(systemName: "phone.down.fill", label: "End", tint: .white, fill: Color.red) {
-                        end(outcome: connectedAt == nil ? "Cancelled call" : "Call · \(elapsedLabel)")
-                    }
-                }
-                .padding(.bottom, 48)
+                bottomControls
+                    .padding(.bottom, 48)
             }
         }
-        .task {
-            pulse = true
-            try? await Task.sleep(for: .milliseconds(900))
-            connecting = false
-            connectedAt = .now
-            startTicker()
+        .interactiveDismissDisabled(true)
+    }
+
+    private var peerName: String {
+        callStore.activeInvite?.peerName ?? "Call"
+    }
+
+    private var topBar: some View {
+        HStack {
+            if callStore.phase == .inCall {
+                Button {
+                    callStore.endCall()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white.opacity(0.18))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
         }
-        .onDisappear {
-            tickTask?.cancel()
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+    }
+
+    private var centerBlock: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .strokeBorder(orange.opacity(callStore.phase == .incomingRinging || callStore.phase == .outgoingRinging ? 0.85 : 0.35), lineWidth: 2.5)
+                    .frame(width: 96, height: 96)
+                    .scaleEffect(callStore.phase == .incomingRinging || callStore.phase == .outgoingRinging ? 1.08 : 1.0)
+                    .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: callStore.phase)
+                TTAvatar(name: peerName, size: 72)
+            }
+            Text(peerName)
+                .font(TTFont.workSans(24, weight: .bold))
+                .foregroundStyle(.white)
+            Text(statusText)
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(.white.opacity(0.78))
+                .multilineTextAlignment(.center)
+            if let err = callStore.lastError {
+                Text(err)
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(Color.red.opacity(0.9))
+                    .padding(.horizontal, 24)
+                    .multilineTextAlignment(.center)
+            }
         }
+        .padding(.horizontal, 24)
     }
 
     private var statusText: String {
-        if connecting { return "Connecting…" }
-        return "Video call · \(elapsedLabel)"
+        switch callStore.phase {
+        case .idle: return ""
+        case .outgoingRinging: return "Calling…"
+        case .incomingRinging: return "Incoming video call"
+        case .connecting: return "Connecting…"
+        case .inCall: return "Video call · \(callStore.elapsedLabel)"
+        }
     }
 
-    private var peerPlaceholder: some View {
-        ZStack {
-            Color(white: 0.08)
-            VStack(spacing: 12) {
-                TTAvatar(name: peerName, size: 96)
-                Text("Camera off")
-                    .font(TTFont.workSans(14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.6))
+    @ViewBuilder
+    private var bottomControls: some View {
+        switch callStore.phase {
+        case .incomingRinging:
+            HStack(spacing: 48) {
+                callControl(systemName: "phone.down.fill", label: "Decline", tint: .white, fill: Color.red) {
+                    callStore.declineIncoming()
+                }
+                callControl(systemName: "phone.fill", label: "Accept", tint: .white, fill: Color.green) {
+                    callStore.acceptIncoming()
+                }
             }
+        case .outgoingRinging, .connecting:
+            callControl(systemName: "phone.down.fill", label: "Cancel", tint: .white, fill: Color.red) {
+                callStore.endCall()
+            }
+        case .inCall:
+            HStack(spacing: 28) {
+                callControl(
+                    systemName: callStore.muted ? "mic.slash.fill" : "mic.fill",
+                    label: callStore.muted ? "Unmute" : "Mute",
+                    tint: callStore.muted ? orange : .white
+                ) {
+                    callStore.muted.toggle()
+                }
+                callControl(
+                    systemName: callStore.cameraOff ? "video.slash.fill" : "video.fill",
+                    label: callStore.cameraOff ? "Camera" : "Hide",
+                    tint: callStore.cameraOff ? orange : .white
+                ) {
+                    callStore.cameraOff.toggle()
+                }
+                callControl(systemName: "phone.down.fill", label: "End", tint: .white, fill: Color.red) {
+                    callStore.endCall()
+                }
+            }
+        case .idle:
+            EmptyView()
         }
-        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var inCallBackground: some View {
+        if callStore.cameraOff {
+            Color(white: 0.08).ignoresSafeArea()
+        } else {
+            HumanCallCameraPreview()
+                .ignoresSafeArea()
+                .overlay {
+                    LinearGradient(
+                        colors: [.black.opacity(0.55), .clear, .black.opacity(0.7)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .ignoresSafeArea()
+                }
+        }
     }
 
     private func callControl(
@@ -149,24 +171,30 @@ struct HumanCallView: View {
         }
         .buttonStyle(.plain)
     }
+}
 
-    private func startTicker() {
-        tickTask?.cancel()
-        tickTask = Task {
-            while !Task.isCancelled {
-                if let connectedAt {
-                    let secs = Int(Date().timeIntervalSince(connectedAt))
-                    elapsedLabel = String(format: "%02d:%02d", secs / 60, secs % 60)
+/// Presents call UI globally whenever `HumanCallStore` is not idle.
+struct HumanCallOverlayHost: ViewModifier {
+    @Bindable private var callStore = HumanCallStore.shared
+
+    func body(content: Content) -> some View {
+        content
+            .fullScreenCover(isPresented: Binding(
+                get: { callStore.phase != .idle },
+                set: { presented in
+                    if !presented, callStore.phase != .idle {
+                        callStore.endCall()
+                    }
                 }
-                try? await Task.sleep(for: .seconds(1))
+            )) {
+                HumanCallView()
             }
-        }
     }
+}
 
-    private func end(outcome: String) {
-        tickTask?.cancel()
-        onEnded(outcome)
-        isPresented = false
+extension View {
+    func humanCallOverlay() -> some View {
+        modifier(HumanCallOverlayHost())
     }
 }
 
@@ -187,7 +215,6 @@ private struct HumanCallCameraPreview: UIViewRepresentable {
 
     final class PreviewView: UIView {
         private let session = AVCaptureSession()
-        private var preview: AVCaptureVideoPreviewLayer?
 
         override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
 
@@ -197,7 +224,6 @@ private struct HumanCallCameraPreview: UIViewRepresentable {
             if let preview = layer as? AVCaptureVideoPreviewLayer {
                 preview.session = session
                 preview.videoGravity = .resizeAspectFill
-                self.preview = preview
             }
         }
 

@@ -10,6 +10,7 @@ struct TraineeDashboardView: View {
     @State private var showWorkouts = false
     @State private var showNotifications = false
     @Bindable private var notificationStore = NotificationStore.shared
+    @Namespace private var activitySegmentNS
 
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
@@ -109,25 +110,28 @@ struct TraineeDashboardView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     Button { showProgress = true } label: {
-                        metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .bars)
+                        metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .ring)
                     }
                     .buttonStyle(TTHomeCardPressStyle())
+                    .ttHomeCardMorph()
 
                     Button { showNutrition = true } label: {
                         metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
                     }
                     .buttonStyle(TTHomeCardPressStyle())
+                    .ttHomeCardMorph()
 
                     Button { showNutrition = true } label: {
                         metricCard(title: "Calories", value: "\(caloriesToday)", icon: "flame.fill", tint: Color(white: 0.28), chart: .dots)
                     }
                     .buttonStyle(TTHomeCardPressStyle())
+                    .ttHomeCardMorph()
                 }
             }
         }
     }
 
-    private enum MetricChart { case bars, wave, dots }
+    private enum MetricChart { case bars, wave, dots, ring }
 
     private func metricCard(
         title: String,
@@ -153,6 +157,15 @@ struct TraineeDashboardView: View {
                     TTHomeMetricWave()
                 case .dots:
                     TTHomeMetricDots()
+                case .ring:
+                    TTHomeProgressRing(
+                        progress: Double(healthScore) / 100.0,
+                        tint: .white,
+                        lineWidth: 6,
+                        size: 40,
+                        label: nil
+                    )
+                    .frame(height: 40)
                 }
             }
 
@@ -194,7 +207,8 @@ struct TraineeDashboardView: View {
                     .frame(height: 220)
                     .frame(maxWidth: .infinity)
                     .clipped()
-                    .scaleEffect(1.02)
+                    .scaleEffect(1.08)
+                    .ttHomeParallax(scrollProgress: scrollCollapse.progress, strength: 28)
 
                 LinearGradient(
                     colors: [.black.opacity(0.25), .clear, .black.opacity(0.78)],
@@ -216,31 +230,41 @@ struct TraineeDashboardView: View {
 
                 VStack {
                     Spacer()
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(title)
-                            .font(TTFont.headingMD(.semibold))
-                            .foregroundStyle(.white)
-
-                        HStack(spacing: 8) {
-                            Text(subtitle)
-                                .font(TTFont.textMD(.medium))
-                                .foregroundStyle(.white.opacity(0.88))
-                                .lineLimit(1)
-
-                            Text(level.lowercased())
-                                .font(TTFont.textXS(.semibold))
+                    HStack(alignment: .bottom, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(title)
+                                .font(TTFont.headingMD(.semibold))
                                 .foregroundStyle(.white)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(orange)
-                                .clipShape(Capsule())
+
+                            HStack(spacing: 8) {
+                                Text(subtitle)
+                                    .font(TTFont.textMD(.medium))
+                                    .foregroundStyle(.white.opacity(0.88))
+                                    .lineLimit(1)
+
+                                Text(level.lowercased())
+                                    .font(TTFont.textXS(.semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(orange)
+                                    .clipShape(Capsule())
+                            }
                         }
+                        Spacer(minLength: 0)
+                        TTHomeProgressRing(
+                            progress: plan == nil ? 0.15 : min(1, Double(series) / 8.0),
+                            tint: .white,
+                            lineWidth: 5,
+                            size: 48,
+                            label: plan == nil ? "—" : "\(series)"
+                        )
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(16)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .ttHomeCardMorph()
 
             if let plan {
                 NavigationLink {
@@ -400,6 +424,7 @@ struct TraineeDashboardView: View {
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
+            .ttHomeCardMorph()
         }
         .buttonStyle(TTHomeCardPressStyle())
     }
@@ -434,15 +459,22 @@ struct TraineeDashboardView: View {
                 HStack(spacing: 6) {
                     ForEach(ActivityRange.allCases) { range in
                         Button {
-                            activityRange = range
+                            withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+                                activityRange = range
+                            }
                         } label: {
                             Text(range.label)
-                                .font(TTFont.workSans(12, weight: .bold))
+                                .font(TTFont.workSans(12, weight: .semibold))
                                 .foregroundStyle(activityRange == range ? .white : Color(white: 0.35))
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)
-                                .background(activityRange == range ? Color.black : Color.clear)
-                                .clipShape(Capsule())
+                                .background {
+                                    if activityRange == range {
+                                        Capsule()
+                                            .fill(Color.black)
+                                            .matchedGeometryEffect(id: "activityRangePill", in: activitySegmentNS)
+                                    }
+                                }
                         }
                         .buttonStyle(.plain)
                     }
@@ -457,7 +489,7 @@ struct TraineeDashboardView: View {
 
                     if peak > 0 {
                         Text("\(peak)")
-                            .font(TTFont.workSans(12, weight: .bold))
+                            .font(TTFont.workSans(12, weight: .semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 6)
@@ -471,7 +503,7 @@ struct TraineeDashboardView: View {
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("\(total.formatted()) kcal")
-                            .font(TTFont.workSans(28, weight: .bold))
+                            .font(TTFont.workSans(28, weight: .semibold))
                             .foregroundStyle(.black)
 
                         HStack(spacing: 14) {
@@ -487,23 +519,20 @@ struct TraineeDashboardView: View {
 
                     Spacer()
 
-                    Button {
-                        showWorkouts = true
-                    } label: {
-                        Image(systemName: "figure.run")
-                            .font(TTFont.workSans(16, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                    TTHomeProgressRing(
+                        progress: Double(healthScore) / 100.0,
+                        tint: orange,
+                        lineWidth: 6,
+                        size: 52,
+                        label: "\(healthScore)"
+                    )
                 }
             }
             .padding(16)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
+            .ttHomeCardMorph()
         }
     }
 
@@ -529,6 +558,8 @@ struct TraineeDashboardView: View {
                     .frame(height: 168)
                     .frame(maxWidth: .infinity)
                     .clipped()
+                    .scaleEffect(1.06)
+                    .ttHomeParallax(scrollProgress: scrollCollapse.progress, strength: 18)
 
                 LinearGradient(
                     colors: [orange.opacity(0.15), orange.opacity(0.92)],
@@ -544,7 +575,7 @@ struct TraineeDashboardView: View {
                         }
 
                         Text("\(notes.count)+")
-                            .font(TTFont.workSans(34, weight: .bold))
+                            .font(TTFont.workSans(34, weight: .semibold))
                             .foregroundStyle(.white)
                         Text("Trainer conversations")
                             .font(TTFont.workSans(16, weight: .semibold))
@@ -557,17 +588,18 @@ struct TraineeDashboardView: View {
                         showProfile = true
                     } label: {
                         Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(TTFont.workSans(16, weight: .bold))
+                            .font(TTFont.workSans(16, weight: .semibold))
                             .foregroundStyle(orange)
                             .frame(width: 44, height: 44)
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
                 }
                 .padding(18)
             }
             .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .ttHomeCardMorph()
         }
     }
 
@@ -609,18 +641,17 @@ struct TraineeDashboardView: View {
                             showProgress = true
                         } label: {
                             HStack(spacing: 12) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(Color(white: 0.94))
-                                        .frame(width: 56, height: 56)
-                                    Image(systemName: "figure.strengthtraining.traditional")
-                                        .font(TTFont.workSans(20, weight: .semibold))
-                                        .foregroundStyle(Color(white: 0.35))
-                                }
+                                TTHomeProgressRing(
+                                    progress: min(1, Double(report.score) / 100.0),
+                                    tint: orange,
+                                    lineWidth: 5,
+                                    size: 52,
+                                    label: "\(report.score)"
+                                )
 
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text(exerciseTitle(for: report.exerciseId))
-                                        .font(TTFont.workSans(15, weight: .bold))
+                                        .font(TTFont.workSans(15, weight: .semibold))
                                         .foregroundStyle(.black)
                                         .lineLimit(1)
 
@@ -644,8 +675,9 @@ struct TraineeDashboardView: View {
                             .padding(12)
                             .background(Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .ttHomeCardMorph()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TTHomeCardPressStyle())
                     }
                 }
             }

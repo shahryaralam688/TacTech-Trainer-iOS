@@ -1,9 +1,10 @@
 import SwiftUI
+import UIKit
 
-// MARK: - Home delight motion (Phase 1)
+// MARK: - Home delight motion (Phase 1 + 2)
 //
-// Shared entrance / press / micro-chart animations for trainee + trainer home.
-// Respects Reduce Motion. Does not change layout sizes or spacing.
+// Shared entrance / press / micro-chart / parallax / ring / card-morph for home.
+// Respects Reduce Motion.
 
 enum TTHomeDelight {
     static let entrance = Animation.spring(response: 0.52, dampingFraction: 0.86)
@@ -266,6 +267,122 @@ struct TTHomeHeroSheen: View {
             guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: false)) {
                 x = 1.2
+            }
+        }
+    }
+}
+
+// MARK: - Phase 2: Scroll parallax
+
+struct TTHomeParallaxModifier: ViewModifier {
+    /// 0 = expanded home header, 1 = compact.
+    var scrollProgress: CGFloat
+    var strength: CGFloat = 22
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: reduceMotion ? 0 : scrollProgress * strength)
+            .scaleEffect(reduceMotion ? 1 : 1 + scrollProgress * 0.04, anchor: .top)
+    }
+}
+
+extension View {
+    /// Parallax driven by home header collapse progress (0…1).
+    func ttHomeParallax(scrollProgress: CGFloat, strength: CGFloat = 22) -> some View {
+        modifier(TTHomeParallaxModifier(scrollProgress: scrollProgress, strength: strength))
+    }
+}
+
+// MARK: - Phase 2: Scroll-into-view morph
+
+/// Cards gently morph (scale/opacity) as they move through the viewport.
+struct TTHomeViewportMorph: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var amount: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(reduceMotion ? 1 : (0.94 + 0.06 * amount), anchor: .center)
+            .opacity(reduceMotion ? 1 : (0.55 + 0.45 * amount))
+            .background(
+                GeometryReader { geo in
+                    Color.clear
+                        .onAppear { update(geo.frame(in: .global)) }
+                        .onChange(of: geo.frame(in: .global)) { _, frame in
+                            update(frame)
+                        }
+                }
+            )
+    }
+
+    private func update(_ frame: CGRect) {
+        guard !reduceMotion else {
+            amount = 1
+            return
+        }
+        let screenH = UIScreen.main.bounds.height
+        let center = screenH * 0.48
+        let dist = abs(frame.midY - center)
+        let next = max(0, min(1, 1 - (dist / (screenH * 0.55))))
+        if abs(next - amount) > 0.02 {
+            amount = next
+        }
+    }
+}
+
+extension View {
+    func ttHomeCardMorph() -> some View {
+        modifier(TTHomeViewportMorph())
+    }
+}
+
+// MARK: - Phase 2: Progress ring
+
+struct TTHomeProgressRing: View {
+    var progress: Double
+    var tint: Color
+    var lineWidth: CGFloat = 8
+    var size: CGFloat = 56
+    var label: String? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var drawn: Double = 0
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(tint.opacity(0.18), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: drawn)
+                .stroke(
+                    tint,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            if let label {
+                Text(label)
+                    .font(TTFont.workSans(size * 0.22, weight: .semibold))
+                    .foregroundStyle(tint == .white ? Color.white : TTColor.ink)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: size, height: size)
+        .onAppear {
+            let target = min(1, max(0, progress))
+            if reduceMotion {
+                drawn = target
+            } else {
+                withAnimation(TTHomeDelight.chart.delay(0.15)) {
+                    drawn = target
+                }
+            }
+        }
+        .onChange(of: progress) { _, newValue in
+            let target = min(1, max(0, newValue))
+            withAnimation(reduceMotion ? .easeOut(duration: 0.15) : TTHomeDelight.chart) {
+                drawn = target
             }
         }
     }

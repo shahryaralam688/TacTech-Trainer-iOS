@@ -8,6 +8,7 @@ struct TrainerDashboardView: View {
     @State private var showNotifications = false
     @State private var copiedInvite = false
     @Bindable private var notificationStore = NotificationStore.shared
+    @Namespace private var weekDayNS
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
         model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
@@ -95,7 +96,7 @@ struct TrainerDashboardView: View {
                 ForEach(days, id: \.self) { day in
                     let on = Calendar.current.isDate(day, inSameDayAs: selectedDay)
                     Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                             selectedDay = day
                         }
                     } label: {
@@ -103,17 +104,26 @@ struct TrainerDashboardView: View {
                             Text(day.formatted(.dateTime.weekday(.narrow)))
                                 .font(TTFont.textSM(.semibold))
                             Text(day.formatted(.dateTime.day()))
-                                .font(TTFont.headingXS(.bold))
+                                .font(TTFont.headingXS(.semibold))
                         }
                         .foregroundStyle(on ? .white : .black)
                         .frame(width: 48, height: 64)
-                        .background(on ? orange : Color(white: 0.96))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background {
+                            if on {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(orange)
+                                    .matchedGeometryEffect(id: "trainerWeekPill", in: weekDayNS)
+                            } else {
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .fill(Color(white: 0.96))
+                            }
+                        }
                     }
                     .buttonStyle(TTHomeCardPressStyle())
                 }
             }
         }
+        .ttHomeCardMorph()
     }
 
     // MARK: - Today's coaching queue (primary)
@@ -191,8 +201,9 @@ struct TrainerDashboardView: View {
                             .padding(14)
                             .background(Color(white: 0.96))
                             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .ttHomeCardMorph()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(TTHomeCardPressStyle())
                     }
                 }
             }
@@ -232,6 +243,7 @@ struct TrainerDashboardView: View {
                         )
                     }
                     .buttonStyle(TTHomeCardPressStyle())
+                    .ttHomeCardMorph()
 
                     metricCard(
                         title: "Today",
@@ -241,6 +253,7 @@ struct TrainerDashboardView: View {
                         subtitle: selectedDay.formatted(.dateTime.weekday(.wide)),
                         chart: .dots
                     )
+                    .ttHomeCardMorph()
 
                     Button {
                         selectTrainerTab(.plans)
@@ -255,6 +268,7 @@ struct TrainerDashboardView: View {
                         )
                     }
                     .buttonStyle(TTHomeCardPressStyle())
+                    .ttHomeCardMorph()
 
                     metricCard(
                         title: "Form avg",
@@ -262,14 +276,15 @@ struct TrainerDashboardView: View {
                         icon: "camera.viewfinder",
                         tint: Color(white: 0.28),
                         subtitle: "Live reviews",
-                        chart: .bars
+                        chart: .ring
                     )
+                    .ttHomeCardMorph()
                 }
             }
         }
     }
 
-    private enum TrainerMetricChart { case bars, wave, dots }
+    private enum TrainerMetricChart { case bars, wave, dots, ring }
 
     private func metricCard(
         title: String,
@@ -298,6 +313,15 @@ struct TrainerDashboardView: View {
                 case .bars: TTHomeMetricBars()
                 case .wave: TTHomeMetricWave()
                 case .dots: TTHomeMetricDots()
+                case .ring:
+                    TTHomeProgressRing(
+                        progress: formAvgProgress,
+                        tint: .white,
+                        lineWidth: 6,
+                        size: 40,
+                        label: nil
+                    )
+                    .frame(height: 40)
                 }
             }
 
@@ -387,7 +411,7 @@ struct TrainerDashboardView: View {
                         icon: "person.crop.rectangle.stack"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
 
                 Button {
                     selectTrainerTab(.plans)
@@ -398,7 +422,7 @@ struct TrainerDashboardView: View {
                         icon: "arrow.right.square"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
 
                 Button(action: copyInvite) {
                     shortcutRow(
@@ -407,7 +431,7 @@ struct TrainerDashboardView: View {
                         icon: "link"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
 
                 Button { showProfile = true } label: {
                     shortcutRow(
@@ -416,9 +440,10 @@ struct TrainerDashboardView: View {
                         icon: "gearshape"
                     )
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
             }
         }
+        .ttHomeCardMorph()
     }
 
     private func shortcutRow(title: String, subtitle: String, icon: String) -> some View {
@@ -430,7 +455,7 @@ struct TrainerDashboardView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(TTFont.textLG(.bold))
+                    .font(TTFont.textLG(.semibold))
                     .foregroundStyle(.black)
                 Text(subtitle)
                     .font(TTFont.textMD(.medium))
@@ -560,6 +585,13 @@ struct TrainerDashboardView: View {
         let reports = clients.flatMap { store.formReports(for: $0.id) }
         guard !reports.isEmpty else { return "—" }
         return "\(reports.map(\.score).reduce(0, +) / reports.count)"
+    }
+
+    private var formAvgProgress: Double {
+        let reports = clients.flatMap { store.formReports(for: $0.id) }
+        guard !reports.isEmpty else { return 0 }
+        let avg = Double(reports.map(\.score).reduce(0, +)) / Double(reports.count)
+        return min(1, max(0, avg / 100.0))
     }
 
     private struct QueueItem: Identifiable {

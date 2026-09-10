@@ -77,6 +77,7 @@ struct TraineeRootView: View {
     }
 
     private func openAIChat() {
+        TTKeyboard.dismiss()
         showAIChat = true
     }
 }

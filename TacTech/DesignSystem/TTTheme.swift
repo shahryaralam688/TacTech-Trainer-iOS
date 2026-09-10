@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - TacTech Design System
 //
@@ -643,6 +644,19 @@ struct TTPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .ttPressable(configuration.isPressed)
+    }
+}
+
+/// Dismisses the software keyboard without changing focus-binding business logic.
+enum TTKeyboard {
+    @MainActor
+    static func dismiss() {
+        UIApplication.shared.sendAction(
+            #selector(UIResponder.resignFirstResponder),
+            to: nil,
+            from: nil,
+            for: nil
+        )
     }
 }
 

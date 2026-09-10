@@ -47,14 +47,14 @@ struct CoachComposerBar: View {
         .animation(soft, value: isRecording)
         .animation(soft, value: pendingImage != nil)
         // One-way sync: FocusState → parent. Parent only dismisses (false → field).
-        // Bidirectional `if !=` loops fought the keyboard animation and re-entered focus.
+        // Defer writes so keyboard animation isn’t fought in the same frame.
         .onChange(of: fieldFocused) { _, focused in
-            if isFocused != focused { isFocused = focused }
+            guard isFocused != focused else { return }
+            DispatchQueue.main.async { isFocused = focused }
         }
         .onChange(of: isFocused) { _, focused in
-            if !focused, fieldFocused {
-                fieldFocused = false
-            }
+            guard !focused, fieldFocused else { return }
+            DispatchQueue.main.async { fieldFocused = false }
         }
     }
 

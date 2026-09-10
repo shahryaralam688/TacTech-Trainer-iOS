@@ -301,6 +301,10 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private var pendingOffset: CGFloat?
     private var pendingOverflow: CGFloat?
     private var flushScheduled = false
+    /// Drop geometry echoes caused by our own header-height publish (same frame / next layout).
+    private var suppressGeometryIngest = false
+    private var lastIngestedOffset: CGFloat?
+    private var lastIngestedOverflow: CGFloat?
 
     func setUserScrolling(_ active: Bool) {
         let wasScrolling = isUserScrolling
@@ -317,6 +321,17 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     /// Safe entry from `onScrollGeometryChange` / preference probes.
     /// Stores the latest sample and applies it once outside the geometry pass.
     func ingestScrollMetrics(offset: CGFloat, overflow: CGFloat) {
+        if suppressGeometryIngest {
+            // Keep latest sample but do not schedule — avoids same-frame re-entry warning.
+            pendingOffset = offset
+            pendingOverflow = overflow
+            return
+        }
+        if lastIngestedOffset == offset, lastIngestedOverflow == overflow {
+            return
+        }
+        lastIngestedOffset = offset
+        lastIngestedOverflow = overflow
         pendingOffset = offset
         pendingOverflow = overflow
         scheduleFlush()
@@ -399,11 +414,19 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private func apply(_ stepped: CGFloat) {
         guard abs(stepped - lastProgress) > 0.0005 || abs(progress - stepped) > 0.0005 else { return }
         lastProgress = stepped
+        suppressGeometryIngest = true
         var transaction = Transaction()
         transaction.disablesAnimations = true
         transaction.animation = nil
         withTransaction(transaction) {
             progress = stepped
+        }
+        // Clear suppress after layout; discard echo samples from our own height change.
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.suppressGeometryIngest = false
+            self.pendingOffset = nil
+            self.pendingOverflow = nil
         }
     }
 }
@@ -447,11 +470,11 @@ private struct TTHomeScrollCollapseMetrics: Equatable {
     var offset: CGFloat
     var overflow: CGFloat
 
-    /// Snap to 0.5pt so float noise doesn’t re-enter geometry observation.
+    /// Snap to 1pt so float / layout echo doesn’t re-enter geometry observation.
     static func sampled(offset: CGFloat, overflow: CGFloat) -> Self {
         Self(
-            offset: (offset * 2).rounded() / 2,
-            overflow: (overflow * 2).rounded() / 2
+            offset: offset.rounded(),
+            overflow: overflow.rounded()
         )
     }
 }

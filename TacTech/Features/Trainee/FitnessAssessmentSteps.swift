@@ -56,7 +56,10 @@ struct AssessmentTextBox: View {
                     .tint(AssessmentColor.orange)
                     .onChange(of: text) { oldValue, newValue in
                         if newValue.count > maxCharacters {
-                            text = String(newValue.prefix(maxCharacters))
+                            // Defer truncation — mutating `text` inside onChange(String)
+                            // re-enters the same frame (“tried to update multiple times”).
+                            let clipped = String(newValue.prefix(maxCharacters))
+                            DispatchQueue.main.async { text = clipped }
                             return
                         }
                         guard !isApplyingHistory, oldValue != newValue else { return }

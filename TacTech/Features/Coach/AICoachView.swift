@@ -27,6 +27,9 @@ struct AICoachView: View {
     @State private var showChatsSheet = false
     @State private var localSessions: [LocalAIChatSession] = []
     @State private var activeSessionId = ""
+    /// Coalesce scroll-to-bottom so streaming `partialAssistantText` can’t
+    /// fire `onChange(of: String)` layout updates multiple times per frame.
+    @State private var scrollBottomScheduled = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let orange = TTColor.actionOrange
@@ -156,7 +159,11 @@ struct AICoachView: View {
                 showPhotoSource = true
             },
             onMic: { store.startRecording() },
-            onCall: { showCall = true },
+            onCall: {
+                TTKeyboard.dismiss()
+                composerFocused = false
+                showCall = true
+            },
             onStopVoice: { store.stopAndSendVoice() },
             onCancelVoice: { store.cancelRecording() }
         )
@@ -316,11 +323,12 @@ struct AICoachView: View {
                 guard !userPinnedScroll else { return }
                 // First bulk load / history restore → hard jump. Later sends → soft follow.
                 let animated = enableListMotion && abs(newCount - oldCount) <= 2
-                jumpToBottom(proxy, animated: animated)
+                scheduleJumpToBottom(proxy, animated: animated)
             }
             .onChange(of: store.partialAssistantText) { _, _ in
                 guard !userPinnedScroll, store.isStreaming, enableListMotion else { return }
-                jumpToBottom(proxy, animated: true)
+                // Once per run-loop turn — SSE can emit many string updates in one frame.
+                scheduleJumpToBottom(proxy, animated: false)
             }
             .onChange(of: store.isBootstrapping) { _, bootstrapping in
                 if !bootstrapping {
@@ -490,18 +498,29 @@ struct AICoachView: View {
         libraryItem = nil
     }
 
-    private func jumpToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+    private func scheduleJumpToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        guard !scrollBottomScheduled else { return }
+        scrollBottomScheduled = true
         DispatchQueue.main.async {
-            if animated {
-                withAnimation(.easeOut(duration: 0.18)) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
-            } else {
-                var transaction = Transaction()
-                transaction.disablesAnimations = true
-                withTransaction(transaction) {
-                    proxy.scrollTo("bottom", anchor: .bottom)
-                }
+            scrollBottomScheduled = false
+            jumpToBottomNow(proxy, animated: animated)
+        }
+    }
+
+    private func jumpToBottom(_ proxy: ScrollViewProxy, animated: Bool) {
+        scheduleJumpToBottom(proxy, animated: animated)
+    }
+
+    private func jumpToBottomNow(_ proxy: ScrollViewProxy, animated: Bool) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.18)) {
+                proxy.scrollTo("bottom", anchor: .bottom)
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                proxy.scrollTo("bottom", anchor: .bottom)
             }
         }
     }

@@ -144,6 +144,7 @@ struct TrainerRootView: View {
         case "ai":
             openAIChat()
         case "traineeChat":
+            TTKeyboard.dismiss()
             showTraineeChat = true
         case "create":
             showCreatePlan = true
@@ -158,6 +159,7 @@ struct TrainerRootView: View {
     }
 
     private func openAIChat() {
+        TTKeyboard.dismiss()
         showAIChat = true
     }
 }

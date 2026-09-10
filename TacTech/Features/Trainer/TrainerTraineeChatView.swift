@@ -90,15 +90,21 @@ final class TraineeChatStore {
     }
 }
 
-/// Inbox + thread for trainer ↔ trainee messaging (local only for now).
+/// Inbox + thread for trainer ↔ trainee messaging — TacTech list + Live Chat chrome.
 struct TrainerTraineeChatView: View {
     @Environment(AppStore.self) private var appStore
     @Environment(\.dismiss) private var dismiss
     @State private var chatStore = TraineeChatStore()
     @State private var selectedTraineeId: String?
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    @FocusState private var composerFocused: Bool
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let peerBubble = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
+    private let orange = TTColor.actionOrange
+    private let scrollSpace = "traineeChatInbox"
 
     private var trainees: [TraineeProfile] {
         guard let trainer = appStore.currentTrainer else { return [] }
@@ -106,65 +112,82 @@ struct TrainerTraineeChatView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let selectedTraineeId,
-                   let trainee = trainees.first(where: { $0.id == selectedTraineeId }) {
-                    threadView(trainee)
-                } else {
-                    inboxView
-                }
+        Group {
+            if let selectedTraineeId,
+               let trainee = trainees.first(where: { $0.id == selectedTraineeId }) {
+                threadView(trainee)
+            } else {
+                inboxView
             }
-            .background(canvas.ignoresSafeArea())
-            .navigationTitle(selectedTraineeId == nil ? "Trainee chat" : "Chat")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    if selectedTraineeId != nil {
-                        Button("Back") { selectedTraineeId = nil }
-                    } else {
-                        Button("Close") { dismiss() }
-                    }
-                }
-            }
-            .onAppear {
-                chatStore.seedIfNeeded(traineeIds: trainees.map(\.id))
-            }
+        }
+        .onAppear {
+            chatStore.seedIfNeeded(traineeIds: trainees.map(\.id))
         }
     }
 
+    // MARK: Inbox (My Trainees chrome)
+
     private var inboxView: some View {
-        Group {
-            if trainees.isEmpty {
-                VStack(spacing: 12) {
-                    TTIcon(icon: .chat, filled: true, size: 28)
-                        .foregroundStyle(TTColor.actionOrange)
-                    Text("No trainees yet")
-                        .font(TTFont.workSans(17, weight: .bold))
-                    Text("When athletes join your roster, you can message them here.")
-                        .font(TTFont.body(14))
-                        .foregroundStyle(TTColor.inkMuted)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 28)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 10) {
-                        ForEach(trainees) { trainee in
-                            Button {
-                                selectedTraineeId = trainee.id
-                                chatStore.markRead(traineeId: trainee.id)
-                            } label: {
-                                inboxRow(trainee)
+        VStack(spacing: 0) {
+            TTDarkPageHeader(
+                title: "Messages",
+                collapseProgress: scrollCollapse.progress,
+                onBack: { dismiss() }
+            )
+
+            Group {
+                if trainees.isEmpty {
+                    emptyInbox
+                } else {
+                    ScrollView(showsIndicators: false) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+
+                            LazyVStack(spacing: 10) {
+                                ForEach(trainees) { trainee in
+                                    Button {
+                                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                                        selectedTraineeId = trainee.id
+                                        chatStore.markRead(traineeId: trainee.id)
+                                    } label: {
+                                        inboxRow(trainee)
+                                    }
+                                    .buttonStyle(TTSearchPressStyle(scale: 0.98))
+                                }
                             }
-                            .buttonStyle(.plain)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .padding(.bottom, 24)
                         }
                     }
-                    .padding(16)
+                    .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                 }
             }
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
         }
+        .background(charcoal.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
+    }
+
+    private var emptyInbox: some View {
+        VStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(orange.opacity(0.14))
+                    .frame(width: 72, height: 72)
+                TTIcon(icon: .chat, filled: true, size: 28)
+                    .foregroundStyle(orange)
+            }
+            Text("No trainees yet")
+                .font(TTFont.workSans(18, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text("When athletes join your roster, you can message them here.")
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func inboxRow(_ trainee: TraineeProfile) -> some View {
@@ -173,23 +196,25 @@ struct TrainerTraineeChatView: View {
         let unread = chatStore.unreadCount(for: trainee.id)
 
         return HStack(spacing: 12) {
-            TTAvatar(name: name, size: 50)
+            TTAvatar(name: name, size: 50, tint: orange)
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
+                HStack(alignment: .firstTextBaseline) {
                     Text(name)
                         .font(TTFont.workSans(16, weight: .bold))
                         .foregroundStyle(TTColor.ink)
-                    Spacer()
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
                     if let last {
                         Text(last.sentAt.formatted(date: .omitted, time: .shortened))
                             .font(TTFont.caption(11))
-                            .foregroundStyle(TTColor.inkSubtle)
+                            .foregroundStyle(unread > 0 ? orange : TTColor.inkSubtle)
                     }
                 }
                 Text(last?.text ?? "Say hello")
                     .font(TTFont.caption(13))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .fontWeight(unread > 0 ? .semibold : .regular)
+                    .foregroundStyle(unread > 0 ? TTColor.ink : TTColor.inkMuted)
                     .lineLimit(1)
             }
 
@@ -200,7 +225,7 @@ struct TrainerTraineeChatView: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
-                    .background(TTColor.actionOrange)
+                    .background(orange)
                     .clipShape(Capsule())
             } else {
                 TTChevronForward(size: 12)
@@ -211,6 +236,8 @@ struct TrainerTraineeChatView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    // MARK: Thread (Live Chat chrome)
+
     private func threadView(_ trainee: TraineeProfile) -> some View {
         let name = appStore.user(forTrainee: trainee)?.name ?? "Trainee"
         let messages = chatStore.messages(for: trainee.id)
@@ -218,35 +245,23 @@ struct TrainerTraineeChatView: View {
             get: { chatStore.drafts[trainee.id] ?? "" },
             set: { chatStore.drafts[trainee.id] = $0 }
         )
+        let canSend = !(draft.wrappedValue).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
 
         return VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                TTAvatar(name: name, size: 36)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name)
-                        .font(TTFont.workSans(16, weight: .bold))
-                    Text("Local preview · sockets later")
-                        .font(TTFont.caption(11))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .background(Color.white)
-
-            Divider().opacity(0.12)
+            threadHeader(name: name)
 
             ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 14) {
                         ForEach(messages) { message in
-                            bubble(message)
+                            bubble(message, peerName: name)
                                 .id(message.id)
                         }
                         Color.clear.frame(height: 1).id("thread-bottom")
                     }
-                    .padding(16)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 18)
+                    .padding(.bottom, 16)
                 }
                 .defaultScrollAnchor(.bottom)
                 .onAppear {
@@ -254,55 +269,160 @@ struct TrainerTraineeChatView: View {
                     withTransaction(t) { proxy.scrollTo("thread-bottom", anchor: .bottom) }
                 }
                 .onChange(of: messages.count) { _, _ in
-                    var t = Transaction(); t.disablesAnimations = true
-                    withTransaction(t) { proxy.scrollTo("thread-bottom", anchor: .bottom) }
+                    withAnimation(.easeOut(duration: 0.25)) {
+                        proxy.scrollTo("thread-bottom", anchor: .bottom)
+                    }
                 }
             }
+            .background(canvas)
+            .clipShape(
+                UnevenRoundedRectangle(
+                    topLeadingRadius: 28,
+                    bottomLeadingRadius: 0,
+                    bottomTrailingRadius: 0,
+                    topTrailingRadius: 28,
+                    style: .continuous
+                )
+            )
+            .offset(y: -10)
 
-            HStack(spacing: 10) {
-                TextField("Message \(name)…", text: draft, axis: .vertical)
-                    .lineLimit(1...4)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(cardFill)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                Button {
-                    chatStore.send(to: trainee.id, text: draft.wrappedValue)
-                } label: {
-                    TTIcon(icon: .paperPlaneDiagonal, filled: true, size: 18)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled((draft.wrappedValue).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                .opacity((draft.wrappedValue).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.4 : 1)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color.white)
+            threadComposer(traineeId: trainee.id, name: name, draft: draft, canSend: canSend)
+        }
+        .background(orange.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
+        .onChange(of: selectedTraineeId) { _, _ in
+            composerFocused = false
         }
     }
 
-    private func bubble(_ message: TraineeChatMessage) -> some View {
-        HStack {
-            if message.isFromTrainer { Spacer(minLength: 48) }
-            VStack(alignment: message.isFromTrainer ? .trailing : .leading, spacing: 4) {
-                Text(message.text)
-                    .font(TTFont.workSans(15, weight: .medium))
-                    .foregroundStyle(message.isFromTrainer ? .white : TTColor.ink)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(message.isFromTrainer ? Color.black : cardFill)
+    private func threadHeader(name: String) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                composerFocused = false
+                selectedTraineeId = nil
+            } label: {
+                TTIcon(icon: .chevronLeft, size: 16)
+                    .foregroundStyle(.white)
+                    .frame(width: 40, height: 40)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(TTFont.workSans(20, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                Text("Trainee chat")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+
+            Spacer(minLength: 8)
+
+            chatSquareAvatar(name: name, fill: .white.opacity(0.22), foreground: .white)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 22)
+        .background(orange)
+    }
+
+    private func threadComposer(
+        traineeId: String,
+        name: String,
+        draft: Binding<String>,
+        canSend: Bool
+    ) -> some View {
+        HStack(spacing: 10) {
+            TextField("Message \(name)…", text: draft, axis: .vertical)
+                .font(TTFont.body(15))
+                .lineLimit(1...4)
+                .focused($composerFocused)
+                .tint(orange)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 52)
+                .ttInputChrome(
+                    focused: composerFocused,
+                    cornerRadius: 26,
+                    idleFill: Color(white: 0.93)
+                )
+                .onSubmit {
+                    guard canSend else { return }
+                    send(to: traineeId, draft: draft)
+                }
+
+            Button {
+                send(to: traineeId, draft: draft)
+            } label: {
+                TTIcon(icon: .arrowRight, filled: true, size: 18)
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(orange)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(TTSearchPressStyle(scale: 0.96))
+            .disabled(!canSend)
+            .opacity(canSend ? 1 : 0.55)
+            .accessibilityLabel("Send")
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
+        .background(Color.white)
+    }
+
+    private func send(to traineeId: String, draft: Binding<String>) {
+        let text = draft.wrappedValue
+        chatStore.send(to: traineeId, text: text)
+        composerFocused = false
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    private func bubble(_ message: TraineeChatMessage, peerName: String) -> some View {
+        let isTrainer = message.isFromTrainer
+        return HStack(alignment: .bottom, spacing: 8) {
+            if !isTrainer {
+                chatSquareAvatar(name: peerName, fill: peerBubble, foreground: TTColor.inkMuted)
+            } else {
+                Spacer(minLength: 40)
+            }
+
+            VStack(alignment: isTrainer ? .trailing : .leading, spacing: 4) {
+                Text(message.text)
+                    .font(TTFont.body(14))
+                    .foregroundStyle(isTrainer ? .white : TTColor.ink)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(isTrainer ? charcoal : peerBubble)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
                 Text(message.sentAt.formatted(date: .omitted, time: .shortened))
                     .font(TTFont.caption(10))
                     .foregroundStyle(TTColor.inkSubtle)
             }
-            if !message.isFromTrainer { Spacer(minLength: 48) }
+
+            if isTrainer {
+                chatSquareAvatar(name: "You", fill: orange, foreground: .white)
+            } else {
+                Spacer(minLength: 40)
+            }
         }
+    }
+
+    private func chatSquareAvatar(name: String, fill: Color, foreground: Color) -> some View {
+        let initials: String = {
+            let parts = name.split(separator: " ")
+            let letters = parts.prefix(2).compactMap(\.first)
+            return String(letters).uppercased()
+        }()
+
+        return Text(initials.isEmpty ? "?" : initials)
+            .font(TTFont.workSans(12, weight: .semibold))
+            .foregroundStyle(foreground)
+            .frame(width: 36, height: 36)
+            .background(fill)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 

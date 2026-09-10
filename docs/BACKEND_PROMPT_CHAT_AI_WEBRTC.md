@@ -649,6 +649,7 @@ Mirror of 5 with role reversed; trainer unread increments.
 ### AI Coach
 - [ ] Status returns configured flags without crashing when provider missing  
 - [ ] Create conversation + list + messages round-trip  
+- [ ] `DELETE /coach/conversations/{id}` removes thread + messages; iOS drawer delete stays gone after relaunch  
 - [ ] Non-stream chat returns full conversation + both messages  
 - [ ] SSE stream emits `user` → `delta*` → `done`  
 - [ ] Image multipart works; HEIC rejection returns clear 415/`UNSUPPORTED_MEDIA`  

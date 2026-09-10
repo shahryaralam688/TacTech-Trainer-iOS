@@ -139,22 +139,31 @@ final class HumanCallStore {
     private let ringtone = CallRingtonePlayer()
     private var signalingTask: URLSessionWebSocketTask?
     private var tickTask: Task<Void, Never>?
+    private var pollTask: Task<Void, Never>?
     private var connectedAt: Date?
     private var monitoring = false
+    private var myUserId: String?
 
     // MARK: Lifecycle (keep alive while logged in — even if chat UI closed)
 
     func startMonitoring() {
-        guard !monitoring else { return }
+        if monitoring {
+            realtime.connect()
+            return
+        }
         monitoring = true
+        myUserId = Self.jwtUserId()
         realtime.onEvent = { [weak self] event in
             self?.handleRealtime(event)
         }
         realtime.connect()
+        startInvitePolling()
     }
 
     func stopMonitoring() {
         monitoring = false
+        pollTask?.cancel()
+        pollTask = nil
         hangupLocal(outcome: nil, notifyPeer: false)
         realtime.disconnect()
     }
@@ -164,7 +173,8 @@ final class HumanCallStore {
     func startOutgoing(
         peerUserId: String,
         peerName: String,
-        threadId: String
+        threadId: String,
+        fromName: String? = nil
     ) async {
         hangupLocal(outcome: nil, notifyPeer: false)
         do {
@@ -181,6 +191,20 @@ final class HumanCallStore {
             phase = .outgoingRinging
             ringtone.start(.outgoing)
             connectSignaling(path: session.signalingPath, sessionId: session.id)
+
+            // REST fallback: embed invite so peer discovers the call even if Socket.IO fails.
+            let callerName = fromName?.nilIfEmpty ?? Self.currentDisplayName()
+            let marker = CallInviteCodec.encode(
+                sessionId: session.id,
+                threadId: threadId,
+                fromName: callerName,
+                signalingPath: session.signalingPath
+            )
+            _ = try? await api.sendCallEvent(
+                threadId: threadId,
+                outcome: marker,
+                clientId: "invite-\(session.id)"
+            )
             lastError = nil
         } catch {
             lastError = (error as? AppError)?.errorDescription ?? error.localizedDescription
@@ -209,7 +233,14 @@ final class HumanCallStore {
     func declineIncoming() {
         guard let invite = activeInvite else { return }
         sendHangup(reason: "declined")
-        HumanChatStore.shared.recordCallEvent(peerId: invite.peerUserId, outcome: "Declined call")
+        Task {
+            _ = try? await api.sendCallEvent(
+                threadId: invite.threadId,
+                outcome: CallInviteCodec.endMarker(sessionId: invite.sessionId),
+                clientId: "end-\(invite.sessionId)-\(UUID().uuidString)"
+            )
+            HumanChatStore.shared.recordCallEvent(peerId: invite.peerUserId, outcome: "Declined call")
+        }
         hangupLocal(outcome: nil, notifyPeer: false)
     }
 
@@ -230,7 +261,14 @@ final class HumanCallStore {
             outcome = "Call ended"
         }
         sendHangup(reason: "ended")
-        HumanChatStore.shared.recordCallEvent(peerId: invite.peerUserId, outcome: outcome)
+        Task {
+            _ = try? await api.sendCallEvent(
+                threadId: invite.threadId,
+                outcome: CallInviteCodec.endMarker(sessionId: invite.sessionId),
+                clientId: "end-\(invite.sessionId)-\(UUID().uuidString)"
+            )
+            HumanChatStore.shared.recordCallEvent(peerId: invite.peerUserId, outcome: outcome)
+        }
         hangupLocal(outcome: nil, notifyPeer: false)
     }
 
@@ -239,30 +277,103 @@ final class HumanCallStore {
     private func handleRealtime(_ event: ChatRealtimeClient.Event) {
         switch event {
         case let .callIncoming(threadId, sessionId, fromUserId, fromName, signalingPath):
-            // Ignore if we are the one who just started this session.
-            if let active = activeInvite, active.sessionId == sessionId { return }
-            if phase != .idle { return }
-            let invite = HumanCallInvite(
+            presentIncoming(
                 sessionId: sessionId,
                 threadId: threadId,
-                peerUserId: fromUserId,
-                peerName: fromName?.nilIfEmpty ?? "Incoming call",
-                signalingPath: signalingPath ?? Self.defaultSignalingPath(sessionId: sessionId),
-                isOutgoing: false
+                fromUserId: fromUserId,
+                fromName: fromName,
+                signalingPath: signalingPath
             )
-            activeInvite = invite
-            phase = .incomingRinging
-            ringtone.start(.incoming)
-            // Soft refresh chat inbox so thread exists.
-            Task { await HumanChatStore.shared.refreshInbox() }
 
         case let .callEnded(_, sessionId, _):
             if activeInvite?.sessionId == sessionId {
                 hangupLocal(outcome: nil, notifyPeer: false)
             }
 
+        case .message(let dto):
+            if let outcome = dto.callOutcome, CallInviteCodec.isEndMarker(outcome) {
+                let sid = outcome.split(separator: "|").dropFirst().first.map(String.init)
+                if let sid, activeInvite?.sessionId == sid {
+                    hangupLocal(outcome: nil, notifyPeer: false)
+                }
+            }
+
         default:
             break
+        }
+    }
+
+    private func presentIncoming(
+        sessionId: String,
+        threadId: String,
+        fromUserId: String,
+        fromName: String?,
+        signalingPath: String?
+    ) {
+        if fromUserId == myUserId { return }
+        if let active = activeInvite, active.sessionId == sessionId { return }
+        guard phase == .idle else { return }
+        let invite = HumanCallInvite(
+            sessionId: sessionId,
+            threadId: threadId,
+            peerUserId: fromUserId,
+            peerName: fromName?.nilIfEmpty ?? "Incoming call",
+            signalingPath: signalingPath ?? Self.defaultSignalingPath(sessionId: sessionId),
+            isOutgoing: false
+        )
+        activeInvite = invite
+        phase = .incomingRinging
+        ringtone.start(.incoming)
+        Task { await HumanChatStore.shared.refreshInbox() }
+    }
+
+    /// Poll threads for REST invite markers (works when Socket.IO event is missing).
+    private func startInvitePolling() {
+        pollTask?.cancel()
+        pollTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.pollForIncomingInvites()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
+    }
+
+    private func pollForIncomingInvites() async {
+        guard monitoring, phase == .idle else { return }
+        do {
+            let threads = try await api.listThreads()
+            let me = myUserId ?? Self.jwtUserId()
+            for thread in threads.prefix(10) {
+                if let updated = thread.lastMessageAt,
+                   Date().timeIntervalSince(updated) > 90 {
+                    continue
+                }
+                let page = try await api.listMessages(threadId: thread.id, limit: 15)
+                for dto in page.items.sorted(by: { $0.createdAt > $1.createdAt }) {
+                    if let outcome = dto.callOutcome, CallInviteCodec.isEndMarker(outcome) {
+                        // Newer end marker than invite → skip this session.
+                        continue
+                    }
+                    guard let invite = CallInviteCodec.parse(fromMessage: dto) else { continue }
+                    // If a newer end marker exists for same session, skip.
+                    let ended = page.items.contains {
+                        guard let o = $0.callOutcome, CallInviteCodec.isEndMarker(o) else { return false }
+                        return o.contains(invite.sessionId) && $0.createdAt >= dto.createdAt
+                    }
+                    if ended { continue }
+                    guard dto.senderUserId != me else { continue }
+                    presentIncoming(
+                        sessionId: invite.sessionId,
+                        threadId: invite.threadId.isEmpty ? thread.id : invite.threadId,
+                        fromUserId: dto.senderUserId,
+                        fromName: invite.fromName ?? thread.peerName,
+                        signalingPath: invite.signalingPath
+                    )
+                    return
+                }
+            }
+        } catch {
+            // Soft fail — keep polling.
         }
     }
 
@@ -396,6 +507,35 @@ final class HumanCallStore {
         components.path = cleaned
         components.queryItems = [URLQueryItem(name: "token", value: token)]
         return components.url
+    }
+
+    private static func jwtUserId() -> String? {
+        guard let token = TokenStore.accessToken() else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+        let pad = 4 - payload.count % 4
+        if pad < 4 { payload += String(repeating: "=", count: pad) }
+        guard let data = Data(base64Encoded: payload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        return (obj["userId"] as? String) ?? (obj["sub"] as? String) ?? (obj["id"] as? String)
+    }
+
+    private static func currentDisplayName() -> String {
+        // Best-effort from JWT name claim; UI already has peer names.
+        guard let token = TokenStore.accessToken() else { return "Coach" }
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return "Coach" }
+        var payload = String(parts[1])
+        let pad = 4 - payload.count % 4
+        if pad < 4 { payload += String(repeating: "=", count: pad) }
+        guard let data = Data(base64Encoded: payload
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return "Coach" }
+        return (obj["name"] as? String) ?? (obj["email"] as? String) ?? "Coach"
     }
 }
 

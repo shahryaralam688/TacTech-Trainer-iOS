@@ -85,3 +85,24 @@ Relay at least:
 ---
 
 **Reply with:** confirm `chat.call.incoming` is emitted on session create, sample payload, and whether push is wired for `type=chat_call`.
+
+---
+
+## iOS REST fallback (already shipping)
+
+If Socket event is missing, caller also posts:
+
+```json
+{
+  "kind": "call_event",
+  "callOutcome": "__tactech_call_invite__|<sessionId>|<threadId>|<fromName>|<signalingPath>",
+  "clientId": "invite-<sessionId>"
+}
+```
+
+Callee polls `/chat/threads` + recent messages every **2 seconds** while logged in and shows the ringing UI.
+
+Still required on backend for instant + background:
+1. Emit `chat.call.incoming` to the **user’s personal Socket room** (not only thread room)
+2. High-priority push `type=chat_call`
+3. Ideal: `GET /chat/rtc/incoming` → active ringing sessions for current user

@@ -1,7 +1,7 @@
 import Foundation
 
 /// Lightweight Socket.IO client for namespace `/chat` (Engine.IO v4 over WebSocket).
-/// Store still polls REST if this disconnects.
+/// Waits for engine `open` before namespace connect; reconnects with backoff.
 @MainActor
 final class ChatRealtimeClient {
     enum Event {
@@ -14,53 +14,37 @@ final class ChatRealtimeClient {
     }
 
     var onEvent: ((Event) -> Void)?
+    var onConnectionChange: ((Bool) -> Void)?
 
+    private(set) var isConnected = false
     private var task: URLSessionWebSocketTask?
     private var receiveLoopRunning = false
     private var joinedThreadId: String?
     private var pingTask: Task<Void, Never>?
+    private var reconnectTask: Task<Void, Never>?
+    private var shouldRun = false
+    private var namespaceReady = false
+    private var authToken: String?
 
     func connect() {
-        disconnect()
+        shouldRun = true
+        reconnectTask?.cancel()
+        disconnectSocketOnly()
         guard let token = TokenStore.accessToken() else { return }
-
-        var components = URLComponents()
-        components.scheme = APIConfig.baseURL.scheme == "https" ? "wss" : "ws"
-        components.host = APIConfig.baseURL.host
-        components.port = APIConfig.baseURL.port
-        components.path = "/socket.io/"
-        components.queryItems = [
-            URLQueryItem(name: "EIO", value: "4"),
-            URLQueryItem(name: "transport", value: "websocket")
-        ]
-        guard let url = components.url else { return }
-
-        var request = URLRequest(url: url)
-        request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let ws = URLSession.shared.webSocketTask(with: request)
-        task = ws
-        ws.resume()
-        receiveLoopRunning = true
-        Task { await receiveLoop() }
-        // Escape token for JSON string
-        let escaped = token
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-        sendRaw("40/chat,{\"token\":\"\(escaped)\"}")
+        authToken = token
+        openSocket(token: token)
     }
 
     func disconnect() {
-        receiveLoopRunning = false
-        pingTask?.cancel()
-        pingTask = nil
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
-        joinedThreadId = nil
+        shouldRun = false
+        reconnectTask?.cancel()
+        reconnectTask = nil
+        disconnectSocketOnly()
     }
 
     func join(threadId: String) {
         joinedThreadId = threadId
+        guard namespaceReady else { return }
         emit(event: "chat.join", payload: ["threadId": threadId])
     }
 
@@ -73,7 +57,54 @@ final class ChatRealtimeClient {
         emit(event: "chat.typing", payload: ["threadId": threadId, "isTyping": isTyping])
     }
 
+    // MARK: - Socket
+
+    private func openSocket(token: String) {
+        var components = URLComponents()
+        components.scheme = APIConfig.baseURL.scheme == "https" ? "wss" : "ws"
+        components.host = APIConfig.baseURL.host
+        components.port = APIConfig.baseURL.port
+        components.path = "/socket.io/"
+        components.queryItems = [
+            URLQueryItem(name: "EIO", value: "4"),
+            URLQueryItem(name: "transport", value: "websocket"),
+            // Some ASGI socket.io builds read token from query.
+            URLQueryItem(name: "token", value: token)
+        ]
+        guard let url = components.url else { return }
+
+        var request = URLRequest(url: url)
+        request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let ws = URLSession.shared.webSocketTask(with: request)
+        task = ws
+        namespaceReady = false
+        receiveLoopRunning = true
+        ws.resume()
+        Task { await receiveLoop() }
+    }
+
+    private func disconnectSocketOnly() {
+        receiveLoopRunning = false
+        pingTask?.cancel()
+        pingTask = nil
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        namespaceReady = false
+        setConnected(false)
+    }
+
+    private func connectNamespace() {
+        guard let token = authToken ?? TokenStore.accessToken() else { return }
+        let escaped = token
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        // python-socketio accepts token at top-level or under auth.
+        sendRaw("40/chat,{\"token\":\"\(escaped)\",\"auth\":{\"token\":\"\(escaped)\"}}")
+    }
+
     private func emit(event: String, payload: [String: Any]) {
+        guard namespaceReady else { return }
         guard let data = try? JSONSerialization.data(withJSONObject: [event, payload]),
               let json = String(data: data, encoding: .utf8) else { return }
         sendRaw("42/chat," + json)
@@ -99,6 +130,8 @@ final class ChatRealtimeClient {
                 }
             } catch {
                 receiveLoopRunning = false
+                setConnected(false)
+                scheduleReconnect()
                 break
             }
         }
@@ -109,8 +142,25 @@ final class ChatRealtimeClient {
             sendRaw("3")
             return
         }
+        // Engine.IO open
         if text.hasPrefix("0") {
             schedulePing()
+            connectNamespace()
+            return
+        }
+        // Namespace connected: 40/chat or 40/chat,{...}
+        if text == "40" || text.hasPrefix("40/chat") || text == "40/chat," || text.hasPrefix("40,") {
+            namespaceReady = true
+            setConnected(true)
+            if let joinedThreadId {
+                emit(event: "chat.join", payload: ["threadId": joinedThreadId])
+            }
+            return
+        }
+        // Connect error
+        if text.hasPrefix("44") || text.hasPrefix("41") {
+            setConnected(false)
+            scheduleReconnect()
             return
         }
         guard let payload = extractEventPayload(text) else { return }
@@ -140,6 +190,16 @@ final class ChatRealtimeClient {
                let msgData = try? JSONSerialization.data(withJSONObject: dict),
                let dto = try? decoder.decode(ChatMessageDTO.self, from: msgData) {
                 onEvent?(.message(dto))
+                // REST fallback invite may also arrive as a normal message.
+                if let invite = CallInviteCodec.parse(fromMessage: dto) {
+                    onEvent?(.callIncoming(
+                        threadId: invite.threadId,
+                        sessionId: invite.sessionId,
+                        fromUserId: dto.senderUserId,
+                        fromName: invite.fromName,
+                        signalingPath: invite.signalingPath
+                    ))
+                }
             }
         case "chat.thread.updated":
             if let dict = body as? [String: Any],
@@ -162,10 +222,11 @@ final class ChatRealtimeClient {
                 onEvent?(.typing(threadId: threadId, userId: userId, isTyping: typing))
             }
         case "chat.call.incoming":
-            if let dict = body as? [String: Any],
-               let threadId = dict["threadId"] as? String,
-               let sessionId = dict["sessionId"] as? String,
-               let from = dict["fromUserId"] as? String {
+            if let dict = body as? [String: Any] {
+                let threadId = (dict["threadId"] as? String) ?? ""
+                let sessionId = (dict["sessionId"] as? String) ?? (dict["id"] as? String) ?? ""
+                let from = (dict["fromUserId"] as? String) ?? (dict["callerUserId"] as? String) ?? ""
+                guard !threadId.isEmpty, !sessionId.isEmpty, !from.isEmpty else { return }
                 onEvent?(.callIncoming(
                     threadId: threadId,
                     sessionId: sessionId,
@@ -177,7 +238,7 @@ final class ChatRealtimeClient {
         case "chat.call.ended":
             if let dict = body as? [String: Any],
                let threadId = dict["threadId"] as? String,
-               let sessionId = dict["sessionId"] as? String {
+               let sessionId = (dict["sessionId"] as? String) ?? (dict["id"] as? String) {
                 onEvent?(.callEnded(
                     threadId: threadId,
                     sessionId: sessionId,
@@ -197,5 +258,71 @@ final class ChatRealtimeClient {
                 self?.sendRaw("2")
             }
         }
+    }
+
+    private func scheduleReconnect() {
+        guard shouldRun else { return }
+        reconnectTask?.cancel()
+        reconnectTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard let self, self.shouldRun else { return }
+            self.connect()
+        }
+    }
+
+    private func setConnected(_ value: Bool) {
+        guard isConnected != value else { return }
+        isConnected = value
+        onConnectionChange?(value)
+    }
+}
+
+// MARK: - Call invite codec (REST fallback when Socket event missing)
+
+enum CallInviteCodec {
+    /// Embedded in `callOutcome` so peers can discover ringing via message poll.
+    static let prefix = "__tactech_call_invite__"
+
+    struct Invite {
+        let sessionId: String
+        let threadId: String
+        let fromName: String?
+        let signalingPath: String?
+    }
+
+    static func encode(sessionId: String, threadId: String, fromName: String, signalingPath: String) -> String {
+        // Keep pipe-separated; signaling path may contain : so use limited fields.
+        let safeName = fromName.replacingOccurrences(of: "|", with: "/")
+        return "\(prefix)|\(sessionId)|\(threadId)|\(safeName)|\(signalingPath)"
+    }
+
+    static func parse(outcome: String) -> Invite? {
+        guard outcome.hasPrefix(prefix) else { return nil }
+        let parts = outcome.split(separator: "|", omittingEmptySubsequences: false).map(String.init)
+        // [prefix, sessionId, threadId, name, signalingPath...]
+        guard parts.count >= 3 else { return nil }
+        let sessionId = parts[1]
+        let threadId = parts[2]
+        let name = parts.count > 3 ? parts[3] : nil
+        let path = parts.count > 4 ? parts[4...].joined(separator: "|") : nil
+        guard !sessionId.isEmpty, !threadId.isEmpty else { return nil }
+        return Invite(sessionId: sessionId, threadId: threadId, fromName: name, signalingPath: path)
+    }
+
+    static func parse(fromMessage dto: ChatMessageDTO) -> Invite? {
+        let kind = (dto.kind ?? "").lowercased()
+        guard kind == "call_event" || kind == "callevent" || dto.callOutcome != nil else { return nil }
+        guard let outcome = dto.callOutcome, let invite = parse(outcome: outcome) else { return nil }
+        // Fresh invites only (60s).
+        if Date().timeIntervalSince(dto.createdAt) > 60 { return nil }
+        return invite
+    }
+
+    static func endMarker(sessionId: String) -> String {
+        "__tactech_call_ended__|\(sessionId)"
+    }
+
+    static func isEndMarker(_ outcome: String) -> Bool {
+        outcome.hasPrefix("__tactech_call_ended__")
     }
 }

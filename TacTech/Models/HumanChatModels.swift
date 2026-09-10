@@ -64,6 +64,12 @@ struct HumanChatMessage: Identifiable, Hashable, Codable {
             let secs = Int((durationSeconds ?? 0).rounded())
             return "🎤 Voice note\(secs > 0 ? " · \(secs)s" : "")"
         case .callEvent:
+            if let outcome = callOutcome, CallInviteCodec.parse(outcome: outcome) != nil {
+                return "📞 Video call"
+            }
+            if let outcome = callOutcome, CallInviteCodec.isEndMarker(outcome) {
+                return "📞 Call ended"
+            }
             return callOutcome ?? "📞 Call"
         }
     }

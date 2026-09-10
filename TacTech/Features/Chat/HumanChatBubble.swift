@@ -147,10 +147,19 @@ struct HumanChatBubble: View {
     }
 
     private var callEventChip: some View {
-        HStack(spacing: 8) {
+        let label: String = {
+            if let outcome = message.callOutcome, CallInviteCodec.parse(outcome: outcome) != nil {
+                return "Video call"
+            }
+            if let outcome = message.callOutcome, CallInviteCodec.isEndMarker(outcome) {
+                return "Call ended"
+            }
+            return message.callOutcome ?? "Call"
+        }()
+        return HStack(spacing: 8) {
             Image(systemName: "video.fill")
                 .font(.system(size: 11, weight: .semibold))
-            Text(message.callOutcome ?? "Call")
+            Text(label)
                 .font(TTFont.workSans(12, weight: .semibold))
         }
         .foregroundStyle(muted)

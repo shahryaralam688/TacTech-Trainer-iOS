@@ -457,7 +457,8 @@ struct HumanPeerChatView: View {
             await HumanCallStore.shared.startOutgoing(
                 peerUserId: peer.id,
                 peerName: peer.name,
-                threadId: threadId
+                threadId: threadId,
+                fromName: appStore.currentUser?.name
             )
         } catch {
             chatStore.lastError = (error as? AppError)?.errorDescription ?? error.localizedDescription

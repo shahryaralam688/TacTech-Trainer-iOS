@@ -33,11 +33,17 @@ struct TraineeDashboardView: View {
                         VStack(alignment: .leading, spacing: 24) {
                             // Execution first → snapshot → support
                             todayWorkoutSection
+                                .ttHomeAppear(index: 0)
                             fitnessMetrics
+                                .ttHomeAppear(index: 1)
                             dietSection
+                                .ttHomeAppear(index: 2)
                             activitiesSection
+                                .ttHomeAppear(index: 3)
                             coachSection
+                                .ttHomeAppear(index: 4)
                             formInsightsSection
+                                .ttHomeAppear(index: 5)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
@@ -105,17 +111,17 @@ struct TraineeDashboardView: View {
                     Button { showProgress = true } label: {
                         metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .bars)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
 
                     Button { showNutrition = true } label: {
                         metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
 
                     Button { showNutrition = true } label: {
                         metricCard(title: "Calories", value: "\(caloriesToday)", icon: "flame.fill", tint: Color(white: 0.28), chart: .dots)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
                 }
             }
         }
@@ -142,27 +148,11 @@ struct TraineeDashboardView: View {
             Group {
                 switch chart {
                 case .bars:
-                    HStack(alignment: .bottom, spacing: 4) {
-                        ForEach(Array([0.45, 0.7, 0.55, 0.9, 0.65].enumerated()), id: \.offset) { _, h in
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .fill(Color.white.opacity(0.85))
-                                .frame(width: 8, height: 36 * h)
-                        }
-                    }
-                    .frame(height: 40, alignment: .bottom)
+                    TTHomeMetricBars()
                 case .wave:
-                    WaveShape()
-                        .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 3, lineCap: .round))
-                        .frame(height: 40)
+                    TTHomeMetricWave()
                 case .dots:
-                    HStack(spacing: 6) {
-                        ForEach(0..<5, id: \.self) { i in
-                            Circle()
-                                .fill(Color.white.opacity(i == 3 ? 1 : 0.35))
-                                .frame(width: 8, height: 8)
-                        }
-                    }
-                    .frame(height: 40)
+                    TTHomeMetricDots()
                 }
             }
 
@@ -204,12 +194,16 @@ struct TraineeDashboardView: View {
                     .frame(height: 220)
                     .frame(maxWidth: .infinity)
                     .clipped()
+                    .scaleEffect(1.02)
 
                 LinearGradient(
                     colors: [.black.opacity(0.25), .clear, .black.opacity(0.78)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
+
+                // Soft moving highlight over the hero
+                TTHomeHeroSheen()
 
                 HStack(spacing: 8) {
                     workoutPill(icon: "clock", text: "\(minutes)min")
@@ -224,7 +218,7 @@ struct TraineeDashboardView: View {
                     Spacer()
                     VStack(alignment: .leading, spacing: 8) {
                         Text(title)
-                            .font(TTFont.headingMD(.bold))
+                            .font(TTFont.headingMD(.semibold))
                             .foregroundStyle(.white)
 
                         HStack(spacing: 8) {
@@ -234,7 +228,7 @@ struct TraineeDashboardView: View {
                                 .lineLimit(1)
 
                             Text(level.lowercased())
-                                .font(TTFont.textXS(.bold))
+                                .font(TTFont.textXS(.semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
@@ -254,27 +248,27 @@ struct TraineeDashboardView: View {
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "play.fill")
-                            .font(TTFont.workSans(14, weight: .bold))
+                            .font(TTFont.workSans(14, weight: .semibold))
                         Text(session == nil ? "Start Next Session" : "Start Today’s Workout")
-                            .font(TTFont.textLG(.bold))
+                            .font(TTFont.textLG(.semibold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
                     .background(orange)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
+                .ttHomeCTAPulse(tint: orange)
             } else {
                 Button {
                     showProfile = true
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "link")
-                            .font(TTFont.workSans(14, weight: .bold))
+                            .font(TTFont.workSans(14, weight: .semibold))
                         Text("Link a trainer to get workouts")
-                            .font(TTFont.textLG(.bold))
+                            .font(TTFont.textLG(.semibold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -282,7 +276,7 @@ struct TraineeDashboardView: View {
                     .background(Color.black)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(TTHomeCardPressStyle())
             }
         }
     }
@@ -407,7 +401,7 @@ struct TraineeDashboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(TTHomeCardPressStyle())
     }
 
     private func mealStatPill(_ text: String) -> some View {
@@ -822,31 +816,6 @@ private struct ActivityLineChart: View {
                 }
             }
         }
-    }
-}
-
-// MARK: - Shapes
-
-private struct WaveShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: 0, y: rect.midY))
-        path.addCurve(
-            to: CGPoint(x: rect.maxX * 0.33, y: rect.midY - 10),
-            control1: CGPoint(x: rect.maxX * 0.12, y: rect.midY + 12),
-            control2: CGPoint(x: rect.maxX * 0.22, y: rect.midY - 16)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.maxX * 0.66, y: rect.midY + 8),
-            control1: CGPoint(x: rect.maxX * 0.44, y: rect.midY - 4),
-            control2: CGPoint(x: rect.maxX * 0.55, y: rect.midY + 14)
-        )
-        path.addCurve(
-            to: CGPoint(x: rect.maxX, y: rect.midY - 4),
-            control1: CGPoint(x: rect.maxX * 0.78, y: rect.midY + 2),
-            control2: CGPoint(x: rect.maxX * 0.9, y: rect.midY - 12)
-        )
-        return path
     }
 }
 

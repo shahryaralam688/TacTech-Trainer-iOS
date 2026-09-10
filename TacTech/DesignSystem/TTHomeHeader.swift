@@ -125,6 +125,7 @@ struct TTHomeProfileHeader: View {
                                     .strokeBorder(Color.black, lineWidth: 1.5)
                             )
                             .offset(x: 4, y: -4)
+                            .ttHomeBadgePop(active: badgeCount > 0)
                     }
                 }
                 // Keep badge inside the hit target so parent `.clipped()` can’t crop it.
@@ -143,8 +144,8 @@ struct TTHomeProfileHeader: View {
                 avatarView(side: avatarSide, corner: avatarRadius)
 
                 VStack(alignment: .leading, spacing: 7 * expand) {
-                    Text(p < 0.55 ? "Hello, \(name)!" : name)
-                        .font(TTFont.workSans(titleSize, weight: .bold))
+                    Text(p < 0.55 ? TTHomeDelight.greeting(for: name, date: date) : name)
+                        .font(TTFont.workSans(titleSize, weight: .semibold))
                         .foregroundStyle(.white)
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)

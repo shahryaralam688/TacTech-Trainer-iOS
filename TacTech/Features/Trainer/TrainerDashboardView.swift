@@ -31,11 +31,17 @@ struct TrainerDashboardView: View {
                         VStack(alignment: .leading, spacing: 22) {
                             // Ops first → snapshot → roster → actions → recent
                             weekStrip
+                                .ttHomeAppear(index: 0)
                             todayQueue
+                                .ttHomeAppear(index: 1)
                             coachingMetrics
+                                .ttHomeAppear(index: 2)
                             rosterSpotlight
+                                .ttHomeAppear(index: 3)
                             coachShortcuts
+                                .ttHomeAppear(index: 4)
                             recentForm
+                                .ttHomeAppear(index: 5)
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
@@ -104,7 +110,7 @@ struct TrainerDashboardView: View {
                         .background(on ? orange : Color(white: 0.96))
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
                 }
             }
         }
@@ -221,17 +227,19 @@ struct TrainerDashboardView: View {
                             value: "\(clients.count)",
                             icon: "person.2.fill",
                             tint: orange,
-                            subtitle: "Active roster"
+                            subtitle: "Active roster",
+                            chart: .bars
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
 
                     metricCard(
                         title: "Today",
                         value: "\(trainedToday)",
                         icon: "checkmark.seal.fill",
                         tint: green,
-                        subtitle: selectedDay.formatted(.dateTime.weekday(.wide))
+                        subtitle: selectedDay.formatted(.dateTime.weekday(.wide)),
+                        chart: .dots
                     )
 
                     Button {
@@ -242,29 +250,34 @@ struct TrainerDashboardView: View {
                             value: "\(planCount)",
                             icon: "list.clipboard.fill",
                             tint: blue,
-                            subtitle: "Ready to assign"
+                            subtitle: "Ready to assign",
+                            chart: .wave
                         )
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(TTHomeCardPressStyle())
 
                     metricCard(
                         title: "Form avg",
                         value: formAvgLabel,
                         icon: "camera.viewfinder",
                         tint: Color(white: 0.28),
-                        subtitle: "Live reviews"
+                        subtitle: "Live reviews",
+                        chart: .bars
                     )
                 }
             }
         }
     }
 
+    private enum TrainerMetricChart { case bars, wave, dots }
+
     private func metricCard(
         title: String,
         value: String,
         icon: String,
         tint: Color,
-        subtitle: String
+        subtitle: String,
+        chart: TrainerMetricChart = .bars
     ) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
@@ -272,18 +285,27 @@ struct TrainerDashboardView: View {
                     .font(TTFont.textMD(.semibold))
                 Spacer()
                 Image(systemName: icon)
-                    .font(TTFont.workSans(12, weight: .bold))
+                    .font(TTFont.workSans(12, weight: .semibold))
             }
             Text(value)
-                .font(TTFont.headingLG(.bold))
+                .font(TTFont.headingLG(.semibold))
             Text(subtitle)
                 .font(TTFont.textSM(.medium))
                 .opacity(0.85)
+
+            Group {
+                switch chart {
+                case .bars: TTHomeMetricBars()
+                case .wave: TTHomeMetricWave()
+                case .dots: TTHomeMetricDots()
+                }
+            }
+
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
         .padding(16)
-        .frame(width: 148, height: 148, alignment: .topLeading)
+        .frame(width: 148, height: 168, alignment: .topLeading)
         .background(tint)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
@@ -488,14 +510,15 @@ struct TrainerDashboardView: View {
                 .foregroundStyle(Color(white: 0.45))
             Button(action: action) {
                 Text(cta)
-                    .font(TTFont.textMD(.bold))
+                    .font(TTFont.textMD(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(orange)
                     .clipShape(Capsule())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(TTHomeCardPressStyle())
+            .ttHomeCTAPulse(tint: orange)
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)

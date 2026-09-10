@@ -20,11 +20,13 @@ enum TTHomeHeaderCollapse {
     /// Longer travel = shrink/expand feels paced, not sudden.
     static let distance: CGFloat = 168
 
-    /// Smootherstep 0…1 — gentle ease at both ends for nicer UX.
+    /// Approximate height delta of `TTHomeProfileHeader` expanded → compact.
+    /// Must match real layout travel or ScrollView offset compensation fights and vibrates.
+    static let homeLayoutTravel: CGFloat = 102
+
+    /// Linear map — smootherstep lagged the finger and fought layout compensation on flings.
     static func progress(for offset: CGFloat) -> CGFloat {
-        let raw = min(1, max(0, offset / distance))
-        // Ken Perlin smootherstep
-        return raw * raw * raw * (raw * (raw * 6 - 15) + 10)
+        min(1, max(0, offset / distance))
     }
 }
 
@@ -269,7 +271,11 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 ///
 /// Collapsing a header **above** a ScrollView shortens the scroll view’s frame;
 /// UIKit then compensates `contentOffset`, which without correction fights the
-/// header. We undo that layout delta.
+/// header. We undo that layout delta with a fixed-point solve.
+///
+/// Progress is applied **1:1 with no animation**. Spring/blend lag leaves the
+/// header still resizing after a fling settles — that feedback loop is the
+/// end-of-scroll “vibrate”.
 ///
 /// Short content: scrolling / bounce is disabled (so the header never fights
 /// rubber-band). Tall content: scrolling stays on and collapse stays interactive.
@@ -286,65 +292,75 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private var lastProgress: CGFloat = 0
     private var lastRawY: CGFloat = 0
     private var isUserScrolling = false
+    private var pendingCanScroll: Bool?
 
     func setUserScrolling(_ active: Bool) {
+        let wasScrolling = isUserScrolling
         isUserScrolling = active
+        // Commit overflow gating only when idle — flipping `scrollDisabled`
+        // mid-deceleration hard-stops the rubber band and looks like a vibrate.
+        if wasScrolling, !active {
+            commitPendingScrollGate()
+        }
     }
 
     func setScrollableOverflow(_ overflow: CGFloat) {
-        // >1pt = real overflow; otherwise content fits → no scroll / no bounce.
-        let canScroll = overflow > 1
-        if allowsScrolling != canScroll {
-            allowsScrolling = canScroll
+        // Hysteresis: avoid toggling when contentSize ≈ container during bounce.
+        let next: Bool
+        if allowsScrolling {
+            next = overflow > 0.5
+        } else {
+            next = overflow > 8
         }
-        if !canScroll {
-            apply(0, animated: true)
+        pendingCanScroll = next
+        if !isUserScrolling {
+            commitPendingScrollGate()
         }
     }
 
     func setOffsetY(_ y: CGFloat) {
         guard allowsScrolling else {
-            apply(0, animated: true)
+            apply(0)
             return
         }
 
         let rawY = max(0, y)
-        // Fixed-point solve so expand isn't sticky: p == f(y + travel * p).
+        // Fixed-point: p == f(y + travel * p). Exact solve keeps UIKit’s offset
+        // compensation and our header height in agreement every frame.
         var solved = lastProgress
-        for _ in 0..<3 {
+        for _ in 0..<5 {
             let compensated = max(0, rawY + layoutTravel * solved)
             solved = TTHomeHeaderCollapse.progress(for: compensated)
         }
         let target = min(1, max(0, solved))
-
         let deltaRaw = rawY - lastRawY
         lastRawY = rawY
 
-        // Micro-blend while dragging = butter without lag. Stronger blend when idle.
-        let blend: CGFloat = isUserScrolling ? 0.72 : 0.42
-        var next = lastProgress + (target - lastProgress) * blend
-        // Snap when essentially there so we don't creep forever.
-        if abs(target - next) < 0.004 { next = target }
-
-        guard abs(next - lastProgress) >= 0.002 else { return }
-
-        // Idle layout echo can nudge collapse upward — ignore tiny phantom increases.
-        // Never block decreases (expand).
-        if !isUserScrolling, next > lastProgress, (next - lastProgress) < 0.06, abs(deltaRaw) < 1.5 {
+        // Ignore idle layout echo that only nudges collapse upward.
+        if !isUserScrolling, target > lastProgress, (target - lastProgress) < 0.04, abs(deltaRaw) < 1.5 {
             return
         }
 
-        // Tight interactive spring — smooth UX, still follows the finger.
-        apply(next, animated: true)
+        apply(target)
     }
 
-    private func apply(_ stepped: CGFloat, animated: Bool) {
-        guard abs(stepped - lastProgress) > 0.0001 || abs(progress - stepped) > 0.0001 else { return }
+    private func commitPendingScrollGate() {
+        guard let next = pendingCanScroll else { return }
+        pendingCanScroll = nil
+        guard allowsScrolling != next else {
+            if !next { apply(0) }
+            return
+        }
+        allowsScrolling = next
+        if !next { apply(0) }
+    }
+
+    private func apply(_ stepped: CGFloat) {
+        guard abs(stepped - lastProgress) > 0.0005 || abs(progress - stepped) > 0.0005 else { return }
         lastProgress = stepped
         var transaction = Transaction()
-        transaction.animation = animated
-            ? .interactiveSpring(response: 0.2, dampingFraction: 0.96)
-            : nil
+        transaction.disablesAnimations = true
+        transaction.animation = nil
         withTransaction(transaction) {
             progress = stepped
         }
@@ -410,10 +426,13 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
                         overflow: geometry.contentSize.height - geometry.containerSize.height
                     )
                 } action: { _, newValue in
-                    model.setScrollableOverflow(newValue.overflow)
+                    // Offset first so collapse stays in lockstep with the finger;
+                    // overflow gate is deferred while decelerating.
                     model.setOffsetY(newValue.offset)
+                    model.setScrollableOverflow(newValue.overflow)
                 }
                 .onScrollPhaseChange { _, phase in
+                    // Treat decelerating like active scroll — still resizing header.
                     model.setUserScrolling(phase != .idle)
                 }
         } else {

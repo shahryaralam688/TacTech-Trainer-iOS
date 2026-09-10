@@ -6,7 +6,11 @@ struct TrainerDashboardView: View {
     @State private var selectedDay = Date()
     @State private var showProfile = false
     @State private var copiedInvite = false
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
+        let model = TTHomeScrollCollapseModel()
+        model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
+        return model
+    }()
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)

@@ -1,4 +1,6 @@
 name: TacTech
+attributes:
+  LastUpgradeCheck: "2640"
 options:
   bundleIdPrefix: com.tactech
   deploymentTarget:
@@ -9,6 +11,15 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    CLANG_CXX_LANGUAGE_STANDARD: gnu++20
+    GCC_C_LANGUAGE_STANDARD: gnu17
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "DEBUG $(inherited)"
 targets:
   TacTech:
     type: application
@@ -33,6 +44,8 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
+        # Xcode last-selected team on this Mac (ALI ASIF) — change in Signing if needed.
+        DEVELOPMENT_TEAM: Y39JJ6B8MN
     info:
       path: TacTech/Info.plist
       properties:

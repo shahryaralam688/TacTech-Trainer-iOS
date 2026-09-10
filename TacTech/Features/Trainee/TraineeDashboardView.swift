@@ -9,6 +9,7 @@ struct TraineeDashboardView: View {
     @State private var showNutrition = false
     @State private var showWorkouts = false
     @State private var showNotifications = false
+    @State private var celebrateStart = false
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var activitySegmentNS
 
@@ -92,8 +93,14 @@ struct TraineeDashboardView: View {
                 )
             ],
             collapseProgress: scrollCollapse.progress,
-            onProfileTap: { showProfile = true },
-            onNotificationTap: { showNotifications = true }
+            onProfileTap: {
+                TTHomeHaptics.light()
+                showProfile = true
+            },
+            onNotificationTap: {
+                TTHomeHaptics.light()
+                showNotifications = true
+            }
         )
     }
 
@@ -102,7 +109,10 @@ struct TraineeDashboardView: View {
     private var fitnessMetrics: some View {
         VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Fitness Metrics") {
-                Button("See All") { showProgress = true }
+                Button("See All") {
+                    TTHomeHaptics.light()
+                    showProgress = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
@@ -195,7 +205,10 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Today’s Workout") {
-                Button("See All") { showWorkouts = true }
+                Button("See All") {
+                    TTHomeHaptics.light()
+                    showWorkouts = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
@@ -282,10 +295,15 @@ struct TraineeDashboardView: View {
                     .background(orange)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .buttonStyle(TTHomeCardPressStyle())
+                .buttonStyle(TTHomeHapticPressStyle(intensity: .medium))
                 .ttHomeCTAPulse(tint: orange)
+                .simultaneousGesture(TapGesture().onEnded {
+                    celebrateStart = true
+                })
+                .ttHomeWin(celebrate: $celebrateStart, tint: orange)
             } else {
                 Button {
+                    TTHomeHaptics.medium()
                     showProfile = true
                 } label: {
                     HStack(spacing: 10) {
@@ -326,23 +344,28 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Diet & Nutrition") {
-                Button("See All") { showNutrition = true }
+                Button("See All") {
+                    TTHomeHaptics.light()
+                    showNutrition = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    if meals.isEmpty {
-                        mealCard(
-                            name: "Log your first meal",
-                            protein: 0,
-                            fat: 0,
-                            calories: 0,
-                            minutes: 0,
-                            empty: true
-                        )
-                    } else {
+            if meals.isEmpty {
+                TTHomeEmptyState(
+                    icon: "fork.knife",
+                    title: "Fuel today’s session",
+                    subtitle: "Log breakfast or scan a meal so macros stay on track with your plan.",
+                    cta: "Add a meal",
+                    tint: orange
+                ) {
+                    showNutrition = true
+                }
+                .ttHomeCardMorph()
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
                         ForEach(meals.prefix(6)) { meal in
                             mealCard(
                                 name: meal.name,
@@ -368,6 +391,7 @@ struct TraineeDashboardView: View {
         empty: Bool
     ) -> some View {
         Button {
+            TTHomeHaptics.light()
             showNutrition = true
         } label: {
             VStack(alignment: .leading, spacing: 0) {
@@ -450,7 +474,10 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Activities") {
-                Button("See All") { showProgress = true }
+                Button("See All") {
+                    TTHomeHaptics.light()
+                    showProgress = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
@@ -459,6 +486,7 @@ struct TraineeDashboardView: View {
                 HStack(spacing: 6) {
                     ForEach(ActivityRange.allCases) { range in
                         Button {
+                            TTHomeHaptics.selection()
                             withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                                 activityRange = range
                             }
@@ -546,7 +574,10 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("My Coach") {
-                Button("Profile") { showProfile = true }
+                Button("Profile") {
+                    TTHomeHaptics.light()
+                    showProfile = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
@@ -621,19 +652,25 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("Form Insights") {
-                Button("See All") { showProgress = true }
+                Button("See All") {
+                    TTHomeHaptics.light()
+                    showProgress = true
+                }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
             }
 
             if reports.isEmpty {
-                Text("Form scores and coaching cues show up here after a live form session.")
-                    .font(TTFont.workSans(14, weight: .medium))
-                    .foregroundStyle(Color(white: 0.45))
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                TTHomeEmptyState(
+                    icon: "camera.viewfinder",
+                    title: "Capture your first form check",
+                    subtitle: "After a live form session, scores and coaching cues land here so you can improve reps.",
+                    cta: "Open progress",
+                    tint: orange
+                ) {
+                    showProgress = true
+                }
+                .ttHomeCardMorph()
             } else {
                 VStack(spacing: 12) {
                     ForEach(reports.prefix(3)) { report in

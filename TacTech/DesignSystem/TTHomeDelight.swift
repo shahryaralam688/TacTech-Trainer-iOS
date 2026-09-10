@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Home delight motion (Phase 1 + 2)
+// MARK: - Home delight motion (Phase 1 + 2 + 3)
 //
-// Shared entrance / press / micro-chart / parallax / ring / card-morph for home.
-// Respects Reduce Motion.
+// Shared entrance / press / charts / parallax / rings / card-morph /
+// haptics / confetti / empty states for home. Respects Reduce Motion.
 
 enum TTHomeDelight {
     static let entrance = Animation.spring(response: 0.52, dampingFraction: 0.86)
@@ -385,5 +385,215 @@ struct TTHomeProgressRing: View {
                 drawn = target
             }
         }
+    }
+}
+
+// MARK: - Phase 3: Haptics
+
+enum TTHomeHaptics {
+    static func light() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    static func medium() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+    }
+
+    static func soft() {
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+    }
+
+    static func success() {
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+
+    static func selection() {
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+}
+
+struct TTHomeHapticPressStyle: ButtonStyle {
+    var intensity: UIImpactFeedbackGenerator.FeedbackStyle = .light
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? (reduceMotion ? 0.99 : 0.965) : 1)
+            .brightness(configuration.isPressed ? -0.02 : 0)
+            .animation(TTHomeDelight.press, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in
+                if pressed { UIImpactFeedbackGenerator(style: intensity).impactOccurred() }
+            }
+    }
+}
+
+// MARK: - Phase 3: Confetti / win burst
+
+struct TTHomeConfettiBurst: View {
+    var trigger: Bool
+    var tint: Color = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var pieces: [TTHomeConfettiPiece] = []
+    @State private var animating = false
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack {
+                ForEach(pieces) { piece in
+                    Capsule()
+                        .fill(piece.color)
+                        .frame(width: piece.size.width, height: piece.size.height)
+                        .rotationEffect(.degrees(piece.rotation + (animating ? piece.spin : 0)))
+                        .offset(
+                            x: animating ? piece.end.x : piece.start.x,
+                            y: animating ? piece.end.y : piece.start.y
+                        )
+                        .opacity(animating ? 0 : 1)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .allowsHitTesting(false)
+        }
+        .onChange(of: trigger) { _, on in
+            guard on else { return }
+            fire()
+        }
+    }
+
+    private func fire() {
+        guard !reduceMotion else {
+            TTHomeHaptics.success()
+            return
+        }
+        TTHomeHaptics.success()
+        let palette: [Color] = [
+            tint,
+            Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255),
+            Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255),
+            Color.white,
+            Color(red: 250 / 255, green: 204 / 255, blue: 21 / 255)
+        ]
+        pieces = (0..<18).map { i in
+            let angle = Double(i) / 18.0 * .pi * 2
+            let dist = CGFloat.random(in: 70...140)
+            return TTHomeConfettiPiece(
+                color: palette[i % palette.count],
+                size: CGSize(width: CGFloat.random(in: 4...8), height: CGFloat.random(in: 8...14)),
+                start: .zero,
+                end: CGPoint(x: cos(angle) * dist, y: sin(angle) * dist - CGFloat.random(in: 20...60)),
+                rotation: CGFloat.random(in: 0...360),
+                spin: CGFloat.random(in: 120...420)
+            )
+        }
+        animating = false
+        withAnimation(.easeOut(duration: 0.95)) {
+            animating = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.05) {
+            pieces = []
+            animating = false
+        }
+    }
+}
+
+private struct TTHomeConfettiPiece: Identifiable {
+    let id = UUID()
+    var color: Color
+    var size: CGSize
+    var start: CGPoint
+    var end: CGPoint
+    var rotation: CGFloat
+    var spin: CGFloat
+}
+
+// MARK: - Phase 3: Smart empty state
+
+struct TTHomeEmptyState: View {
+    var icon: String
+    var title: String
+    var subtitle: String
+    var cta: String? = nil
+    var tint: Color = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
+    var action: (() -> Void)? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var bob = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(tint.opacity(0.12))
+                    .frame(width: 56, height: 56)
+                Image(systemName: icon)
+                    .font(TTFont.workSans(22, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .offset(y: bob && !reduceMotion ? -3 : 0)
+            }
+
+            Text(title)
+                .font(TTFont.workSans(17, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+
+            Text(subtitle)
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let cta, let action {
+                Button {
+                    TTHomeHaptics.medium()
+                    action()
+                } label: {
+                    Text(cta)
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(tint)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(TTHomeCardPressStyle())
+                .padding(.top, 2)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(white: 0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                bob = true
+            }
+        }
+    }
+}
+
+/// Overlay host for a one-shot confetti burst near a CTA.
+struct TTHomeWinOverlay: ViewModifier {
+    @Binding var celebrate: Bool
+    var tint: Color
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                TTHomeConfettiBurst(trigger: celebrate, tint: tint)
+                    .frame(width: 1, height: 1)
+                    .allowsHitTesting(false)
+            }
+            .onChange(of: celebrate) { _, on in
+                guard on else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+                    celebrate = false
+                }
+            }
+    }
+}
+
+extension View {
+    func ttHomeWin(celebrate: Binding<Bool>, tint: Color) -> some View {
+        modifier(TTHomeWinOverlay(celebrate: celebrate, tint: tint))
     }
 }

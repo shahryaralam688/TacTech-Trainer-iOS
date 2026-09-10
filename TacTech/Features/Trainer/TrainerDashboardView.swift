@@ -7,6 +7,8 @@ struct TrainerDashboardView: View {
     @State private var showProfile = false
     @State private var showNotifications = false
     @State private var copiedInvite = false
+    @State private var celebrateInvite = false
+    @State private var celebrateClearQueue = false
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var weekDayNS
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
@@ -82,8 +84,14 @@ struct TrainerDashboardView: View {
                 )
             ],
             collapseProgress: scrollCollapse.progress,
-            onProfileTap: { showProfile = true },
-            onNotificationTap: { showNotifications = true }
+            onProfileTap: {
+                TTHomeHaptics.light()
+                showProfile = true
+            },
+            onNotificationTap: {
+                TTHomeHaptics.light()
+                showNotifications = true
+            }
         )
     }
 
@@ -96,6 +104,7 @@ struct TrainerDashboardView: View {
                 ForEach(days, id: \.self) { day in
                     let on = Calendar.current.isDate(day, inSameDayAs: selectedDay)
                     Button {
+                        TTHomeHaptics.selection()
                         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
                             selectedDay = day
                         }
@@ -135,6 +144,7 @@ struct TrainerDashboardView: View {
                     .font(TTFont.headingSM(.bold))
                 Spacer()
                 Button {
+                    TTHomeHaptics.light()
                     selectTrainerTab(.trainees)
                 } label: {
                     Text("See All")
@@ -145,25 +155,34 @@ struct TrainerDashboardView: View {
             }
 
             if clients.isEmpty {
-                emptyCard(
-                    title: "No trainees yet",
-                    subtitle: "Share your invite code so athletes can join your roster.",
-                    cta: "Copy invite code"
+                TTHomeEmptyState(
+                    icon: "person.badge.plus",
+                    title: "Build your roster",
+                    subtitle: "Share your invite code so athletes can join — then today’s queue fills itself.",
+                    cta: "Copy invite code",
+                    tint: orange
                 ) {
                     copyInvite()
                 }
+                .ttHomeWin(celebrate: $celebrateInvite, tint: orange)
             } else if attentionQueue.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("You’re clear for now")
-                        .font(TTFont.textLG(.bold))
-                    Text("No check-ins pending for \(selectedDay.formatted(.dateTime.weekday(.wide))).")
-                        .font(TTFont.textMD(.medium))
-                        .foregroundStyle(Color(white: 0.45))
+                TTHomeEmptyState(
+                    icon: "checkmark.seal.fill",
+                    title: "You’re clear for now",
+                    subtitle: "No check-ins pending for \(selectedDay.formatted(.dateTime.weekday(.wide))). Nice coaching pace.",
+                    cta: "Review roster",
+                    tint: green
+                ) {
+                    selectTrainerTab(.trainees)
                 }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(white: 0.96))
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .ttHomeWin(celebrate: $celebrateClearQueue, tint: green)
+                .onAppear {
+                    guard !clients.isEmpty, attentionQueue.isEmpty else { return }
+                    // Soft win once per home visit when queue is already clear.
+                    if !celebrateClearQueue {
+                        celebrateClearQueue = true
+                    }
+                }
             } else {
                 VStack(spacing: 10) {
                     ForEach(attentionQueue.prefix(5)) { item in
@@ -431,7 +450,8 @@ struct TrainerDashboardView: View {
                         icon: "link"
                     )
                 }
-                .buttonStyle(TTHomeCardPressStyle())
+                .buttonStyle(TTHomeHapticPressStyle(intensity: .medium))
+                .ttHomeWin(celebrate: $celebrateInvite, tint: orange)
 
                 Button { showProfile = true } label: {
                     shortcutRow(
@@ -558,6 +578,8 @@ struct TrainerDashboardView: View {
         }
         UIPasteboard.general.string = code
         copiedInvite = true
+        celebrateInvite = true
+        TTHomeHaptics.success()
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             copiedInvite = false
         }

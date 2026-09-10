@@ -44,8 +44,8 @@ targets:
         INFOPLIST_KEY_NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         SWIFT_EMIT_LOC_STRINGS: YES
         CODE_SIGN_STYLE: Automatic
-        # Xcode last-selected team on this Mac (ALI ASIF) — change in Signing if needed.
-        DEVELOPMENT_TEAM: Y39JJ6B8MN
+        # Shahryar personal team (Xcode Accounts). Change if you add another paid team.
+        DEVELOPMENT_TEAM: 7L4359M6G7
     info:
       path: TacTech/Info.plist
       properties:

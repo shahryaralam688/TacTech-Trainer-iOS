@@ -427,7 +427,7 @@
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					9DF553A43CA27081C301A067 = {
-						DevelopmentTeam = Y39JJ6B8MN;
+						DevelopmentTeam = 7L4359M6G7;
 						ProvisioningStyle = Automatic;
 					};
 				};
@@ -685,7 +685,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y39JJ6B8MN;
+				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;
@@ -714,7 +714,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = Y39JJ6B8MN;
+				DEVELOPMENT_TEAM = 7L4359M6G7;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = TacTech/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TacTech;

@@ -277,6 +277,10 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 /// header still resizing after a fling settles — that feedback loop is the
 /// end-of-scroll “vibrate”.
 ///
+/// Scroll metrics are **coalesced to the next main-queue turn** so
+/// `onScrollGeometryChange` never mutates layout in the same frame (avoids
+/// “tried to update multiple times per frame”).
+///
 /// Short content: scrolling / bounce is disabled (so the header never fights
 /// rubber-band). Tall content: scrolling stays on and collapse stays interactive.
 @MainActor
@@ -294,6 +298,10 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private var isUserScrolling = false
     private var pendingCanScroll: Bool?
 
+    private var pendingOffset: CGFloat?
+    private var pendingOverflow: CGFloat?
+    private var flushScheduled = false
+
     func setUserScrolling(_ active: Bool) {
         let wasScrolling = isUserScrolling
         isUserScrolling = active
@@ -301,7 +309,17 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         // mid-deceleration hard-stops the rubber band and looks like a vibrate.
         if wasScrolling, !active {
             commitPendingScrollGate()
+            // Final settle pass with the latest metrics after the fling ends.
+            flushPendingMetricsIfNeeded()
         }
+    }
+
+    /// Safe entry from `onScrollGeometryChange` / preference probes.
+    /// Stores the latest sample and applies it once outside the geometry pass.
+    func ingestScrollMetrics(offset: CGFloat, overflow: CGFloat) {
+        pendingOffset = offset
+        pendingOverflow = overflow
+        scheduleFlush()
     }
 
     func setScrollableOverflow(_ overflow: CGFloat) {
@@ -342,6 +360,29 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         }
 
         apply(target)
+    }
+
+    private func scheduleFlush() {
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.flushScheduled = false
+            self.flushPendingMetricsIfNeeded()
+        }
+    }
+
+    private func flushPendingMetricsIfNeeded() {
+        let overflow = pendingOverflow
+        let offset = pendingOffset
+        pendingOverflow = nil
+        pendingOffset = nil
+        if let overflow {
+            setScrollableOverflow(overflow)
+        }
+        if let offset {
+            setOffsetY(offset)
+        }
     }
 
     private func commitPendingScrollGate() {
@@ -405,42 +446,57 @@ private struct TTHomeScrollOffsetPreferenceKey: PreferenceKey {
 private struct TTHomeScrollCollapseMetrics: Equatable {
     var offset: CGFloat
     var overflow: CGFloat
+
+    /// Snap to 0.5pt so float noise doesn’t re-enter geometry observation.
+    static func sampled(offset: CGFloat, overflow: CGFloat) -> Self {
+        Self(
+            offset: (offset * 2).rounded() / 2,
+            overflow: (overflow * 2).rounded() / 2
+        )
+    }
 }
 
 /// One measurement path only — dual PreferenceKey + geometry observers fought and jittered.
+///
+/// Intentionally **not** `@ObservedObject`: progress publishes every scroll tick;
+/// observing here would rebuild the ScrollView and re-enter geometry / navigation
+/// observers in the same frame.
 private struct TTHomeScrollCollapseObserver: ViewModifier {
-    @ObservedObject var model: TTHomeScrollCollapseModel
+    let model: TTHomeScrollCollapseModel
     let space: String
+    @State private var allowsScrolling = true
 
     @ViewBuilder
     func body(content: Content) -> some View {
         let gated = content
             .scrollBounceBehavior(.basedOnSize)
-            .scrollDisabled(!model.allowsScrolling)
+            .scrollDisabled(!allowsScrolling)
 
         if #available(iOS 18.0, *) {
             gated
                 .onScrollGeometryChange(for: TTHomeScrollCollapseMetrics.self) { geometry in
-                    TTHomeScrollCollapseMetrics(
+                    TTHomeScrollCollapseMetrics.sampled(
                         offset: max(0, geometry.contentOffset.y + geometry.contentInsets.top),
                         overflow: geometry.contentSize.height - geometry.containerSize.height
                     )
                 } action: { _, newValue in
-                    // Offset first so collapse stays in lockstep with the finger;
-                    // overflow gate is deferred while decelerating.
-                    model.setOffsetY(newValue.offset)
-                    model.setScrollableOverflow(newValue.overflow)
+                    // Never mutate header layout synchronously here — that re-enters
+                    // OnScrollGeometryChange / NavigationRequestObserver in-frame.
+                    model.ingestScrollMetrics(offset: newValue.offset, overflow: newValue.overflow)
                 }
                 .onScrollPhaseChange { _, phase in
-                    // Treat decelerating like active scroll — still resizing header.
                     model.setUserScrolling(phase != .idle)
                 }
+                .onAppear { allowsScrolling = model.allowsScrolling }
+                .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
         } else {
             gated
                 .coordinateSpace(name: space)
                 .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
-                    model.setOffsetY(value)
+                    model.ingestScrollMetrics(offset: value, overflow: .infinity)
                 }
+                .onAppear { allowsScrolling = model.allowsScrolling }
+                .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
         }
     }
 }

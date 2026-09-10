@@ -72,6 +72,24 @@ struct HumanChatBubble: View {
                     )
             }
             .buttonStyle(.plain)
+        } else if let mediaURL, !mediaURL.isFileURL {
+            AsyncImage(url: mediaURL) { phase in
+                switch phase {
+                case .success(let img):
+                    img
+                        .resizable()
+                        .scaledToFill()
+                        .frame(maxWidth: 210, maxHeight: 210)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                case .failure:
+                    placeholderThumb(systemName: "photo")
+                case .empty:
+                    placeholderThumb(systemName: "photo")
+                        .overlay(ProgressView().tint(orange))
+                @unknown default:
+                    placeholderThumb(systemName: "photo")
+                }
+            }
         } else {
             placeholderThumb(systemName: "photo")
         }

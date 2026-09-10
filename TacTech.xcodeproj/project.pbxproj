@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		006385AC48339C20E0342D1E /* WorkSans-SemiBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9A35F24F2608809F390CF211 /* WorkSans-SemiBold.ttf */; };
+		015859815B85324A32F67AD8 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7F2924C538BB72898F38872 /* ChatModels.swift */; };
 		08EEC7008A5400F63E796F77 /* MyTraineesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0404164478DA064625F44D7D /* MyTraineesView.swift */; };
 		0B280F9459012068E1CA0EAD /* HumanPeerChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9DC54A7D97512FE223AD917 /* HumanPeerChatView.swift */; };
 		0C722C478F4D7C18F5C5A2C6 /* FoodScannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */; };
@@ -29,6 +30,7 @@
 		31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */; };
 		368A0A6900024F7BB3291049 /* CoachVoiceCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A51C57990D5BA2493E7D2C3 /* CoachVoiceCallView.swift */; };
 		3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BB947E2E800A2EF0F4EDC95 /* LanguageSettingsView.swift */; };
+		3ED6378F2DA808DDB68D678C /* ChatAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2598002E6583EEFE1C123267 /* ChatAPI.swift */; };
 		3F5FD1D047D30343B0BD2B4A /* WorkSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */; };
 		416518123BBCBF75B22129EE /* SandowIcons.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0E7B31ACC360641D9625359 /* SandowIcons.swift */; };
 		424B30CABEBB5177F898CB85 /* WorkSans-Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 9889310798072EE632BD56E1 /* WorkSans-Medium.ttf */; };
@@ -75,6 +77,7 @@
 		C698DCA645E57EEC29EB7F70 /* TraineeProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */; };
 		C917371EC2FA2411FD07CB30 /* TraineeDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA0E0E7FA3F80825A3292ED /* TraineeDetailView.swift */; };
 		C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89CD7D2571D7A03D718A7699 /* AuthScreens.swift */; };
+		C944F37DDC6BDCE29DA8B828 /* ChatRealtimeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51D18072B70BC4D551D23BB1 /* ChatRealtimeClient.swift */; };
 		DC414384D2E42A04FB8D4EC7 /* FitnessAssessmentSteps.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48DE41E77F0517DE6662A941 /* FitnessAssessmentSteps.swift */; };
 		DC6218BC13A65FFF4F19F037 /* FitnessAssessment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */; };
 		DF7E6C0E34FD46226C8B1C0D /* ProfileCompletionFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05307C8EFE836884BA9FAEB0 /* ProfileCompletionFlowView.swift */; };
@@ -104,6 +107,7 @@
 		1FD00EDF8EF45C0DEAD848FD /* TTSearchCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchCore.swift; sourceTree = "<group>"; };
 		206F2F8A36FDCEAD3E6FE0A5 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		24D07CF5887AB218E246F1B2 /* CreatePlanView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreatePlanView.swift; sourceTree = "<group>"; };
+		2598002E6583EEFE1C123267 /* ChatAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatAPI.swift; sourceTree = "<group>"; };
 		263477F1D52EA623D59CA93C /* TTProfileScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTProfileScreen.swift; sourceTree = "<group>"; };
 		26AF89117F80E6B12D0E1962 /* AccountSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountSettingsView.swift; sourceTree = "<group>"; };
 		278D4FBC4E90D23E93B2B13A /* HelpCenterViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HelpCenterViews.swift; sourceTree = "<group>"; };
@@ -121,6 +125,7 @@
 		4CE907B791C2450F8D414132 /* TrainerProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerProfileView.swift; sourceTree = "<group>"; };
 		4F1AE7E841FCF90D57066534 /* APIConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIConfig.swift; sourceTree = "<group>"; };
 		5027E2E77E119E7AA2A1F865 /* CoachStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachStore.swift; sourceTree = "<group>"; };
+		51D18072B70BC4D551D23BB1 /* ChatRealtimeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRealtimeClient.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitFeedbackView.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
@@ -156,6 +161,7 @@
 		AEB8AB97E6DB93BF78B79419 /* HumanChatComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatComposerBar.swift; sourceTree = "<group>"; };
 		B3CFDC711456575E4EA577B3 /* HumanCallView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanCallView.swift; sourceTree = "<group>"; };
 		B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProgressView.swift; sourceTree = "<group>"; };
+		B7F2924C538BB72898F38872 /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		C444537605D1609043AAB75E /* HumanChatBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HumanChatBubble.swift; sourceTree = "<group>"; };
 		C5B37D667A1E7DD9BA98EBC7 /* TTSearchOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTSearchOverlay.swift; sourceTree = "<group>"; };
 		C8B42B1A3B107F10BF8F270B /* WorkSans-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-Regular.ttf"; sourceTree = "<group>"; };
@@ -231,6 +237,8 @@
 				73FE3D8BD9971500A55153A0 /* APIClient.swift */,
 				4F1AE7E841FCF90D57066534 /* APIConfig.swift */,
 				3F487A7AA8D964BA49DD8EDB /* AppStore.swift */,
+				2598002E6583EEFE1C123267 /* ChatAPI.swift */,
+				51D18072B70BC4D551D23BB1 /* ChatRealtimeClient.swift */,
 				D9190B9351CA08DDB324D4A0 /* CoachAPI.swift */,
 				5027E2E77E119E7AA2A1F865 /* CoachStore.swift */,
 				313E5224E36B4E42DC90206F /* HumanChatStore.swift */,
@@ -333,6 +341,7 @@
 		D4625652EBF91AE0A8825CE0 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				B7F2924C538BB72898F38872 /* ChatModels.swift */,
 				67B1C69AE7500BC877B555AA /* CoachModels.swift */,
 				4B231C0ED47B7ABEEF5F4306 /* FitnessAssessment.swift */,
 				6F19A98CF146A275C1793650 /* HumanChatModels.swift */,
@@ -482,6 +491,9 @@
 				319C7E6BC15D45536839E9E2 /* AppStore.swift in Sources */,
 				665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */,
 				C93C57CA2F579290681CC364 /* AuthScreens.swift in Sources */,
+				3ED6378F2DA808DDB68D678C /* ChatAPI.swift in Sources */,
+				015859815B85324A32F67AD8 /* ChatModels.swift in Sources */,
+				C944F37DDC6BDCE29DA8B828 /* ChatRealtimeClient.swift in Sources */,
 				319EDF5E2A33DD4870508238 /* CoachAPI.swift in Sources */,
 				100F62BE5C27D821140CE444 /* CoachCitationsSheet.swift in Sources */,
 				1EEE2B6B1D522E9336AE309A /* CoachComposerBar.swift in Sources */,

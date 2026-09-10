@@ -31,15 +31,16 @@ struct HumanPeerChatView: View {
     private let muted = Color(white: 0.42)
     private let soft = Animation.spring(response: 0.38, dampingFraction: 0.86)
 
-    private var peers: [HumanChatPeer] {
+    private var rosterPeers: [HumanChatPeer] {
         switch audience {
         case .trainer:
             guard let trainer = appStore.currentTrainer else { return [] }
             return appStore.trainees(for: trainer).map { trainee in
                 HumanChatPeer(
-                    id: trainee.id,
+                    id: trainee.userId,
                     name: appStore.user(forTrainee: trainee)?.name ?? "Trainee",
-                    role: .trainee
+                    role: .trainee,
+                    profileId: trainee.id
                 )
             }
         case .trainee:
@@ -47,12 +48,17 @@ struct HumanPeerChatView: View {
                   let trainer = appStore.trainer(for: trainee) else { return [] }
             return [
                 HumanChatPeer(
-                    id: trainer.id,
+                    id: trainer.userId,
                     name: appStore.user(forTrainer: trainer)?.name ?? "Coach",
-                    role: .trainer
+                    role: .trainer,
+                    profileId: trainer.id
                 )
             ]
         }
+    }
+
+    private var peers: [HumanChatPeer] {
+        chatStore.displayPeers(roster: rosterPeers)
     }
 
     private var selectedPeer: HumanChatPeer? {
@@ -68,17 +74,18 @@ struct HumanPeerChatView: View {
                 inboxColumn
             }
         }
-        .onAppear {
-            chatStore.seedIfNeeded(peers: peers, asAudience: audience)
+        .task {
+            await chatStore.bootstrap()
             if audience == .trainee, peers.count == 1, selectedPeerId == nil {
-                selectedPeerId = peers.first?.id
-                if let id = selectedPeerId {
-                    chatStore.markRead(peerId: id)
-                }
+                let peer = peers[0]
+                selectedPeerId = peer.id
+                await chatStore.openThread(peer)
             }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                enableListMotion = true
-            }
+            try? await Task.sleep(for: .milliseconds(350))
+            enableListMotion = true
+        }
+        .onDisappear {
+            chatStore.teardown()
         }
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
@@ -186,7 +193,7 @@ struct HumanPeerChatView: View {
                         ForEach(peers) { peer in
                             Button {
                                 selectedPeerId = peer.id
-                                chatStore.markRead(peerId: peer.id)
+                                Task { await chatStore.openThread(peer) }
                             } label: {
                                 inboxRow(peer)
                             }
@@ -195,6 +202,7 @@ struct HumanPeerChatView: View {
                     }
                     .padding(16)
                 }
+                .refreshable { await chatStore.refreshInbox() }
             }
         }
     }
@@ -222,6 +230,8 @@ struct HumanPeerChatView: View {
     private func inboxRow(_ peer: HumanChatPeer) -> some View {
         let last = chatStore.lastMessage(for: peer.id)
         let unread = chatStore.unreadCount(for: peer.id)
+        let preview = last?.previewText ?? peer.lastPreview ?? "Say hello"
+        let time = last?.sentAt ?? peer.lastAt
         return HStack(spacing: 12) {
             TTAvatar(name: peer.name, size: 50)
             VStack(alignment: .leading, spacing: 4) {
@@ -230,13 +240,13 @@ struct HumanPeerChatView: View {
                         .font(TTFont.workSans(16, weight: .bold))
                         .foregroundStyle(ink)
                     Spacer()
-                    if let last {
-                        Text(last.sentAt.formatted(date: .omitted, time: .shortened))
+                    if let time {
+                        Text(time.formatted(date: .omitted, time: .shortened))
                             .font(TTFont.workSans(11, weight: .medium))
                             .foregroundStyle(Color(white: 0.55))
                     }
                 }
-                Text(last?.previewText ?? "Say hello")
+                Text(preview)
                     .font(TTFont.workSans(13, weight: .medium))
                     .foregroundStyle(muted)
                     .lineLimit(1)
@@ -270,7 +280,7 @@ struct HumanPeerChatView: View {
         return VStack(spacing: 0) {
             headerBar(
                 title: peer.name,
-                subtitle: "Text · photo · video · voice · call",
+                subtitle: chatStore.peerTyping ? "Typing…" : (chatStore.isLoadingThread ? "Loading…" : "Text · photo · video · voice · call"),
                 showBack: audience == .trainer || peers.count > 1,
                 trailing: {
                     Button {
@@ -395,6 +405,7 @@ struct HumanPeerChatView: View {
         HStack(spacing: 10) {
             if showBack {
                 Button {
+                    chatStore.closeThread()
                     selectedPeerId = nil
                     composerFocused = false
                     TTKeyboard.dismiss()

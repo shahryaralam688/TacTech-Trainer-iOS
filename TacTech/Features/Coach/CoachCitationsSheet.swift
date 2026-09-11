@@ -9,7 +9,13 @@ struct CoachCitationsSheet: View {
     private let muted = Color(white: 0.42)
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "Sources", background: .white) {
+                Button("Done") { dismiss() }
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(orange)
+            }
+
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(citations) { cite in
@@ -38,19 +44,13 @@ struct CoachCitationsSheet: View {
                         )
                     }
                 }
-                .padding(16)
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
             .background(Color(white: 0.97))
-            .navigationTitle("Sources")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Done") { dismiss() }
-                        .fontWeight(.semibold)
-                        .foregroundStyle(orange)
-                }
-            }
         }
-        .presentationDetents([.medium, .large])
+        .ttHideSystemNavigationBar()
+        .ttModalSheetPresentation(detents: [.medium, .large])
     }
 }

@@ -72,6 +72,7 @@ struct WorkoutPlansView: View {
             .ttHideSystemNavigationBar()
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
+                    .ttModalSheetPresentation()
             }
             .navigationDestination(item: $selectedPlan) { plan in
                 WorkoutPlanDetailView(plan: plan)
@@ -535,7 +536,9 @@ struct PlanQuickAssignSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "Assign to trainee", background: .white)
+
             VStack(alignment: .leading, spacing: 16) {
                 section("Plan") {
                     Picker("Plan", selection: $planId) {
@@ -577,19 +580,15 @@ struct PlanQuickAssignSheet: View {
                 .disabled(planId.isEmpty || traineeId.isEmpty)
                 .opacity(planId.isEmpty || traineeId.isEmpty ? 0.45 : 1)
             }
-            .padding(20)
-            .background(Color(white: 0.97).ignoresSafeArea())
-            .navigationTitle("Assign to trainee")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
-            .onAppear {
-                if planId.isEmpty { planId = plans.first?.id ?? "" }
-                if traineeId.isEmpty { traineeId = trainees.first?.id ?? "" }
-            }
+            .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+            .padding(.top, TTModalSheetChrome.contentTopPadding)
+            .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
+        }
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+        .onAppear {
+            if planId.isEmpty { planId = plans.first?.id ?? "" }
+            if traineeId.isEmpty { traineeId = trainees.first?.id ?? "" }
         }
     }
 
@@ -646,7 +645,9 @@ struct PlanAssignmentsListSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "Plan assignments", background: .white)
+
             Group {
                 if rows.isEmpty {
                     VStack(spacing: 12) {
@@ -668,20 +669,15 @@ struct PlanAssignmentsListSheet: View {
                                 assignmentRow(row)
                             }
                         }
-                        .padding(16)
-                        .padding(.bottom, 12)
+                        .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                        .padding(.top, TTModalSheetChrome.contentTopPadding)
+                        .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
                     }
                 }
             }
-            .background(canvas.ignoresSafeArea())
-            .navigationTitle("Plan assignments")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
-                }
-            }
         }
+        .background(canvas.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
     }
 
     private func assignmentRow(_ row: Row) -> some View {

@@ -88,21 +88,7 @@ struct SecuritySettingsView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 14) {
-            TTBackButton(style: .onLight) { dismiss() }
-
-            Text("Security Settings")
-                .font(TTFont.workSans(20, weight: .bold))
-                .foregroundStyle(TTColor.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(canvas)
+        TTModalSheetHeader(title: "Security Settings", background: canvas)
     }
 
     // MARK: - Hero

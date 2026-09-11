@@ -38,7 +38,12 @@ struct NotificationsInboxView: View {
                         } label: {
                             row(note)
                         }
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                        .listRowInsets(EdgeInsets(
+                            top: 10,
+                            leading: TTModalSheetChrome.horizontalPadding,
+                            bottom: 10,
+                            trailing: TTModalSheetChrome.horizontalPadding
+                        ))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                     }
@@ -63,12 +68,10 @@ struct NotificationsInboxView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 14) {
-            TTBackButton(style: .onLight) { dismiss() }
-            Text("Notifications")
-                .font(TTFont.workSans(20, weight: .semibold))
-                .foregroundStyle(TTColor.ink)
-            Spacer(minLength: 0)
+        TTModalSheetHeader(
+            title: "Notifications",
+            background: canvas
+        ) {
             if store.unreadCount > 0 {
                 Button("Mark all read") {
                     Task { await store.markAllRead() }
@@ -77,10 +80,6 @@ struct NotificationsInboxView: View {
                 .foregroundStyle(TTColor.actionOrange)
             }
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(canvas)
     }
 
     private func row(_ note: AppNotificationDTO) -> some View {

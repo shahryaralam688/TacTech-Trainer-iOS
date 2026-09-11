@@ -535,8 +535,7 @@ struct TTDropPicker<Value: Hashable>: View {
                 options: resolvedOptions,
                 format: format
             )
-            .presentationDetents([.medium])
-            .presentationDragIndicator(.visible)
+            .ttModalSheetPresentation(detents: [.medium])
         }
     }
 
@@ -571,23 +570,24 @@ private struct TTDropPickerSheet<Value: Hashable>: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: title, background: .white) {
+                Button("Done") { dismiss() }
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(TTColor.brand)
+            }
+
             Picker(title, selection: $selection) {
                 ForEach(options, id: \.self) { option in
                     Text(format(option)).tag(option)
                 }
             }
             .pickerStyle(.wheel)
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .font(TTFont.heading(16))
-                        .foregroundStyle(TTColor.brand)
-                }
-            }
+            .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+            .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
         }
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .ttHideSystemNavigationBar()
     }
 }
 
@@ -608,11 +608,157 @@ enum TTSheetChrome {
     static let pageTopRadius: CGFloat = TTDarkPageHeader.contentTopRadius
 }
 
+/// Shared chrome for modal `.sheet` presentations (Create Plan, library, assign, inbox, …).
+enum TTModalSheetChrome {
+    static let horizontalPadding: CGFloat = 20
+    /// Space under the system grabber before header controls.
+    static let headerTopPadding: CGFloat = 8
+    static let headerBottomPadding: CGFloat = 14
+    static let headerSpacing: CGFloat = 12
+    static let contentTopPadding: CGFloat = 12
+    static let contentBottomPadding: CGFloat = 28
+    static let cornerRadius: CGFloat = 28
+    /// Match `TTBackButton.size` so leading/trailing controls stay optically balanced.
+    static let controlSize: CGFloat = TTBackButton.size
+    static let controlCornerRadius: CGFloat = 12
+}
+
+/// Modal sheet top bar — back/close, title (+ optional subtitle), optional trailing.
+/// Vertically centers controls with the title block; uses consistent padding tokens.
+struct TTModalSheetHeader<Trailing: View>: View {
+    let title: String
+    var subtitle: String? = nil
+    var background: Color = .white
+    var showsBack: Bool = true
+    var onBack: (() -> Void)? = nil
+    @ViewBuilder var trailing: () -> Trailing
+
+    @Environment(\.dismiss) private var dismiss
+
+    init(
+        title: String,
+        subtitle: String? = nil,
+        background: Color = .white,
+        showsBack: Bool = true,
+        onBack: (() -> Void)? = nil,
+        @ViewBuilder trailing: @escaping () -> Trailing
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.background = background
+        self.showsBack = showsBack
+        self.onBack = onBack
+        self.trailing = trailing
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: TTModalSheetChrome.headerSpacing) {
+            if showsBack {
+                TTBackButton(style: .onLight) {
+                    if let onBack {
+                        onBack()
+                    } else {
+                        dismiss()
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TTFont.workSans(20, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            trailing()
+                .frame(minWidth: TTModalSheetChrome.controlSize, alignment: .trailing)
+        }
+        .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+        .padding(.top, TTModalSheetChrome.headerTopPadding)
+        .padding(.bottom, TTModalSheetChrome.headerBottomPadding)
+        .background(background.ignoresSafeArea(edges: .top))
+    }
+}
+
+extension TTModalSheetHeader where Trailing == EmptyView {
+    init(
+        title: String,
+        subtitle: String? = nil,
+        background: Color = .white,
+        showsBack: Bool = true,
+        onBack: (() -> Void)? = nil
+    ) {
+        self.init(
+            title: title,
+            subtitle: subtitle,
+            background: background,
+            showsBack: showsBack,
+            onBack: onBack,
+            trailing: { EmptyView() }
+        )
+    }
+}
+
+/// Compact trailing control for modal headers (matches `TTBackButton` footprint).
+struct TTModalSheetIconButton: View {
+    var icon: SandowIcon
+    var filled: Bool = true
+    var enabled: Bool = true
+    var tint: Color = .white
+    var background: Color = TTColor.actionOrange
+    var disabledBackground: Color = Color(white: 0.75)
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            TTIcon(icon: icon, filled: filled, size: 16)
+                .foregroundStyle(tint)
+                .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
+                .background(enabled ? background : disabledBackground)
+                .clipShape(RoundedRectangle(cornerRadius: TTModalSheetChrome.controlCornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+    }
+}
+
 extension View {
     /// Canvas sheet with rounded **top** corners. Clips scrolling content to the curve
     /// and adds a soft lift into the dark header so the lip reads as a real surface.
     func ttTopRoundedSheet(radius: CGFloat, fill: Color) -> some View {
         modifier(TTTopRoundedSheetModifier(radius: radius, fill: fill))
+    }
+
+    /// Standard modal sheet lip: grabber + continuous corner radius (+ optional detents).
+    func ttModalSheetPresentation(
+        detents: Set<PresentationDetent>? = nil,
+        dragIndicator: Visibility = .visible
+    ) -> some View {
+        modifier(TTModalSheetPresentationModifier(detents: detents, dragIndicator: dragIndicator))
+    }
+}
+
+private struct TTModalSheetPresentationModifier: ViewModifier {
+    let detents: Set<PresentationDetent>?
+    let dragIndicator: Visibility
+
+    func body(content: Content) -> some View {
+        let styled = content
+            .presentationDragIndicator(dragIndicator)
+            .presentationCornerRadius(TTModalSheetChrome.cornerRadius)
+        if let detents {
+            styled.presentationDetents(detents)
+        } else {
+            styled
+        }
     }
 }
 

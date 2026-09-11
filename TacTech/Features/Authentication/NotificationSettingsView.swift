@@ -116,21 +116,10 @@ struct NotificationSettingsView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 14) {
-            TTBackButton(style: .onLight) { dismiss() }
-
-            Text("Notification Settings")
-                .font(TTFont.workSans(20, weight: .semibold))
-                .foregroundStyle(TTColor.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(canvas)
+        TTModalSheetHeader(
+            title: "Notification Settings",
+            background: canvas
+        )
     }
 
     // MARK: - Sections

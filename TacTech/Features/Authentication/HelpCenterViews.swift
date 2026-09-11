@@ -41,9 +41,8 @@ struct HelpCenterView: View {
             LiveChatView()
         }
         .sheet(isPresented: $showQuickSettings) {
-            NavigationStack {
-                NotificationSettingsView()
-            }
+            NotificationSettingsView()
+                .ttModalSheetPresentation()
         }
     }
 

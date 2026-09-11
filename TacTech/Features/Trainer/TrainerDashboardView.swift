@@ -56,8 +56,14 @@ struct TrainerDashboardView: View {
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
-            .sheet(isPresented: $showProfile) { TrainerProfileView(showsBack: true) }
-            .sheet(isPresented: $showNotifications) { NotificationsInboxView() }
+            .sheet(isPresented: $showProfile) {
+                TrainerProfileView(showsBack: true)
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showNotifications) {
+                NotificationsInboxView()
+                    .ttModalSheetPresentation()
+            }
         }
     }
 

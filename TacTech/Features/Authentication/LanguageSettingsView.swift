@@ -62,19 +62,7 @@ struct LanguageSettingsView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 14) {
-            TTBackButton(style: .onLight) { dismiss() }
-
-            Text("Language")
-                .font(TTFont.workSans(20, weight: .bold))
-                .foregroundStyle(TTColor.ink)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(canvas)
+        TTModalSheetHeader(title: "Language", background: canvas)
     }
 
     // MARK: - Sections

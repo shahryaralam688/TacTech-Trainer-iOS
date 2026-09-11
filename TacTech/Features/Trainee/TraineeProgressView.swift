@@ -3,12 +3,14 @@ import Charts
 
 struct TraineeProgressView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "Progress", subtitle: "Improve", background: .white)
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    TTScreenHeader(eyebrow: "Improve", title: "Progress")
                     if let trainee = store.currentTrainee {
                         metrics(trainee)
                         Chart {
@@ -65,11 +67,13 @@ struct TraineeProgressView: View {
                         }
                     }
                 }
-                .padding(20)
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
-            .ttScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
         }
+        .ttScreenBackground()
+        .ttHideSystemNavigationBar()
     }
 
     private func metrics(_ trainee: TraineeProfile) -> some View {

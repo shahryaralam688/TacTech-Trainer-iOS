@@ -43,9 +43,11 @@ struct NutritionView: View {
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showManual) {
                 ManualMealView(day: selectedDay)
+                    .ttModalSheetPresentation()
             }
             .sheet(isPresented: $showProfile) {
                 TraineeProfileView(showsBack: true)
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
             }
             .onAppear {
                 calorieDraft = Double(store.currentTrainee?.dailyCalorieTarget ?? 2100)
@@ -76,6 +78,7 @@ struct NutritionView: View {
             )
             .sheet(item: $pendingFood) { food in
                 ManualMealView(day: selectedDay, prefillName: food.name)
+                    .ttModalSheetPresentation()
             }
         }
     }
@@ -784,7 +787,26 @@ struct ManualMealView: View {
     @State private var selectedFood: FoodKnowledge?
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "Log meal", background: .white) {
+                Button {
+                    saveMeal()
+                } label: {
+                    TTIcon(icon: .check, filled: true, size: 16)
+                        .foregroundStyle(.white)
+                        .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
+                        .background(
+                            name.trimmingCharacters(in: .whitespaces).isEmpty
+                                ? Color(white: 0.75)
+                                : TTColor.actionOrange
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: TTModalSheetChrome.controlCornerRadius, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                .accessibilityLabel("Save meal")
+            }
+
             Form {
                 Section("Meal") {
                     TextField("Food name", text: $name)
@@ -819,48 +841,39 @@ struct ManualMealView: View {
                     }
                 }
             }
-            .navigationTitle("Log meal")
-            .navigationBarTitleDisplayMode(.inline)
+            .scrollContentBackground(.hidden)
             .sensoryFeedback(.selection, trigger: Int(grams))
-            .onAppear {
-                guard let prefillName, name.isEmpty else { return }
-                name = prefillName
-                selectedFood = store.lookupFood(query: prefillName)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button { dismiss() } label: { Image(systemName: "xmark") }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button {
-                        guard let trainee = store.currentTrainee else { return }
-                        let food = selectedFood ?? FoodKnowledge(
-                            name: name,
-                            keywords: [],
-                            per100g: .init(calories: 120, protein: 8, carbs: 10, fat: 5)
-                        )
-                        Task {
-                            try? await store.saveMeal(
-                                Meal(
-                                    id: UUID().uuidString,
-                                    traineeId: trainee.id,
-                                    name: food.name,
-                                    eatenAt: day,
-                                    portionGrams: grams,
-                                    macros: scaled(food),
-                                    source: "log",
-                                    isEstimate: true
-                                )
-                            )
-                            dismiss()
-                        }
-                    } label: {
-                        Image(systemName: "checkmark")
-                    }
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .buttonStyle(.borderedProminent)
-                }
-            }
+        }
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+        .onAppear {
+            guard let prefillName, name.isEmpty else { return }
+            name = prefillName
+            selectedFood = store.lookupFood(query: prefillName)
+        }
+    }
+
+    private func saveMeal() {
+        guard let trainee = store.currentTrainee else { return }
+        let food = selectedFood ?? FoodKnowledge(
+            name: name,
+            keywords: [],
+            per100g: .init(calories: 120, protein: 8, carbs: 10, fat: 5)
+        )
+        Task {
+            try? await store.saveMeal(
+                Meal(
+                    id: UUID().uuidString,
+                    traineeId: trainee.id,
+                    name: food.name,
+                    eatenAt: day,
+                    portionGrams: grams,
+                    macros: scaled(food),
+                    source: "log",
+                    isEstimate: true
+                )
+            )
+            dismiss()
         }
     }
 

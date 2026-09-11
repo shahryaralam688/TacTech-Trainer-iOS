@@ -26,22 +26,11 @@ struct ExerciseTemplatePickerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                TTBackButton(style: .onLight) { dismiss() }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Templates")
-                        .font(TTFont.workSans(20, weight: .bold))
-                    Text(exercise.name)
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(TTColor.inkMuted)
-                        .lineLimit(1)
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
-            .background(Color.white)
+            TTModalSheetHeader(
+                title: "Templates",
+                subtitle: exercise.name,
+                background: .white
+            )
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -83,9 +72,9 @@ struct ExerciseTemplatePickerView: View {
                     }
                     .buttonStyle(TTSearchPressStyle(scale: 0.99))
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
         }
         .background(canvas.ignoresSafeArea())
@@ -99,6 +88,7 @@ struct ExerciseTemplatePickerView: View {
             ) { finished in
                 commit(finished, name: templateName, persist: saveAsTemplate)
             }
+            .ttModalSheetPresentation()
         }
     }
 
@@ -231,17 +221,7 @@ struct ExerciseTemplateCustomizeView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 12) {
-                TTBackButton(style: .onLight) { dismiss() }
-                Text(exercise.name)
-                    .font(TTFont.workSans(18, weight: .bold))
-                    .lineLimit(1)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 10)
-            .padding(.bottom, 12)
-            .background(Color.white)
+            TTModalSheetHeader(title: exercise.name, background: .white)
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
@@ -293,9 +273,9 @@ struct ExerciseTemplateCustomizeView: View {
                     .buttonStyle(TTSearchPressStyle(scale: 0.98))
                     .padding(.top, 4)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 28)
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
         }
         .background(canvas.ignoresSafeArea())

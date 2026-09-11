@@ -109,12 +109,15 @@ struct TrainerRootView: View {
         }
         .sheet(isPresented: $showCreatePlan) {
             CreatePlanView()
+                .ttModalSheetPresentation()
         }
         .sheet(isPresented: $showAssignSheet) {
             PlanQuickAssignSheet()
+                .ttModalSheetPresentation()
         }
         .sheet(isPresented: $showAssignmentsList) {
             PlanAssignmentsListSheet()
+                .ttModalSheetPresentation()
         }
         .fullScreenCover(isPresented: $showTraineeChat) {
             HumanPeerChatView(audience: .trainer, preferredThreadId: pendingChatThreadId)

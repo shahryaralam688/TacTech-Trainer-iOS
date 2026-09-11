@@ -62,11 +62,26 @@ struct TraineeDashboardView: View {
                     await store.refreshDay(for: trainee.id, on: selectedDay)
                 }
             }
-            .sheet(isPresented: $showProfile) { TraineeProfileView(showsBack: true) }
-            .sheet(isPresented: $showProgress) { TraineeProgressView() }
-            .sheet(isPresented: $showNutrition) { NutritionView() }
-            .sheet(isPresented: $showWorkouts) { WorkoutHubView() }
-            .sheet(isPresented: $showNotifications) { NotificationsInboxView() }
+            .sheet(isPresented: $showProfile) {
+                TraineeProfileView(showsBack: true)
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showProgress) {
+                TraineeProgressView()
+                    .ttModalSheetPresentation()
+            }
+            .sheet(isPresented: $showNutrition) {
+                NutritionView()
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showWorkouts) {
+                WorkoutHubView()
+                    .ttModalSheetPresentation()
+            }
+            .sheet(isPresented: $showNotifications) {
+                NotificationsInboxView()
+                    .ttModalSheetPresentation()
+            }
         }
     }
 

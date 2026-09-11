@@ -2,49 +2,55 @@ import SwiftUI
 
 struct WorkoutHubView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @State private var selectedDay = Date()
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    TTScreenHeader(eyebrow: "Follow the plan", title: "Workout")
-                    if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
-                        TTWeekStrip(selected: $selectedDay)
-                        sessionHero(plan)
-                        sessionDetail(plan)
-                        NavigationLink {
-                            LiveFormCorrectionView(initialExerciseId: currentExercises(in: plan).first?.exerciseId)
-                        } label: {
-                            HStack {
-                                Image(systemName: "camera.viewfinder")
-                                    .foregroundStyle(TTColor.brand)
-                                    .frame(width: 44, height: 44)
-                                    .background(TTColor.brandSoft)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Live form correction")
-                                        .font(TTFont.heading(16))
-                                        .foregroundStyle(TTColor.ink)
-                                    Text("Use the camera for real-time cues")
-                                        .font(TTFont.caption(12))
-                                        .foregroundStyle(TTColor.inkMuted)
+            VStack(spacing: 0) {
+                TTModalSheetHeader(title: "Workout", subtitle: "Follow the plan", background: .white)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                            TTWeekStrip(selected: $selectedDay)
+                            sessionHero(plan)
+                            sessionDetail(plan)
+                            NavigationLink {
+                                LiveFormCorrectionView(initialExerciseId: currentExercises(in: plan).first?.exerciseId)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "camera.viewfinder")
+                                        .foregroundStyle(TTColor.brand)
+                                        .frame(width: 44, height: 44)
+                                        .background(TTColor.brandSoft)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text("Live form correction")
+                                            .font(TTFont.heading(16))
+                                            .foregroundStyle(TTColor.ink)
+                                        Text("Use the camera for real-time cues")
+                                            .font(TTFont.caption(12))
+                                            .foregroundStyle(TTColor.inkMuted)
+                                    }
+                                    Spacer()
+                                    TTChevronForward(size: 14, color: TTColor.inkSubtle)
                                 }
-                                Spacer()
-                                TTChevronForward(size: 14, color: TTColor.inkSubtle)
+                                .ttCard()
                             }
-                            .ttCard()
+                            .buttonStyle(.plain)
+                        } else {
+                            TTEmptyState(icon: "dumbbell", title: "No workout assigned", message: "Your trainer will attach a plan with days, times, and weights.")
+                                .ttCard()
                         }
-                        .buttonStyle(.plain)
-                    } else {
-                        TTEmptyState(icon: "dumbbell", title: "No workout assigned", message: "Your trainer will attach a plan with days, times, and weights.")
-                            .ttCard()
                     }
+                    .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                    .padding(.top, TTModalSheetChrome.contentTopPadding)
+                    .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
                 }
-                .padding(20)
             }
             .ttScreenBackground()
-            .navigationBarTitleDisplayMode(.inline)
+            .ttHideSystemNavigationBar()
         }
     }
 

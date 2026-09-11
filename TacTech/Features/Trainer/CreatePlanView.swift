@@ -47,9 +47,9 @@ struct CreatePlanView: View {
 
                     saveButton
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 28)
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
         }
         .background(canvas.ignoresSafeArea())
@@ -58,26 +58,18 @@ struct CreatePlanView: View {
             ExerciseLibrarySheet { draft in
                 add(draft, to: day)
             }
+            .ttModalSheetPresentation()
         }
     }
 
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 12) {
-            TTBackButton(style: .onLight) { dismiss() }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("New Plan")
-                    .font(TTFont.workSans(20, weight: .bold))
-                    .foregroundStyle(TTColor.ink)
-                Text("Build a weekly program")
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.inkMuted)
-            }
-
-            Spacer(minLength: 0)
-
+        TTModalSheetHeader(
+            title: "New Plan",
+            subtitle: "Build a weekly program",
+            background: .white
+        ) {
             Button {
                 Task { await save() }
             } label: {
@@ -90,18 +82,14 @@ struct CreatePlanView: View {
                             .foregroundStyle(.white)
                     }
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
                 .background(canSave ? orange : Color(white: 0.75))
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: TTModalSheetChrome.controlCornerRadius, style: .continuous))
             }
             .buttonStyle(.plain)
             .disabled(!canSave || isSaving)
             .accessibilityLabel("Save plan")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
-        .background(Color.white)
     }
 
     // MARK: Program
@@ -857,16 +845,7 @@ struct ExerciseLibrarySheet: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    TTBackButton(style: .onLight) { dismiss() }
-                    Text("Add exercise")
-                        .font(TTFont.workSans(20, weight: .bold))
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
-                .background(Color.white)
+                TTModalSheetHeader(title: "Add exercise", background: .white)
 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 12) {
@@ -906,9 +885,9 @@ struct ExerciseLibrarySheet: View {
                             }
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 24)
+                    .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                    .padding(.top, TTModalSheetChrome.contentTopPadding)
+                    .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
                 }
             }
             .background(canvas.ignoresSafeArea())

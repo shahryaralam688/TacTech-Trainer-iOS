@@ -64,19 +64,7 @@ struct AboutUsView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack(spacing: 14) {
-            TTBackButton(style: .onLight) { dismiss() }
-
-            Text("About Us")
-                .font(TTFont.workSans(20, weight: .bold))
-                .foregroundStyle(TTColor.ink)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 18)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .background(canvas)
+        TTModalSheetHeader(title: "About Us", background: canvas)
     }
 
     // MARK: - Brand

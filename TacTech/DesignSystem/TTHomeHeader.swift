@@ -20,13 +20,21 @@ enum TTHomeHeaderCollapse {
     /// Longer travel = shrink/expand feels paced, not sudden.
     static let distance: CGFloat = 168
 
+    /// Ignore tiny flicks so light scrolls don’t enter a half-shrunk look.
+    static let leadIn: CGFloat = 28
+
+    /// On finger-up, snap fully expanded below this; fully compact at/above.
+    static let settleThreshold: CGFloat = 0.42
+
     /// Approximate height delta of `TTHomeProfileHeader` expanded → compact.
     /// Must match real layout travel or ScrollView offset compensation fights and vibrates.
     static let homeLayoutTravel: CGFloat = 102
 
-    /// Linear map — smootherstep lagged the finger and fought layout compensation on flings.
+    /// Linear map after lead-in — mid values are temporary while dragging only.
     static func progress(for offset: CGFloat) -> CGFloat {
-        min(1, max(0, offset / distance))
+        let adjusted = max(0, offset - leadIn)
+        let span = max(1, distance - leadIn)
+        return min(1, max(0, adjusted / span))
     }
 }
 
@@ -274,9 +282,9 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 /// UIKit then compensates `contentOffset`, which without correction fights the
 /// header. We undo that layout delta with a fixed-point solve.
 ///
-/// Progress is applied **1:1 with no animation**. Spring/blend lag leaves the
-/// header still resizing after a fling settles — that feedback loop is the
-/// end-of-scroll “vibrate”.
+/// While dragging, progress tracks scroll. When the gesture ends, progress
+/// **settles to 0 or 1** (never rests half-shrunk). A scroll baseline keeps
+/// that settled state stable until the user scrolls again.
 ///
 /// Scroll metrics are **coalesced to the next main-queue turn** so
 /// `onScrollGeometryChange` never mutates layout in the same frame (avoids
@@ -296,6 +304,8 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
     private var lastProgress: CGFloat = 0
     private var lastRawY: CGFloat = 0
+    /// Subtracted from raw offset so a settled 0/1 state stays put with residual offset.
+    private var offsetBaseline: CGFloat = 0
     private var isUserScrolling = false
     private var pendingCanScroll: Bool?
 
@@ -306,6 +316,8 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private var suppressGeometryIngest = false
     private var lastIngestedOffset: CGFloat?
     private var lastIngestedOverflow: CGFloat?
+    private var settleUnlockTask: Task<Void, Never>?
+    private var settleDebounceTask: Task<Void, Never>?
 
     func setUserScrolling(_ active: Bool) {
         let wasScrolling = isUserScrolling
@@ -316,6 +328,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
             commitPendingScrollGate()
             // Final settle pass with the latest metrics after the fling ends.
             flushPendingMetricsIfNeeded()
+            settleToEndpointIfNeeded()
         }
     }
 
@@ -354,16 +367,18 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
     func setOffsetY(_ y: CGFloat) {
         guard allowsScrolling else {
+            offsetBaseline = 0
             apply(0)
             return
         }
 
         let rawY = max(0, y)
+        let effectiveRaw = max(0, rawY - offsetBaseline)
         // Fixed-point: p == f(y + travel * p). Exact solve keeps UIKit’s offset
         // compensation and our header height in agreement every frame.
         var solved = lastProgress
         for _ in 0..<5 {
-            let compensated = max(0, rawY + layoutTravel * solved)
+            let compensated = max(0, effectiveRaw + layoutTravel * solved)
             solved = TTHomeHeaderCollapse.progress(for: compensated)
         }
         let target = min(1, max(0, solved))
@@ -375,7 +390,62 @@ final class TTHomeScrollCollapseModel: ObservableObject {
             return
         }
 
+        // While settled, ignore tiny geometry drift so we don’t re-enter a mid state.
+        if !isUserScrolling {
+            let settled: CGFloat = lastProgress >= 0.5 ? 1 : 0
+            if abs(lastProgress - settled) < 0.001, abs(target - settled) < 0.08 {
+                return
+            }
+        }
+
         apply(target)
+        // iOS 17 has no scroll-phase API — debounce settle when metrics go quiet.
+        if !isUserScrolling {
+            scheduleDebouncedSettle()
+        }
+    }
+
+    /// After the gesture ends, never rest half-shrunk — ease to expanded or compact.
+    private func settleToEndpointIfNeeded() {
+        settleDebounceTask?.cancel()
+        settleDebounceTask = nil
+        guard allowsScrolling else {
+            offsetBaseline = 0
+            apply(0, animated: true)
+            return
+        }
+
+        let snap: CGFloat = lastProgress >= TTHomeHeaderCollapse.settleThreshold ? 1 : 0
+        guard abs(lastProgress - snap) > 0.02 else {
+            // Already near an endpoint — lock baseline so residual offset doesn’t creep.
+            lockBaseline(for: snap)
+            if abs(lastProgress - snap) > 0.0005 {
+                apply(snap, animated: true)
+            }
+            return
+        }
+
+        lockBaseline(for: snap)
+        apply(snap, animated: true)
+    }
+
+    private func scheduleDebouncedSettle() {
+        settleDebounceTask?.cancel()
+        settleDebounceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(160))
+            guard let self, !Task.isCancelled, !self.isUserScrolling else { return }
+            self.settleToEndpointIfNeeded()
+        }
+    }
+
+    private func lockBaseline(for snap: CGFloat) {
+        if snap < 0.5 {
+            // Treat current offset as “expanded zero”.
+            offsetBaseline = lastRawY
+        } else {
+            // Keep progress reading as fully compact at the current offset.
+            offsetBaseline = lastRawY - TTHomeHeaderCollapse.distance
+        }
     }
 
     private func scheduleFlush() {
@@ -405,29 +475,50 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         guard let next = pendingCanScroll else { return }
         pendingCanScroll = nil
         guard allowsScrolling != next else {
-            if !next { apply(0) }
+            if !next {
+                offsetBaseline = 0
+                apply(0)
+            }
             return
         }
         allowsScrolling = next
-        if !next { apply(0) }
+        if !next {
+            offsetBaseline = 0
+            apply(0)
+        }
     }
 
-    private func apply(_ stepped: CGFloat) {
+    private func apply(_ stepped: CGFloat, animated: Bool = false) {
         guard abs(stepped - lastProgress) > 0.0005 || abs(progress - stepped) > 0.0005 else { return }
         lastProgress = stepped
         suppressGeometryIngest = true
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        transaction.animation = nil
-        withTransaction(transaction) {
-            progress = stepped
-        }
-        // Clear suppress after layout; discard echo samples from our own height change.
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.suppressGeometryIngest = false
-            self.pendingOffset = nil
-            self.pendingOverflow = nil
+        settleUnlockTask?.cancel()
+
+        if animated {
+            withAnimation(.easeInOut(duration: 0.28)) {
+                progress = stepped
+            }
+            settleUnlockTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(320))
+                guard let self, !Task.isCancelled else { return }
+                self.suppressGeometryIngest = false
+                self.pendingOffset = nil
+                self.pendingOverflow = nil
+            }
+        } else {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            transaction.animation = nil
+            withTransaction(transaction) {
+                progress = stepped
+            }
+            // Clear suppress after layout; discard echo samples from our own height change.
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.suppressGeometryIngest = false
+                self.pendingOffset = nil
+                self.pendingOverflow = nil
+            }
         }
     }
 }

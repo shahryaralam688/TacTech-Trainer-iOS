@@ -159,6 +159,7 @@ struct RoleSelectionView: View {
     @State private var inviteCode = ""
     @State private var error: String?
     @State private var isLoading = false
+    @State private var fieldsAppeared = false
     @FocusState private var nameFocused: Bool
     @FocusState private var inviteFocused: Bool
 
@@ -166,6 +167,7 @@ struct RoleSelectionView: View {
     private let ink = Color.black
     private let muted = Color(white: 0.42)
     private let selectSpring = Animation.spring(response: 0.42, dampingFraction: 0.84)
+    private let fieldSpring = Animation.spring(response: 0.48, dampingFraction: 0.86)
 
     init(draft: SignupDraft) {
         self.draft = draft
@@ -182,7 +184,17 @@ struct RoleSelectionView: View {
                         .padding(.bottom, 20)
 
                     titleBlock
-                        .padding(.bottom, 24)
+                        .padding(.bottom, 16)
+
+                    // Keep invite tip above the fold — visible as soon as the screen loads.
+                    if role == .trainee {
+                        inviteSuggestionChip
+                            .padding(.bottom, 20)
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    } else {
+                        Color.clear.frame(height: 4)
+                            .padding(.bottom, 4)
+                    }
 
                     roleCards
                         .padding(.bottom, 24)
@@ -212,13 +224,31 @@ struct RoleSelectionView: View {
         .sensoryFeedback(.selection, trigger: role)
         .animation(selectSpring, value: role)
         .animation(selectSpring, value: error != nil)
+        .onAppear {
+            guard !fieldsAppeared else { return }
+            withAnimation(fieldSpring.delay(0.12)) {
+                fieldsAppeared = true
+            }
+        }
     }
 
     // MARK: - Header / Title
 
     private var header: some View {
         HStack {
-            TTBackButton(style: .onLight) { dismiss() }
+            // System-style back control (HIG: `chevron.backward`, 44pt hit target).
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.backward")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(ink)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
+
             Spacer()
             Text("STEP 2 OF 2")
                 .font(TTFont.workSans(11, weight: .bold))
@@ -242,6 +272,29 @@ struct RoleSelectionView: View {
                 .foregroundStyle(muted)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    private var inviteSuggestionChip: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "lightbulb.fill")
+                .font(TTFont.workSans(13, weight: .semibold))
+                .foregroundStyle(orange)
+                .padding(.top, 1)
+            Text("Suggestion: use invite code TACT-MAYA to join the demo trainer.")
+                .font(TTFont.workSans(13, weight: .medium))
+                .foregroundStyle(ink.opacity(0.72))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(orange.opacity(0.18), lineWidth: 1)
+        )
+        .accessibilityLabel("Suggestion: use invite code TACT-MAYA to join the demo trainer.")
     }
 
     // MARK: - Role cards
@@ -270,6 +323,7 @@ struct RoleSelectionView: View {
             HStack(spacing: 12) {
                 TTIcon(icon: .user, size: 18)
                     .foregroundStyle(nameFocused ? orange : ink.opacity(0.45))
+                    .animation(fieldSpring, value: nameFocused)
                 TextField("Full name", text: $name)
                     .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(ink)
@@ -279,6 +333,11 @@ struct RoleSelectionView: View {
             .padding(.horizontal, 14)
             .frame(height: 54)
             .ttInputChrome(focused: nameFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
+            .scaleEffect(nameFocused ? 1.015 : 1)
+            .animation(fieldSpring, value: nameFocused)
+            .opacity(fieldsAppeared ? 1 : 0)
+            .offset(y: fieldsAppeared ? 0 : 14)
+            .animation(fieldSpring, value: fieldsAppeared)
 
             if role == .trainee {
                 VStack(alignment: .leading, spacing: 8) {
@@ -286,6 +345,7 @@ struct RoleSelectionView: View {
                     HStack(spacing: 12) {
                         TTIcon(icon: .link1, size: 18)
                             .foregroundStyle(inviteFocused ? orange : ink.opacity(0.45))
+                            .animation(fieldSpring, value: inviteFocused)
                         TextField("e.g. TACT-MAYA", text: $inviteCode)
                             .font(TTFont.workSans(16, weight: .medium))
                             .foregroundStyle(ink)
@@ -297,11 +357,16 @@ struct RoleSelectionView: View {
                     .padding(.horizontal, 14)
                     .frame(height: 54)
                     .ttInputChrome(focused: inviteFocused, cornerRadius: 16, idleFill: Color(white: 0.96))
+                    .scaleEffect(inviteFocused ? 1.015 : 1)
+                    .animation(fieldSpring, value: inviteFocused)
 
-                    Text("Use TACT-MAYA to join the demo trainer.")
+                    Text("Paste your trainer’s code here, or use TACT-MAYA for the demo.")
                         .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(muted)
                 }
+                .opacity(fieldsAppeared ? 1 : 0)
+                .offset(y: fieldsAppeared ? 0 : 14)
+                .animation(fieldSpring.delay(0.06), value: fieldsAppeared)
                 .transition(
                     .asymmetric(
                         insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.98)),

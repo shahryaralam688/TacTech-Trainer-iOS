@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 @MainActor
 @Observable
@@ -121,6 +122,7 @@ final class AppStore {
     }
 
     /// Apply profile-setup fields collected at signup (role-specific).
+    /// Prefer `saveMeProfile` / `fetchMeProfile` for server truth; this remains a local optimistic helper.
     func applyProfileSetup(
         gender: String,
         location: String,
@@ -142,15 +144,6 @@ final class AppStore {
             if !trimmedLocation.isEmpty { trainer.location = trimmedLocation }
             upsert(trainer)
         }
-
-        guard let userId = session?.userId else { return }
-        var payload: [String: Any] = [
-            "gender": trimmedGender,
-            "location": trimmedLocation
-        ]
-        if let heightCm { payload["heightCm"] = heightCm }
-        if let weightKg { payload["weightKg"] = weightKg }
-        UserDefaults.standard.set(payload, forKey: "profile.setup.\(userId)")
     }
 
     func updateCurrentUserName(_ name: String) {
@@ -158,6 +151,127 @@ final class AppStore {
         guard !trimmed.isEmpty, var user = currentUser else { return }
         user.name = trimmed
         upsert(user)
+    }
+
+    // MARK: - Live /me/profile
+
+    /// Last successful profile snapshot (optimistic UI cache; not UserDefaults source of truth).
+    var meProfileCache: MeProfileResponse?
+    var remoteAvatarURL: String?
+
+    @discardableResult
+    func fetchMeProfile() async throws -> MeProfileResponse {
+        let response = try await api.meProfile()
+        applyMeProfileResponse(response)
+        return response
+    }
+
+    @discardableResult
+    func saveMeProfile(_ body: UpdateMeProfileBody) async throws -> MeProfileResponse {
+        let response = try await api.patchMeProfile(body)
+        applyMeProfileResponse(response)
+        // Soft-refresh /me gates without blocking
+        Task { try? await refreshSessionQuietly() }
+        return response
+    }
+
+    @discardableResult
+    func uploadProfileAvatar(jpegData: Data, previewImage: UIImage? = nil) async throws -> MeAvatarUploadResponse {
+        if jpegData.count > 5 * 1024 * 1024 {
+            throw AppError.validation("Photo must be 5 MB or smaller.")
+        }
+        let response = try await api.uploadMeAvatar(
+            fileData: jpegData,
+            filename: "avatar.jpg",
+            mimeType: "image/jpeg"
+        )
+        if let url = response.avatarUrl, !url.isEmpty {
+            remoteAvatarURL = url
+        }
+        if let previewImage, let userId = session?.userId {
+            _ = TTAvatarCatalog.saveCustomImage(previewImage, for: userId)
+        }
+        _ = try? await fetchMeProfile()
+        return response
+    }
+
+    func deleteProfileAvatar() async throws {
+        try await api.deleteMeAvatar()
+        remoteAvatarURL = nil
+        if let userId = session?.userId {
+            try? FileManager.default.removeItem(at: TTAvatarCatalog.customImageURL(for: userId))
+        }
+        _ = try? await fetchMeProfile()
+    }
+
+    func changePassword(currentPassword: String, newPassword: String) async throws {
+        try await api.changeMePassword(currentPassword: currentPassword, newPassword: newPassword)
+    }
+
+    func applyMeProfileResponse(_ response: MeProfileResponse) {
+        meProfileCache = response
+        applyServerGateFlags(
+            assessmentCompleted: response.assessmentCompleted,
+            onboardingCompleted: response.onboardingCompleted
+        )
+        refreshAssessmentFlag()
+
+        let role = response.user.resolvedRole
+        let user = User(
+            id: response.user.id,
+            name: response.user.name,
+            email: response.user.email,
+            password: currentUser?.password ?? "",
+            role: role,
+            createdAt: response.user.createdAt ?? currentUser?.createdAt ?? .now
+        )
+        upsert(user)
+
+        if let traineeDTO = response.trainee {
+            var trainee = traineeDTO.asTraineeProfile()
+            if trainee.gender == nil { trainee.gender = response.profile.gender }
+            if trainee.location == nil { trainee.location = response.profile.location }
+            if trainee.heightCm == 0, let h = response.profile.heightCm { trainee.heightCm = h }
+            if trainee.weightKg == 0, let w = response.profile.weightKg { trainee.weightKg = w }
+            upsert(trainee)
+        } else if let trainerDTO = response.trainer {
+            upsert(trainerDTO.asTrainerProfile(existing: currentTrainer))
+        } else {
+            // Mirror profile fields onto existing role profile if DTO omitted
+            applyProfileSetup(
+                gender: response.profile.gender ?? "",
+                location: response.profile.location ?? "",
+                heightCm: response.profile.heightCm,
+                weightKg: response.profile.weightKg
+            )
+        }
+
+        let url = response.profile.avatarUrl ?? response.user.avatarUrl
+        remoteAvatarURL = (url?.isEmpty == false) ? url : nil
+
+        if let userId = session?.userId {
+            if let asset = response.profile.avatarAsset ?? response.user.avatarAsset,
+               TTAvatarCatalog.isAssetName(asset),
+               remoteAvatarURL == nil {
+                TTAvatarCatalog.save(asset, for: userId)
+            }
+        }
+    }
+
+    private func refreshSessionQuietly() async throws {
+        let me = try await api.me()
+        applyServerGateFlags(
+            assessmentCompleted: me.assessmentCompleted,
+            onboardingCompleted: me.onboardingCompleted
+        )
+        refreshAssessmentFlag()
+        if let user = me.resolvedUser?.asUser() {
+            var u = user
+            u.password = currentUser?.password ?? ""
+            upsert(u)
+        }
+        if let trainer = me.trainer { upsert(trainer) }
+        if let trainee = me.trainee { upsert(trainee) }
     }
 
     func submitAssessment(_ draft: FitnessAssessment) async throws {

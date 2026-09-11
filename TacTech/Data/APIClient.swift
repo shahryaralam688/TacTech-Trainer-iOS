@@ -48,6 +48,128 @@ struct MeResponse: Decodable {
     }
 }
 
+// MARK: - Personal Info /me/profile
+
+struct MeProfileResponse: Decodable {
+    var user: MeProfileUser
+    var profile: EditableProfile
+    var trainer: MeTrainerProfileDTO?
+    var trainee: MeTraineeProfileDTO?
+    var assessmentCompleted: Bool?
+    var onboardingCompleted: Bool?
+}
+
+struct MeProfileUser: Decodable {
+    var id: String
+    var name: String
+    var email: String
+    var role: String
+    var createdAt: Date?
+    var avatarUrl: String?
+    var avatarAsset: String?
+
+    var resolvedRole: UserRole {
+        UserRole(rawValue: role.lowercased()) ?? .trainee
+    }
+}
+
+struct EditableProfile: Decodable {
+    var gender: String?
+    var location: String?
+    var heightCm: Int?
+    var weightKg: Double?
+    var accountType: String?
+    var avatarUrl: String?
+    var avatarAsset: String?
+    var phone: String?
+    var bio: String?
+}
+
+struct MeTraineeProfileDTO: Decodable {
+    var id: String
+    var userId: String
+    var trainerId: String?
+    var goal: String?
+    var heightCm: Int?
+    var weightKg: Double?
+    var dailyCalorieTarget: Int?
+    var gender: String?
+    var location: String?
+
+    func asTraineeProfile() -> TraineeProfile {
+        TraineeProfile(
+            id: id,
+            userId: userId,
+            trainerId: trainerId,
+            goal: goal ?? "",
+            heightCm: heightCm ?? 0,
+            weightKg: weightKg ?? 0,
+            dailyCalorieTarget: dailyCalorieTarget ?? 0,
+            gender: gender,
+            location: location
+        )
+    }
+}
+
+struct MeTrainerProfileDTO: Decodable {
+    var id: String
+    var userId: String
+    var inviteCode: String?
+    var specialty: String?
+    var yearsExperience: Int?
+    var bio: String?
+    var gender: String?
+    var location: String?
+
+    func asTrainerProfile(existing: TrainerProfile?) -> TrainerProfile {
+        TrainerProfile(
+            id: id,
+            userId: userId,
+            inviteCode: inviteCode ?? existing?.inviteCode ?? "",
+            specialty: specialty ?? existing?.specialty ?? "",
+            yearsExperience: yearsExperience ?? existing?.yearsExperience ?? 0,
+            bio: bio ?? existing?.bio ?? "",
+            gender: gender ?? existing?.gender,
+            location: location ?? existing?.location
+        )
+    }
+}
+
+struct UpdateMeProfileBody: Encodable {
+    var name: String? = nil
+    var email: String? = nil
+    var gender: String? = nil
+    var location: String? = nil
+    var heightCm: Int? = nil
+    var weightKg: Double? = nil
+    var avatarAsset: String? = nil
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(name, forKey: .name)
+        try c.encodeIfPresent(email, forKey: .email)
+        try c.encodeIfPresent(gender, forKey: .gender)
+        try c.encodeIfPresent(location, forKey: .location)
+        try c.encodeIfPresent(heightCm, forKey: .heightCm)
+        try c.encodeIfPresent(weightKg, forKey: .weightKg)
+        try c.encodeIfPresent(avatarAsset, forKey: .avatarAsset)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, email, gender, location, heightCm, weightKg, avatarAsset
+    }
+}
+
+struct MeAvatarUploadResponse: Decodable {
+    var avatarUrl: String?
+    var avatarAsset: String?
+}
+
+struct ChangeMePasswordBody: Encodable {
+    var currentPassword: String
+    var newPassword: String
+}
+
 struct TokenResponse: Decodable {
     var accessToken: String
     var refreshToken: String?
@@ -392,6 +514,37 @@ actor APIClient {
         try await send(path: "/me", method: .get)
     }
 
+    // MARK: - Personal Info / Profile
+
+    func meProfile() async throws -> MeProfileResponse {
+        try await send(path: "/me/profile", method: .get)
+    }
+
+    func patchMeProfile(_ body: UpdateMeProfileBody) async throws -> MeProfileResponse {
+        try await send(path: "/me/profile", method: .patch, body: body)
+    }
+
+    func uploadMeAvatar(fileData: Data, filename: String, mimeType: String) async throws -> MeAvatarUploadResponse {
+        try await sendMultipart(
+            path: "/me/avatar",
+            fields: [
+                .file(name: "file", filename: filename, mimeType: mimeType, data: fileData)
+            ]
+        )
+    }
+
+    func deleteMeAvatar() async throws {
+        try await sendVoid(path: "/me/avatar", method: .delete, body: EmptyBody())
+    }
+
+    func changeMePassword(currentPassword: String, newPassword: String) async throws {
+        try await sendVoid(
+            path: "/me/password",
+            method: .post,
+            body: ChangeMePasswordBody(currentPassword: currentPassword, newPassword: newPassword)
+        )
+    }
+
     func logout(refreshToken: String) async {
         _ = try? await sendUnauthenticated(
             path: "/auth/logout",
@@ -538,6 +691,76 @@ actor APIClient {
 
     private func sendVoid<B: Encodable>(path: String, method: HTTPMethod, body: B) async throws {
         _ = try await raw(path: path, method: method, body: body, authorized: true)
+    }
+
+    private enum MultipartFormField {
+        case text(name: String, value: String)
+        case file(name: String, filename: String, mimeType: String, data: Data)
+    }
+
+    private func sendMultipart<T: Decodable>(
+        path: String,
+        fields: [MultipartFormField],
+        allowRetry: Bool = true
+    ) async throws -> T {
+        if let refreshTask {
+            _ = try? await refreshTask.value
+        }
+        let boundary = "Boundary-\(UUID().uuidString)"
+        guard let url = URL(string: path, relativeTo: APIConfig.baseURL)?.absoluteURL else {
+            throw AppError.api("Invalid URL.")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = HTTPMethod.post.rawValue
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        guard let token = TokenStore.accessToken() else { throw AppError.unauthorized }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = buildMultipartBody(fields: fields, boundary: boundary)
+        request.timeoutInterval = 120
+
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else {
+            throw AppError.api("Invalid response from server.")
+        }
+        if http.statusCode == 401, allowRetry {
+            try await refreshTokens()
+            return try await sendMultipart(path: path, fields: fields, allowRetry: false)
+        }
+        if !(200...299).contains(http.statusCode) {
+            if http.statusCode == 401 {
+                TokenStore.clear()
+                throw AppError.unauthorized
+            }
+            if http.statusCode == 404 {
+                throw AppError.notFound(Self.detail(from: data) ?? "Not found.")
+            }
+            throw AppError.api(Self.detail(from: data) ?? "Request failed (\(http.statusCode)).")
+        }
+        return try decode(T.self, from: data)
+    }
+
+    private func buildMultipartBody(fields: [MultipartFormField], boundary: String) -> Data {
+        var body = Data()
+        let crlf = "\r\n"
+        for field in fields {
+            body.append("--\(boundary)\(crlf)".data(using: .utf8)!)
+            switch field {
+            case let .text(name, value):
+                body.append("Content-Disposition: form-data; name=\"\(name)\"\(crlf)\(crlf)".data(using: .utf8)!)
+                body.append("\(value)\(crlf)".data(using: .utf8)!)
+            case let .file(name, filename, mimeType, data):
+                body.append(
+                    "Content-Disposition: form-data; name=\"\(name)\"; filename=\"\(filename)\"\(crlf)".data(using: .utf8)!
+                )
+                body.append("Content-Type: \(mimeType)\(crlf)\(crlf)".data(using: .utf8)!)
+                body.append(data)
+                body.append(crlf.data(using: .utf8)!)
+            }
+        }
+        body.append("--\(boundary)--\(crlf)".data(using: .utf8)!)
+        return body
     }
 
     private func sendOptional<T: Decodable, B: Encodable>(path: String, method: HTTPMethod, body: B) async throws -> T? {

@@ -23,6 +23,8 @@ struct ProfileCompletionFlowView: View {
     @State private var biometricOK = false
     @State private var score = 55
     @State private var isGenerating = false
+    @State private var isSavingProfile = false
+    @State private var profileError: String?
     @FocusState private var focusedProfileField: ProfileField?
     @FocusState private var otpFocusIndex: Int?
 
@@ -88,11 +90,20 @@ struct ProfileCompletionFlowView: View {
 
             if !isScoreStep {
                 continueButton
+                    .disabled(isSavingProfile || !canContinue)
             }
         }
         .background(Color.white.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .onAppear { hydrateDraft() }
+        .task { await hydrateFromServer() }
+        .alert("Profile Setup", isPresented: Binding(
+            get: { profileError != nil },
+            set: { if !$0 { profileError = nil } }
+        )) {
+            Button("OK", role: .cancel) { profileError = nil }
+        } message: {
+            Text(profileError ?? "")
+        }
     }
 
     // MARK: - Header
@@ -201,16 +212,24 @@ struct ProfileCompletionFlowView: View {
             otpError = nil
             goToNextStep()
         case .notifications:
-            saveProfile()
+            Task { await finishNotificationsAndScore() }
+        default:
+            goToNextStep()
+        }
+    }
+
+    private func finishNotificationsAndScore() async {
+        isSavingProfile = true
+        defer { isSavingProfile = false }
+        do {
+            try await saveProfileToServer()
             score = computeScore()
             goToNextStep()
             isGenerating = true
-            Task {
-                try? await Task.sleep(for: .milliseconds(2200))
-                await MainActor.run { isGenerating = false }
-            }
-        default:
-            goToNextStep()
+            try? await Task.sleep(for: .milliseconds(2200))
+            isGenerating = false
+        } catch {
+            profileError = (error as? AppError)?.errorDescription ?? error.localizedDescription
         }
     }
 
@@ -683,7 +702,37 @@ struct ProfileCompletionFlowView: View {
         return .green
     }
 
-    private func hydrateDraft() {
+    private func hydrateFromServer() async {
+        hydrateDraftFromSession()
+        guard isAuthenticatedSession else { return }
+        do {
+            let response = try await store.fetchMeProfile()
+            draft.name = response.user.name
+            draft.gender = response.profile.gender
+                ?? response.trainee?.gender
+                ?? draft.gender
+            draft.location = response.profile.location
+                ?? response.trainee?.location
+                ?? response.trainer?.location
+                ?? draft.location
+            if let h = response.profile.heightCm ?? response.trainee?.heightCm, h > 0 {
+                draft.heightCm = Double(h)
+            }
+            if let w = response.profile.weightKg ?? response.trainee?.weightKg, w > 0 {
+                draft.weightText = String(Int(w))
+            }
+            if let url = response.profile.avatarUrl ?? response.user.avatarUrl, !url.isEmpty {
+                draft.avatarSymbol = TTAvatarCatalog.customToken
+            } else if let asset = response.profile.avatarAsset ?? response.user.avatarAsset,
+                      TTAvatarCatalog.isAssetName(asset) {
+                draft.avatarSymbol = asset
+            }
+        } catch {
+            // Keep session hydrate; surface only if user tries to save later
+        }
+    }
+
+    private func hydrateDraftFromSession() {
         draft.name = store.currentUser?.name ?? ""
         draft.gender = store.currentTrainee?.gender
             ?? store.currentTrainer?.gender
@@ -698,29 +747,56 @@ struct ProfileCompletionFlowView: View {
             draft.weightText = String(Int(w))
         }
         if let userId = store.session?.userId,
-           let symbol = UserDefaults.standard.string(forKey: "profile.avatar.\(userId)"),
-           TTAvatarCatalog.isAssetName(symbol) {
+           let symbol = TTAvatarCatalog.saved(for: userId),
+           TTAvatarCatalog.hasRenderableAvatar(symbol) {
             draft.avatarSymbol = symbol
         } else if store.session?.userId != nil {
             draft.avatarSymbol = TTAvatarCatalog.default
         }
     }
 
-    private func saveProfile() {
-        let weight = Double(draft.weightText.replacingOccurrences(of: ",", with: "."))
-        store.applyProfileSetup(
+    private func saveProfileToServer() async throws {
+        let trimmedName = draft.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            throw AppError.validation("Enter your name.")
+        }
+        let trimmedLocation = draft.location.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLocation.isEmpty else {
+            throw AppError.validation("Enter your location.")
+        }
+
+        // Custom photo selected locally → upload first
+        if TTAvatarCatalog.isCustom(draft.avatarSymbol),
+           let image = TTAvatarCatalog.loadCustomImage(for: store.session?.userId),
+           let data = CoachImageEncoder.jpegData(from: image) ?? image.jpegData(compressionQuality: 0.88) {
+            _ = try await store.uploadProfileAvatar(jpegData: data, previewImage: image)
+        }
+
+        var body = UpdateMeProfileBody(
+            name: trimmedName,
             gender: draft.gender,
-            location: draft.location,
-            heightCm: store.session?.role == .trainee ? Int(draft.heightCm) : nil,
-            weightKg: store.session?.role == .trainee ? weight : nil
+            location: trimmedLocation
         )
-            if let userId = store.session?.userId {
-            TTAvatarCatalog.persistSelection(draft.avatarSymbol, for: userId)
+        if store.session?.role == .trainee {
+            body.heightCm = Int(draft.heightCm)
+            if let weight = Double(draft.weightText.replacingOccurrences(of: ",", with: ".")) {
+                body.weightKg = weight
+            }
+        }
+        if TTAvatarCatalog.isAssetName(draft.avatarSymbol) {
+            body.avatarAsset = draft.avatarSymbol
+        }
+
+        let response = try await store.saveMeProfile(body)
+        if response.onboardingCompleted == true {
+            store.markProfileSetupCompleted()
+        }
+
+        if let userId = store.session?.userId {
             UserDefaults.standard.set(draft.notifyWorkouts, forKey: "notify.workouts.\(userId)")
             UserDefaults.standard.set(draft.notifyMessages, forKey: "notify.messages.\(userId)")
             UserDefaults.standard.set(draft.notifyProgress, forKey: "notify.progress.\(userId)")
         }
-        store.updateCurrentUserName(draft.name)
     }
 
     private func computeScore() -> Int {

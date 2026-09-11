@@ -616,6 +616,11 @@ struct TrainerCapacityStep: View {
         !presets.contains(draft.maxClients)
     }
 
+    /// Only a real preset lights the bar — custom (e.g. 12) leaves the bar unselected.
+    private var selectedPreset: Int? {
+        presets.contains(draft.maxClients) ? draft.maxClients : nil
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             title("How many clients can you\nmanage at once?")
@@ -629,8 +634,8 @@ struct TrainerCapacityStep: View {
 
             Spacer(minLength: 20)
 
-            // Hero number + pencil (inline edit), matching Days hierarchy.
-            HStack(alignment: .center, spacing: 12) {
+            // Hero number + compact pencil (inline edit).
+            HStack(alignment: .center, spacing: 10) {
                 Group {
                     if isEditingCustom {
                         TextField(
@@ -653,9 +658,10 @@ struct TrainerCapacityStep: View {
                             .foregroundStyle(AssessmentColor.ink)
                             .monospacedDigit()
                             .contentTransition(.numericText())
-                            .animation(.snappy(duration: 0.18), value: draft.maxClients)
                     }
                 }
+                .animation(.snappy(duration: 0.22), value: draft.maxClients)
+                .animation(.snappy(duration: 0.22), value: isEditingCustom)
 
                 Button {
                     if isEditingCustom {
@@ -665,36 +671,28 @@ struct TrainerCapacityStep: View {
                     }
                 } label: {
                     Image(systemName: isEditingCustom ? "checkmark" : "pencil")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(isEditingCustom ? AssessmentColor.white : AssessmentColor.orange)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 28, height: 28)
                         .background(isEditingCustom ? AssessmentColor.orange : AssessmentColor.peach)
                         .clipShape(Circle())
                         .overlay(
                             Circle()
-                                .strokeBorder(
-                                    isEditingCustom ? AssessmentColor.orangeBorder : AssessmentColor.orangeBorder.opacity(0.55),
-                                    lineWidth: 1.5
-                                )
-                        )
-                        .shadow(
-                            color: AssessmentColor.orange.opacity(isEditingCustom ? 0.28 : 0.12),
-                            radius: isEditingCustom ? 10 : 6,
-                            y: 2
+                                .strokeBorder(AssessmentColor.orangeBorder.opacity(0.5), lineWidth: 1)
                         )
                 }
-                .buttonStyle(AssessmentCardPressStyle())
+                .buttonStyle(.plain)
+                .offset(y: isEditingCustom ? 0 : 6)
+                .animation(.snappy(duration: 0.22), value: isEditingCustom)
                 .accessibilityLabel(isEditingCustom ? "Save custom number" : "Enter a custom number")
-                .sensoryFeedback(.impact(flexibility: .soft), trigger: isEditingCustom)
             }
-            .animation(.spring(response: 0.38, dampingFraction: 0.86), value: isEditingCustom)
 
             Text(isCustomValue ? "custom capacity" : "active clients")
                 .font(TTFont.workSans(18, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
-                .animation(.snappy(duration: 0.18), value: isCustomValue)
+                .animation(.snappy(duration: 0.22), value: isCustomValue)
 
-            // Same interaction language as Days — tap a preset or drag the thumb.
+            // Preset bar — no thumb when value is custom (not in 5/10/15/20/30).
             CapacityClientsDragSlider(
                 options: presets,
                 selection: presetSliderBinding
@@ -713,7 +711,7 @@ struct TrainerCapacityStep: View {
             )
             .font(TTFont.workSans(16, weight: .medium))
             .contentTransition(.numericText())
-            .animation(.snappy(duration: 0.18), value: draft.maxClients)
+            .animation(.snappy(duration: 0.22), value: draft.maxClients)
             .padding(.top, 20)
 
             Spacer(minLength: 20)
@@ -738,17 +736,13 @@ struct TrainerCapacityStep: View {
         }
     }
 
-    /// Slider always picks a preset; custom values stay on `draft.maxClients` until the user drags.
-    private var presetSliderBinding: Binding<Int> {
+    /// `nil` while custom — bar stays unselected until user picks a preset.
+    private var presetSliderBinding: Binding<Int?> {
         Binding(
-            get: {
-                if presets.contains(draft.maxClients) {
-                    return draft.maxClients
-                }
-                return TrainerAssessmentCatalog.maxClients(forSliderValue: slider)
-            },
+            get: { selectedPreset },
             set: { newPreset in
-                withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                guard let newPreset else { return }
+                withAnimation(.snappy(duration: 0.24)) {
                     isEditingCustom = false
                     customFieldFocused = false
                     applyCapacity(newPreset)
@@ -759,10 +753,10 @@ struct TrainerCapacityStep: View {
 
     private func beginCustomEdit() {
         customText = "\(draft.maxClients)"
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.snappy(duration: 0.24)) {
             isEditingCustom = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
             customFieldFocused = true
         }
     }
@@ -770,14 +764,14 @@ struct TrainerCapacityStep: View {
     private func commitCustomEdit() {
         let digits = customText.filter(\.isNumber)
         guard let parsed = Int(digits), parsed > 0 else {
-            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            withAnimation(.snappy(duration: 0.24)) {
                 isEditingCustom = false
             }
             customFieldFocused = false
             return
         }
         applyCapacity(parsed)
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+        withAnimation(.snappy(duration: 0.24)) {
             isEditingCustom = false
         }
         customFieldFocused = false
@@ -799,10 +793,10 @@ struct TrainerCapacityStep: View {
     }
 }
 
-/// Orange capacity slider — same feel as `DaysPerWeekDragSlider` (tap or drag).
+/// Orange capacity slider — same feel as Days; thumb only when a preset is selected.
 private struct CapacityClientsDragSlider: View {
     let options: [Int]
-    @Binding var selection: Int
+    @Binding var selection: Int?
 
     private let thumbSize: CGFloat = 52
     private let trackHeight: CGFloat = 64
@@ -817,8 +811,8 @@ private struct CapacityClientsDragSlider: View {
                 thumbSize: thumbSize,
                 count: options.count
             )
-            let indexValue = sliderIndex(for: selection)
-            let thumbX = dragX ?? layout.x(for: indexValue)
+            let indexValue = selection.flatMap { options.firstIndex(of: $0).map { $0 + 1 } }
+            let thumbX = dragX ?? indexValue.map { layout.x(for: $0) }
 
             ZStack {
                 Capsule()
@@ -827,33 +821,37 @@ private struct CapacityClientsDragSlider: View {
 
                 HStack(spacing: 0) {
                     ForEach(options, id: \.self) { count in
+                        let isActive = selection == count
                         Text("\(count)")
                             .font(TTFont.workSans(16, weight: .bold))
                             .monospacedDigit()
-                            .foregroundStyle(count == selection ? Color.clear : AssessmentColor.coolGrey)
+                            .foregroundStyle(isActive ? Color.clear : AssessmentColor.coolGrey)
                             .frame(maxWidth: .infinity)
                     }
                 }
                 .padding(.horizontal, thumbSize * 0.12)
                 .frame(height: trackHeight)
 
-                Text("\(selection)")
-                    .font(TTFont.workSans(22, weight: .bold))
-                    .monospacedDigit()
-                    .foregroundStyle(AssessmentColor.white)
-                    .contentTransition(.numericText())
-                    .frame(width: thumbSize, height: thumbSize)
-                    .background(AssessmentColor.orange)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2.5)
-                    )
-                    .shadow(color: AssessmentColor.orange.opacity(0.35), radius: 10, y: 2)
-                    .scaleEffect(isDragging ? 1.08 : 1)
-                    .position(x: thumbX, y: geo.size.height / 2)
-                    .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isDragging)
-                    .animation(.snappy(duration: 0.18), value: selection)
+                if let thumbX, let selection {
+                    Text("\(selection)")
+                        .font(TTFont.workSans(22, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(AssessmentColor.white)
+                        .contentTransition(.numericText())
+                        .frame(width: thumbSize, height: thumbSize)
+                        .background(AssessmentColor.orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2.5)
+                        )
+                        .shadow(color: AssessmentColor.orange.opacity(0.35), radius: 10, y: 2)
+                        .scaleEffect(isDragging ? 1.06 : 1)
+                        .position(x: thumbX, y: geo.size.height / 2)
+                        .animation(.snappy(duration: 0.22), value: isDragging)
+                        .animation(.snappy(duration: 0.22), value: selection)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                }
             }
             .contentShape(Rectangle())
             .gesture(
@@ -864,8 +862,8 @@ private struct CapacityClientsDragSlider: View {
                         dragX = x
                         let nextIndex = layout.value(at: x)
                         let next = options[nextIndex - 1]
-                        if next != selection {
-                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        if selection != next {
+                            withAnimation(.snappy(duration: 0.2)) {
                                 selection = next
                             }
                         }
@@ -874,20 +872,20 @@ private struct CapacityClientsDragSlider: View {
                         let x = min(max(gesture.location.x, layout.minX), layout.maxX)
                         let nextIndex = layout.value(at: x)
                         let next = options[nextIndex - 1]
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                        withAnimation(.snappy(duration: 0.24)) {
                             selection = next
                             dragX = layout.x(for: nextIndex)
                         }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.26) {
                             dragX = nil
                         }
                     }
             )
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Client capacity")
-            .accessibilityValue("\(selection) clients")
+            .accessibilityValue(selection.map { "\($0) clients" } ?? "Custom capacity")
             .accessibilityAdjustableAction { direction in
-                guard let current = options.firstIndex(of: selection) else { return }
+                let current = selection.flatMap { options.firstIndex(of: $0) } ?? 0
                 switch direction {
                 case .increment:
                     selection = options[min(current + 1, options.count - 1)]
@@ -899,11 +897,7 @@ private struct CapacityClientsDragSlider: View {
             }
         }
         .frame(height: trackHeight)
-    }
-
-    private func sliderIndex(for value: Int) -> Int {
-        if let idx = options.firstIndex(of: value) { return idx + 1 }
-        return TrainerAssessmentCatalog.capacityIndex(for: value)
+        .animation(.snappy(duration: 0.24), value: selection)
     }
 }
 

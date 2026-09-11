@@ -18,15 +18,37 @@ enum TTHomeDelight {
 
     /// Time-of-day greeting for the home header.
     static func greeting(for name: String, date: Date = .now) -> String {
+        "\(greetingPrefix(date: date)), \(homeDisplayName(name))!"
+    }
+
+    static func greetingPrefix(date: Date = .now) -> String {
         let hour = Calendar.current.component(.hour, from: date)
-        let hello: String
         switch hour {
-        case 5..<12: hello = "Good morning"
-        case 12..<17: hello = "Good afternoon"
-        case 17..<22: hello = "Good evening"
-        default: hello = "Hey"
+        case 5..<12: return "Good morning"
+        case 12..<17: return "Good afternoon"
+        case 17..<22: return "Good evening"
+        default: return "Hey"
         }
-        return "\(hello), \(name)!"
+    }
+
+    /// Prefer a readable home label; ultra-long strings still render via header scale/wrap.
+    static func homeDisplayName(_ raw: String, softLimit: Int = 22) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "there" }
+        if trimmed.count <= softLimit { return trimmed }
+
+        let parts = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
+        guard let first = parts.first else { return trimmed }
+
+        // "Alexandra M." — keeps identity without crowding the greeting row.
+        if parts.count > 1 {
+            let lastInitial = parts[1].prefix(1).uppercased()
+            let shortened = "\(first) \(lastInitial)."
+            if shortened.count <= softLimit + 2 { return shortened }
+            if first.count <= softLimit { return first }
+        }
+
+        return first
     }
 }
 

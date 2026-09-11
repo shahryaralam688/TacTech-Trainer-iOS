@@ -152,11 +152,7 @@ struct TTHomeProfileHeader: View {
                 avatarView(side: avatarSide, corner: avatarRadius)
 
                 VStack(alignment: .leading, spacing: 7 * expand) {
-                    Text(p < 0.55 ? TTHomeDelight.greeting(for: name, date: date) : name)
-                        .font(TTFont.workSans(titleSize, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
+                    profileNameLabel
 
                     if !metrics.isEmpty {
                         HStack(spacing: 8) {
@@ -181,11 +177,12 @@ struct TTHomeProfileHeader: View {
                         .clipped()
                     }
                 }
-
-                Spacer(minLength: 0)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
                 TTIcon(icon: .chevronRight, size: 22 - 2 * p)
                     .foregroundStyle(.white)
+                    .layoutPriority(2)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -193,6 +190,40 @@ struct TTHomeProfileHeader: View {
         .buttonStyle(TTHomeHeaderPressStyle())
         .accessibilityLabel("Open profile, \(name)")
         .accessibilityHint("Opens your profile")
+    }
+
+    /// Long names scale / wrap instead of hard “…” truncation.
+    @ViewBuilder
+    private var profileNameLabel: some View {
+        let expanded = p < 0.55
+        let display = TTHomeDelight.homeDisplayName(name)
+
+        if expanded {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(TTHomeDelight.greetingPrefix(date: date))
+                    .font(TTFont.workSans(max(titleSize - 6, 16), weight: .medium))
+                    .foregroundStyle(.white.opacity(0.78))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+
+                Text(display)
+                    .font(TTFont.workSans(titleSize, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.55)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(TTHomeDelight.greeting(for: display, date: date))
+        } else {
+            Text(display)
+                .font(TTFont.workSans(titleSize, weight: .semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.55)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     private func avatarView(side: CGFloat, corner: CGFloat) -> some View {

@@ -236,19 +236,7 @@ struct RoleSelectionView: View {
 
     private var header: some View {
         HStack {
-            // System-style back control (HIG: `chevron.backward`, 44pt hit target).
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "chevron.backward")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(ink)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Back")
-
+            TTBackButton(style: .onLight) { dismiss() }
             Spacer()
             Text("STEP 2 OF 2")
                 .font(TTFont.workSans(11, weight: .bold))

@@ -4,11 +4,16 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-/// Post-assessment Profile Setup & Account Completion (Figma flow).
-/// Order: Avatar → Profile → Password → OTP → Biometrics → Notifications → Score → Done
+/// Post-login Profile Setup (Account Settings) and optional first-time account completion.
+///
+/// **Logged-in path (production):** Avatar → Profile → Biometrics → Notifications → Score  
+/// Password + OTP are **not** shown when a session already exists — those belong in Security settings.
+///
+/// **Unauthenticated / first-account path (legacy):** also includes Password → OTP before biometrics.
 struct ProfileCompletionFlowView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    /// Index into `activeSteps` (not a hard-coded step number).
     @State private var step = 0
     @State private var draft = ProfileCompletionDraft()
     @State private var generatedOTP = ""
@@ -25,30 +30,63 @@ struct ProfileCompletionFlowView: View {
         case fullName, email, password, confirm, weight, location
     }
 
-    private let totalSteps = 8
+    private enum SetupStep: Hashable {
+        case avatar
+        case profile
+        case password
+        case otpIntro
+        case otpEntry
+        case biometric
+        case notifications
+        case score
+    }
+
     private let accent = TTColor.actionOrange
+
+    /// High-quality apps never force re-password / demo OTP after login.
+    private var isAuthenticatedSession: Bool {
+        store.session != nil
+    }
+
+    private var activeSteps: [SetupStep] {
+        if isAuthenticatedSession {
+            return [.avatar, .profile, .biometric, .notifications, .score]
+        }
+        return [.avatar, .profile, .password, .otpIntro, .otpEntry, .biometric, .notifications, .score]
+    }
+
+    private var currentStep: SetupStep {
+        let steps = activeSteps
+        guard !steps.isEmpty else { return .avatar }
+        return steps[min(max(step, 0), steps.count - 1)]
+    }
+
+    private var totalSteps: Int { activeSteps.count }
+
+    private var isScoreStep: Bool { currentStep == .score }
 
     var body: some View {
         VStack(spacing: 0) {
-            if step < 7 {
+            if !isScoreStep {
                 header
             }
 
             Group {
-                switch step {
-                case 0: avatarStep
-                case 1: profileStep
-                case 2: passwordStep
-                case 3: otpIntroStep
-                case 4: otpEntryStep
-                case 5: biometricStep
-                case 6: notificationsStep
-                default: scoreStep
+                switch currentStep {
+                case .avatar: avatarStep
+                case .profile: profileStep
+                case .password: passwordStep
+                case .otpIntro: otpIntroStep
+                case .otpEntry: otpEntryStep
+                case .biometric: biometricStep
+                case .notifications: notificationsStep
+                case .score: scoreStep
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .id(currentStep)
 
-            if step < 7 {
+            if !isScoreStep {
                 continueButton
             }
         }
@@ -106,7 +144,7 @@ struct ProfileCompletionFlowView: View {
     private var continueButton: some View {
         Button(action: advance) {
             HStack(spacing: 8) {
-                Text(step == 6 ? "Generate score" : "Continue")
+                Text(continueTitle)
                     .font(TTFont.workSans(17, weight: .semibold))
                 TTIcon(icon: .arrowRight, size: 16)
             }
@@ -123,47 +161,62 @@ struct ProfileCompletionFlowView: View {
         .animation(.easeInOut(duration: 0.2), value: canContinue)
     }
 
+    private var continueTitle: String {
+        switch currentStep {
+        case .notifications: "Generate score"
+        case .biometric: biometricOK ? "Continue" : "Continue"
+        default: "Continue"
+        }
+    }
+
     private var canContinue: Bool {
-        switch step {
-        case 0: true
-        case 1: !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && !draft.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        case 2: draft.password.count >= 6 && draft.password == draft.confirmPassword
-        case 3: true
-        case 4: otpInput.joined().count == 4
-        case 5: true
-        case 6: true
-        default: true
+        switch currentStep {
+        case .avatar: true
+        case .profile:
+            !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !draft.location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .password:
+            draft.password.count >= 6 && draft.password == draft.confirmPassword
+        case .otpIntro: true
+        case .otpEntry: otpInput.joined().count == 4
+        case .biometric: true
+        case .notifications: true
+        case .score: true
         }
     }
 
     private func advance() {
-        switch step {
-        case 3:
+        switch currentStep {
+        case .otpIntro:
             generatedOTP = String(format: "%04d", Int.random(in: 1000...9999))
             otpInput = ["", "", "", ""]
             otpError = nil
-            withAnimation(.easeInOut(duration: 0.25)) { step = 4 }
-        case 4:
+            goToNextStep()
+        case .otpEntry:
             let entered = otpInput.joined()
             if entered != generatedOTP {
                 otpError = "Invalid OTP Code"
                 return
             }
             otpError = nil
-            withAnimation(.easeInOut(duration: 0.25)) { step = 5 }
-        case 6:
+            goToNextStep()
+        case .notifications:
             saveProfile()
             score = computeScore()
-            withAnimation(.easeInOut(duration: 0.25)) { step = 7 }
+            goToNextStep()
             isGenerating = true
             Task {
                 try? await Task.sleep(for: .milliseconds(2200))
                 await MainActor.run { isGenerating = false }
             }
         default:
-            withAnimation(.easeInOut(duration: 0.25)) { step += 1 }
+            goToNextStep()
         }
+    }
+
+    private func goToNextStep() {
+        guard step + 1 < activeSteps.count else { return }
+        withAnimation(.easeInOut(duration: 0.25)) { step += 1 }
     }
 
     // MARK: - Steps
@@ -496,7 +549,7 @@ struct ProfileCompletionFlowView: View {
                 .foregroundStyle(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
             Text("Enable biometrics")
                 .font(TTFont.workSans(28, weight: .bold))
-            Text("Use Face ID / Touch ID for faster secure access. You can skip and do this later.")
+            Text("Optional — use Face ID / Touch ID for faster unlock. You can skip and turn this on later in Security.")
                 .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
                 .multilineTextAlignment(.center)
@@ -505,7 +558,7 @@ struct ProfileCompletionFlowView: View {
             Button {
                 Task { await enableBiometrics() }
             } label: {
-                Text(biometricOK ? "Fingerprint enabled" : "Press Fingerprint")
+                Text(biometricOK ? "Biometrics enabled" : "Enable Face ID / Touch ID")
                     .font(TTFont.workSans(16, weight: .bold))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
@@ -513,7 +566,14 @@ struct ProfileCompletionFlowView: View {
                     .background(Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255))
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
+            .buttonStyle(AssessmentCardPressStyle())
             .padding(.horizontal, 28)
+
+            if !biometricOK {
+                Text("You can continue without enabling this.")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(Color(white: 0.5))
+            }
 
             Spacer()
         }
@@ -666,7 +726,8 @@ struct ProfileCompletionFlowView: View {
     private func computeScore() -> Int {
         var value = 40
         if !draft.location.isEmpty { value += 8 }
-        if draft.password.count >= 8 { value += 10 }
+        // Already logged in ⇒ account credentials exist (don’t require re-password).
+        if isAuthenticatedSession || draft.password.count >= 8 { value += 10 }
         if biometricOK { value += 12 }
         if draft.notifyWorkouts { value += 6 }
         if store.session?.role == .trainee {

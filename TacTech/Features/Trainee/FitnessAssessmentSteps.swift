@@ -42,7 +42,7 @@ struct AssessmentTextBox: View {
                 if text.isEmpty {
                     Text(placeholder)
                         .font(TTFont.workSans(16, weight: .medium))
-                        .foregroundStyle(AssessmentColor.coolGrey)
+                        .foregroundStyle(AssessmentColor.slate)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 8)
                         .allowsHitTesting(false)

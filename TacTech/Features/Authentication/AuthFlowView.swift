@@ -324,7 +324,11 @@ struct RoleSelectionView: View {
                 TTIcon(icon: .user, size: 18)
                     .foregroundStyle(nameFocused ? orange : ink.opacity(0.45))
                     .animation(fieldSpring, value: nameFocused)
-                TextField("Full name", text: $name)
+                TextField(
+                    "",
+                    text: $name,
+                    prompt: TTInputChrome.prompt("Full name")
+                )
                     .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(ink)
                     .focused($nameFocused)
@@ -346,7 +350,11 @@ struct RoleSelectionView: View {
                         TTIcon(icon: .link1, size: 18)
                             .foregroundStyle(inviteFocused ? orange : ink.opacity(0.45))
                             .animation(fieldSpring, value: inviteFocused)
-                        TextField("e.g. TACT-MAYA", text: $inviteCode)
+                        TextField(
+                            "",
+                            text: $inviteCode,
+                            prompt: TTInputChrome.prompt("e.g. TACT-MAYA")
+                        )
                             .font(TTFont.workSans(16, weight: .medium))
                             .foregroundStyle(ink)
                             .textInputAutocapitalization(.characters)

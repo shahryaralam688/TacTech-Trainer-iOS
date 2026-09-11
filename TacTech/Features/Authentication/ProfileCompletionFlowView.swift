@@ -549,10 +549,11 @@ struct ProfileCompletionFlowView: View {
                 Image(systemName: icon)
                     .foregroundStyle(focusedProfileField == field ? accent : Color(white: 0.45))
                     .frame(width: 20)
-                TextField(title, text: text)
+                TextField("", text: text, prompt: TTInputChrome.prompt(title))
                     .keyboardType(keyboard)
                     .disabled(disabled)
                     .focused($focusedProfileField, equals: field)
+                    .foregroundStyle(Color.black)
                     .tint(accent)
             }
             .padding(.horizontal, 14)
@@ -570,8 +571,9 @@ struct ProfileCompletionFlowView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(TTFont.workSans(14, weight: .semibold))
-            SecureField(title, text: text)
+            SecureField("", text: text, prompt: TTInputChrome.prompt(title))
                 .focused($focusedProfileField, equals: field)
+                .foregroundStyle(Color.black)
                 .tint(accent)
                 .padding(.horizontal, 14)
                 .frame(height: 52)

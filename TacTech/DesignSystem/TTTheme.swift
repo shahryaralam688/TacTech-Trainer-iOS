@@ -522,6 +522,12 @@ enum TTInputChrome {
     static let idleBorder = Color.clear
     /// Mega / OTP cell when selected.
     static var megaActiveFill: Color { TTColor.actionOrange }
+    /// Placeholder / suggestion text on light field fills (never white).
+    static let placeholder = Color(white: 0.48)
+
+    static func prompt(_ text: String) -> Text {
+        Text(text).foregroundStyle(placeholder)
+    }
 }
 
 // MARK: View modifiers
@@ -632,6 +638,9 @@ private struct TTInputChromeModifier: ViewModifier {
         let lineWidth: CGFloat = (isFocused || isError || showIdleBorder) ? TTInputChrome.borderWidth : 0
 
         content
+            // Light field fills must keep dark placeholder/typed text — avoid white-on-white
+            // when a parent screen is in dark color scheme (e.g. auth welcome → role).
+            .environment(\.colorScheme, .light)
             .background(fill)
             .clipShape(shape)
             .overlay(shape.strokeBorder(stroke, lineWidth: lineWidth))

@@ -1,5 +1,4 @@
 import Foundation
-import Security
 import UIKit
 import UserNotifications
 
@@ -190,32 +189,18 @@ final class NotificationStore {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
 
-        // Personal (free) Apple teams cannot sign with Push / aps-environment.
-        // Calling registerForRemoteNotifications() without that entitlement spams
-        // "no valid aps-environment entitlement string found". Skip unless present.
-        guard Self.hasAPSEnvironmentEntitlement else { return }
+        // Remote APNs is deferred until a paid Apple Developer team enables Push
+        // Notifications + `aps-environment`. Do not call registerForRemoteNotifications()
+        // without that entitlement (signing fails on personal teams; console spam otherwise).
+        guard Self.isRemotePushRegistrationEnabled else { return }
 
         await MainActor.run {
             UIApplication.shared.registerForRemoteNotifications()
         }
     }
 
-    /// True when the running binary was signed with Push (`aps-environment`).
-    private static var hasAPSEnvironmentEntitlement: Bool {
-        #if targetEnvironment(simulator)
-        // Simulator cannot receive real APNs; skip registration to avoid console noise.
-        return false
-        #else
-        guard let task = SecTaskCreateFromSelf(nil) else { return false }
-        var error: Unmanaged<CFError>?
-        let value = SecTaskCopyValueForEntitlement(
-            task,
-            "aps-environment" as CFString,
-            &error
-        )
-        return value != nil
-        #endif
-    }
+    /// Flip to `true` only after Push capability is added on a paid Apple team.
+    private static let isRemotePushRegistrationEnabled = false
 
     // MARK: Deep links
 

@@ -190,9 +190,9 @@ final class NotificationStore {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
 
-        // Calling registerForRemoteNotifications() without a signed `aps-environment`
-        // entitlement spams: "no valid aps-environment entitlement string found".
-        // Skip unless Push Notifications capability is actually present in the signed app.
+        // Personal (free) Apple teams cannot sign with Push / aps-environment.
+        // Calling registerForRemoteNotifications() without that entitlement spams
+        // "no valid aps-environment entitlement string found". Skip unless present.
         guard Self.hasAPSEnvironmentEntitlement else { return }
 
         await MainActor.run {

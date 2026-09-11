@@ -444,14 +444,11 @@ struct TrainerDashboardView: View {
                 .buttonStyle(TTHomeCardPressStyle())
 
                 Button(action: copyInvite) {
-                    shortcutRow(
-                        title: copiedInvite ? "Invite copied" : "Share invite code",
-                        subtitle: store.currentTrainer?.inviteCode ?? "Open Profile for your code",
-                        icon: "link"
-                    )
+                    inviteCopyRow
                 }
                 .buttonStyle(TTHomeHapticPressStyle(intensity: .medium))
                 .ttHomeWin(celebrate: $celebrateInvite, tint: orange)
+                .sensoryFeedback(.success, trigger: copiedInvite)
 
                 Button { showProfile = true } label: {
                     shortcutRow(
@@ -488,6 +485,80 @@ struct TrainerDashboardView: View {
         .padding(14)
         .background(Color(white: 0.96))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Invite copy CTA — checkmark morph, soft success wash, code stays readable.
+    private var inviteCopyRow: some View {
+        let code = store.currentTrainer?.inviteCode
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(copiedInvite ? green.opacity(0.14) : Color(red: 255 / 255, green: 240 / 255, blue: 224 / 255))
+                Image(systemName: copiedInvite ? "checkmark" : "link")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(copiedInvite ? green : orange)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: copiedInvite)
+            }
+            .frame(width: 44, height: 44)
+            .scaleEffect(copiedInvite ? 1.06 : 1)
+            .animation(.spring(response: 0.34, dampingFraction: 0.62), value: copiedInvite)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(copiedInvite ? "Copied to clipboard" : "Share invite code")
+                    .font(TTFont.textLG(.medium))
+                    .foregroundStyle(.black)
+                    .contentTransition(.interpolate)
+                    .animation(.snappy(duration: 0.22), value: copiedInvite)
+
+                Text(code ?? "Open Profile for your code")
+                    .font(TTFont.workSans(14, weight: .medium))
+                    .monospacedDigit()
+                    .foregroundStyle(copiedInvite ? green.opacity(0.9) : Color(white: 0.45))
+                    .lineLimit(1)
+                    .animation(.snappy(duration: 0.22), value: copiedInvite)
+            }
+
+            Spacer(minLength: 0)
+
+            Text(copiedInvite ? "Done" : "Copy")
+                .font(TTFont.textSM(.medium))
+                .foregroundStyle(copiedInvite ? green : orange)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background((copiedInvite ? green : orange).opacity(0.12))
+                .clipShape(Capsule())
+                .contentTransition(.opacity)
+                .animation(.snappy(duration: 0.22), value: copiedInvite)
+        }
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(copiedInvite ? green.opacity(0.08) : Color(white: 0.96))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(copiedInvite ? green.opacity(0.28) : Color.clear, lineWidth: 1.5)
+        )
+        .animation(.snappy(duration: 0.28), value: copiedInvite)
+    }
+
+    private func copyInvite() {
+        guard let code = store.currentTrainer?.inviteCode else {
+            showProfile = true
+            return
+        }
+        UIPasteboard.general.string = code
+        withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
+            copiedInvite = true
+            celebrateInvite = true
+        }
+        TTHomeHaptics.success()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            withAnimation(.snappy(duration: 0.28)) {
+                copiedInvite = false
+            }
+        }
     }
 
     // MARK: - Recent form
@@ -569,20 +640,6 @@ struct TrainerDashboardView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(white: 0.96))
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func copyInvite() {
-        guard let code = store.currentTrainer?.inviteCode else {
-            showProfile = true
-            return
-        }
-        UIPasteboard.general.string = code
-        copiedInvite = true
-        celebrateInvite = true
-        TTHomeHaptics.success()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            copiedInvite = false
-        }
     }
 
     // MARK: - Data

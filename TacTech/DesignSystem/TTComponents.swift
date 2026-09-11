@@ -610,10 +610,10 @@ enum TTSheetChrome {
 
 /// Shared chrome for modal `.sheet` presentations (Create Plan, library, assign, inbox, …).
 enum TTModalSheetChrome {
-    static let horizontalPadding: CGFloat = 20
-    /// Space under the system grabber before header controls.
-    static let headerTopPadding: CGFloat = 8
-    static let headerBottomPadding: CGFloat = 14
+    /// Leading/trailing inset for the header controls and sheet body.
+    static let horizontalPadding: CGFloat = 16
+    /// Fixed header row height so the back square sits evenly in the bar (12 + 40 + 12).
+    static let headerHeight: CGFloat = 64
     static let headerSpacing: CGFloat = 12
     static let contentTopPadding: CGFloat = 12
     static let contentBottomPadding: CGFloat = 28
@@ -624,7 +624,7 @@ enum TTModalSheetChrome {
 }
 
 /// Modal sheet top bar — back/close, title (+ optional subtitle), optional trailing.
-/// Vertically centers controls with the title block; uses consistent padding tokens.
+/// Back control is inset by `horizontalPadding` and vertically centered in a fixed-height bar.
 struct TTModalSheetHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
@@ -682,9 +682,9 @@ struct TTModalSheetHeader<Trailing: View>: View {
                 .frame(minWidth: TTModalSheetChrome.controlSize, alignment: .trailing)
         }
         .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
-        .padding(.top, TTModalSheetChrome.headerTopPadding)
-        .padding(.bottom, TTModalSheetChrome.headerBottomPadding)
-        .background(background.ignoresSafeArea(edges: .top))
+        .frame(maxWidth: .infinity)
+        .frame(height: TTModalSheetChrome.headerHeight)
+        .background(background)
     }
 }
 

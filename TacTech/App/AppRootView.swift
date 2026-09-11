@@ -3,41 +3,34 @@ import SwiftUI
 struct AppRootView: View {
     @Environment(AppStore.self) private var store
     @State private var splashElapsed = false
-    @State private var postLoginBridgeDone = false
 
+    /// Cold launch only — never replay splash after interactive login/signup.
     private var showsSplash: Bool {
         !splashElapsed || store.isRestoringSession
     }
 
-    private var showsPostLoginBridge: Bool {
+    /// Ready to show Home or Assessment (gates already resolved).
+    private var showsAuthenticatedContent: Bool {
         store.session != nil
-            && store.pendingPostLoginBridge
-            && !postLoginBridgeDone
-            && !showsSplash
+            && !store.isBootstrappingSession
+            && !store.isRestoringSession
     }
 
     var body: some View {
         ZStack {
             Group {
-                if let session = store.session {
-                    if showsPostLoginBridge {
-                        PostLoginBridgeView(
-                            mode: store.assessmentCompleted ? .welcomeBack : .firstSetup,
-                            name: store.currentUser?.name ?? "",
-                            role: session.role,
-                            onFinished: finishPostLoginBridge
-                        )
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                    } else {
-                        switch session.role {
-                        case .trainer:
-                            trainerDestination
-                        case .trainee:
-                            traineeDestination
-                        }
+                if showsAuthenticatedContent, let session = store.session {
+                    switch session.role {
+                    case .trainer:
+                        trainerDestination
+                            .transition(.opacity)
+                    case .trainee:
+                        traineeDestination
+                            .transition(.opacity)
                     }
                 } else if !store.isRestoringSession {
                     AuthFlowView()
+                        .transition(.opacity)
                 }
             }
             .opacity(showsSplash ? 0 : 1)
@@ -47,18 +40,21 @@ struct AppRootView: View {
                     .transition(.opacity)
             }
         }
-        .animation(.easeInOut(duration: 0.45), value: showsSplash)
-        .animation(.spring(response: 0.48, dampingFraction: 0.88), value: showsPostLoginBridge)
-        .animation(.easeInOut(duration: 0.25), value: store.session?.userId)
-        // Do not animate assessmentCompleted — false→true swap was flashing assessment then home.
+        .animation(.easeInOut(duration: 0.32), value: showsSplash)
+        .animation(.easeInOut(duration: 0.28), value: showsAuthenticatedContent)
+        .animation(.easeInOut(duration: 0.28), value: store.session?.userId)
         .onChange(of: store.session?.userId) { _, newId in
-            // New account session → allow bridge again for that login.
             if newId == nil {
-                postLoginBridgeDone = false
                 HumanCallStore.shared.stopMonitoring()
                 Task { await NotificationStore.shared.unregisterCurrentToken() }
                 NotificationStore.shared.stop()
-            } else {
+            } else if showsAuthenticatedContent {
+                HumanCallStore.shared.startMonitoring()
+                NotificationStore.shared.start()
+            }
+        }
+        .onChange(of: showsAuthenticatedContent) { _, ready in
+            if ready, store.session != nil {
                 HumanCallStore.shared.startMonitoring()
                 NotificationStore.shared.start()
             }
@@ -66,20 +62,13 @@ struct AppRootView: View {
         .task {
             try? await Task.sleep(for: .milliseconds(1400))
             splashElapsed = true
-            if store.session != nil {
+            if showsAuthenticatedContent {
                 HumanCallStore.shared.startMonitoring()
                 NotificationStore.shared.start()
             }
         }
         // Must be overlay (not another fullScreenCover) — roots already present chat/AI covers.
         .humanCallOverlay()
-    }
-
-    private func finishPostLoginBridge() {
-        withAnimation(.spring(response: 0.45, dampingFraction: 0.9)) {
-            postLoginBridgeDone = true
-            store.consumePostLoginBridge()
-        }
     }
 
     @ViewBuilder

@@ -23,8 +23,8 @@ final class AppStore {
     var isRestoringSession = true
     var assessmentCompleted = false
     var profileSetupCompleted = false
-    /// Set after interactive login/signup so AppRoot can show the post-login bridge once.
-    var pendingPostLoginBridge = false
+    /// Interactive login/signup in flight — keep auth UI until gates + workspace resolve (no splash replay).
+    var isBootstrappingSession = false
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
     private var macrosByKey: [String: MacroEstimate] = [:]
@@ -77,14 +77,13 @@ final class AppStore {
     func login(email: String, password: String) async throws {
         let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
-        // Keep splash up until gates + workspace resolve — avoids assessment→home flash.
-        isRestoringSession = true
-        defer { isRestoringSession = false }
+        // Stay on auth UI until gates resolve — avoids splash + welcome interstitial.
+        isBootstrappingSession = true
+        defer { isBootstrappingSession = false }
         let response = try await api.login(email: normalized, password: password)
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
-        pendingPostLoginBridge = true
         scheduleCoachMemorySync()
     }
 
@@ -93,8 +92,8 @@ final class AppStore {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.validation("Enter your name.") }
         guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
         guard password.count >= 6 else { throw AppError.validation("Password must be at least 6 characters.") }
-        isRestoringSession = true
-        defer { isRestoringSession = false }
+        isBootstrappingSession = true
+        defer { isBootstrappingSession = false }
         let response = try await api.signup(
             SignupBody(
                 name: name,
@@ -107,7 +106,6 @@ final class AppStore {
         apply(auth: response)
         try await refreshSession()
         refreshAssessmentFlag()
-        pendingPostLoginBridge = true
         scheduleCoachMemorySync()
     }
 
@@ -259,10 +257,6 @@ final class AppStore {
         if let onboardingCompleted {
             serverOnboardingCompleted = onboardingCompleted
         }
-    }
-
-    func consumePostLoginBridge() {
-        pendingPostLoginBridge = false
     }
 
     private func composedTrainerBio(_ draft: TrainerAssessment) -> String {
@@ -838,7 +832,7 @@ final class AppStore {
     private func clearLocalSession() {
         TokenStore.clear()
         session = nil
-        pendingPostLoginBridge = false
+        isBootstrappingSession = false
         users = []
         trainers = []
         trainees = []

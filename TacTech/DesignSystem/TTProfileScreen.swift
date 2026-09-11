@@ -272,8 +272,7 @@ struct TTProfileScreen<Extra: View>: View {
                         TTIcon(icon: .calendar1, size: 12)
                         Text(rangeLabel)
                             .font(TTFont.caption(12))
-                        Image(systemName: "chevron.down")
-                            .font(TTFont.workSans(10, weight: .semibold))
+                        TTIcon(icon: .chevronDown, size: 10)
                     }
                     .foregroundStyle(TTColor.inkMuted)
                     .padding(.horizontal, 10)

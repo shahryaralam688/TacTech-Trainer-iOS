@@ -548,8 +548,7 @@ struct TTDropPicker<Value: Hashable>: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             Spacer(minLength: 2)
-            Image(systemName: "chevron.down")
-                .font(TTFont.workSans(11, weight: .semibold))
+            TTIcon(icon: .chevronDown, size: 11)
                 .foregroundStyle(TTColor.inkMuted)
         }
         .padding(.horizontal, 12)

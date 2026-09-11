@@ -252,8 +252,7 @@ struct PersonalInformationSettingsView: View {
                     .font(TTFont.body(15))
                     .foregroundStyle(TTColor.ink)
                 Spacer()
-                Image(systemName: "chevron.down")
-                    .font(TTFont.workSans(13, weight: .semibold))
+                TTIcon(icon: .chevronDown, size: 13)
                     .foregroundStyle(Color(white: 0.45))
             }
             .padding(.horizontal, 14)

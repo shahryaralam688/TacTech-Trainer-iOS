@@ -115,8 +115,7 @@ struct TTHomeWeekDatePicker: View {
                 }
             }
         } label: {
-            Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
+            TTIcon(icon: isExpanded ? .chevronUp : .chevronDown, size: 11)
                 .foregroundStyle(Color(white: 0.42))
                 .frame(width: 28, height: chipHeight)
                 .contentShape(Rectangle())
@@ -145,8 +144,7 @@ struct TTHomeWeekDatePicker: View {
             Button {
                 shiftMonth(by: -1)
             } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .semibold))
+                TTIcon(icon: .chevronLeft, size: 12)
                     .foregroundStyle(Color(white: 0.4))
                     .frame(width: 32, height: 32)
                     .background(Color(white: 0.96))
@@ -166,8 +164,7 @@ struct TTHomeWeekDatePicker: View {
             Button {
                 shiftMonth(by: 1)
             } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
+                TTIcon(icon: .chevronRight, size: 12)
                     .foregroundStyle(Color(white: 0.4))
                     .frame(width: 32, height: 32)
                     .background(Color(white: 0.96))

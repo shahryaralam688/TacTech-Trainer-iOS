@@ -520,8 +520,7 @@ struct HumanPeerChatView: View {
             jumpBottomTick &+= 1
         } label: {
             ZStack(alignment: .topTrailing) {
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .bold))
+                TTIcon(icon: .chevronDown, size: 14)
                     .foregroundStyle(ink)
                     .frame(width: 40, height: 40)
                     .background(.ultraThinMaterial)
@@ -574,8 +573,7 @@ struct HumanPeerChatView: View {
                     composerFocused = false
                     TTKeyboard.dismiss()
                 } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 15, weight: .semibold))
+                    TTIcon(icon: .chevronLeft, size: 16)
                         .foregroundStyle(ink)
                         .frame(width: 36, height: 36)
                         .background(Color.black.opacity(0.05))

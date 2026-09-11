@@ -318,171 +318,124 @@ struct AssessmentAgeWheel: View {
     @Binding var selection: Int
     var range: ClosedRange<Int>
 
-    /// Orange selection plate — matches Figma (~155pt tall, ~75% width).
-    private let plateHeight: CGFloat = 155
-    private let plateCorner: CGFloat = 36
-    /// Row pitch so 16 / 17 / 18 / 19 / 20 sit clear like the reference.
-    private let rowHeight: CGFloat = 108
+    private let rowHeight: CGFloat = 64
+    private let sideFadeRows: CGFloat = 2
+
+    @State private var positionedID: Int?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var values: [Int] { Array(range) }
 
     var body: some View {
         ZStack {
-            orangePlate
-            NativeAgeWheelPicker(
-                selection: $selection,
-                range: range,
-                rowHeight: rowHeight
-            )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
+            softSelectionBand
 
-    private var orangePlate: some View {
-        RoundedRectangle(cornerRadius: plateCorner, style: .continuous)
-            .fill(AssessmentColor.orange)
-            .overlay(
-                RoundedRectangle(cornerRadius: plateCorner, style: .continuous)
-                    .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2.5)
-            )
-            .frame(height: plateHeight)
-            .padding(.horizontal, 46)
-            .shadow(color: AssessmentColor.orange.opacity(0.18), radius: 12, y: 4)
-            .allowsHitTesting(false)
-    }
-}
-
-/// UIKit wheel — Clock.app physics, Figma size hierarchy (big selected, smaller neighbors).
-private struct NativeAgeWheelPicker: UIViewRepresentable {
-    @Binding var selection: Int
-    var range: ClosedRange<Int>
-    var rowHeight: CGFloat
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    func makeUIView(context: Context) -> UIPickerView {
-        let picker = UIPickerView()
-        picker.dataSource = context.coordinator
-        picker.delegate = context.coordinator
-        picker.backgroundColor = .clear
-        picker.clipsToBounds = false
-        context.coordinator.attach(picker)
-        return picker
-    }
-
-    func updateUIView(_ picker: UIPickerView, context: Context) {
-        context.coordinator.parent = self
-        context.coordinator.reloadIfNeeded(picker)
-
-        let row = selection - range.lowerBound
-        guard range.contains(selection), row >= 0 else { return }
-        if picker.selectedRow(inComponent: 0) != row {
-            picker.selectRow(row, inComponent: 0, animated: false)
-            context.coordinator.refreshRowStyles(picker)
-        }
-        context.coordinator.clearSystemChrome(picker)
-    }
-
-    final class Coordinator: NSObject, UIPickerViewDataSource, UIPickerViewDelegate {
-        var parent: NativeAgeWheelPicker
-        private let feedback = UISelectionFeedbackGenerator()
-        private weak var picker: UIPickerView?
-
-        private let slate = UIColor(red: 103 / 255, green: 108 / 255, blue: 117 / 255, alpha: 1)
-        private let coolGrey = UIColor(red: 186 / 255, green: 187 / 255, blue: 190 / 255, alpha: 1)
-
-        init(_ parent: NativeAgeWheelPicker) {
-            self.parent = parent
-        }
-
-        func attach(_ picker: UIPickerView) {
-            self.picker = picker
-            let row = parent.selection - parent.range.lowerBound
-            if parent.range.contains(parent.selection), row >= 0 {
-                picker.selectRow(row, inComponent: 0, animated: false)
+            ScrollView(.vertical, showsIndicators: false) {
+                LazyVStack(spacing: 0) {
+                    ForEach(values, id: \.self) { value in
+                        numberRow(value)
+                            .id(value)
+                    }
+                }
+                .scrollTargetLayout()
             }
-            feedback.prepare()
-            DispatchQueue.main.async { [weak self, weak picker] in
-                guard let self, let picker else { return }
-                self.clearSystemChrome(picker)
-                self.refreshRowStyles(picker)
+            .contentMargins(.vertical, rowHeight * sideFadeRows, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $positionedID)
+            .mask(edgeFadeMask)
+
+            edgeFadeOverlays
+                .allowsHitTesting(false)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: rowHeight * (sideFadeRows * 2 + 1))
+        .onAppear {
+            if positionedID == nil {
+                positionedID = clamped(selection)
             }
         }
-
-        func reloadIfNeeded(_ picker: UIPickerView) {
-            if picker.numberOfRows(inComponent: 0) != values.count {
-                picker.reloadAllComponents()
-            }
+        .onChange(of: positionedID) { _, newValue in
+            guard let newValue, range.contains(newValue), newValue != selection else { return }
+            selection = newValue
         }
-
-        private var values: [Int] { Array(parent.range) }
-
-        func numberOfComponents(in pickerView: UIPickerView) -> Int { 1 }
-
-        func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-            values.count
-        }
-
-        func pickerView(_ pickerView: UIPickerView, rowHeightForComponent component: Int) -> CGFloat {
-            parent.rowHeight
-        }
-
-        func pickerView(
-            _ pickerView: UIPickerView,
-            viewForRow row: Int,
-            forComponent component: Int,
-            reusing view: UIView?
-        ) -> UIView {
-            let label = (view as? UILabel) ?? UILabel()
-            label.textAlignment = .center
-            label.text = "\(values[row])"
-            label.adjustsFontSizeToFitWidth = false
-
-            let distance = abs(row - pickerView.selectedRow(inComponent: 0))
-            switch distance {
-            case 0:
-                // Selected — large white digit inside orange plate (like "18").
-                label.font = .monospacedDigitSystemFont(ofSize: 72, weight: .bold)
-                label.textColor = .white
-                label.alpha = 1
-            case 1:
-                // Neighbors — medium slate (17 / 19).
-                label.font = .monospacedDigitSystemFont(ofSize: 44, weight: .bold)
-                label.textColor = slate
-                label.alpha = 1
-            default:
-                // Farther — smaller light grey (16 / 20).
-                label.font = .monospacedDigitSystemFont(ofSize: 30, weight: .semibold)
-                label.textColor = coolGrey
-                label.alpha = 1
-            }
-            return label
-        }
-
-        func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-            let value = values[row]
-            if parent.selection != value {
-                parent.selection = value
-                feedback.selectionChanged()
-                feedback.prepare()
-            }
-            refreshRowStyles(pickerView)
-        }
-
-        func refreshRowStyles(_ pickerView: UIPickerView) {
-            pickerView.reloadAllComponents()
-        }
-
-        /// Hide the default gray selection bars so only our orange plate shows.
-        func clearSystemChrome(_ pickerView: UIPickerView) {
-            for subview in pickerView.subviews {
-                subview.backgroundColor = .clear
-                if abs(subview.bounds.height - parent.rowHeight) < 8 {
-                    subview.backgroundColor = .clear
-                    subview.layer.cornerRadius = 0
-                    subview.layer.borderWidth = 0
+        .onChange(of: selection) { _, newValue in
+            let next = clamped(newValue)
+            if positionedID != next {
+                withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) {
+                    positionedID = next
                 }
             }
+        }
+        .sensoryFeedback(.selection, trigger: selection)
+    }
+
+    private func clamped(_ value: Int) -> Int {
+        min(range.upperBound, max(range.lowerBound, value))
+    }
+
+    /// Soft center focus — not a heavy filled rectangle.
+    private var softSelectionBand: some View {
+        Capsule(style: .continuous)
+            .fill(AssessmentColor.orange.opacity(0.10))
+            .overlay(
+                Capsule(style: .continuous)
+                    .strokeBorder(AssessmentColor.orange.opacity(0.28), lineWidth: 1.5)
+            )
+            .frame(height: rowHeight - 4)
+            .padding(.horizontal, 64)
+            .shadow(color: AssessmentColor.orange.opacity(0.10), radius: 10, y: 2)
+            .allowsHitTesting(false)
+    }
+
+    private func numberRow(_ value: Int) -> some View {
+        let isSelected = value == selection
+        return Text("\(value)")
+            .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
+            .foregroundStyle(isSelected ? AssessmentColor.orange : AssessmentColor.slate)
+            .contentTransition(.numericText())
+            .frame(maxWidth: .infinity)
+            .frame(height: rowHeight)
+            .opacity(isSelected ? 1 : 0.55)
+            .scaleEffect(isSelected ? 1.0 : 0.88)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: isSelected)
+            .scrollTransition(.animated(reduceMotion ? .default : .snappy(duration: 0.2))) { content, phase in
+                content
+                    .scaleEffect(phase.isIdentity ? 1.08 : 0.72)
+                    .opacity(phase.isIdentity ? 1 : 0.28)
+                    .blur(radius: reduceMotion ? 0 : (phase.isIdentity ? 0 : 0.4))
+            }
+            .accessibilityLabel("\(value)")
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var edgeFadeMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.22),
+                .init(color: .black, location: 0.78),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var edgeFadeOverlays: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [AssessmentColor.white, AssessmentColor.white.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: rowHeight * 1.15)
+            Spacer(minLength: 0)
+            LinearGradient(
+                colors: [AssessmentColor.white.opacity(0), AssessmentColor.white],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: rowHeight * 1.15)
         }
     }
 }

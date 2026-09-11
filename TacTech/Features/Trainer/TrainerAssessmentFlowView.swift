@@ -195,14 +195,26 @@ struct TrainerYearsStep: View {
     var body: some View {
         VStack(spacing: 0) {
             title("How many years have you\nbeen coaching?")
+                .padding(.bottom, 8)
+
             AssessmentAgeWheel(selection: $draft.yearsExperience, range: 0...30)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text(draft.yearsExperience == 0 ? "Just getting started" : "\(draft.yearsExperience) years experience")
-                .font(TTFont.workSans(16, weight: .semibold))
-                .foregroundStyle(AssessmentColor.slate)
-                .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.18), value: draft.yearsExperience)
-                .padding(.bottom, 12)
+                .frame(maxWidth: .infinity)
+                .frame(maxHeight: .infinity)
+
+            VStack(spacing: 6) {
+                Text(draft.yearsExperience == 0 ? "Just getting started" : "\(draft.yearsExperience)")
+                    .font(TTFont.workSans(22, weight: .bold))
+                    .foregroundStyle(AssessmentColor.ink)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.18), value: draft.yearsExperience)
+
+                Text(draft.yearsExperience == 0 ? "New to coaching" : "years of coaching experience")
+                    .font(TTFont.workSans(14, weight: .medium))
+                    .foregroundStyle(AssessmentColor.slate)
+                    .animation(.snappy(duration: 0.18), value: draft.yearsExperience == 0)
+            }
+            .padding(.top, 10)
+            .padding(.bottom, 16)
         }
         .sensoryFeedback(.selection, trigger: draft.yearsExperience)
     }

@@ -13,7 +13,6 @@ struct PersonalInformationSettingsView: View {
     @State private var passwordFocused = false
     @State private var gender = "Male"
     @State private var weightKg: Double = 68
-    @State private var accountType = "Regular"
     @State private var avatarAsset: String?
     @State private var showAvatarPicker = false
     @State private var saved = false
@@ -23,10 +22,8 @@ struct PersonalInformationSettingsView: View {
 
     private let fieldBG = Color(white: 0.94)
     private let orange = TTColor.actionOrange
-    private let selectBlue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
     private let avatarSize: CGFloat = 104
     private let genders = ["Male", "Female", "Non-binary", "Trans Female", "Trans Male"]
-    private let accountTypes = ["Regular", "Coach", "Nutritionist"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,7 +37,6 @@ struct PersonalInformationSettingsView: View {
                     weightSlider
                     genderRow
                     labeledField("Location", icon: .mapPin1, text: $location, field: .location)
-                    accountTypeRow
 
                     if saved {
                         Text("Saved")
@@ -270,32 +266,6 @@ struct PersonalInformationSettingsView: View {
         }
     }
 
-    private var accountTypeRow: some View {
-        HStack(spacing: 8) {
-            ForEach(accountTypes, id: \.self) { type in
-                let on = accountType == type
-                Button {
-                    accountType = type
-                } label: {
-                    HStack(spacing: 6) {
-                        Text(type)
-                            .font(TTFont.workSans(13, weight: .semibold))
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.85)
-                        Image(systemName: on ? "checkmark.square.fill" : "circle")
-                            .font(TTFont.workSans(14, weight: .semibold))
-                    }
-                    .foregroundStyle(on ? .white : TTColor.ink)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(on ? selectBlue : fieldBG)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
     private var saveButton: some View {
         Button(action: save) {
             HStack(spacing: 8) {
@@ -322,16 +292,7 @@ struct PersonalInformationSettingsView: View {
         gender = store.currentTrainee?.gender ?? store.currentTrainer?.gender ?? "Male"
         if let w = store.currentTrainee?.weightKg, w > 0 { weightKg = w }
         avatarAsset = TTAvatarCatalog.saved(for: store.session?.userId)
-        if store.session?.role == .trainer {
-            accountType = "Coach"
-        } else {
-            accountType = UserDefaults.standard.string(forKey: accountTypeKey) ?? "Regular"
-        }
         password = ""
-    }
-
-    private var accountTypeKey: String {
-        "profile.accountType.\(store.session?.userId ?? "x")"
     }
 
     private func save() {
@@ -345,7 +306,6 @@ struct PersonalInformationSettingsView: View {
         if let avatarAsset {
             TTAvatarCatalog.persistSelection(avatarAsset, for: store.session?.userId)
         }
-        UserDefaults.standard.set(accountType, forKey: accountTypeKey)
         saved = true
     }
 }

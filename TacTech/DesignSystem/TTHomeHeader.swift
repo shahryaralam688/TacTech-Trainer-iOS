@@ -61,7 +61,9 @@ struct TTHomeProfileHeader: View {
 
     private var avatarSide: CGFloat { 58 - 18 * p } // 58 → 40
     private var avatarRadius: CGFloat { 16 - 4 * p } // 16 → 12
-    private var titleSize: CGFloat { 28 - 8 * p } // 28 → 20
+    /// Name size tracks avatar height (~38% of avatar) so type stays proportional.
+    private var titleSize: CGFloat { max(16, avatarSide * 0.38) } // ~22 → ~15
+    private var greetingSize: CGFloat { max(12, avatarSide * 0.24) } // ~14 → ~10
     private var rowSpacing: CGFloat { 14 - 2 * p }
 
     var body: some View {
@@ -99,7 +101,7 @@ struct TTHomeProfileHeader: View {
             HStack(spacing: 7) {
                 TTIcon(icon: .calendar1, size: 14)
                 Text(formattedDate)
-                    .font(TTFont.textSM(.semibold))
+                    .font(TTFont.textSM(.regular))
                     .tracking(0.8)
                     .textCase(.uppercase)
             }
@@ -167,7 +169,7 @@ struct TTHomeProfileHeader: View {
                                     TTIcon(icon: metric.icon, size: 12)
                                         .foregroundStyle(metric.iconColor)
                                     Text(metric.text)
-                                        .font(TTFont.textMD(.medium))
+                                        .font(TTFont.textMD(.regular))
                                         .foregroundStyle(.white)
                                 }
                             }
@@ -201,13 +203,13 @@ struct TTHomeProfileHeader: View {
         if expanded {
             VStack(alignment: .leading, spacing: 2) {
                 Text(TTHomeDelight.greetingPrefix(date: date))
-                    .font(TTFont.workSans(max(titleSize - 6, 16), weight: .medium))
-                    .foregroundStyle(.white.opacity(0.78))
+                    .font(TTFont.workSans(greetingSize, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
                 Text(display)
-                    .font(TTFont.workSans(titleSize, weight: .semibold))
+                    .font(TTFont.workSans(titleSize, weight: .medium))
                     .foregroundStyle(.white)
                     .lineLimit(2)
                     .minimumScaleFactor(0.55)
@@ -218,7 +220,7 @@ struct TTHomeProfileHeader: View {
             .accessibilityLabel(TTHomeDelight.greeting(for: display, date: date))
         } else {
             Text(display)
-                .font(TTFont.workSans(titleSize, weight: .semibold))
+                .font(TTFont.workSans(titleSize, weight: .medium))
                 .foregroundStyle(.white)
                 .lineLimit(1)
                 .minimumScaleFactor(0.55)

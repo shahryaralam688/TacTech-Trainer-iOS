@@ -123,18 +123,14 @@ enum TTIconSize {
 
 // MARK: Typography — Work Sans (design-system scale)
 //
-// App weight hierarchy (do not exceed these for UI copy):
-//   Main / section headings → Semibold (600)
-//   Card titles             → Medium–Semibold (500–600)
-//   Body                    → Regular (400)
-//   Secondary               → Regular–Medium (400–500)
-//   Buttons                 → Medium–Semibold (500–600)
-//   Small labels            → Medium (500)
+// Premium / international weight hierarchy (intentionally light):
+//   Main / section headings → Medium (500)
+//   Card titles             → Medium (500)
+//   Body / secondary        → Regular (400)
+//   Buttons / small labels  → Medium (500)
 //
-// Bold / Heavy / ExtraBold request faces are capped at Semibold so screens
-// that still pass `.bold` stay within the hierarchy without per-screen edits.
-//
-// Use `TTTypography` / `TTFont` — never approximate Medium/SemiBold with Bold.
+// Semibold / Bold / Heavy / Black requests are capped at Medium so UI never
+// feels over-bold. Prefer size for hierarchy, not heavy faces.
 
 /// Named text styles from the design-system typography page.
 enum TTTypography {
@@ -193,32 +189,13 @@ enum TTTypography {
 
     var weight: Font.Weight {
         switch self {
-        // Headings / display / card-title “Bold” styles → Semibold (600)
-        case .displayLGExtraBold, .displayMDExtraBold, .displaySMExtraBold,
-             .displayLGBold, .displayMDBold, .displaySMBold,
-             .heading2XLBold, .headingXLBold, .headingLGBold, .headingMDBold,
-             .headingSMBold, .headingXSBold,
-             .heading2XLSemiBold, .headingXLSemiBold, .headingLGSemiBold,
-             .headingMDSemiBold, .headingSMSemiBold, .headingXSSemiBold,
-             .text2XLBold, .textXLBold, .textLGBold, .textMDBold,
-             .text2XLSemiBold, .textXLSemiBold, .textLGSemiBold, .textMDSemiBold,
-             .paragraphBold:
-            return .semibold
-        // Small text “Bold/SemiBold” + overline → Medium (500) labels
-        case .textSMBold, .textXSBold, .text2XSBold,
-             .textSMSemiBold, .textXSSemiBold, .text2XSSemiBold,
-             .paragraphOverline:
-            return .medium
-        case .heading2XLMedium, .headingXLMedium, .headingLGMedium, .headingMDMedium,
-             .headingSMMedium, .headingXSMedium,
-             .text2XLMedium, .textXLMedium, .textLGMedium, .textMDMedium,
-             .textSMMedium, .textXSMedium, .text2XSMedium,
-             .paragraphMedium:
-            return .medium
         case .paragraphLight:
             return .light
         case .paragraphRegular, .paragraphCaption:
             return .regular
+        default:
+            // All Bold / SemiBold / Medium named styles resolve to Medium.
+            return .medium
         }
     }
 
@@ -257,10 +234,9 @@ enum TTFont {
     /// Bundled Work Sans static faces.
     private static let regular = "WorkSans-Regular"
     private static let medium = "WorkSans-Medium"
-    private static let semibold = "WorkSans-SemiBold"
 
-    /// Maps requested weight → Work Sans face within the app hierarchy.
-    /// Regular/Medium/Semibold render true faces; Bold/Heavy/Black cap at Semibold.
+    /// Maps requested weight → Work Sans face within the soft hierarchy.
+    /// Regular stays Regular; Medium and all heavier faces resolve to Medium.
     static func workSans(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .custom(postScriptName(for: weight), size: size)
     }
@@ -269,10 +245,8 @@ enum TTFont {
         switch weight {
         case .ultraLight, .thin, .light, .regular:
             return regular
-        case .medium:
+        case .medium, .semibold, .bold, .heavy, .black:
             return medium
-        case .semibold, .bold, .heavy, .black:
-            return semibold
         default:
             return regular
         }
@@ -284,29 +258,29 @@ enum TTFont {
         return target - size * defaultMultiplier
     }
 
-    // Display / headings → Semibold (600)
-    static func displayLG(_ weight: Font.Weight = .semibold) -> Font { workSans(72, weight: weight) }
-    static func displayMD(_ weight: Font.Weight = .semibold) -> Font { workSans(60, weight: weight) }
-    static func displaySM(_ weight: Font.Weight = .semibold) -> Font { workSans(48, weight: weight) }
+    // Display / headings → Medium (500)
+    static func displayLG(_ weight: Font.Weight = .medium) -> Font { workSans(72, weight: weight) }
+    static func displayMD(_ weight: Font.Weight = .medium) -> Font { workSans(60, weight: weight) }
+    static func displaySM(_ weight: Font.Weight = .medium) -> Font { workSans(48, weight: weight) }
 
-    static func heading2XL(_ weight: Font.Weight = .semibold) -> Font { workSans(40, weight: weight) }
-    static func headingXL(_ weight: Font.Weight = .semibold) -> Font { workSans(32, weight: weight) }
-    static func headingLG(_ weight: Font.Weight = .semibold) -> Font { workSans(28, weight: weight) }
-    static func headingMD(_ weight: Font.Weight = .semibold) -> Font { workSans(24, weight: weight) }
-    static func headingSM(_ weight: Font.Weight = .semibold) -> Font { workSans(20, weight: weight) }
-    static func headingXS(_ weight: Font.Weight = .semibold) -> Font { workSans(18, weight: weight) }
+    static func heading2XL(_ weight: Font.Weight = .medium) -> Font { workSans(40, weight: weight) }
+    static func headingXL(_ weight: Font.Weight = .medium) -> Font { workSans(32, weight: weight) }
+    static func headingLG(_ weight: Font.Weight = .medium) -> Font { workSans(28, weight: weight) }
+    static func headingMD(_ weight: Font.Weight = .medium) -> Font { workSans(24, weight: weight) }
+    static func headingSM(_ weight: Font.Weight = .medium) -> Font { workSans(20, weight: weight) }
+    static func headingXS(_ weight: Font.Weight = .medium) -> Font { workSans(18, weight: weight) }
 
     // Text — body defaults Regular; small labels default Medium
     static func text2XL(_ weight: Font.Weight = .regular) -> Font { workSans(20, weight: weight) }
     static func textXL(_ weight: Font.Weight = .regular) -> Font { workSans(18, weight: weight) }
     static func textLG(_ weight: Font.Weight = .regular) -> Font { workSans(16, weight: weight) }
     static func textMD(_ weight: Font.Weight = .regular) -> Font { workSans(14, weight: weight) }
-    static func textSM(_ weight: Font.Weight = .medium) -> Font { workSans(12, weight: weight) }
-    static func textXS(_ weight: Font.Weight = .medium) -> Font { workSans(11, weight: weight) }
+    static func textSM(_ weight: Font.Weight = .regular) -> Font { workSans(12, weight: weight) }
+    static func textXS(_ weight: Font.Weight = .regular) -> Font { workSans(11, weight: weight) }
     static func text2XS(_ weight: Font.Weight = .medium) -> Font { workSans(10, weight: weight) }
 
     // Paragraph scale
-    static let paragraphBold = workSans(28, weight: .semibold)
+    static let paragraphBold = workSans(28, weight: .medium)
     static let paragraphMedium = workSans(24, weight: .medium)
     static let paragraphRegular = workSans(20, weight: .regular)
     static let paragraphLight = workSans(16, weight: .light)
@@ -314,11 +288,11 @@ enum TTFont {
     static let paragraphOverline = workSans(12, weight: .medium)
 
     // Semantic aliases
-    static func display(_ size: CGFloat = 48) -> Font { workSans(size, weight: .semibold) }
-    static func title(_ size: CGFloat = 20) -> Font { workSans(size, weight: .semibold) }
-    static func heading(_ size: CGFloat = 18) -> Font { workSans(size, weight: .semibold) }
+    static func display(_ size: CGFloat = 48) -> Font { workSans(size, weight: .medium) }
+    static func title(_ size: CGFloat = 20) -> Font { workSans(size, weight: .medium) }
+    static func heading(_ size: CGFloat = 18) -> Font { workSans(size, weight: .medium) }
     static func body(_ size: CGFloat = 16) -> Font { workSans(size, weight: .regular) }
-    static func caption(_ size: CGFloat = 12) -> Font { workSans(size, weight: .medium) }
+    static func caption(_ size: CGFloat = 12) -> Font { workSans(size, weight: .regular) }
     static func overline(_ size: CGFloat = 12) -> Font { workSans(size, weight: .medium) }
 }
 

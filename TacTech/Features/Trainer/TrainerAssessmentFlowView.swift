@@ -612,110 +612,129 @@ struct TrainerCapacityStep: View {
     @State private var customText = ""
     @FocusState private var customFieldFocused: Bool
 
+    private var isCustomValue: Bool {
+        !presets.contains(draft.maxClients)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             title("How many clients can you\nmanage at once?")
-            Spacer(minLength: 16)
 
-            HStack(spacing: 10) {
-                Text("\(draft.maxClients)")
-                    .font(TTFont.workSans(84, weight: .bold))
-                    .foregroundStyle(AssessmentColor.ink)
-                    .monospacedDigit()
-                    .contentTransition(.numericText())
-                    .animation(.snappy(duration: 0.18), value: draft.maxClients)
+            Text("Tap or drag the bar — or edit for a custom number")
+                .font(TTFont.workSans(14, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+                .multilineTextAlignment(.center)
+                .padding(.top, 8)
+                .padding(.horizontal, 28)
+
+            Spacer(minLength: 20)
+
+            // Hero number + pencil (inline edit), matching Days hierarchy.
+            HStack(alignment: .center, spacing: 12) {
+                Group {
+                    if isEditingCustom {
+                        TextField(
+                            "",
+                            text: $customText,
+                            prompt: Text("0")
+                                .foregroundStyle(AssessmentColor.coolGrey)
+                        )
+                        .keyboardType(.numberPad)
+                        .font(TTFont.workSans(72, weight: .bold))
+                        .monospacedDigit()
+                        .foregroundStyle(AssessmentColor.ink)
+                        .multilineTextAlignment(.center)
+                        .focused($customFieldFocused)
+                        .frame(minWidth: 120, maxWidth: 200)
+                        .onSubmit { commitCustomEdit() }
+                    } else {
+                        Text("\(draft.maxClients)")
+                            .font(TTFont.workSans(84, weight: .bold))
+                            .foregroundStyle(AssessmentColor.ink)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                            .animation(.snappy(duration: 0.18), value: draft.maxClients)
+                    }
+                }
 
                 Button {
-                    beginCustomEdit()
+                    if isEditingCustom {
+                        commitCustomEdit()
+                    } else {
+                        beginCustomEdit()
+                    }
                 } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(AssessmentColor.orange)
-                        .frame(width: 40, height: 40)
-                        .background(AssessmentColor.peach)
+                    Image(systemName: isEditingCustom ? "checkmark" : "pencil")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(isEditingCustom ? AssessmentColor.white : AssessmentColor.orange)
+                        .frame(width: 44, height: 44)
+                        .background(isEditingCustom ? AssessmentColor.orange : AssessmentColor.peach)
                         .clipShape(Circle())
                         .overlay(
                             Circle()
-                                .strokeBorder(AssessmentColor.orangeBorder.opacity(0.55), lineWidth: 1.5)
+                                .strokeBorder(
+                                    isEditingCustom ? AssessmentColor.orangeBorder : AssessmentColor.orangeBorder.opacity(0.55),
+                                    lineWidth: 1.5
+                                )
+                        )
+                        .shadow(
+                            color: AssessmentColor.orange.opacity(isEditingCustom ? 0.28 : 0.12),
+                            radius: isEditingCustom ? 10 : 6,
+                            y: 2
                         )
                 }
                 .buttonStyle(AssessmentCardPressStyle())
-                .accessibilityLabel("Enter a custom number")
-                .offset(y: 10)
+                .accessibilityLabel(isEditingCustom ? "Save custom number" : "Enter a custom number")
+                .sensoryFeedback(.impact(flexibility: .soft), trigger: isEditingCustom)
             }
+            .animation(.spring(response: 0.38, dampingFraction: 0.86), value: isEditingCustom)
 
-            Text("active clients")
-                .font(TTFont.workSans(16, weight: .semibold))
+            Text(isCustomValue ? "custom capacity" : "active clients")
+                .font(TTFont.workSans(18, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
-                .animation(.snappy(duration: 0.18), value: draft.maxClients)
+                .animation(.snappy(duration: 0.18), value: isCustomValue)
 
-            if isEditingCustom {
-                customEditRow
-                    .padding(.horizontal, 28)
-                    .padding(.top, 16)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-
-            // Same interaction language as Days — tap or drag across presets.
+            // Same interaction language as Days — tap a preset or drag the thumb.
             CapacityClientsDragSlider(
                 options: presets,
                 selection: presetSliderBinding
             )
             .padding(.horizontal, 22)
-            .padding(.top, 24)
+            .padding(.top, 28)
 
-            Text("I’m set up to coach \(draft.maxClients) clients")
-                .font(TTFont.workSans(16, weight: .medium))
-                .foregroundStyle(AssessmentColor.slate)
-                .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.18), value: draft.maxClients)
-                .padding(.top, 20)
+            (
+                Text("I’m set up to coach ")
+                    .foregroundStyle(AssessmentColor.slate)
+                + Text("\(draft.maxClients)")
+                    .foregroundStyle(AssessmentColor.ink)
+                    .fontWeight(.bold)
+                + Text(draft.maxClients == 1 ? " client" : " clients")
+                    .foregroundStyle(AssessmentColor.slate)
+            )
+            .font(TTFont.workSans(16, weight: .medium))
+            .contentTransition(.numericText())
+            .animation(.snappy(duration: 0.18), value: draft.maxClients)
+            .padding(.top, 20)
 
-            Spacer(minLength: 16)
+            Spacer(minLength: 20)
         }
         .onAppear {
             syncSliderFromDraft()
-            if !presets.contains(draft.maxClients) {
+            if isCustomValue {
                 customText = "\(draft.maxClients)"
             }
         }
         .onChange(of: draft.maxClients) { _, _ in
             syncSliderFromDraft()
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isEditingCustom)
         .sensoryFeedback(.selection, trigger: draft.maxClients)
-    }
-
-    private var customEditRow: some View {
-        HStack(spacing: 10) {
-            TextField("Type a number", text: $customText)
-                .keyboardType(.numberPad)
-                .font(TTFont.workSans(18, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(AssessmentColor.ink)
-                .focused($customFieldFocused)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(AssessmentColor.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2)
-                )
-                .onSubmit { commitCustomEdit() }
-
-            Button("Done") {
-                commitCustomEdit()
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { commitCustomEdit() }
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(AssessmentColor.orange)
             }
-            .font(TTFont.workSans(16, weight: .bold))
-            .foregroundStyle(AssessmentColor.white)
-            .padding(.horizontal, 16)
-            .frame(height: 48)
-            .background(AssessmentColor.orange)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .buttonStyle(AssessmentCardPressStyle())
         }
     }
 
@@ -743,7 +762,7 @@ struct TrainerCapacityStep: View {
         withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
             isEditingCustom = true
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
             customFieldFocused = true
         }
     }
@@ -780,7 +799,7 @@ struct TrainerCapacityStep: View {
     }
 }
 
-/// Orange capacity slider — same feel as Days (tap a preset or drag the thumb).
+/// Orange capacity slider — same feel as `DaysPerWeekDragSlider` (tap or drag).
 private struct CapacityClientsDragSlider: View {
     let options: [Int]
     @Binding var selection: Int
@@ -809,7 +828,7 @@ private struct CapacityClientsDragSlider: View {
                 HStack(spacing: 0) {
                     ForEach(options, id: \.self) { count in
                         Text("\(count)")
-                            .font(TTFont.workSans(15, weight: .bold))
+                            .font(TTFont.workSans(16, weight: .bold))
                             .monospacedDigit()
                             .foregroundStyle(count == selection ? Color.clear : AssessmentColor.coolGrey)
                             .frame(maxWidth: .infinity)
@@ -818,10 +837,11 @@ private struct CapacityClientsDragSlider: View {
                 .padding(.horizontal, thumbSize * 0.12)
                 .frame(height: trackHeight)
 
-                Text("\(selectionDisplay(for: indexValue))")
-                    .font(TTFont.workSans(18, weight: .bold))
+                Text("\(selection)")
+                    .font(TTFont.workSans(22, weight: .bold))
                     .monospacedDigit()
                     .foregroundStyle(AssessmentColor.white)
+                    .contentTransition(.numericText())
                     .frame(width: thumbSize, height: thumbSize)
                     .background(AssessmentColor.orange)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -870,11 +890,9 @@ private struct CapacityClientsDragSlider: View {
                 guard let current = options.firstIndex(of: selection) else { return }
                 switch direction {
                 case .increment:
-                    let next = min(current + 1, options.count - 1)
-                    selection = options[next]
+                    selection = options[min(current + 1, options.count - 1)]
                 case .decrement:
-                    let next = max(current - 1, 0)
-                    selection = options[next]
+                    selection = options[max(current - 1, 0)]
                 @unknown default:
                     break
                 }
@@ -886,13 +904,6 @@ private struct CapacityClientsDragSlider: View {
     private func sliderIndex(for value: Int) -> Int {
         if let idx = options.firstIndex(of: value) { return idx + 1 }
         return TrainerAssessmentCatalog.capacityIndex(for: value)
-    }
-
-    private func selectionDisplay(for indexValue: Int) -> Int {
-        let idx = min(max(indexValue, 1), options.count) - 1
-        // While dragging onto a preset, thumb shows that preset even if draft is still custom.
-        if options.contains(selection) { return selection }
-        return options[idx]
     }
 }
 

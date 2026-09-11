@@ -77,6 +77,9 @@ final class AppStore {
     func login(email: String, password: String) async throws {
         let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
+        // Keep splash up until gates + workspace resolve — avoids assessment→home flash.
+        isRestoringSession = true
+        defer { isRestoringSession = false }
         let response = try await api.login(email: normalized, password: password)
         apply(auth: response)
         try await refreshSession()
@@ -90,6 +93,8 @@ final class AppStore {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw AppError.validation("Enter your name.") }
         guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
         guard password.count >= 6 else { throw AppError.validation("Password must be at least 6 characters.") }
+        isRestoringSession = true
+        defer { isRestoringSession = false }
         let response = try await api.signup(
             SignupBody(
                 name: name,
@@ -636,6 +641,7 @@ final class AppStore {
                 assessmentCompleted: me.assessmentCompleted,
                 onboardingCompleted: me.onboardingCompleted
             )
+            refreshAssessmentFlag()
         } catch {
             if session == nil { throw error }
         }
@@ -705,13 +711,15 @@ final class AppStore {
     private func apply(auth response: AuthResponse) {
         TokenStore.save(accessToken: response.accessToken, refreshToken: response.refreshToken)
         upsert(response.user.asUser())
-        session = Session(userId: response.user.id, role: response.user.role)
         if let trainer = response.trainer { upsert(trainer) }
         if let trainee = response.trainee { upsert(trainee) }
         applyServerGateFlags(
             assessmentCompleted: response.assessmentCompleted,
             onboardingCompleted: response.onboardingCompleted
         )
+        // Set session only after gate flags are known, then materialize UI flags immediately.
+        session = Session(userId: response.user.id, role: response.user.role)
+        refreshAssessmentFlag()
     }
 
     private func apply(traineeItems items: [TraineeListItem]) {

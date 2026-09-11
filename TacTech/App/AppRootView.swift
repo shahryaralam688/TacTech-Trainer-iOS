@@ -50,7 +50,7 @@ struct AppRootView: View {
         .animation(.easeInOut(duration: 0.45), value: showsSplash)
         .animation(.spring(response: 0.48, dampingFraction: 0.88), value: showsPostLoginBridge)
         .animation(.easeInOut(duration: 0.25), value: store.session?.userId)
-        .animation(.easeInOut(duration: 0.25), value: store.assessmentCompleted)
+        // Do not animate assessmentCompleted — false→true swap was flashing assessment then home.
         .onChange(of: store.session?.userId) { _, newId in
             // New account session → allow bridge again for that login.
             if newId == nil {

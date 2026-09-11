@@ -60,27 +60,43 @@ struct ProfileCompletionFlowView: View {
     // MARK: - Header
 
     private var header: some View {
-        HStack {
-            if step > 0 {
-                TTBackButton {
-                    withAnimation(.easeInOut(duration: 0.25)) { step -= 1 }
+        VStack(spacing: 10) {
+            HStack {
+                if step > 0 {
+                    TTBackButton {
+                        withAnimation(.easeInOut(duration: 0.25)) { step -= 1 }
+                    }
+                } else {
+                    TTBackButton { dismiss() }
                 }
-            } else {
-                TTBackButton { dismiss() }
+
+                Spacer()
+                Text("Profile Setup")
+                    .font(TTFont.workSans(17, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                Spacer()
+
+                Text("\(step + 1)/\(totalSteps)")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(accent.opacity(0.12))
+                    .clipShape(Capsule())
+                    .frame(minWidth: TTBackButton.size, alignment: .trailing)
             }
 
-            Spacer()
-            Text("Profile Setup")
-                .font(TTFont.workSans(17, weight: .bold))
-            Spacer()
-
-            Text("\(step + 1) of \(totalSteps)")
-                .font(TTFont.workSans(13, weight: .semibold))
-                .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color(red: 219 / 255, green: 234 / 255, blue: 254 / 255))
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(white: 0.92))
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: max(8, geo.size.width * CGFloat(step + 1) / CGFloat(totalSteps)))
+                        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: step)
+                }
+            }
+            .frame(height: 4)
+            .padding(.horizontal, 2)
         }
         .padding(.horizontal, 20)
         .padding(.top, 8)
@@ -92,8 +108,7 @@ struct ProfileCompletionFlowView: View {
             HStack(spacing: 8) {
                 Text(step == 6 ? "Generate score" : "Continue")
                     .font(TTFont.workSans(17, weight: .semibold))
-                Image(systemName: "arrow.right")
-                    .font(TTFont.workSans(14, weight: .bold))
+                TTIcon(icon: .arrowRight, size: 16)
             }
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
@@ -101,9 +116,11 @@ struct ProfileCompletionFlowView: View {
             .background(canContinue ? Color.black : Color.black.opacity(0.35))
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
+        .buttonStyle(AssessmentCardPressStyle())
         .disabled(!canContinue)
         .padding(.horizontal, 22)
         .padding(.bottom, 14)
+        .animation(.easeInOut(duration: 0.2), value: canContinue)
     }
 
     private var canContinue: Bool {
@@ -156,57 +173,213 @@ struct ProfileCompletionFlowView: View {
     }
 
     private var profileStep: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Complete your profile")
-                    .font(TTFont.workSans(28, weight: .bold))
-                    .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 22) {
+                profileHero
 
-                Text(roleTitle)
-                    .font(TTFont.workSans(14, weight: .semibold))
-                    .foregroundStyle(Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255))
-
-                boxedField("Full Name", icon: "person", text: $draft.name, field: .fullName)
-                boxedField("Email Address", icon: "envelope", text: .constant(store.currentUser?.email ?? ""), field: .email, disabled: true)
-
-                Text("Gender")
-                    .font(TTFont.workSans(14, weight: .semibold))
-                HStack(spacing: 8) {
-                    ForEach(["Male", "Female", "Non-binary"], id: \.self) { item in
-                        chip(item, selected: draft.gender == item) { draft.gender = item }
-                    }
+                profileSection(title: "About you") {
+                    boxedField("Full Name", icon: .user, text: $draft.name, field: .fullName)
+                    boxedField(
+                        "Email Address",
+                        icon: .envelope1,
+                        text: .constant(store.currentUser?.email ?? ""),
+                        field: .email,
+                        keyboard: .emailAddress,
+                        disabled: true
+                    )
                 }
 
-                Text("Member Type")
-                    .font(TTFont.workSans(14, weight: .semibold))
-                HStack(spacing: 10) {
-                    ForEach(UserRole.allCases) { option in
-                        let on = store.session?.role == option
-                        Text(option.title)
-                            .font(TTFont.workSans(15, weight: .bold))
-                            .foregroundStyle(on ? .white : Color(white: 0.45))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .background(on ? Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255) : Color(white: 0.94))
-                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
+                profileSection(title: "Identity") {
+                    genderPicker
+                    memberTypeCard
                 }
 
                 if store.session?.role == .trainee {
-                    Text("Height · \(Int(draft.heightCm)) cm")
-                        .font(TTFont.workSans(14, weight: .semibold))
-                        .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.18), value: Int(draft.heightCm))
-                    Slider(value: $draft.heightCm, in: 140...210, step: 1)
-                        .tint(accent)
-                        .sensoryFeedback(.selection, trigger: Int(draft.heightCm))
-                    boxedField("Weight (kg)", icon: "scalemass", text: $draft.weightText, field: .weight, keyboard: .decimalPad)
+                    profileSection(title: "Body metrics") {
+                        heightMetricCard
+                        boxedField(
+                            "Weight (kg)",
+                            icon: .weightScale,
+                            text: $draft.weightText,
+                            field: .weight,
+                            keyboard: .decimalPad
+                        )
+                    }
                 }
 
-                boxedField("Location", icon: "mappin.and.ellipse", text: $draft.location, field: .location)
+                profileSection(title: "Where you train") {
+                    boxedField("Location", icon: .mapPin1, text: $draft.location, field: .location)
+                }
             }
-            .padding(22)
+            .padding(.horizontal, 22)
+            .padding(.top, 8)
+            .padding(.bottom, 28)
         }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private var profileHero: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("PROFILE")
+                .font(TTFont.workSans(11, weight: .semibold))
+                .foregroundStyle(accent)
+                .tracking(1.1)
+
+            Text("Complete your profile")
+                .font(TTFont.headingLG(.medium))
+                .foregroundStyle(TTColor.ink)
+
+            Text("Confirm a few details so TacTech can personalize coaching for your \(roleTitle.lowercased()) account.")
+                .font(TTFont.textMD(.regular))
+                .foregroundStyle(Color(white: 0.45))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func profileSection<Content: View>(
+        title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title.uppercased())
+                .font(TTFont.workSans(11, weight: .semibold))
+                .foregroundStyle(Color(white: 0.48))
+                .tracking(0.8)
+            content()
+        }
+    }
+
+    private var genderPicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Gender")
+                .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+
+            HStack(spacing: 8) {
+                ForEach(["Male", "Female", "Non-binary"], id: \.self) { item in
+                    genderChip(item)
+                }
+            }
+        }
+    }
+
+    private func genderChip(_ title: String) -> some View {
+        let selected = draft.gender == title
+        return Button {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+                draft.gender = title
+            }
+            TTHomeHaptics.selection()
+        } label: {
+            VStack(spacing: 6) {
+                TTIcon(icon: genderIcon(for: title), size: 16)
+                Text(title)
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .foregroundStyle(selected ? .white : TTColor.ink)
+            .frame(maxWidth: .infinity)
+            .frame(height: 64)
+            .background(selected ? accent : Color(white: 0.95))
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(selected ? Color.clear : Color.black.opacity(0.04), lineWidth: 1)
+            )
+        }
+        .buttonStyle(AssessmentCardPressStyle())
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func genderIcon(for title: String) -> SandowIcon {
+        switch title {
+        case "Female": .genderFemale
+        case "Male": .genderMale
+        default: .genderTransgender
+        }
+    }
+
+    private var memberTypeCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Member type")
+                .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(accent.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    TTIcon(icon: store.session?.role == .trainer ? .starFull : .user, size: 18)
+                        .foregroundStyle(accent)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(roleTitle)
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Locked to your account role")
+                        .font(TTFont.workSans(12, weight: .regular))
+                        .foregroundStyle(Color(white: 0.48))
+                }
+
+                Spacer(minLength: 0)
+
+                Text("Active")
+                    .font(TTFont.workSans(11, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+            .padding(14)
+            .background(Color(white: 0.96))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+    }
+
+    private var heightMetricCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 8) {
+                    TTIcon(icon: .ruler1, size: 16)
+                        .foregroundStyle(accent)
+                    Text("Height")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                }
+                Spacer()
+                Text("\(Int(draft.heightCm)) cm")
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(accent)
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.18), value: Int(draft.heightCm))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(accent.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            Slider(value: $draft.heightCm, in: 140...210, step: 1)
+                .tint(accent)
+                .sensoryFeedback(.selection, trigger: Int(draft.heightCm))
+
+            HStack {
+                Text("140")
+                    .font(TTFont.workSans(11, weight: .medium))
+                    .foregroundStyle(Color(white: 0.5))
+                Spacer()
+                Text("210 cm")
+                    .font(TTFont.workSans(11, weight: .medium))
+                    .foregroundStyle(Color(white: 0.5))
+            }
+        }
+        .padding(14)
+        .background(Color(white: 0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var passwordStep: some View {
@@ -536,34 +709,48 @@ struct ProfileCompletionFlowView: View {
 
     private func boxedField(
         _ title: String,
-        icon: String,
+        icon: SandowIcon,
         text: Binding<String>,
         field: ProfileField,
         keyboard: UIKeyboardType = .default,
         disabled: Bool = false
     ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        let focused = focusedProfileField == field
+        return VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .foregroundStyle(focusedProfileField == field ? accent : Color(white: 0.45))
-                    .frame(width: 20)
+                TTIcon(icon: icon, size: 18)
+                    .foregroundStyle(focused ? accent : Color(white: 0.45))
                 TextField("", text: text, prompt: TTInputChrome.prompt(title))
+                    .font(TTFont.body(15))
                     .keyboardType(keyboard)
+                    .textInputAutocapitalization(keyboard == .emailAddress ? .never : .words)
+                    .autocorrectionDisabled(keyboard == .emailAddress)
                     .disabled(disabled)
                     .focused($focusedProfileField, equals: field)
-                    .foregroundStyle(Color.black)
+                    .foregroundStyle(disabled ? Color(white: 0.45) : Color.black)
                     .tint(accent)
+                if disabled {
+                    Text("Verified")
+                        .font(TTFont.workSans(11, weight: .semibold))
+                        .foregroundStyle(Color(white: 0.5))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(white: 0.9))
+                        .clipShape(Capsule())
+                }
             }
             .padding(.horizontal, 14)
             .frame(height: 52)
             .ttInputChrome(
-                focused: focusedProfileField == field,
-                cornerRadius: 14,
-                idleFill: Color(white: 0.97),
+                focused: focused && !disabled,
+                cornerRadius: 16,
+                idleFill: Color(white: 0.96),
                 showIdleBorder: true
             )
+            .opacity(disabled ? 0.92 : 1)
         }
     }
 
@@ -584,19 +771,6 @@ struct ProfileCompletionFlowView: View {
                     showIdleBorder: true
                 )
         }
-    }
-
-    private func chip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(TTFont.workSans(14, weight: .semibold))
-                .foregroundStyle(selected ? .white : .black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 42)
-                .background(selected ? Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255) : Color(white: 0.94))
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-        .buttonStyle(.plain)
     }
 
     private func notificationRow(_ title: String, icon: String, color: Color, isOn: Binding<Bool>) -> some View {

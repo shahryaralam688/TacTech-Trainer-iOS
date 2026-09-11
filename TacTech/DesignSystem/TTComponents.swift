@@ -21,15 +21,17 @@ struct TTBackButton: View {
     static let size: CGFloat = 40
 
     var style: Style = .onLight
+    /// Visual square size (default matches legacy screens).
+    var size: CGFloat = Self.size
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            TTIcon(icon: .chevronLeft, size: 16)
+            TTIcon(icon: .chevronLeft, size: max(14, size * 0.4))
                 .foregroundStyle(foreground)
-                .frame(width: Self.size, height: Self.size)
+                .frame(width: size, height: size)
                 .background(background)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Back")
@@ -610,21 +612,22 @@ enum TTSheetChrome {
 
 /// Shared chrome for modal `.sheet` presentations (Create Plan, library, assign, inbox, …).
 enum TTModalSheetChrome {
-    /// Leading/trailing inset for the header controls and sheet body.
-    static let horizontalPadding: CGFloat = 16
-    /// Fixed header row height so the back square sits evenly in the bar (12 + 40 + 12).
-    static let headerHeight: CGFloat = 64
-    static let headerSpacing: CGFloat = 12
-    static let contentTopPadding: CGFloat = 12
-    static let contentBottomPadding: CGFloat = 28
+    /// Side inset — matches content cards so back square lines up with card edges.
+    static let horizontalPadding: CGFloat = 20
+    /// Equal top/bottom inset around header controls.
+    static let headerVerticalPadding: CGFloat = 16
+    static let headerSpacing: CGFloat = 14
+    static let contentTopPadding: CGFloat = 16
+    static let contentBottomPadding: CGFloat = 32
+    static let contentSpacing: CGFloat = 18
     static let cornerRadius: CGFloat = 28
-    /// Match `TTBackButton.size` so leading/trailing controls stay optically balanced.
-    static let controlSize: CGFloat = TTBackButton.size
-    static let controlCornerRadius: CGFloat = 12
+    /// Larger than page back (40) so sheet chrome doesn’t feel cramped.
+    static let controlSize: CGFloat = 44
+    static let controlCornerRadius: CGFloat = 14
 }
 
 /// Modal sheet top bar — back/close, title (+ optional subtitle), optional trailing.
-/// Back control is inset by `horizontalPadding` and vertically centered in a fixed-height bar.
+/// Side inset matches body cards; controls are vertically centered with equal bar padding.
 struct TTModalSheetHeader<Trailing: View>: View {
     let title: String
     var subtitle: String? = nil
@@ -654,7 +657,10 @@ struct TTModalSheetHeader<Trailing: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: TTModalSheetChrome.headerSpacing) {
             if showsBack {
-                TTBackButton(style: .onLight) {
+                TTBackButton(
+                    style: .onLight,
+                    size: TTModalSheetChrome.controlSize
+                ) {
                     if let onBack {
                         onBack()
                     } else {
@@ -663,7 +669,7 @@ struct TTModalSheetHeader<Trailing: View>: View {
                 }
             }
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(TTFont.workSans(20, weight: .bold))
                     .foregroundStyle(TTColor.ink)
@@ -671,7 +677,7 @@ struct TTModalSheetHeader<Trailing: View>: View {
                     .minimumScaleFactor(0.85)
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(TTFont.caption(12))
+                        .font(TTFont.caption(13))
                         .foregroundStyle(TTColor.inkMuted)
                         .lineLimit(1)
                 }
@@ -682,8 +688,8 @@ struct TTModalSheetHeader<Trailing: View>: View {
                 .frame(minWidth: TTModalSheetChrome.controlSize, alignment: .trailing)
         }
         .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+        .padding(.vertical, TTModalSheetChrome.headerVerticalPadding)
         .frame(maxWidth: .infinity)
-        .frame(height: TTModalSheetChrome.headerHeight)
         .background(background)
     }
 }

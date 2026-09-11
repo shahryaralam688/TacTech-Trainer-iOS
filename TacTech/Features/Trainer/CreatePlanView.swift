@@ -26,7 +26,7 @@ struct CreatePlanView: View {
             header
 
             ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: TTModalSheetChrome.contentSpacing) {
                     planHeader
                     dayPicker
 
@@ -95,7 +95,7 @@ struct CreatePlanView: View {
     // MARK: Program
 
     private var planHeader: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             sectionLabel("Program", icon: .clipboard)
 
             sandowField("Plan title", text: $title, prompt: "e.g. 4-day strength block")
@@ -115,7 +115,7 @@ struct CreatePlanView: View {
                                 .font(TTFont.workSans(13, weight: .semibold))
                                 .foregroundStyle(on ? .white : TTColor.ink)
                                 .frame(maxWidth: .infinity)
-                                .frame(height: 40)
+                                .frame(height: 42)
                                 .background(on ? orange : Color.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         }
@@ -131,15 +131,15 @@ struct CreatePlanView: View {
                 axis: .vertical
             )
         }
-        .padding(16)
+        .padding(18)
         .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     // MARK: Days
 
     private var dayPicker: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             sectionLabel("Training days", icon: .calendar1)
 
             Text("Pick every training day, then set time, cues, and weights for each set.")
@@ -168,9 +168,9 @@ struct CreatePlanView: View {
                 }
             }
         }
-        .padding(16)
+        .padding(18)
         .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var saveButton: some View {

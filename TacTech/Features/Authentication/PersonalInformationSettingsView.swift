@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Sandow-style Personal Info — loads/saves via `/me/profile` (+ avatar + password).
 struct PersonalInformationSettingsView: View {
@@ -19,9 +20,8 @@ struct PersonalInformationSettingsView: View {
     @State private var showAvatarPicker = false
     @State private var isLoading = false
     @State private var isSaving = false
-    @State private var saved = false
+    @State private var toast: TTToastMessage?
     @State private var errorMessage: String?
-    @State private var infoMessage: String?
     @FocusState private var focusedField: Field?
 
     private enum Field { case name, email, location, currentPassword, newPassword }
@@ -57,18 +57,6 @@ struct PersonalInformationSettingsView: View {
                     genderRow
                     labeledField("Location", icon: .mapPin1, text: $location, field: .location)
 
-                    if let infoMessage {
-                        Text(infoMessage)
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.success)
-                            .frame(maxWidth: .infinity)
-                    } else if saved {
-                        Text("Saved")
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.success)
-                            .frame(maxWidth: .infinity)
-                    }
-
                     saveButton
                 }
                 .padding(.horizontal, 18)
@@ -80,6 +68,7 @@ struct PersonalInformationSettingsView: View {
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
+        .ttToast($toast, bottomInset: 28)
         .task { await loadProfile() }
         .alert("Personal Info", isPresented: Binding(
             get: { errorMessage != nil },
@@ -414,8 +403,7 @@ struct PersonalInformationSettingsView: View {
         }
         currentPassword = ""
         newPassword = ""
-        saved = false
-        infoMessage = nil
+        toast = nil
     }
 
     private func hydrateFromSession() {
@@ -465,8 +453,7 @@ struct PersonalInformationSettingsView: View {
         }
 
         isSaving = true
-        saved = false
-        infoMessage = nil
+        toast = nil
         defer { isSaving = false }
 
         do {
@@ -494,10 +481,11 @@ struct PersonalInformationSettingsView: View {
                 )
                 currentPassword = ""
                 newPassword = ""
-                infoMessage = "Password updated"
+                toast = TTToastMessage(text: "Password updated", style: .success)
             } else {
-                saved = true
+                toast = TTToastMessage(text: "Saved", style: .success)
             }
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
             errorMessage = (error as? AppError)?.errorDescription ?? error.localizedDescription
         }
@@ -523,7 +511,8 @@ struct PersonalInformationSettingsView: View {
                 let response = try await store.saveMeProfile(UpdateMeProfileBody(avatarAsset: selection))
                 apply(response)
             }
-            saved = true
+            toast = TTToastMessage(text: "Saved", style: .success)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
         } catch {
             errorMessage = (error as? AppError)?.errorDescription ?? error.localizedDescription
         }

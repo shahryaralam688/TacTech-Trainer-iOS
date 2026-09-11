@@ -26,8 +26,7 @@ struct NotificationSettingsView: View {
     @State private var draftChatMessages = true
     @State private var draftChatCalls = true
     @State private var draftOffersDevice = false
-    @State private var savedFlash = false
-    @State private var saveError: String?
+    @State private var toast: TTToastMessage?
     @State private var isSaving = false
 
     private let canvas = Color(red: 248 / 255, green: 249 / 255, blue: 250 / 255)
@@ -100,20 +99,6 @@ struct NotificationSettingsView: View {
                             isOn: $draftResources
                         )
                     }
-
-                    if let saveError {
-                        Text(saveError)
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.danger)
-                            .frame(maxWidth: .infinity)
-                    }
-
-                    if savedFlash {
-                        Text("Settings saved")
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.success)
-                            .frame(maxWidth: .infinity)
-                    }
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 18)
@@ -124,6 +109,7 @@ struct NotificationSettingsView: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
+        .ttToast($toast, bottomInset: 96)
         .task { await hydrateFromServer() }
     }
 
@@ -292,7 +278,7 @@ struct NotificationSettingsView: View {
 
     private func save() async {
         isSaving = true
-        saveError = nil
+        toast = nil
         defer { isSaving = false }
 
         var prefs = NotificationPreferencesDTO()
@@ -321,17 +307,13 @@ struct NotificationSettingsView: View {
             if draftPush {
                 await NotificationStore.shared.requestAuthorizationAndRegister()
             }
-            withAnimation(.easeOut(duration: 0.2)) {
-                savedFlash = true
-            }
+            toast = TTToastMessage(text: "Settings saved", style: .success)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                withAnimation(.easeOut(duration: 0.2)) {
-                    savedFlash = false
-                }
-            }
         } catch {
-            saveError = error.localizedDescription
+            toast = TTToastMessage(
+                text: error.localizedDescription,
+                style: .error
+            )
         }
     }
 }

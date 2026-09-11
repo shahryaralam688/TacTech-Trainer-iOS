@@ -663,6 +663,103 @@ private struct TTTopRoundedSheetModifier: ViewModifier {
     }
 }
 
+// MARK: - Toast
+
+enum TTToastStyle {
+    case success
+    case error
+    case info
+}
+
+struct TTToastMessage: Equatable {
+    let text: String
+    var style: TTToastStyle = .success
+}
+
+/// Floating bottom toast — auto-dismisses after `duration`.
+struct TTToastBanner: View {
+    let message: TTToastMessage
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TTIcon(icon: icon, filled: true, size: 14)
+            Text(message.text)
+                .font(TTFont.workSans(14, weight: .semibold))
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .frame(maxWidth: 360)
+        .background(background)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .shadow(color: .black.opacity(0.22), radius: 16, y: 8)
+        .padding(.horizontal, 20)
+        .accessibilityAddTraits(.isStaticText)
+    }
+
+    private var icon: SandowIcon {
+        switch message.style {
+        case .success: .check
+        case .error: .exclamationMarkCircle
+        case .info: .infoCircle
+        }
+    }
+
+    private var background: Color {
+        switch message.style {
+        case .success: Color(red: 22 / 255, green: 24 / 255, blue: 28 / 255)
+        case .error: TTColor.danger
+        case .info: Color(red: 22 / 255, green: 24 / 255, blue: 28 / 255)
+        }
+    }
+}
+
+extension View {
+    /// Shows a floating toast overlay. Pass `nil` to hide; auto-clears after `duration`.
+    func ttToast(
+        _ message: Binding<TTToastMessage?>,
+        duration: TimeInterval = 1.8,
+        bottomInset: CGFloat = 24
+    ) -> some View {
+        modifier(TTToastModifier(message: message, duration: duration, bottomInset: bottomInset))
+    }
+}
+
+private struct TTToastModifier: ViewModifier {
+    @Binding var message: TTToastMessage?
+    let duration: TimeInterval
+    let bottomInset: CGFloat
+    @State private var dismissTask: Task<Void, Never>?
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) {
+                if let message {
+                    TTToastBanner(message: message)
+                        .padding(.bottom, bottomInset)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                        .zIndex(1000)
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: message)
+            .onChange(of: message) { _, newValue in
+                dismissTask?.cancel()
+                guard newValue != nil else { return }
+                dismissTask = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                    guard !Task.isCancelled else { return }
+                    withAnimation(.easeIn(duration: 0.2)) {
+                        message = nil
+                    }
+                }
+            }
+    }
+}
+
 #Preview("Buttons & Fields") {
     VStack(spacing: 16) {
         TTBackButton(style: .onLight) {}

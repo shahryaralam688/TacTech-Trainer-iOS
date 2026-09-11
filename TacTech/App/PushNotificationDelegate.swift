@@ -24,7 +24,9 @@ final class PushNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNot
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         #if DEBUG
-        print("APNs register failed: \(error.localizedDescription)")
+        // Expected when Push capability / paid Apple team / provisioning isn't set up yet.
+        // Inbox + Socket notifications still work without APNs.
+        print("APNs skipped: \(error.localizedDescription)")
         #endif
     }
 

@@ -49,6 +49,7 @@
 		5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */; };
 		617813CD99A68CEC0A0AED48 /* SeedData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 179A188E828A8873F4505090 /* SeedData.swift */; };
 		621BC6B0D47F0397E266D538 /* TTHomeDelight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */; };
+		7F8CA99BFCD44D3B94C548DF /* TTHomeWeekDatePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1456FDE2CBD4B0BAE038892 /* TTHomeWeekDatePicker.swift */; };
 		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
@@ -155,6 +156,7 @@
 		8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
 		8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeDelight.swift; sourceTree = "<group>"; };
+		B1456FDE2CBD4B0BAE038892 /* TTHomeWeekDatePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeWeekDatePicker.swift; sourceTree = "<group>"; };
 		92E9F1F2CD610257AAE63443 /* CoachComposerBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoachComposerBar.swift; sourceTree = "<group>"; };
 		95304A4367FC245D3A00DF7F /* TrainerRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrainerRootView.swift; sourceTree = "<group>"; };
 		97B3157EEEF1EA2D8D43A89B /* WorkSans-ExtraBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "WorkSans-ExtraBold.ttf"; sourceTree = "<group>"; };
@@ -224,6 +226,7 @@
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
+				B1456FDE2CBD4B0BAE038892 /* TTHomeWeekDatePicker.swift */,
 				658862059D48AE92E7BE11F8 /* TTLiquidFABMenu.swift */,
 				263477F1D52EA623D59CA93C /* TTProfileScreen.swift */,
 				0F1040B0DB9AB946BB8CFD84 /* TTSearchCatalogs.swift */,
@@ -573,6 +576,7 @@
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				621BC6B0D47F0397E266D538 /* TTHomeDelight.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,
+				7F8CA99BFCD44D3B94C548DF /* TTHomeWeekDatePicker.swift in Sources */,
 				E9C0FA42C39A5885DFB8289A /* TTLiquidFABMenu.swift in Sources */,
 				96C662704760B1D9EED9F1B4 /* TTProfileScreen.swift in Sources */,
 				FDEA2D08F56EACD1C3AD8274 /* TTSearchCatalogs.swift in Sources */,

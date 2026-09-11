@@ -10,7 +10,6 @@ struct TrainerDashboardView: View {
     @State private var celebrateInvite = false
     @State private var celebrateClearQueue = false
     @Bindable private var notificationStore = NotificationStore.shared
-    @Namespace private var weekDayNS
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
         model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
@@ -33,8 +32,9 @@ struct TrainerDashboardView: View {
 
                         VStack(alignment: .leading, spacing: 22) {
                             // Ops first → snapshot → roster → actions → recent
-                            weekStrip
+                            TTHomeWeekDatePicker(selected: $selectedDay, accent: orange)
                                 .ttHomeAppear(index: 0)
+                                .ttHomeCardMorph()
                             todayQueue
                                 .ttHomeAppear(index: 1)
                             coachingMetrics
@@ -93,46 +93,6 @@ struct TrainerDashboardView: View {
                 showNotifications = true
             }
         )
-    }
-
-    // MARK: - Week strip (schedule context)
-
-    private var weekStrip: some View {
-        let days = weekDays()
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(days, id: \.self) { day in
-                    let on = Calendar.current.isDate(day, inSameDayAs: selectedDay)
-                    Button {
-                        TTHomeHaptics.selection()
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
-                            selectedDay = day
-                        }
-                    } label: {
-                        VStack(spacing: 6) {
-                            Text(day.formatted(.dateTime.weekday(.narrow)))
-                                .font(TTFont.textSM(.semibold))
-                            Text(day.formatted(.dateTime.day()))
-                                .font(TTFont.headingXS(.semibold))
-                        }
-                        .foregroundStyle(on ? .white : .black)
-                        .frame(width: 48, height: 64)
-                        .background {
-                            if on {
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(orange)
-                                    .matchedGeometryEffect(id: "trainerWeekPill", in: weekDayNS)
-                            } else {
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .fill(Color(white: 0.96))
-                            }
-                        }
-                    }
-                    .buttonStyle(TTHomeCardPressStyle())
-                }
-            }
-        }
-        .ttHomeCardMorph()
     }
 
     // MARK: - Today's coaching queue (primary)
@@ -758,11 +718,6 @@ struct TrainerDashboardView: View {
         return blue
     }
 
-    private func weekDays() -> [Date] {
-        let cal = Calendar.current
-        let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: selectedDay)) ?? selectedDay
-        return (0..<7).compactMap { cal.date(byAdding: .day, value: $0, to: start) }
-    }
 }
 
 #Preview("Trainer Home") {

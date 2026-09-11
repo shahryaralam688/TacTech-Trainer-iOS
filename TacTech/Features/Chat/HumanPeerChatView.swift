@@ -24,6 +24,12 @@ struct HumanPeerChatView: View {
     @State private var fullscreenImage: UIImage?
     @State private var videoPlayerURL: URL?
     @State private var enableListMotion = false
+    @State private var stickyDateLabel = "Today"
+    @State private var distanceFromBottom: CGFloat = 0
+    @State private var unreadWhileScrolled = 0
+    @State private var highlightMessageId: String?
+    @State private var failedActionMessage: HumanChatMessage?
+    @State private var jumpBottomTick = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -177,6 +183,26 @@ struct HumanPeerChatView: View {
         } message: {
             Text(chatStore.lastError ?? "")
         }
+        .alert("Message failed", isPresented: Binding(
+            get: { failedActionMessage != nil },
+            set: { if !$0 { failedActionMessage = nil } }
+        )) {
+            Button("Retry sending") {
+                if let msg = failedActionMessage, let peerId = selectedPeerId {
+                    chatStore.retryFailed(messageId: msg.id, peerUserId: peerId)
+                }
+                failedActionMessage = nil
+            }
+            Button("Delete", role: .destructive) {
+                if let msg = failedActionMessage, let peerId = selectedPeerId {
+                    chatStore.deleteLocalMessage(id: msg.id, peerUserId: peerId)
+                }
+                failedActionMessage = nil
+            }
+            Button("Cancel", role: .cancel) { failedActionMessage = nil }
+        } message: {
+            Text("This message wasn’t delivered.")
+        }
     }
 
     // MARK: - Inbox
@@ -281,6 +307,7 @@ struct HumanPeerChatView: View {
 
     private func threadColumn(_ peer: HumanChatPeer) -> some View {
         let messages = chatStore.messages(for: peer.id)
+        let items = HumanChatThreadBuilder.items(messages: messages, peerTyping: chatStore.peerTyping)
         return VStack(spacing: 0) {
             headerBar(
                 title: peer.name,
@@ -304,37 +331,86 @@ struct HumanPeerChatView: View {
                 }
             )
 
-            ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 12) {
-                        if messages.isEmpty {
-                            welcomeCard(peer)
+            ZStack(alignment: .bottomTrailing) {
+                ScrollViewReader { proxy in
+                    ScrollView(showsIndicators: false) {
+                        LazyVStack(spacing: 0) {
+                            if chatStore.isLoadingOlder {
+                                ProgressView()
+                                    .padding(.vertical, 8)
+                            }
+                            Color.clear
+                                .frame(height: 1)
+                                .id("thread-top")
+                                .onAppear {
+                                    Task { await chatStore.loadOlderMessages(for: peer.id) }
+                                }
+
+                            if messages.isEmpty {
+                                welcomeCard(peer)
+                                    .padding(.bottom, 12)
+                            }
+
+                            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                                let prev = index > 0 ? items[index - 1] : nil
+                                let gap = HumanChatThreadBuilder.spacing(before: item, previous: prev)
+                                threadItemView(item, peer: peer)
+                                    .padding(.top, gap)
+                            }
+                            Color.clear.frame(height: 8).id("thread-bottom")
                         }
-                        ForEach(messages) { message in
-                            HumanChatBubble(
-                                message: message,
-                                peerName: peer.name,
-                                image: message.kind == .image ? chatStore.loadImage(message) : nil,
-                                mediaURL: chatStore.resolveMediaURL(message),
-                                onPlayVoice: { chatStore.playVoice(message) },
-                                onFullscreenImage: { fullscreenImage = $0 },
-                                onPlayVideo: { videoPlayerURL = $0 }
-                            )
-                            .id(message.id)
-                            .transition(enableListMotion && !reduceMotion ? .opacity.combined(with: .move(edge: .bottom)) : .identity)
-                        }
-                        Color.clear.frame(height: 8).id("thread-bottom")
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .animation(enableListMotion && !reduceMotion ? soft : nil, value: messages.count)
+                        .animation(enableListMotion && !reduceMotion ? soft : nil, value: chatStore.peerTyping)
                     }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .animation(enableListMotion && !reduceMotion ? soft : nil, value: messages.count)
+                    .defaultScrollAnchor(.bottom)
+                    .scrollDismissesKeyboard(.interactively)
+                    .safeAreaInset(edge: .top, spacing: 0) {
+                        if !messages.isEmpty {
+                            HumanChatDatePill(label: stickyDateLabel)
+                                .padding(.vertical, 6)
+                                .background(.ultraThinMaterial.opacity(0.92))
+                        }
+                    }
+                    .onAppear {
+                        stickyDateLabel = HumanChatThreadBuilder.dateLabel(for: messages.last?.sentAt ?? .now)
+                        scrollBottom(proxy, animated: false)
+                    }
+                    .onChange(of: messages.count) { oldCount, newCount in
+                        if newCount > oldCount {
+                            let newestIsOutgoing = messages.last?.isOutgoing == true
+                            if newestIsOutgoing || distanceFromBottom < 100 {
+                                scrollBottom(proxy, animated: true)
+                                unreadWhileScrolled = 0
+                            } else if messages.last?.isOutgoing == false {
+                                unreadWhileScrolled += 1
+                            }
+                        }
+                        if let last = messages.last {
+                            stickyDateLabel = HumanChatThreadBuilder.dateLabel(for: last.sentAt)
+                        }
+                    }
+                    .onChange(of: highlightMessageId) { _, id in
+                        guard let id else { return }
+                        withAnimation(.easeInOut(duration: 0.35)) {
+                            proxy.scrollTo(id, anchor: .center)
+                        }
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(900))
+                            await MainActor.run { highlightMessageId = nil }
+                        }
+                    }
+                    .onChange(of: jumpBottomTick) { _, _ in
+                        scrollBottom(proxy, animated: true)
+                    }
                 }
-                .defaultScrollAnchor(.bottom)
-                .onAppear {
-                    scrollBottom(proxy)
-                }
-                .onChange(of: messages.count) { _, _ in
-                    scrollBottom(proxy)
+
+                if distanceFromBottom > 300 || unreadWhileScrolled > 0 {
+                    jumpToBottomButton
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 12)
+                        .transition(.scale.combined(with: .opacity))
                 }
             }
 
@@ -346,8 +422,14 @@ struct HumanPeerChatView: View {
                 peerName: peer.name,
                 isRecording: chatStore.isRecording,
                 recordingSecondsLeft: chatStore.recordingSecondsLeft,
+                recordingElapsed: chatStore.recordingElapsed,
+                replyDraft: chatStore.replyDraft,
+                onClearReply: { chatStore.clearReplyDraft() },
+                onDraftChange: { chatStore.noteComposerTyping(peerUserId: peer.id, draft: $0) },
                 onSendText: {
                     chatStore.sendText(to: peer.id, text: chatStore.drafts[peer.id] ?? "")
+                    unreadWhileScrolled = 0
+                    distanceFromBottom = 0
                 },
                 onSendImage: { caption in
                     guard let pendingImage else { return }
@@ -363,14 +445,14 @@ struct HumanPeerChatView: View {
                     composerFocused = false
                     showPhotoSource = true
                 },
-                onMic: {
-                    chatStore.armAutoSend(peerId: peer.id)
-                    Task { await chatStore.startRecording() }
-                },
                 onCall: {
                     composerFocused = false
                     TTKeyboard.dismiss()
                     Task { await startCall(with: peer) }
+                },
+                onStartVoice: {
+                    chatStore.armAutoSend(peerId: peer.id)
+                    Task { await chatStore.startRecording() }
                 },
                 onStopVoice: {
                     chatStore.stopAndSendVoice(to: peer.id)
@@ -380,6 +462,84 @@ struct HumanPeerChatView: View {
                 }
             )
         }
+    }
+
+    @ViewBuilder
+    private func threadItemView(
+        _ item: HumanChatThreadItem,
+        peer: HumanChatPeer
+    ) -> some View {
+        switch item {
+        case .date(_, let label):
+            HumanChatDatePill(label: label)
+                .onAppear { stickyDateLabel = label }
+        case .typing:
+            HumanChatTypingBubble()
+        case .message(let message, let cluster, let showAvatar):
+            HumanChatBubble(
+                message: message,
+                peerName: peer.name,
+                cluster: cluster,
+                showAvatar: showAvatar,
+                image: message.kind == .image ? chatStore.loadImage(message) : nil,
+                mediaURL: chatStore.resolveMediaURL(message),
+                highlight: highlightMessageId == message.id,
+                onPlayVoice: { chatStore.playVoice(message) },
+                onFullscreenImage: { fullscreenImage = $0 },
+                onPlayVideo: { videoPlayerURL = $0 },
+                onReply: { chatStore.setReplyDraft(to: message, peerName: peer.name) },
+                onRetry: { failedActionMessage = message },
+                onDelete: { chatStore.deleteLocalMessage(id: message.id, peerUserId: peer.id) },
+                onReact: { chatStore.addReaction($0, to: message.id, peerUserId: peer.id) },
+                onCopy: {},
+                onQuoteTap: {
+                    if let id = message.replyToId {
+                        highlightMessageId = id
+                    }
+                }
+            )
+            .id(message.id)
+            .transition(enableListMotion && !reduceMotion ? .opacity.combined(with: .move(edge: .bottom)) : .identity)
+            .onAppear {
+                if message.id == chatStore.messages(for: peer.id).last?.id {
+                    distanceFromBottom = 0
+                }
+            }
+            .onDisappear {
+                if message.id == chatStore.messages(for: peer.id).last?.id {
+                    distanceFromBottom = 320
+                }
+            }
+        }
+    }
+
+    private var jumpToBottomButton: some View {
+        Button {
+            unreadWhileScrolled = 0
+            distanceFromBottom = 0
+            jumpBottomTick &+= 1
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(ink)
+                    .frame(width: 40, height: 40)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Circle())
+                    .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+                if unreadWhileScrolled > 0 {
+                    Text("\(min(unreadWhileScrolled, 99))")
+                        .font(TTFont.workSans(10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(orange)
+                        .clipShape(Capsule())
+                        .offset(x: 6, y: -6)
+                }
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     private func welcomeCard(_ peer: HumanChatPeer) -> some View {
@@ -481,10 +641,16 @@ struct HumanPeerChatView: View {
         )
     }
 
-    private func scrollBottom(_ proxy: ScrollViewProxy) {
-        var t = Transaction()
-        t.disablesAnimations = true
-        withTransaction(t) { proxy.scrollTo("thread-bottom", anchor: .bottom) }
+    private func scrollBottom(_ proxy: ScrollViewProxy, animated: Bool = false) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.28)) {
+                proxy.scrollTo("thread-bottom", anchor: .bottom)
+            }
+        } else {
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { proxy.scrollTo("thread-bottom", anchor: .bottom) }
+        }
     }
 
     private func importLibrary(_ item: PhotosPickerItem?) async {

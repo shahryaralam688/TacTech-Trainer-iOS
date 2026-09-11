@@ -107,6 +107,7 @@ extension HumanChatMessage {
         let isOutgoing = api.senderUserId == currentUserId
         let kind = mappedKind(api)
         let attachment = mappedAttachment(api.attachmentType)
+        let read = api.readAt != nil
         return HumanChatMessage(
             id: api.id,
             peerId: peerUserId,
@@ -114,14 +115,15 @@ extension HumanChatMessage {
             kind: kind,
             text: api.text ?? "",
             sentAt: api.createdAt,
-            isRead: api.readAt != nil || isOutgoing,
+            isRead: isOutgoing ? read : true,
             localMediaPath: nil,
             remoteMediaUrl: api.attachmentUrl,
             attachmentKind: attachment,
             durationSeconds: api.durationSeconds,
             callOutcome: api.callOutcome,
             clientId: api.clientId,
-            threadId: api.threadId
+            threadId: api.threadId,
+            deliveryStatus: isOutgoing ? (read ? .read : .sent) : .read
         )
     }
 

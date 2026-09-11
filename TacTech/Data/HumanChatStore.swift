@@ -20,6 +20,10 @@ final class HumanChatStore {
     var isLoadingThread = false
     var activePeerUserId: String?
     var peerTyping = false
+    /// Quoted reply docked above the composer (local UI until backend replyTo exists).
+    var replyDraft: HumanChatReplyDraft?
+    var nextCursorByPeer: [String: String] = [:]
+    var isLoadingOlder = false
 
     private let api = ChatAPI()
     private var realtime = ChatRealtimeClient()
@@ -27,6 +31,10 @@ final class HumanChatStore {
     private var peerByThread: [String: String] = [:]
     private var currentUserId: String?
     private var pollTask: Task<Void, Never>?
+    private var typingStopTask: Task<Void, Never>?
+    private var typingClearTask: Task<Void, Never>?
+    private var lastTypingEmitAt: Date?
+    private var outgoingTypingActive = false
 
     private var audioRecorder: AVAudioRecorder?
     private var recordingURL: URL?
@@ -60,6 +68,8 @@ final class HumanChatStore {
         cancelRecording()
         activePeerUserId = nil
         peerTyping = false
+        replyDraft = nil
+        stopOutgoingTyping()
     }
 
     // MARK: - Inbox
@@ -129,6 +139,8 @@ final class HumanChatStore {
     func openThread(_ peer: HumanChatPeer) async {
         activePeerUserId = peer.id
         peerTyping = false
+        replyDraft = nil
+        stopOutgoingTyping()
         isLoadingThread = true
         defer { isLoadingThread = false }
 
@@ -148,6 +160,11 @@ final class HumanChatStore {
                 .map { HumanChatMessage.from(api: $0, currentUserId: uid, peerUserId: peer.id) }
                 .sorted { $0.sentAt < $1.sentAt }
             messagesByPeer[peer.id] = mapped
+            if let cursor = page.nextCursor, !cursor.isEmpty {
+                nextCursorByPeer[peer.id] = cursor
+            } else {
+                nextCursorByPeer.removeValue(forKey: peer.id)
+            }
 
             if let lastIncoming = mapped.last(where: { !$0.isOutgoing }) {
                 _ = try? await api.markRead(threadId: thread.id, upToMessageId: lastIncoming.id)
@@ -168,6 +185,160 @@ final class HumanChatStore {
         }
         activePeerUserId = nil
         peerTyping = false
+        replyDraft = nil
+        stopOutgoingTyping()
+    }
+
+    func loadOlderMessages(for peerUserId: String) async {
+        guard !isLoadingOlder,
+              let threadId = threadIdByPeer[peerUserId],
+              let cursor = nextCursorByPeer[peerUserId],
+              !cursor.isEmpty else { return }
+        isLoadingOlder = true
+        defer { isLoadingOlder = false }
+        do {
+            let page = try await api.listMessages(threadId: threadId, cursor: cursor)
+            let uid = currentUserId ?? Self.jwtUserId() ?? ""
+            let older = page.items.map {
+                HumanChatMessage.from(api: $0, currentUserId: uid, peerUserId: peerUserId)
+            }
+            var byId: [String: HumanChatMessage] = [:]
+            for m in (messagesByPeer[peerUserId] ?? []) { byId[m.id] = m }
+            for m in older { byId[m.id] = m }
+            messagesByPeer[peerUserId] = byId.values.sorted { $0.sentAt < $1.sentAt }
+            if let next = page.nextCursor, !next.isEmpty {
+                nextCursorByPeer[peerUserId] = next
+            } else {
+                nextCursorByPeer.removeValue(forKey: peerUserId)
+            }
+        } catch {
+            // Soft fail — keep existing page
+        }
+    }
+
+    func setReplyDraft(to message: HumanChatMessage, peerName: String) {
+        replyDraft = HumanChatReplyDraft(
+            messageId: message.id,
+            senderName: message.isOutgoing ? "You" : peerName,
+            snippet: message.previewText
+        )
+        haptic()
+    }
+
+    func clearReplyDraft() {
+        replyDraft = nil
+    }
+
+    func addReaction(_ emoji: String, to messageId: String, peerUserId: String) {
+        guard var list = messagesByPeer[peerUserId],
+              let idx = list.firstIndex(where: { $0.id == messageId }) else { return }
+        if list[idx].reactions.contains(emoji) {
+            list[idx].reactions.removeAll { $0 == emoji }
+        } else {
+            list[idx].reactions.append(emoji)
+            if list[idx].reactions.count > 3 {
+                list[idx].reactions = Array(list[idx].reactions.suffix(3))
+            }
+        }
+        messagesByPeer[peerUserId] = list
+        haptic()
+    }
+
+    func deleteLocalMessage(id: String, peerUserId: String) {
+        messagesByPeer[peerUserId]?.removeAll { $0.id == id }
+        haptic()
+    }
+
+    func retryFailed(messageId: String, peerUserId: String) {
+        guard let msg = messagesByPeer[peerUserId]?.first(where: { $0.id == messageId }),
+              msg.resolvedDelivery == .failed,
+              let clientId = msg.clientId else { return }
+        messagesByPeer[peerUserId]?
+            .indices
+            .filter { messagesByPeer[peerUserId]?[$0].id == messageId }
+            .forEach { messagesByPeer[peerUserId]?[$0].deliveryStatus = .pending }
+
+        switch msg.kind {
+        case .text:
+            Task {
+                do {
+                    let threadId = try await ensureThreadId(peerUserId: peerUserId)
+                    let dto = try await api.sendText(threadId: threadId, text: msg.text, clientId: clientId)
+                    replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
+                } catch {
+                    markFailed(clientId: clientId, peerUserId: peerUserId)
+                    lastError = Self.userFacing(error)
+                }
+            }
+        case .voice:
+            guard let path = msg.localMediaPath,
+                  let url = mediaURL(relativePath: path),
+                  let data = try? Data(contentsOf: url),
+                  !data.isEmpty else {
+                lastError = "Missing voice file for retry."
+                return
+            }
+            Task {
+                do {
+                    let threadId = try await ensureThreadId(peerUserId: peerUserId)
+                    let dto = try await api.sendMedia(
+                        threadId: threadId,
+                        fileData: data,
+                        filename: "voice.m4a",
+                        mimeType: "audio/m4a",
+                        attachmentType: "voice",
+                        caption: nil,
+                        durationSeconds: msg.durationSeconds,
+                        clientId: clientId
+                    )
+                    replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
+                } catch {
+                    markFailed(clientId: clientId, peerUserId: peerUserId)
+                    lastError = Self.userFacing(error)
+                }
+            }
+        default:
+            lastError = "Retry this attachment from the composer."
+        }
+    }
+
+    /// Debounced typing_start / typing_stop over existing Socket.IO contract.
+    func noteComposerTyping(peerUserId: String, draft: String) {
+        guard activePeerUserId == peerUserId,
+              let threadId = threadIdByPeer[peerUserId] else { return }
+        let hasText = !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        typingStopTask?.cancel()
+        guard hasText else {
+            stopOutgoingTyping(threadId: threadId)
+            return
+        }
+        let now = Date()
+        if !outgoingTypingActive {
+            // 300ms gate approximated by immediate emit on first keystroke after idle
+            realtime.setTyping(threadId: threadId, isTyping: true)
+            outgoingTypingActive = true
+            lastTypingEmitAt = now
+        } else if let last = lastTypingEmitAt, now.timeIntervalSince(last) > 3 {
+            realtime.setTyping(threadId: threadId, isTyping: true)
+            lastTypingEmitAt = now
+        }
+        typingStopTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(2500))
+            guard !Task.isCancelled else { return }
+            await MainActor.run { self?.stopOutgoingTyping(threadId: threadId) }
+        }
+    }
+
+    private func stopOutgoingTyping(threadId: String? = nil) {
+        typingStopTask?.cancel()
+        typingStopTask = nil
+        guard outgoingTypingActive else { return }
+        outgoingTypingActive = false
+        lastTypingEmitAt = nil
+        let tid = threadId ?? activePeerUserId.flatMap { threadIdByPeer[$0] }
+        if let tid {
+            realtime.setTyping(threadId: tid, isTyping: false)
+        }
     }
 
     // MARK: - Send
@@ -175,6 +346,9 @@ final class HumanChatStore {
     func sendText(to peerUserId: String, text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        let reply = replyDraft
+        replyDraft = nil
+        stopOutgoingTyping()
         let clientId = UUID().uuidString
         let optimistic = HumanChatMessage(
             id: "local-\(clientId)",
@@ -183,9 +357,13 @@ final class HumanChatStore {
             kind: .text,
             text: trimmed,
             sentAt: .now,
-            isRead: true,
+            isRead: false,
             clientId: clientId,
-            threadId: threadIdByPeer[peerUserId]
+            threadId: threadIdByPeer[peerUserId],
+            deliveryStatus: .pending,
+            replyToId: reply?.messageId,
+            replyToText: reply?.snippet,
+            replyToName: reply?.senderName
         )
         appendLocal(optimistic, peerUserId: peerUserId)
         drafts[peerUserId] = ""
@@ -219,11 +397,12 @@ final class HumanChatStore {
             kind: .image,
             text: trimmed,
             sentAt: .now,
-            isRead: true,
+            isRead: false,
             localMediaPath: path,
             attachmentKind: .image,
             clientId: clientId,
-            threadId: threadIdByPeer[peerUserId]
+            threadId: threadIdByPeer[peerUserId],
+            deliveryStatus: .pending
         )
         appendLocal(optimistic, peerUserId: peerUserId)
         drafts[peerUserId] = ""
@@ -271,12 +450,13 @@ final class HumanChatStore {
                 kind: .video,
                 text: trimmed,
                 sentAt: .now,
-                isRead: true,
+                isRead: false,
                 localMediaPath: path,
                 attachmentKind: .video,
                 durationSeconds: duration,
                 clientId: clientId,
-                threadId: threadIdByPeer[peerUserId]
+                threadId: threadIdByPeer[peerUserId],
+                deliveryStatus: .pending
             )
             self.appendLocal(optimistic, peerUserId: peerUserId)
             self.drafts[peerUserId] = ""
@@ -314,12 +494,13 @@ final class HumanChatStore {
             kind: .voice,
             text: "",
             sentAt: .now,
-            isRead: true,
+            isRead: false,
             localMediaPath: path,
             attachmentKind: .voice,
             durationSeconds: duration,
             clientId: clientId,
-            threadId: threadIdByPeer[peerUserId]
+            threadId: threadIdByPeer[peerUserId],
+            deliveryStatus: .pending
         )
         appendLocal(optimistic, peerUserId: peerUserId)
         haptic()
@@ -355,10 +536,11 @@ final class HumanChatStore {
             kind: .callEvent,
             text: "",
             sentAt: .now,
-            isRead: true,
+            isRead: false,
             callOutcome: outcome,
             clientId: clientId,
-            threadId: threadIdByPeer[peerId]
+            threadId: threadIdByPeer[peerId],
+            deliveryStatus: .pending
         )
         appendLocal(optimistic, peerUserId: peerId)
         Task {
@@ -525,12 +707,21 @@ final class HumanChatStore {
                var list = messagesByPeer[peerId] {
                 for i in list.indices where list[i].isOutgoing {
                     list[i].isRead = true
+                    list[i].deliveryStatus = .read
                 }
                 messagesByPeer[peerId] = list
             }
         case .typing(let threadId, let userId, let isTyping):
             if let peerId = peerByThread[threadId], peerId == activePeerUserId, userId != uid {
                 peerTyping = isTyping
+                typingClearTask?.cancel()
+                if isTyping {
+                    typingClearTask = Task { [weak self] in
+                        try? await Task.sleep(for: .seconds(25))
+                        guard !Task.isCancelled else { return }
+                        await MainActor.run { self?.peerTyping = false }
+                    }
+                }
             }
         case .callIncoming, .callEnded:
             break
@@ -605,14 +796,28 @@ final class HumanChatStore {
         var list = messagesByPeer[peerUserId] ?? []
         if let cid = message.clientId,
            let idx = list.firstIndex(where: { $0.clientId == cid || $0.id == message.id }) {
-            // Keep local media if remote not ready
             var merged = message
             if merged.localMediaPath == nil {
                 merged.localMediaPath = list[idx].localMediaPath
             }
+            if merged.replyToId == nil {
+                merged.replyToId = list[idx].replyToId
+                merged.replyToText = list[idx].replyToText
+                merged.replyToName = list[idx].replyToName
+            }
+            if merged.reactions.isEmpty {
+                merged.reactions = list[idx].reactions
+            }
             list[idx] = merged
         } else if let idx = list.firstIndex(where: { $0.id == message.id }) {
-            list[idx] = message
+            var merged = message
+            if merged.reactions.isEmpty { merged.reactions = list[idx].reactions }
+            if merged.replyToId == nil {
+                merged.replyToId = list[idx].replyToId
+                merged.replyToText = list[idx].replyToText
+                merged.replyToName = list[idx].replyToName
+            }
+            list[idx] = merged
         } else {
             list.append(message)
         }
@@ -622,8 +827,14 @@ final class HumanChatStore {
     private func replaceOptimistic(clientId: String, with dto: ChatMessageDTO, peerUserId: String) {
         let uid = currentUserId ?? Self.jwtUserId() ?? ""
         var mapped = HumanChatMessage.from(api: dto, currentUserId: uid, peerUserId: peerUserId)
+        mapped.deliveryStatus = mapped.isRead ? .read : .sent
         if let idx = messagesByPeer[peerUserId]?.firstIndex(where: { $0.clientId == clientId }) {
-            mapped.localMediaPath = messagesByPeer[peerUserId]?[idx].localMediaPath
+            let prior = messagesByPeer[peerUserId]?[idx]
+            mapped.localMediaPath = prior?.localMediaPath ?? mapped.localMediaPath
+            mapped.replyToId = prior?.replyToId ?? mapped.replyToId
+            mapped.replyToText = prior?.replyToText ?? mapped.replyToText
+            mapped.replyToName = prior?.replyToName ?? mapped.replyToName
+            mapped.reactions = prior?.reactions ?? mapped.reactions
         }
         upsertMessage(mapped, peerUserId: peerUserId)
         threadIdByPeer[peerUserId] = dto.threadId
@@ -632,9 +843,10 @@ final class HumanChatStore {
     }
 
     private func markFailed(clientId: String, peerUserId: String) {
-        // Leave optimistic bubble; user can retry later. Surface error via lastError.
-        _ = clientId
-        _ = peerUserId
+        guard var list = messagesByPeer[peerUserId],
+              let idx = list.firstIndex(where: { $0.clientId == clientId }) else { return }
+        list[idx].deliveryStatus = .failed
+        messagesByPeer[peerUserId] = list
     }
 
     private func startRecordingCapTimer() {

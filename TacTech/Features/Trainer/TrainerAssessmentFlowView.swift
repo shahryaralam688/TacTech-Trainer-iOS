@@ -607,37 +607,62 @@ struct TrainerCapacityStep: View {
     @Binding var slider: Int
 
     private let presets = TrainerAssessmentCatalog.capacityOptions
-    @State private var isCustom = false
+
+    @State private var isEditingCustom = false
+    @State private var customText = ""
+    @FocusState private var customFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
             title("How many clients can you\nmanage at once?")
             Spacer(minLength: 16)
 
-            Text("\(draft.maxClients)")
-                .font(TTFont.workSans(84, weight: .bold))
-                .foregroundStyle(AssessmentColor.ink)
-                .monospacedDigit()
-                .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.18), value: draft.maxClients)
+            HStack(spacing: 10) {
+                Text("\(draft.maxClients)")
+                    .font(TTFont.workSans(84, weight: .bold))
+                    .foregroundStyle(AssessmentColor.ink)
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
+                    .animation(.snappy(duration: 0.18), value: draft.maxClients)
+
+                Button {
+                    beginCustomEdit()
+                } label: {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(AssessmentColor.orange)
+                        .frame(width: 40, height: 40)
+                        .background(AssessmentColor.peach)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .strokeBorder(AssessmentColor.orangeBorder.opacity(0.55), lineWidth: 1.5)
+                        )
+                }
+                .buttonStyle(AssessmentCardPressStyle())
+                .accessibilityLabel("Enter a custom number")
+                .offset(y: 10)
+            }
 
             Text("active clients")
                 .font(TTFont.workSans(16, weight: .semibold))
                 .foregroundStyle(AssessmentColor.slate)
+                .animation(.snappy(duration: 0.18), value: draft.maxClients)
 
-            CapacityClientsPicker(
-                selection: capacityBinding,
-                isCustom: $isCustom
-            )
-            .padding(.horizontal, 18)
-            .padding(.top, 24)
-
-            if isCustom {
-                CapacityCustomStepper(value: capacityBinding)
+            if isEditingCustom {
+                customEditRow
                     .padding(.horizontal, 28)
-                    .padding(.top, 18)
+                    .padding(.top, 16)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
+
+            // Same interaction language as Days — tap or drag across presets.
+            CapacityClientsDragSlider(
+                options: presets,
+                selection: presetSliderBinding
+            )
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
 
             Text("I’m set up to coach \(draft.maxClients) clients")
                 .font(TTFont.workSans(16, weight: .medium))
@@ -649,179 +674,225 @@ struct TrainerCapacityStep: View {
             Spacer(minLength: 16)
         }
         .onAppear {
-            isCustom = !presets.contains(draft.maxClients)
-            if presets.contains(draft.maxClients) {
-                slider = TrainerAssessmentCatalog.capacityIndex(for: draft.maxClients)
+            syncSliderFromDraft()
+            if !presets.contains(draft.maxClients) {
+                customText = "\(draft.maxClients)"
             }
         }
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isCustom)
+        .onChange(of: draft.maxClients) { _, _ in
+            syncSliderFromDraft()
+        }
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: isEditingCustom)
         .sensoryFeedback(.selection, trigger: draft.maxClients)
     }
 
-    private var capacityBinding: Binding<Int> {
-        Binding(
-            get: { draft.maxClients },
-            set: { newValue in
-                let clamped = min(max(newValue, 1), 200)
-                draft.maxClients = clamped
-                if presets.contains(clamped) && !isCustom {
-                    slider = TrainerAssessmentCatalog.capacityIndex(for: clamped)
-                }
-            }
-        )
-    }
-}
-
-/// Preset chips + Custom — for capacities beyond 30.
-private struct CapacityClientsPicker: View {
-    @Binding var selection: Int
-    @Binding var isCustom: Bool
-    private let options = TrainerAssessmentCatalog.capacityOptions
-
-    var body: some View {
-        VStack(spacing: 10) {
-            HStack(spacing: 8) {
-                ForEach(options, id: \.self) { count in
-                    capacityChip(
-                        label: "\(count)",
-                        selected: !isCustom && selection == count
-                    ) {
-                        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                            isCustom = false
-                            selection = count
-                        }
-                    }
-                }
-            }
-
-            Button {
-                withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-                    isCustom = true
-                    if options.contains(selection) {
-                        // Start custom just above the top preset.
-                        selection = max(selection, 35)
-                    }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(TTFont.workSans(15, weight: .semibold))
-                    Text(isCustom ? "Custom · \(selection)" : "Custom")
-                        .font(TTFont.workSans(16, weight: .bold))
-                    if !isCustom {
-                        Text("30+")
-                            .font(TTFont.workSans(12, weight: .bold))
-                            .foregroundStyle(AssessmentColor.orange)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(AssessmentColor.peach)
-                            .clipShape(Capsule())
-                    }
-                }
-                .foregroundStyle(isCustom ? AssessmentColor.white : AssessmentColor.ink)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(isCustom ? AssessmentColor.orange : AssessmentColor.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            isCustom ? AssessmentColor.orangeBorder : Color.clear,
-                            lineWidth: isCustom ? 2.5 : 0
-                        )
-                )
-                .shadow(
-                    color: isCustom ? AssessmentColor.orange.opacity(0.28) : .clear,
-                    radius: isCustom ? 10 : 0,
-                    y: isCustom ? 4 : 0
-                )
-            }
-            .buttonStyle(AssessmentCardPressStyle())
-        }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AssessmentColor.surface.opacity(0.65))
-        )
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: selection)
-        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: isCustom)
-    }
-
-    private func capacityChip(label: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(TTFont.workSans(17, weight: .bold))
-                .monospacedDigit()
-                .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(selected ? AssessmentColor.orange : AssessmentColor.surface)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            selected ? AssessmentColor.orangeBorder : Color.clear,
-                            lineWidth: selected ? 2.5 : 0
-                        )
-                )
-                .shadow(
-                    color: selected ? AssessmentColor.orange.opacity(0.28) : .clear,
-                    radius: selected ? 10 : 0,
-                    y: selected ? 4 : 0
-                )
-                .scaleEffect(selected ? 1.04 : 1)
-        }
-        .buttonStyle(AssessmentCardPressStyle())
-    }
-}
-
-private struct CapacityCustomStepper: View {
-    @Binding var value: Int
-
-    var body: some View {
-        HStack(spacing: 18) {
-            stepButton(systemName: "minus") {
-                value = max(1, value - 1)
-            }
-
-            Text("\(value)")
-                .font(TTFont.workSans(28, weight: .bold))
+    private var customEditRow: some View {
+        HStack(spacing: 10) {
+            TextField("Type a number", text: $customText)
+                .keyboardType(.numberPad)
+                .font(TTFont.workSans(18, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(AssessmentColor.ink)
-                .frame(minWidth: 72)
-                .contentTransition(.numericText())
-                .animation(.snappy(duration: 0.18), value: value)
+                .focused($customFieldFocused)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(AssessmentColor.surface)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2)
+                )
+                .onSubmit { commitCustomEdit() }
 
-            stepButton(systemName: "plus") {
-                value = min(200, value + 1)
+            Button("Done") {
+                commitCustomEdit()
             }
+            .font(TTFont.workSans(16, weight: .bold))
+            .foregroundStyle(AssessmentColor.white)
+            .padding(.horizontal, 16)
+            .frame(height: 48)
+            .background(AssessmentColor.orange)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .buttonStyle(AssessmentCardPressStyle())
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(AssessmentColor.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2)
+    }
+
+    /// Slider always picks a preset; custom values stay on `draft.maxClients` until the user drags.
+    private var presetSliderBinding: Binding<Int> {
+        Binding(
+            get: {
+                if presets.contains(draft.maxClients) {
+                    return draft.maxClients
+                }
+                return TrainerAssessmentCatalog.maxClients(forSliderValue: slider)
+            },
+            set: { newPreset in
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                    isEditingCustom = false
+                    customFieldFocused = false
+                    applyCapacity(newPreset)
+                }
+            }
         )
     }
 
-    private func stepButton(systemName: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(TTFont.workSans(18, weight: .bold))
-                .foregroundStyle(AssessmentColor.white)
-                .frame(width: 44, height: 44)
-                .background(AssessmentColor.orange)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    private func beginCustomEdit() {
+        customText = "\(draft.maxClients)"
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            isEditingCustom = true
         }
-        .buttonStyle(AssessmentCardPressStyle())
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            customFieldFocused = true
+        }
+    }
+
+    private func commitCustomEdit() {
+        let digits = customText.filter(\.isNumber)
+        guard let parsed = Int(digits), parsed > 0 else {
+            withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+                isEditingCustom = false
+            }
+            customFieldFocused = false
+            return
+        }
+        applyCapacity(parsed)
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
+            isEditingCustom = false
+        }
+        customFieldFocused = false
+    }
+
+    private func applyCapacity(_ raw: Int) {
+        let clamped = min(max(raw, 1), 200)
+        draft.maxClients = clamped
+        slider = TrainerAssessmentCatalog.capacityIndex(for: clamped)
+        if presets.contains(clamped) {
+            customText = ""
+        } else {
+            customText = "\(clamped)"
+        }
+    }
+
+    private func syncSliderFromDraft() {
+        slider = TrainerAssessmentCatalog.capacityIndex(for: draft.maxClients)
+    }
+}
+
+/// Orange capacity slider — same feel as Days (tap a preset or drag the thumb).
+private struct CapacityClientsDragSlider: View {
+    let options: [Int]
+    @Binding var selection: Int
+
+    private let thumbSize: CGFloat = 52
+    private let trackHeight: CGFloat = 64
+
+    @State private var dragX: CGFloat?
+    @GestureState private var isDragging = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let layout = DaySliderLayout(
+                width: geo.size.width,
+                thumbSize: thumbSize,
+                count: options.count
+            )
+            let indexValue = sliderIndex(for: selection)
+            let thumbX = dragX ?? layout.x(for: indexValue)
+
+            ZStack {
+                Capsule()
+                    .fill(AssessmentColor.surface)
+                    .frame(height: trackHeight)
+
+                HStack(spacing: 0) {
+                    ForEach(options, id: \.self) { count in
+                        Text("\(count)")
+                            .font(TTFont.workSans(15, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(count == selection ? Color.clear : AssessmentColor.coolGrey)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.horizontal, thumbSize * 0.12)
+                .frame(height: trackHeight)
+
+                Text("\(selectionDisplay(for: indexValue))")
+                    .font(TTFont.workSans(18, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(AssessmentColor.white)
+                    .frame(width: thumbSize, height: thumbSize)
+                    .background(AssessmentColor.orange)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(AssessmentColor.orangeBorder, lineWidth: 2.5)
+                    )
+                    .shadow(color: AssessmentColor.orange.opacity(0.35), radius: 10, y: 2)
+                    .scaleEffect(isDragging ? 1.08 : 1)
+                    .position(x: thumbX, y: geo.size.height / 2)
+                    .animation(.spring(response: 0.32, dampingFraction: 0.82), value: isDragging)
+                    .animation(.snappy(duration: 0.18), value: selection)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .updating($isDragging) { _, state, _ in state = true }
+                    .onChanged { gesture in
+                        let x = min(max(gesture.location.x, layout.minX), layout.maxX)
+                        dragX = x
+                        let nextIndex = layout.value(at: x)
+                        let next = options[nextIndex - 1]
+                        if next != selection {
+                            withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                                selection = next
+                            }
+                        }
+                    }
+                    .onEnded { gesture in
+                        let x = min(max(gesture.location.x, layout.minX), layout.maxX)
+                        let nextIndex = layout.value(at: x)
+                        let next = options[nextIndex - 1]
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                            selection = next
+                            dragX = layout.x(for: nextIndex)
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.28) {
+                            dragX = nil
+                        }
+                    }
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Client capacity")
+            .accessibilityValue("\(selection) clients")
+            .accessibilityAdjustableAction { direction in
+                guard let current = options.firstIndex(of: selection) else { return }
+                switch direction {
+                case .increment:
+                    let next = min(current + 1, options.count - 1)
+                    selection = options[next]
+                case .decrement:
+                    let next = max(current - 1, 0)
+                    selection = options[next]
+                @unknown default:
+                    break
+                }
+            }
+        }
+        .frame(height: trackHeight)
+    }
+
+    private func sliderIndex(for value: Int) -> Int {
+        if let idx = options.firstIndex(of: value) { return idx + 1 }
+        return TrainerAssessmentCatalog.capacityIndex(for: value)
+    }
+
+    private func selectionDisplay(for indexValue: Int) -> Int {
+        let idx = min(max(indexValue, 1), options.count) - 1
+        // While dragging onto a preset, thumb shows that preset even if draft is still custom.
+        if options.contains(selection) { return selection }
+        return options[idx]
     }
 }
 

@@ -21,6 +21,9 @@ struct AuthResponse: Decodable {
     var user: APIUser
     var trainer: TrainerProfile?
     var trainee: TraineeProfile?
+    /// Server source of truth — returning users skip assessment on new devices.
+    var assessmentCompleted: Bool?
+    var onboardingCompleted: Bool?
 }
 
 struct MeResponse: Decodable {
@@ -34,7 +37,7 @@ struct MeResponse: Decodable {
     var email: String?
     var role: UserRole?
     var createdAt: Date?
-    /// Optional — when backend sends this, returning users skip assessment on new devices.
+    /// Required from backend — gates assessment / profile setup (nil = legacy fallback).
     var assessmentCompleted: Bool?
     var onboardingCompleted: Bool?
 

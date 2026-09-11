@@ -28,6 +28,9 @@ final class AppStore {
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
     private var macrosByKey: [String: MacroEstimate] = [:]
+    /// Last values from `GET /me` or login/signup — nil means backend omitted the field.
+    private var serverAssessmentCompleted: Bool?
+    private var serverOnboardingCompleted: Bool?
 
     var currentUser: User? {
         users.first { $0.id == session?.userId }
@@ -201,60 +204,56 @@ final class AppStore {
     }
 
     func markAssessmentCompleted() {
+        serverAssessmentCompleted = true
+        assessmentCompleted = true
         guard let userId = session?.userId else { return }
         UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
-        assessmentCompleted = true
     }
 
     func markProfileSetupCompleted() {
+        serverOnboardingCompleted = true
+        profileSetupCompleted = true
         guard let userId = session?.userId else { return }
         UserDefaults.standard.set(true, forKey: "profile.setup.completed.\(userId)")
-        profileSetupCompleted = true
     }
 
+    /// Assessment / onboarding gates — **server is source of truth** when flags are present.
     func refreshAssessmentFlag() {
         guard let userId = session?.userId else {
             assessmentCompleted = false
             profileSetupCompleted = false
             return
         }
-        // Local completion flag (primary).
-        var completed = UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)")
 
-        // Returning user on a fresh install: local payload still counts as done.
-        if !completed {
-            let hasTraineePayload = UserDefaults.standard.data(forKey: "assessment.payload.\(userId)") != nil
-            let hasTrainerPayload = UserDefaults.standard.data(forKey: "trainer.assessment.payload.\(userId)") != nil
-            completed = hasTraineePayload || hasTrainerPayload
-        }
-
-        // Heuristic from server profile — already coached / trained before.
-        if !completed {
-            switch session?.role {
-            case .trainee:
-                if let trainee = currentTrainee {
-                    let hasGoal = !trainee.goal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let hasBody = trainee.weightKg > 0 || trainee.heightCm > 0
-                    completed = hasGoal && hasBody
-                }
-            case .trainer:
-                if let trainer = currentTrainer {
-                    let hasSpecialty = !trainer.specialty.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    let hasExp = trainer.yearsExperience > 0
-                    let hasBio = !trainer.bio.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    completed = hasSpecialty || hasExp || hasBio
-                }
-            case .none:
-                break
+        if let server = serverAssessmentCompleted {
+            assessmentCompleted = server
+            UserDefaults.standard.set(server, forKey: "assessment.completed.\(userId)")
+        } else {
+            // Legacy backend / offline: local cache only (no profile heuristics).
+            var completed = UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)")
+            if !completed {
+                let hasTraineePayload = UserDefaults.standard.data(forKey: "assessment.payload.\(userId)") != nil
+                let hasTrainerPayload = UserDefaults.standard.data(forKey: "trainer.assessment.payload.\(userId)") != nil
+                completed = hasTraineePayload || hasTrainerPayload
             }
+            assessmentCompleted = completed
         }
 
-        if completed, !UserDefaults.standard.bool(forKey: "assessment.completed.\(userId)") {
-            UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
+        if let server = serverOnboardingCompleted {
+            profileSetupCompleted = server
+            UserDefaults.standard.set(server, forKey: "profile.setup.completed.\(userId)")
+        } else {
+            profileSetupCompleted = UserDefaults.standard.bool(forKey: "profile.setup.completed.\(userId)")
         }
+    }
 
-        assessmentCompleted = completed
-        profileSetupCompleted = UserDefaults.standard.bool(forKey: "profile.setup.completed.\(userId)")
+    private func applyServerGateFlags(assessmentCompleted: Bool?, onboardingCompleted: Bool?) {
+        if let assessmentCompleted {
+            serverAssessmentCompleted = assessmentCompleted
+        }
+        if let onboardingCompleted {
+            serverOnboardingCompleted = onboardingCompleted
+        }
     }
 
     func consumePostLoginBridge() {
@@ -633,11 +632,10 @@ final class AppStore {
             }
             if let trainer = me.trainer { upsert(trainer) }
             if let trainee = me.trainee { upsert(trainee) }
-            // Server onboarding flags — persist so assessment isn’t forced again.
-            if me.assessmentCompleted == true || me.onboardingCompleted == true,
-               let userId = session?.userId {
-                UserDefaults.standard.set(true, forKey: "assessment.completed.\(userId)")
-            }
+            applyServerGateFlags(
+                assessmentCompleted: me.assessmentCompleted,
+                onboardingCompleted: me.onboardingCompleted
+            )
         } catch {
             if session == nil { throw error }
         }
@@ -710,6 +708,10 @@ final class AppStore {
         session = Session(userId: response.user.id, role: response.user.role)
         if let trainer = response.trainer { upsert(trainer) }
         if let trainee = response.trainee { upsert(trainee) }
+        applyServerGateFlags(
+            assessmentCompleted: response.assessmentCompleted,
+            onboardingCompleted: response.onboardingCompleted
+        )
     }
 
     private func apply(traineeItems items: [TraineeListItem]) {
@@ -844,6 +846,8 @@ final class AppStore {
         exerciseTemplates = []
         assessmentCompleted = false
         profileSetupCompleted = false
+        serverAssessmentCompleted = nil
+        serverOnboardingCompleted = nil
     }
 
     // MARK: - Preview seeding

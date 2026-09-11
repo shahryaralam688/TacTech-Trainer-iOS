@@ -543,9 +543,9 @@ private struct AuthLabeledField<Trailing: View>: View {
                     .frame(width: 20)
                 Group {
                     if isSecure {
-                        SecureField("", text: $text)
+                        SecureField("", text: $text, prompt: TTInputChrome.prompt(suggestion))
                     } else {
-                        TextField("", text: $text)
+                        TextField("", text: $text, prompt: TTInputChrome.prompt(suggestion))
                     }
                 }
                 .font(TTFont.workSans(16, weight: .regular))
@@ -568,6 +568,24 @@ private struct AuthLabeledField<Trailing: View>: View {
             )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Visible gray hint inside the field (never white-on-light).
+    private var suggestion: String {
+        switch field {
+        case .email:
+            return "name@example.com"
+        case .password:
+            return "Enter password"
+        case .confirm:
+            return "Re-enter password"
+        case .name:
+            return "Your full name"
+        case .none:
+            if keyboard == .emailAddress { return "name@example.com" }
+            if isSecure { return "Enter password" }
+            return title
+        }
     }
 }
 

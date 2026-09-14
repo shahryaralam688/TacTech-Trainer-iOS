@@ -824,51 +824,39 @@ enum TTToastStyle {
     case success
     case error
     case info
+    case warning
+    case accent
+
+    var alertTone: TTAlertTone {
+        switch self {
+        case .success: .success
+        case .error: .error
+        case .info: .info
+        case .warning: .warning
+        case .accent: .accent
+        }
+    }
 }
 
 struct TTToastMessage: Equatable {
     let text: String
     var style: TTToastStyle = .success
+    var subtitle: String? = nil
 }
 
-/// Floating bottom toast — auto-dismisses after `duration`.
+/// Floating bottom toast — Sandow alert chrome; auto-dismisses after `duration`.
 struct TTToastBanner: View {
     let message: TTToastMessage
 
     var body: some View {
-        HStack(spacing: 10) {
-            TTIcon(icon: icon, filled: true, size: 14)
-            Text(message.text)
-                .font(TTFont.workSans(14, weight: .semibold))
-                .multilineTextAlignment(.leading)
-                .lineLimit(3)
-            Spacer(minLength: 0)
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 14)
+        TTAlertBanner(
+            tone: message.style.alertTone,
+            title: message.text,
+            subtitle: message.subtitle
+        )
         .frame(maxWidth: 360)
-        .background(background)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.22), radius: 16, y: 8)
         .padding(.horizontal, TTSpace.screen)
         .accessibilityAddTraits(.isStaticText)
-    }
-
-    private var icon: SandowIcon {
-        switch message.style {
-        case .success: .check
-        case .error: .exclamationMarkCircle
-        case .info: .infoCircle
-        }
-    }
-
-    private var background: Color {
-        switch message.style {
-        case .success: Color(red: 22 / 255, green: 24 / 255, blue: 28 / 255)
-        case .error: TTColor.danger
-        case .info: Color(red: 22 / 255, green: 24 / 255, blue: 28 / 255)
-        }
     }
 }
 

@@ -732,30 +732,17 @@ struct AICoachView: View {
     }
 
     private func errorBanner(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(text)
-                    .font(TTFont.workSans(13, weight: .medium))
-                    .foregroundStyle(Color.red.opacity(0.9))
-                    .fixedSize(horizontal: false, vertical: true)
-                if store.rateLimitSecondsRemaining > 0 {
-                    Text("Auto-retry in \(store.rateLimitSecondsRemaining)s")
-                        .font(TTFont.workSans(12, weight: .semibold))
-                        .foregroundStyle(muted)
-                        .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.18), value: store.rateLimitSecondsRemaining)
-                }
-            }
-            Spacer(minLength: 8)
-            Button(store.rateLimitSecondsRemaining > 0 ? "Retry now" : "Retry") {
-                store.retryLastFailure()
-            }
-            .font(TTFont.workSans(13, weight: .bold))
-            .foregroundStyle(orange)
-        }
+        TTAlertBanner(
+            tone: .error,
+            title: text,
+            subtitle: store.rateLimitSecondsRemaining > 0
+                ? "Auto-retry in \(store.rateLimitSecondsRemaining)s"
+                : nil,
+            actionTitle: store.rateLimitSecondsRemaining > 0 ? "Retry now" : "Retry",
+            onAction: { store.retryLastFailure() }
+        )
         .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.red.opacity(0.06))
+        .padding(.vertical, 4)
     }
 
     private func sendDraft() {

@@ -323,17 +323,22 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 /// `onScrollGeometryChange` never mutates layout in the same frame (avoids
 /// “tried to update multiple times per frame”).
 ///
-/// Short content: scrolling / bounce is disabled (so the header never fights
-/// rubber-band). Tall content: scrolling stays on and collapse stays interactive.
+/// Short / barely-tall content: scrolling + collapse stay off so the header
+/// never fights UIKit offset compensation (vibrate / mid-stuck).
+/// Tall content (overflow covers full header travel): scroll + shrink unchanged.
 @MainActor
 final class TTHomeScrollCollapseModel: ObservableObject {
     @Published private(set) var progress: CGFloat = 0
-    /// `false` when content fits the viewport — ScrollView should not move.
+    /// `false` when content cannot afford a full header collapse — ScrollView locked.
     @Published private(set) var allowsScrolling = true
 
     /// How many points the header chrome shrinks from expanded → compact.
     /// Matches `TTDarkPageHeader` / `trainerListHeader` travel by default.
     var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
+
+    /// Extra room past `layoutTravel` before collapse/scroll turns on (and hysteresis off).
+    private static let collapseAffordSlack: CGFloat = 24
+    private static let collapseAffordOffSlack: CGFloat = 8
 
     private var lastProgress: CGFloat = 0
     private var lastRawY: CGFloat = 0
@@ -385,12 +390,18 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     }
 
     func setScrollableOverflow(_ overflow: CGFloat) {
-        // Hysteresis: avoid toggling when contentSize ≈ container during bounce.
+        // Collapse shortens the header and lengthens the ScrollView by ~layoutTravel.
+        // Measured overflow therefore shrinks while collapsed — restore that delta so
+        // the gate reflects “can we afford a full shrink?” not the current chrome height.
+        let expandableOverflow = overflow + layoutTravel * lastProgress
+        let onThreshold = layoutTravel + Self.collapseAffordSlack
+        let offThreshold = layoutTravel + Self.collapseAffordOffSlack
+        // Hysteresis: avoid toggling when contentSize ≈ the affordance edge.
         let next: Bool
         if allowsScrolling {
-            next = overflow > 0.5
+            next = expandableOverflow > offThreshold
         } else {
-            next = overflow > 8
+            next = expandableOverflow > onThreshold
         }
         pendingCanScroll = next
         if !isUserScrolling {

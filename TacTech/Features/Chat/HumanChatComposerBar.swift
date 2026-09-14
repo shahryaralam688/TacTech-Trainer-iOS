@@ -2,7 +2,7 @@ import PhotosUI
 import SwiftUI
 import UIKit
 
-/// WhatsApp-style composer: reply dock, mic↔send morph, hold-to-record with slide-to-cancel.
+/// WhatsApp-style composer: reply dock, mic↔send morph, tap-to-record studio.
 struct HumanChatComposerBar: View {
     @Binding var draft: String
     @Binding var pendingImage: UIImage?
@@ -10,6 +10,7 @@ struct HumanChatComposerBar: View {
     @Binding var isFocused: Bool
     var peerName: String
     var isRecording: Bool
+    var isRecordingPaused: Bool
     var recordingSecondsLeft: Int
     var recordingElapsed: TimeInterval
     var replyDraft: HumanChatReplyDraft?
@@ -22,11 +23,11 @@ struct HumanChatComposerBar: View {
     var onStartVoice: () -> Void
     var onStopVoice: () -> Void
     var onCancelVoice: () -> Void
+    var onPauseVoice: () -> Void
+    var onResumeVoice: () -> Void
 
     @FocusState private var fieldFocused: Bool
-    @State private var micDrag: CGSize = .zero
-    @State private var micArmed = false
-    @State private var recordingLocked = false
+    @State private var viewOnce = false
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
@@ -47,11 +48,7 @@ struct HumanChatComposerBar: View {
             }
 
             if isRecording {
-                if recordingLocked {
-                    lockedVoicePanel
-                } else {
-                    holdVoicePanel
-                }
+                voiceStudio
             } else {
                 if let pendingImage {
                     pendingPhotoRow(pendingImage)
@@ -64,7 +61,7 @@ struct HumanChatComposerBar: View {
         }
         .background(Color.white.opacity(0.55))
         .animation(soft, value: isRecording)
-        .animation(soft, value: recordingLocked)
+        .animation(soft, value: isRecordingPaused)
         .animation(soft, value: pendingImage != nil)
         .animation(soft, value: pendingVideoURL != nil)
         .animation(soft, value: replyDraft?.messageId)
@@ -81,11 +78,7 @@ struct HumanChatComposerBar: View {
             onDraftChange(value)
         }
         .onChange(of: isRecording) { _, recording in
-            if !recording {
-                micDrag = .zero
-                micArmed = false
-                recordingLocked = false
-            }
+            if !recording { viewOnce = false }
         }
     }
 
@@ -221,122 +214,137 @@ struct HumanChatComposerBar: View {
             .transition(.opacity.combined(with: .scale(scale: 0.85)))
             .accessibilityLabel("Send")
         } else {
-            micButton
-                .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            Button {
+                fieldFocused = false
+                onStartVoice()
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Circle().fill(Color.black))
+            }
+            .buttonStyle(AssessmentCardPressStyle())
+            .transition(.opacity.combined(with: .scale(scale: 0.85)))
+            .accessibilityLabel("Record voice note")
         }
     }
 
-    private var micButton: some View {
-        Image(systemName: "mic.fill")
-            .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(.white)
-            .frame(width: 32, height: 32)
-            .background(Circle().fill(Color.black))
-            .scaleEffect(micArmed ? 1.35 : 1)
-            .gesture(
-                DragGesture(minimumDistance: 0)
-                    .onChanged { value in
-                        if !micArmed {
-                            micArmed = true
-                            fieldFocused = false
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            onStartVoice()
-                        }
-                        micDrag = value.translation
-                        if value.translation.height < -100 {
-                            recordingLocked = true
-                        }
-                    }
-                    .onEnded { value in
-                        defer {
-                            micArmed = false
-                            micDrag = .zero
-                        }
-                        if recordingLocked { return }
-                        if value.translation.width < -80 {
-                            onCancelVoice()
-                            UINotificationFeedbackGenerator().notificationOccurred(.warning)
-                        } else {
-                            onStopVoice()
-                        }
-                    }
-            )
-            .accessibilityLabel("Hold to record voice note")
-    }
-
-    private var holdVoicePanel: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color.red)
-                .frame(width: 10, height: 10)
-                .opacity(0.4 + 0.6 * abs(sin(recordingElapsed * 4)))
-            Text(formatElapsed(recordingElapsed))
-                .font(TTFont.workSans(15, weight: .medium))
-                .monospacedDigit()
-                .foregroundStyle(ink)
-            Spacer()
-            Text(micDrag.width < -40 ? "Release to cancel" : "← Slide to cancel · ↑ Lock")
-                .font(TTFont.workSans(12, weight: .medium))
-                .foregroundStyle(micDrag.width < -40 ? Color.red : muted)
-                .animation(.easeOut(duration: 0.15), value: micDrag.width < -40)
-            Spacer()
-            Text("\(recordingSecondsLeft)s")
-                .font(TTFont.workSans(12, weight: .medium))
-                .foregroundStyle(muted)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 18)
-        .offset(x: min(0, micDrag.width * 0.35))
-    }
-
-    private var lockedVoicePanel: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Circle().fill(Color.red).frame(width: 8, height: 8)
-                Text("Recording locked · \(formatElapsed(recordingElapsed))")
-                    .font(TTFont.workSans(14, weight: .semibold))
+    private var voiceStudio: some View {
+        VStack(spacing: 22) {
+            HStack(alignment: .center, spacing: 10) {
+                Text(formatElapsed(recordingElapsed))
+                    .font(TTFont.workSans(16, weight: .medium))
+                    .monospacedDigit()
                     .foregroundStyle(ink)
-                Spacer()
-            }
-            .padding(.horizontal, 16)
+                    .frame(minWidth: 42, alignment: .leading)
+                    .accessibilityLabel("Recording \(recordingSecondsLeft) seconds left")
 
-            HStack(spacing: 2) {
-                ForEach(0..<24, id: \.self) { i in
-                    Capsule()
-                        .fill(orange.opacity(0.55 + 0.35 * Double((i + Int(recordingElapsed * 8)) % 5) / 5))
-                        .frame(width: 3, height: CGFloat(8 + (i % 6) * 4))
-                }
-            }
-            .frame(height: 36)
+                voiceDots
+                    .frame(maxWidth: .infinity)
 
-            HStack(spacing: 16) {
-                Button(action: onCancelVoice) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color.red)
-                        .frame(width: 44, height: 44)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(Circle())
+                Button {
+                    viewOnce.toggle()
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } label: {
+                    viewOnceGlyph
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("View once")
+                .accessibilityAddTraits(viewOnce ? .isSelected : [])
+            }
 
-                Spacer()
+            HStack(alignment: .center) {
+                Button(action: onCancelVoice) {
+                    TTIcon(icon: .trash1, size: 22)
+                        .foregroundStyle(ink)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete recording")
+
+                Spacer(minLength: 0)
+
+                Button {
+                    if isRecordingPaused {
+                        onResumeVoice()
+                    } else {
+                        onPauseVoice()
+                    }
+                } label: {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.red, lineWidth: 2.5)
+                            .frame(width: 56, height: 56)
+                        TTIcon(
+                            icon: isRecordingPaused ? .play : .pause,
+                            filled: true,
+                            size: 18
+                        )
+                        .foregroundStyle(Color.red)
+                    }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isRecordingPaused ? "Resume recording" : "Pause recording")
+
+                Spacer(minLength: 0)
 
                 Button(action: onStopVoice) {
-                    Text("Send")
-                        .font(TTFont.workSans(15, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 12)
-                        .background(orange)
-                        .clipShape(Capsule())
+                    ZStack {
+                        Circle()
+                            .fill(orange)
+                            .frame(width: 48, height: 48)
+                        TTIcon(icon: .paperPlaneVertical, filled: true, size: 18)
+                            .foregroundStyle(.white)
+                    }
                 }
                 .buttonStyle(AssessmentCardPressStyle())
+                .accessibilityLabel("Send voice note")
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 12)
         }
-        .padding(.top, 12)
+        .padding(.horizontal, 22)
+        .padding(.top, 16)
+        .padding(.bottom, 18)
+    }
+
+    private var voiceDots: some View {
+        TimelineView(.animation(minimumInterval: isRecordingPaused ? 1 : 0.12, paused: isRecordingPaused)) { timeline in
+            let tick = isRecordingPaused ? recordingElapsed : timeline.date.timeIntervalSinceReferenceDate
+            HStack(spacing: 5) {
+                ForEach(0..<18, id: \.self) { i in
+                    Circle()
+                        .fill(dotColor(index: i, tick: tick))
+                        .frame(width: 5, height: 5)
+                }
+            }
+        }
+    }
+
+    private func dotColor(index: Int, tick: TimeInterval) -> Color {
+        let wave = (sin(tick * 6 + Double(index) * 0.55) + 1) / 2
+        let filled = !isRecordingPaused && wave > 0.42
+        return filled ? Color(white: 0.28) : Color(white: 0.72)
+    }
+
+    private var viewOnceGlyph: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0.12, to: 0.62)
+                .stroke(viewOnce ? orange : ink, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Circle()
+                .trim(from: 0.62, to: 1.08)
+                .stroke(
+                    viewOnce ? orange : ink,
+                    style: StrokeStyle(lineWidth: 1.6, lineCap: .round, dash: [2.2, 2.4])
+                )
+                .rotationEffect(.degrees(-90))
+            Text("1")
+                .font(TTFont.workSans(12, weight: .semibold))
+                .foregroundStyle(viewOnce ? orange : ink)
+        }
+        .frame(width: 26, height: 26)
     }
 
     private var placeholder: String {

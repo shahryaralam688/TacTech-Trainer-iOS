@@ -13,6 +13,7 @@ final class HumanChatStore {
     var messagesByPeer: [String: [HumanChatMessage]] = [:]
     var drafts: [String: String] = [:]
     var isRecording = false
+    var isRecordingPaused = false
     var recordingElapsed: TimeInterval = 0
     var lastError: String?
     var hapticTick = 0
@@ -585,10 +586,12 @@ final class HumanChatStore {
                 AVEncoderAudioQualityKey: AVAudioQuality.high.rawValue
             ]
             let recorder = try AVAudioRecorder(url: url, settings: settings)
-            recorder.record(forDuration: Self.maxRecordingSeconds)
+            recorder.isMeteringEnabled = true
+            recorder.record()
             audioRecorder = recorder
             recordingURL = url
             isRecording = true
+            isRecordingPaused = false
             recordingElapsed = 0
             haptic()
             startRecordingCapTimer()
@@ -608,7 +611,22 @@ final class HumanChatStore {
         recordingURL = nil
         activeRecordingPeerId = nil
         isRecording = false
+        isRecordingPaused = false
         recordingElapsed = 0
+    }
+
+    func pauseRecording() {
+        guard isRecording, !isRecordingPaused else { return }
+        audioRecorder?.pause()
+        isRecordingPaused = true
+        haptic()
+    }
+
+    func resumeRecording() {
+        guard isRecording, isRecordingPaused else { return }
+        audioRecorder?.record()
+        isRecordingPaused = false
+        haptic()
     }
 
     func armAutoSend(peerId: String) {
@@ -623,6 +641,7 @@ final class HumanChatStore {
         audioRecorder?.stop()
         audioRecorder = nil
         isRecording = false
+        isRecordingPaused = false
         recordingElapsed = 0
         activeRecordingPeerId = nil
         defer { recordingURL = nil }
@@ -856,6 +875,8 @@ final class HumanChatStore {
             while !Task.isCancelled {
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 guard self.isRecording, let recorder = self.audioRecorder else { return }
+                if self.isRecordingPaused { continue }
+                recorder.updateMeters()
                 self.recordingElapsed = min(recorder.currentTime, Self.maxRecordingSeconds)
                 if self.recordingElapsed >= Self.maxRecordingSeconds - 0.05,
                    let peerId = self.activeRecordingPeerId {

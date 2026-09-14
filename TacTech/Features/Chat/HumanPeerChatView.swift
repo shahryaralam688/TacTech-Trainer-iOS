@@ -430,6 +430,7 @@ struct HumanPeerChatView: View {
                 isFocused: $composerFocused,
                 peerName: peer.name,
                 isRecording: chatStore.isRecording,
+                isRecordingPaused: chatStore.isRecordingPaused,
                 recordingSecondsLeft: chatStore.recordingSecondsLeft,
                 recordingElapsed: chatStore.recordingElapsed,
                 replyDraft: chatStore.replyDraft,
@@ -463,6 +464,12 @@ struct HumanPeerChatView: View {
                 },
                 onCancelVoice: {
                     chatStore.cancelRecording()
+                },
+                onPauseVoice: {
+                    chatStore.pauseRecording()
+                },
+                onResumeVoice: {
+                    chatStore.resumeRecording()
                 }
             )
         }

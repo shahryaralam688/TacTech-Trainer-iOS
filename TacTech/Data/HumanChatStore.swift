@@ -42,9 +42,35 @@ final class HumanChatStore {
     private var recordLimitTask: Task<Void, Never>?
     private var audioPlayer: AVAudioPlayer?
     private var activeRecordingPeerId: String?
+    private var voiceProgressTask: Task<Void, Never>?
+    private var voiceDelegate = HumanChatVoicePlayerDelegate()
+    private var listenedVoiceIds: Set<String> = []
+    private let listenedKey = "humanChat.listenedVoiceIds"
+
+    var playingVoiceId: String?
+    var voiceIsPlaying = false
+    var voiceProgress: Double = 0
+    var voiceElapsed: TimeInterval = 0
+    var voiceDuration: TimeInterval = 0
+    var voiceRate: Float = 1.0
+
+    var voiceRateLabel: String {
+        if voiceRate >= 1.75 { return "2x" }
+        if voiceRate >= 1.25 { return "1.5x" }
+        return "1x"
+    }
 
     var recordingSecondsLeft: Int {
         max(0, Int((Self.maxRecordingSeconds - recordingElapsed).rounded(.up)))
+    }
+
+    private init() {
+        if let stored = UserDefaults.standard.array(forKey: listenedKey) as? [String] {
+            listenedVoiceIds = Set(stored)
+        }
+        voiceDelegate.onFinish = { [weak self] in
+            self?.voiceDidFinishPlaying()
+        }
     }
 
     // MARK: - Lifecycle
@@ -559,6 +585,7 @@ final class HumanChatStore {
 
     func startRecording() async {
         guard !isRecording else { return }
+        stopVoicePlayback()
         do {
             let permission = AVAudioApplication.shared.recordPermission
             if permission == .denied {
@@ -656,31 +683,154 @@ final class HumanChatStore {
     }
 
     func playVoice(_ message: HumanChatMessage) {
-        guard let url = resolveMediaURL(message) else { return }
+        toggleVoice(message)
+    }
+
+    func hasListened(to id: String) -> Bool {
+        listenedVoiceIds.contains(id)
+    }
+
+    func toggleVoice(_ message: HumanChatMessage) {
+        if playingVoiceId == message.id {
+            if voiceIsPlaying {
+                audioPlayer?.pause()
+                voiceIsPlaying = false
+                voiceProgressTask?.cancel()
+            } else {
+                audioPlayer?.play()
+                voiceIsPlaying = true
+                startVoiceProgressLoop()
+            }
+            return
+        }
+        Task { await startVoice(message) }
+    }
+
+    func seekVoice(_ message: HumanChatMessage, progress: Double) {
+        let clamped = max(0, min(1, progress))
+        if playingVoiceId != message.id {
+            Task {
+                await startVoice(message, autoplay: false)
+                applySeek(clamped)
+            }
+            return
+        }
+        applySeek(clamped)
+    }
+
+    func cycleVoiceRate() {
+        if voiceRate < 1.25 {
+            voiceRate = 1.5
+        } else if voiceRate < 1.75 {
+            voiceRate = 2.0
+        } else {
+            voiceRate = 1.0
+        }
+        audioPlayer?.enableRate = true
+        audioPlayer?.rate = voiceRate
+    }
+
+    func stopVoicePlayback() {
+        voiceProgressTask?.cancel()
+        voiceProgressTask = nil
+        audioPlayer?.stop()
+        audioPlayer = nil
+        playingVoiceId = nil
+        voiceIsPlaying = false
+        voiceProgress = 0
+        voiceElapsed = 0
+        voiceDuration = 0
+    }
+
+    private func startVoice(_ message: HumanChatMessage, autoplay: Bool = true) async {
+        guard let url = resolveMediaURL(message) else {
+            lastError = "Voice note isn’t available yet."
+            return
+        }
+        stopVoicePlayback()
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default)
+            try session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker])
             try session.setActive(true)
-            if url.isFileURL {
-                audioPlayer = try AVAudioPlayer(contentsOf: url)
-                audioPlayer?.play()
+            let fileURL = try await localVoiceURL(from: url)
+            let player = try AVAudioPlayer(contentsOf: fileURL)
+            player.enableRate = true
+            player.rate = voiceRate
+            player.delegate = voiceDelegate
+            audioPlayer = player
+            playingVoiceId = message.id
+            voiceDuration = player.duration > 0 ? player.duration : (message.durationSeconds ?? 0)
+            voiceElapsed = 0
+            voiceProgress = 0
+            markListened(message.id)
+            if autoplay {
+                player.play()
+                voiceIsPlaying = true
+                startVoiceProgressLoop()
             } else {
-                // Remote — download then play
-                Task {
-                    let (data, _) = try await URLSession.shared.data(from: url)
-                    let temp = FileManager.default.temporaryDirectory
-                        .appendingPathComponent("voice-play-\(UUID().uuidString).m4a")
-                    try data.write(to: temp)
-                    await MainActor.run {
-                        self.audioPlayer = try? AVAudioPlayer(contentsOf: temp)
-                        self.audioPlayer?.play()
-                    }
-                }
+                voiceIsPlaying = false
             }
             haptic()
         } catch {
             lastError = "Couldn’t play voice note."
+            stopVoicePlayback()
         }
+    }
+
+    private func applySeek(_ progress: Double) {
+        guard let player = audioPlayer else { return }
+        let duration = max(player.duration, 0.01)
+        player.currentTime = duration * progress
+        voiceElapsed = player.currentTime
+        voiceProgress = progress
+        voiceDuration = duration
+    }
+
+    private func startVoiceProgressLoop() {
+        voiceProgressTask?.cancel()
+        voiceProgressTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 50_000_000)
+                guard let self, self.voiceIsPlaying, let player = self.audioPlayer else { return }
+                let duration = max(player.duration, 0.01)
+                self.voiceElapsed = player.currentTime
+                self.voiceDuration = duration
+                self.voiceProgress = min(1, player.currentTime / duration)
+            }
+        }
+    }
+
+    private func voiceDidFinishPlaying() {
+        let finishedId = playingVoiceId
+        let peerId = messagesByPeer.first { _, list in
+            list.contains(where: { $0.id == finishedId })
+        }?.key
+        stopVoicePlayback()
+        guard let finishedId, let peerId,
+              let next = nextConsecutiveVoice(after: finishedId, peerId: peerId) else { return }
+        Task { await startVoice(next) }
+    }
+
+    private func nextConsecutiveVoice(after id: String, peerId: String) -> HumanChatMessage? {
+        guard let list = messagesByPeer[peerId],
+              let idx = list.firstIndex(where: { $0.id == id }),
+              idx + 1 < list.count else { return nil }
+        let next = list[idx + 1]
+        return next.kind == .voice ? next : nil
+    }
+
+    private func markListened(_ id: String) {
+        listenedVoiceIds.insert(id)
+        UserDefaults.standard.set(Array(listenedVoiceIds), forKey: listenedKey)
+    }
+
+    private func localVoiceURL(from url: URL) async throws -> URL {
+        if url.isFileURL { return url }
+        let (data, _) = try await URLSession.shared.data(from: url)
+        let temp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voice-play-\(UUID().uuidString).m4a")
+        try data.write(to: temp, options: .atomic)
+        return temp
     }
 
     func resolveMediaURL(_ message: HumanChatMessage) -> URL? {
@@ -936,6 +1086,16 @@ final class HumanChatStore {
     private static func userFacing(_ error: Error) -> String {
         if let app = error as? AppError { return app.errorDescription ?? "Something went wrong." }
         return error.localizedDescription
+    }
+}
+
+final class HumanChatVoicePlayerDelegate: NSObject, AVAudioPlayerDelegate {
+    var onFinish: (@MainActor () -> Void)?
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        Task { @MainActor in
+            onFinish?()
+        }
     }
 }
 

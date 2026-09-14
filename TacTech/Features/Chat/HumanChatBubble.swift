@@ -271,32 +271,14 @@ struct HumanChatBubble: View {
     }
 
     private var voiceBlock: some View {
-        Button { onPlayVoice?() } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "play.fill")
-                    .font(.system(size: 12, weight: .bold))
-                HStack(spacing: 2) {
-                    ForEach(0..<12, id: \.self) { i in
-                        Capsule()
-                            .fill(isOutgoing ? Color.white.opacity(0.85) : orange.opacity(0.7))
-                            .frame(width: 2.5, height: CGFloat(8 + (i % 5) * 3))
-                    }
-                }
-                Text(Self.formatDuration(message.durationSeconds ?? 0))
-                    .font(TTFont.workSans(13, weight: .medium))
-                Spacer(minLength: 4)
-                inlineMeta
-            }
-            .foregroundStyle(isOutgoing ? Color.white : ink)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(isOutgoing ? Color.black : Color.white.opacity(0.95))
-            .clipShape(bubbleShape)
-            .overlay(
-                bubbleShape.stroke(isOutgoing ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
-            )
+        HumanChatVoiceNoteView(message: message) {
+            inlineMeta
         }
-        .buttonStyle(.plain)
+        .clipShape(bubbleShape)
+        .overlay(
+            bubbleShape.stroke(isOutgoing ? Color.clear : Color.black.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(isOutgoing ? 0.10 : 0.04), radius: 6, y: 2)
     }
 
     private var callEventChip: some View {

@@ -48,7 +48,12 @@ struct TraineeRootView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .padding(.bottom, TTFloatingTabBar<TraineeTab>.barBodyHeight + geo.safeAreaInsets.bottom)
+                    // Keep scroll content clear of the floating bar without painting an opaque bottom plate.
+                    .contentMargins(
+                        .bottom,
+                        TTFloatingTabBar<TraineeTab>.barBodyHeight + geo.safeAreaInsets.bottom,
+                        for: .scrollContent
+                    )
 
                     TTFloatingTabBar(
                         tabs: tabs,
@@ -60,6 +65,7 @@ struct TraineeRootView: View {
                         isCenterMenuPresented: showLiquidMenu,
                         liquidFABNamespace: liquidFABNamespace
                     )
+                    .background(Color.clear)
                     .zIndex(20)
                 }
             }

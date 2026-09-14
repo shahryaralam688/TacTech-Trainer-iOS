@@ -48,17 +48,23 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     private let floatGap: CGFloat = 10
     private let centerSize: CGFloat = 54
     private let fabCorner: CGFloat = 16
-    /// Clear air between FAB bottom and notch floor — FAB never touches the bar.
-    private let fabLift: CGFloat = 30
     private let iconSize: CGFloat = 23
     private let indicatorWidth: CGFloat = 14
     private let indicatorHeight: CGFloat = 3
 
+    /// Even air between FAB and notch walls (left / right / bottom).
+    private let notchGap: CGFloat = 5
+    private var notchWidth: CGFloat { centerSize + notchGap * 2 }
+    private var notchDepth: CGFloat { 22 }
+    private var notchCorner: CGFloat { 14 }
+    /// Chrome height reserved above the capsule so the FAB isn’t clipped.
+    private var fabLift: CGFloat { max(0, centerSize - notchDepth + notchGap) }
+
     /// Solid capsule height (excludes FAB overhang). Use for content bottom padding.
     static var barBodyHeight: CGFloat { 64 + 10 } // bar + floatGap
-    static var contentHeight: CGFloat { 30 + 64 }
+    static var contentHeight: CGFloat { 54 - 22 + 5 + 64 }
     static var centerFABSize: CGFloat { 54 }
-    static var fabLiftAmount: CGFloat { 30 }
+    static var fabLiftAmount: CGFloat { 54 - 22 + 5 }
     /// Overlay FAB bottom padding above the home-indicator so it sits on the cradle +.
     static var liquidMenuFABBottomReserve: CGFloat {
         barBodyHeight - centerFABSize + fabLiftAmount
@@ -66,12 +72,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
-
-    /// Even air between FAB and notch walls (matches prior side padding: +18 → 9pt each side).
-    private let notchGap: CGFloat = 9
-    private var notchWidth: CGFloat { centerSize + notchGap * 2 }
-    private var notchDepth: CGFloat { 22 }
-    private var notchCorner: CGFloat { 14 }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -119,6 +119,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 .frame(height: floatGap + max(bottomInset, 0))
                 .frame(maxWidth: .infinity)
         }
+        .background(Color.clear)
         .accessibilityElement(children: .contain)
     }
 

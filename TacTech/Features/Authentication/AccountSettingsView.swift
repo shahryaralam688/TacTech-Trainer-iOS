@@ -239,9 +239,7 @@ struct AccountSettingsView: View {
         onChange: (() -> Void)? = nil
     ) -> some View {
         settingsRowLabel(title: title, icon: icon) {
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(orange)
+            LiquidToggle(isOn: isOn)
                 .onChange(of: isOn.wrappedValue) { _, _ in
                     onChange?()
                 }

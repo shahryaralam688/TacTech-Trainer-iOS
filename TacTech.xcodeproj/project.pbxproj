@@ -52,6 +52,7 @@
 		621BC6B0D47F0397E266D538 /* TTHomeDelight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */; };
 		7F8CA99BFCD44D3B94C548DF /* TTHomeWeekDatePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1456FDE2CBD4B0BAE038892 /* TTHomeWeekDatePicker.swift */; };
 		64186321768AC96A8068BD80 /* TrainerAssessmentFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A09753121017CBB68B8E7CD /* TrainerAssessmentFlowView.swift */; };
+		D71A1B58D7E0483CBE4065D8 /* LiquidToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D918FC1955411692C4142C /* LiquidToggle.swift */; };
 		64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */; };
 		665025A3D8DAC2F3F326E3B2 /* AuthFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7586A4F9CE79519D67E7D4D /* AuthFlowView.swift */; };
 		667EDB2C1669E01633B86D66 /* ExerciseTemplatePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 699B09E4A75C8200D9F20B6A /* ExerciseTemplatePickerView.swift */; };
@@ -139,6 +140,7 @@
 		51D18072B70BC4D551D23BB1 /* ChatRealtimeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatRealtimeClient.swift; sourceTree = "<group>"; };
 		587AE07BF381E435AE227C43 /* TacTechApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TacTechApp.swift; sourceTree = "<group>"; };
 		5943777C53E4CB6028659535 /* SubmitFeedbackView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubmitFeedbackView.swift; sourceTree = "<group>"; };
+		C5D918FC1955411692C4142C /* LiquidToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidToggle.swift; sourceTree = "<group>"; };
 		5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTComponents.swift; sourceTree = "<group>"; };
 		5AF0347D57808A216A1EE6F0 /* PushNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationDelegate.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
@@ -227,6 +229,7 @@
 				D0E7B31ACC360641D9625359 /* SandowIcons.swift */,
 				9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */,
 				63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */,
+				C5D918FC1955411692C4142C /* LiquidToggle.swift */,
 				5A0BC78835ED91AA6C7C6A39 /* TTComponents.swift */,
 				8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */,
 				42EC3BE0D2873E72B0A85B36 /* TTHomeHeader.swift */,
@@ -581,6 +584,7 @@
 				71EB4859F2974163E39C41B8 /* SubmitFeedbackView.swift in Sources */,
 				A64A35551AA30A0252359CB2 /* TTAICoachChat.swift in Sources */,
 				F1A5BAA746E510486F5D4A76 /* TTAvatarPicker.swift in Sources */,
+				D71A1B58D7E0483CBE4065D8 /* LiquidToggle.swift in Sources */,
 				64C7549353657FBA60F567E3 /* TTComponents.swift in Sources */,
 				621BC6B0D47F0397E266D538 /* TTHomeDelight.swift in Sources */,
 				31F0C64E3911E3079F3E134D /* TTHomeHeader.swift in Sources */,

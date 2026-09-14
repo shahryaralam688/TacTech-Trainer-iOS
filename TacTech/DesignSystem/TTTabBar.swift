@@ -236,7 +236,12 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     }
 
     private var centerButton: some View {
-        Button(action: onCenterTap) {
+        Button {
+            #if canImport(UIKit)
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            #endif
+            onCenterTap()
+        } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: fabCorner, style: .continuous)
                     .fill(TTColor.actionOrange)

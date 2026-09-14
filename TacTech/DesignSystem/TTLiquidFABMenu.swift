@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Model
 
@@ -90,7 +93,6 @@ struct TTLiquidFABOverlay: View {
     @State private var fabBoost = false
     @State private var liquidWave = false
     @State private var highlightedId: String?
-    @State private var appearTick = 0
 
     private let orange = TTColor.actionOrange
     private let fabSize: CGFloat = TTFloatingTabBar<Int>.centerFABSize
@@ -128,7 +130,6 @@ struct TTLiquidFABOverlay: View {
             }
             .ignoresSafeArea()
         }
-        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.8), trigger: appearTick)
         .sensoryFeedback(.selection, trigger: highlightedId)
         .onAppear { present() }
     }
@@ -139,7 +140,6 @@ struct TTLiquidFABOverlay: View {
         if reduceMotion {
             expanded = true
             scrimVisible = true
-            appearTick += 1
             return
         }
         // Tiny kick so the FAB feels alive before pills pour out.
@@ -151,7 +151,6 @@ struct TTLiquidFABOverlay: View {
             scrimVisible = true
             liquidWave = true
         }
-        appearTick += 1
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                 // Keep a gentle liquid breathe while open.
@@ -161,6 +160,9 @@ struct TTLiquidFABOverlay: View {
     }
 
     private func dismiss(completion: (() -> Void)? = nil) {
+        #if canImport(UIKit)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        #endif
         let collapse = reduceMotion ? Animation.easeOut(duration: 0.14) : closeSpring
         withAnimation(collapse) {
             expanded = false

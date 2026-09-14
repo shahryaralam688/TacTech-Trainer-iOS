@@ -1565,16 +1565,10 @@ struct AssessmentRadio: View {
     var onDark: Bool = false
 
     var body: some View {
-        ZStack {
-            Circle()
-                .stroke(onDark && selected ? AssessmentColor.white : AssessmentColor.line, lineWidth: 1.6)
-            if selected {
-                Circle()
-                    .fill(onDark ? AssessmentColor.white : AssessmentColor.orange)
-                    .padding(5)
-            }
-        }
-        .frame(width: 22, height: 22)
+        TTRadioIndicator(
+            isSelected: selected,
+            surface: onDark ? .onAccent : .standard
+        )
     }
 }
 

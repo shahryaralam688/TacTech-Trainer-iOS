@@ -482,10 +482,7 @@ private struct RolePathCard: View {
 
                         Spacer(minLength: 8)
 
-                        Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
-                            .font(TTFont.workSans(22, weight: .semibold))
-                            .foregroundStyle(isSelected ? orange : Color(white: 0.72))
-                            .symbolEffect(.bounce, value: isSelected)
+                        TTRadioIndicator(isSelected: isSelected)
                     }
 
                     VStack(alignment: .leading, spacing: 5) {

@@ -306,9 +306,10 @@ private struct CertificationPickCard: View {
 
                     Spacer(minLength: 8)
 
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(TTFont.workSans(20, weight: .semibold))
-                        .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
+                    TTCheckboxMark(
+                        isOn: selected,
+                        surface: selected ? .onAccent : .standard
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -435,10 +436,10 @@ private struct SpecialtyPickRow: View {
 
                 Spacer(minLength: 8)
 
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(TTFont.workSans(22, weight: .semibold))
-                    .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
-                    .symbolEffect(.bounce, value: selected)
+                TTRadioIndicator(
+                    isSelected: selected,
+                    surface: selected ? .onAccent : .standard
+                )
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 14)
@@ -552,10 +553,10 @@ private struct ClientTypePickCard: View {
 
                     Spacer(minLength: 8)
 
-                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                        .font(TTFont.workSans(20, weight: .semibold))
-                        .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
-                        .symbolEffect(.bounce, value: selected)
+                    TTCheckboxMark(
+                        isOn: selected,
+                        surface: selected ? .onAccent : .standard
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: 4) {

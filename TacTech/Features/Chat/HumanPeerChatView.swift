@@ -31,6 +31,8 @@ struct HumanPeerChatView: View {
     @State private var failedActionMessage: HumanChatMessage?
     @State private var jumpBottomTick = 0
     @State private var capabilityToast: TTToastMessage?
+    /// False until the first inbox bootstrap finishes — avoids treating uninitialized peers as empty.
+    @State private var hasFinishedInitialLoad = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -101,6 +103,8 @@ struct HumanPeerChatView: View {
         .task {
             chatStore.lastError = nil
             await chatStore.bootstrap()
+            // Mark settled even if follow-up openThread is cancelled — empty vs populated is known.
+            hasFinishedInitialLoad = true
             guard !Task.isCancelled else { return }
             if let preferredThreadId,
                let peerId = chatStore.peerUserId(forThreadId: preferredThreadId)
@@ -245,7 +249,11 @@ struct HumanPeerChatView: View {
             )
 
             if peers.isEmpty {
-                emptyInbox
+                if hasFinishedInitialLoad {
+                    emptyInbox
+                } else {
+                    inboxLoading
+                }
             } else {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 10) {
@@ -264,6 +272,12 @@ struct HumanPeerChatView: View {
                 .refreshable { await chatStore.refreshInbox(quiet: true) }
             }
         }
+    }
+
+    private var inboxLoading: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel("Loading")
     }
 
     private var emptyInbox: some View {

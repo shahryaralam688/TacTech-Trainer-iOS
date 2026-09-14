@@ -840,8 +840,14 @@ final class HumanChatStore {
     }
 
     func resolveMediaURL(_ message: HumanChatMessage) -> URL? {
-        if let remote = message.remoteMediaUrl, let url = URL(string: remote) {
-            return url
+        if let remote = message.remoteMediaUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !remote.isEmpty {
+            if let absolute = URL(string: remote), absolute.scheme != nil {
+                return absolute
+            }
+            if let relative = URL(string: remote, relativeTo: APIConfig.baseURL)?.absoluteURL {
+                return relative
+            }
         }
         if let path = message.localMediaPath {
             if path.hasPrefix("/") { return URL(fileURLWithPath: path) }
@@ -854,6 +860,31 @@ final class HumanChatStore {
         guard let url = resolveMediaURL(message), url.isFileURL,
               let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
+    }
+
+    /// Loads local or remote chat image (Bearer + ngrok headers when needed).
+    func fetchImage(_ message: HumanChatMessage) async -> UIImage? {
+        if let local = loadImage(message) { return local }
+        guard let url = resolveMediaURL(message) else { return nil }
+        if url.isFileURL {
+            guard let data = try? Data(contentsOf: url) else { return nil }
+            return UIImage(data: data)
+        }
+        var request = URLRequest(url: url)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
+        if let token = TokenStore.accessToken() {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                return nil
+            }
+            return UIImage(data: data)
+        } catch {
+            return nil
+        }
     }
 
     // MARK: - Realtime + poll

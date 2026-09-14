@@ -19,9 +19,12 @@ struct HumanChatBubble: View {
     var onReact: ((String) -> Void)?
     var onCopy: (() -> Void)?
     var onQuoteTap: (() -> Void)?
+    /// Async remote/local image loader (chat store). Falls back to `image` / `mediaURL`.
+    var loadFullscreenImage: (() async -> UIImage?)? = nil
 
     @State private var expanded = false
     @State private var dragOffset: CGFloat = 0
+    @State private var resolvedImage: UIImage?
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
@@ -224,26 +227,57 @@ struct HumanChatBubble: View {
 
     @ViewBuilder
     private var imageBlock: some View {
-        if let image {
-            Button { onFullscreenImage?(image) } label: {
-                Image(uiImage: image)
+        Button {
+            if let resolvedImage {
+                onFullscreenImage?(resolvedImage)
+            }
+        } label: {
+            if let resolvedImage {
+                Image(uiImage: resolvedImage)
                     .resizable()
                     .scaledToFill()
                     .frame(maxWidth: 210, maxHeight: 210)
+            } else {
+                placeholderThumb(systemName: "photo")
             }
-            .buttonStyle(.plain)
-        } else if let mediaURL, !mediaURL.isFileURL {
-            AsyncImage(url: mediaURL) { phase in
-                switch phase {
-                case .success(let img):
-                    img.resizable().scaledToFill().frame(maxWidth: 210, maxHeight: 210)
-                default:
-                    placeholderThumb(systemName: "photo")
-                }
-            }
-        } else {
-            placeholderThumb(systemName: "photo")
         }
+        .buttonStyle(.plain)
+        .disabled(resolvedImage == nil)
+        .task(id: imageCacheKey) {
+            if let image {
+                resolvedImage = image
+                return
+            }
+            if let loadFullscreenImage {
+                resolvedImage = await loadFullscreenImage()
+                return
+            }
+            guard let mediaURL else {
+                resolvedImage = nil
+                return
+            }
+            if mediaURL.isFileURL {
+                if let data = try? Data(contentsOf: mediaURL) {
+                    resolvedImage = UIImage(data: data)
+                }
+                return
+            }
+            do {
+                var request = URLRequest(url: mediaURL)
+                request.setValue(APIConfig.skipBrowserWarningValue, forHTTPHeaderField: APIConfig.skipBrowserWarningHeader)
+                if let token = TokenStore.accessToken() {
+                    request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                }
+                let (data, _) = try await URLSession.shared.data(for: request)
+                resolvedImage = UIImage(data: data)
+            } catch {
+                resolvedImage = nil
+            }
+        }
+    }
+
+    private var imageCacheKey: String {
+        "\(message.id)|\(image != nil)|\(mediaURL?.absoluteString ?? "")"
     }
 
     @ViewBuilder

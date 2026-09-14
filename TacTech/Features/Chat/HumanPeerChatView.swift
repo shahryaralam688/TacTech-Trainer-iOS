@@ -83,7 +83,21 @@ struct HumanPeerChatView: View {
             } else {
                 inboxColumn
             }
+
+            // Overlay (not nested fullScreenCover) — chat itself is already a cover.
+            if let fullscreenImage {
+                chatImageLightbox(fullscreenImage)
+                    .transition(.opacity)
+                    .zIndex(2_000)
+            }
+            if let videoPlayerURL {
+                chatVideoLightbox(videoPlayerURL)
+                    .transition(.opacity)
+                    .zIndex(2_001)
+            }
         }
+        .animation(.easeInOut(duration: 0.2), value: fullscreenImage != nil)
+        .animation(.easeInOut(duration: 0.2), value: videoPlayerURL != nil)
         .task {
             chatStore.lastError = nil
             await chatStore.bootstrap()
@@ -133,53 +147,6 @@ struct HumanPeerChatView: View {
             CameraImagePicker(image: $cameraImage)
                 .ignoresSafeArea()
         }
-        .fullScreenCover(isPresented: Binding(
-            get: { fullscreenImage != nil },
-            set: { if !$0 { fullscreenImage = nil } }
-        )) {
-            ZStack {
-                Color.black.ignoresSafeArea()
-                if let fullscreenImage {
-                    Image(uiImage: fullscreenImage)
-                        .resizable()
-                        .scaledToFit()
-                        .ignoresSafeArea()
-                }
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button {
-                            fullscreenImage = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                        .padding()
-                    }
-                    Spacer()
-                }
-            }
-        }
-        .fullScreenCover(isPresented: Binding(
-            get: { videoPlayerURL != nil },
-            set: { if !$0 { videoPlayerURL = nil } }
-        )) {
-            if let videoPlayerURL {
-                VideoPlayer(player: AVPlayer(url: videoPlayerURL))
-                    .ignoresSafeArea()
-                    .overlay(alignment: .topTrailing) {
-                        Button {
-                            self.videoPlayerURL = nil
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 28))
-                                .foregroundStyle(.white)
-                                .padding()
-                        }
-                    }
-            }
-        }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.55), trigger: chatStore.hapticTick)
         // WhatsApp-style: no blocking “Chat” alert on open/sync.
         // Failed sends use the bubble “Message failed” sheet; capability errors use a soft toast.
@@ -211,6 +178,59 @@ struct HumanPeerChatView: View {
             Button("Cancel", role: .cancel) { failedActionMessage = nil }
         } message: {
             Text("This message wasn’t delivered.")
+        }
+    }
+
+    private func chatImageLightbox(_ image: UIImage) -> some View {
+        ZStack {
+            Color.black.opacity(0.96).ignoresSafeArea()
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .padding(.horizontal, 8)
+                .ignoresSafeArea()
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        fullscreenImage = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.white.opacity(0.92))
+                            .padding(16)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                }
+                Spacer()
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture { fullscreenImage = nil }
+    }
+
+    private func chatVideoLightbox(_ url: URL) -> some View {
+        ZStack {
+            Color.black.ignoresSafeArea()
+            VideoPlayer(player: AVPlayer(url: url))
+                .ignoresSafeArea()
+            VStack {
+                HStack {
+                    Spacer()
+                    Button {
+                        videoPlayerURL = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 28))
+                            .foregroundStyle(.white)
+                            .padding(16)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Close")
+                }
+                Spacer()
+            }
         }
     }
 
@@ -516,7 +536,10 @@ struct HumanPeerChatView: View {
                     if let id = message.replyToId {
                         highlightMessageId = id
                     }
-                }
+                },
+                loadFullscreenImage: message.kind == .image
+                    ? { await chatStore.fetchImage(message) }
+                    : nil
             )
             .id(message.id)
             .transition(enableListMotion && !reduceMotion ? .opacity.combined(with: .move(edge: .bottom)) : .identity)

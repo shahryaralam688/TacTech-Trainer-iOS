@@ -460,7 +460,7 @@ struct ExperienceStep: View {
                 .scaledToFit()
                 .frame(maxWidth: 340)
                 .frame(maxHeight: 360)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, TTSpace.screen)
 
             Spacer(minLength: 12)
 
@@ -523,7 +523,7 @@ struct FitnessLevelStep: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 24)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, TTSpace.screen)
 
             HStack(spacing: 8) {
                 TTIcon(icon: .questionMarkCircle, size: 16)

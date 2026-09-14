@@ -147,7 +147,7 @@ struct ProfileCompletionFlowView: View {
             .frame(height: 4)
             .padding(.horizontal, 2)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .padding(.top, 8)
         .padding(.bottom, 6)
     }

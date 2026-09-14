@@ -505,7 +505,7 @@ func trainerListHeader(
             .allowsHitTesting(!isMenuOpen)
         }
     }
-    .padding(.horizontal, 20)
+    .padding(.horizontal, TTSpace.screen)
     .padding(.top, 14 - 4 * p)
     .padding(.bottom, 20 - 8 * p)
     .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .bottomLeading)

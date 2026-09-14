@@ -77,22 +77,124 @@ enum TTColor {
     static let neuDark = Color.black.opacity(0.10)
 }
 
-// MARK: Spacing (4pt grid)
+// MARK: Spacing — 8pt grid
+//
+// Base mobile viewport: 375 × 812.
+// Outer containers: mandatory 16pt horizontal screen margin (`TTSpace.screen`).
+// Micro (< 8): 2 / 4 / 6 for sub-element gaps.
+// Layout hierarchy & component paddings (doubling): 8 / 16 / 32 / 64 / 128.
+// Structure: 4 equal columns — see `TTGrid`.
 
 enum TTSpace {
-    static let xxs: CGFloat = 4
-    static let xs: CGFloat = 8
-    static let sm: CGFloat = 12
-    static let md: CGFloat = 16
-    static let lg: CGFloat = 20
-    static let xl: CGFloat = 24
-    static let xxl: CGFloat = 32
-    static let xxxl: CGFloat = 40
+    // Micro — sub-element gaps below 8pt
+    static let micro2: CGFloat = 2
+    static let micro4: CGFloat = 4
+    static let micro6: CGFloat = 6
 
-    static let screen: CGFloat = 20
-    static let fieldHeight: CGFloat = 54
+    // Double-scale layout steps
+    static let s8: CGFloat = 8
+    static let s16: CGFloat = 16
+    static let s32: CGFloat = 32
+    static let s64: CGFloat = 64
+    static let s128: CGFloat = 128
+
+    // Semantic aliases (map onto micro + double scale)
+    static let xxs: CGFloat = micro2
+    static let xs: CGFloat = micro4
+    static let sm: CGFloat = micro6
+    static let md: CGFloat = s8
+    static let lg: CGFloat = s16
+    static let xl: CGFloat = s32
+    static let xxl: CGFloat = s64
+    static let xxxl: CGFloat = s128
+
+    /// Mandatory outer horizontal margin for screen containers.
+    static let screen: CGFloat = s16
+
+    static let fieldHeight: CGFloat = 56
     static let buttonHeight: CGFloat = 56
-    static let heroButtonHeight: CGFloat = 58
+    static let heroButtonHeight: CGFloat = s64
+}
+
+// MARK: Layout grid (4-column)
+
+/// 4-column aligned layout helpers for the 8pt system.
+enum TTGrid {
+    static let baseWidth: CGFloat = 375
+    static let baseHeight: CGFloat = 812
+    static let columns: Int = 4
+    static let gutter: CGFloat = TTSpace.s8
+    static let margin: CGFloat = TTSpace.screen
+
+    /// Inner content width at the base viewport (375 − 2×16).
+    static var contentWidth: CGFloat { baseWidth - margin * 2 }
+
+    /// Column width from a full container width (margins applied).
+    static func columnWidth(
+        in containerWidth: CGFloat,
+        columns: Int = columns,
+        gutter: CGFloat = gutter,
+        margin: CGFloat = margin
+    ) -> CGFloat {
+        columnWidth(innerWidth: max(containerWidth - margin * 2, 0), columns: columns, gutter: gutter)
+    }
+
+    /// Column width when the parent is already inset by `TTSpace.screen`.
+    static func columnWidth(
+        innerWidth: CGFloat,
+        columns: Int = columns,
+        gutter: CGFloat = gutter
+    ) -> CGFloat {
+        let gutters = CGFloat(max(columns - 1, 0)) * gutter
+        return max((innerWidth - gutters) / CGFloat(max(columns, 1)), 0)
+    }
+
+    /// Width spanning `span` columns (including gutters between them).
+    static func spanWidth(
+        _ span: Int,
+        in containerWidth: CGFloat,
+        columns: Int = columns,
+        gutter: CGFloat = gutter,
+        margin: CGFloat = margin
+    ) -> CGFloat {
+        spanWidth(span, innerWidth: max(containerWidth - margin * 2, 0), columns: columns, gutter: gutter)
+    }
+
+    static func spanWidth(
+        _ span: Int,
+        innerWidth: CGFloat,
+        columns: Int = columns,
+        gutter: CGFloat = gutter
+    ) -> CGFloat {
+        let clamped = min(max(span, 1), columns)
+        let col = columnWidth(innerWidth: innerWidth, columns: columns, gutter: gutter)
+        return col * CGFloat(clamped) + gutter * CGFloat(clamped - 1)
+    }
+}
+
+/// Four equal columns with 8pt gutters; place inside a horizontally margin-inset container.
+struct TTGridRow<Content: View>: View {
+    var spacing: CGFloat = TTGrid.gutter
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .top, spacing: spacing) {
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension View {
+    /// Mandatory 16pt horizontal screen margin for outer containers.
+    func ttScreenMargins() -> some View {
+        padding(.horizontal, TTSpace.screen)
+    }
+
+    /// Fixed width for `span` of 4 grid columns inside an already margin-inset row.
+    func ttGridSpan(_ span: Int, innerWidth: CGFloat) -> some View {
+        frame(width: TTGrid.spanWidth(span, innerWidth: innerWidth))
+    }
 }
 
 // MARK: Corner radius
@@ -528,7 +630,7 @@ extension View {
         )
     }
 
-    func ttCard(padding: CGFloat = TTSpace.md) -> some View {
+    func ttCard(padding: CGFloat = TTSpace.lg) -> some View {
         self
             .padding(padding)
             .background(TTColor.surface)

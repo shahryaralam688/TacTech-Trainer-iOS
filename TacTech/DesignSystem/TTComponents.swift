@@ -142,7 +142,7 @@ struct TTDarkPageHeader: View {
                 .offset(x: titleOffsetX, y: titleOffsetY)
         }
         .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .topLeading)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .padding(.top, 10 - 2 * p)
         .padding(.bottom, 16 - 6 * p)
         .background {
@@ -613,7 +613,7 @@ enum TTSheetChrome {
 /// Shared chrome for modal `.sheet` presentations (Create Plan, library, assign, inbox, …).
 enum TTModalSheetChrome {
     /// Side inset — matches content cards so back square lines up with card edges.
-    static let horizontalPadding: CGFloat = 20
+    static let horizontalPadding: CGFloat = TTSpace.screen
     /// Equal top/bottom inset around header controls.
     static let headerVerticalPadding: CGFloat = 16
     static let headerSpacing: CGFloat = 14
@@ -851,7 +851,7 @@ struct TTToastBanner: View {
         .background(background)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.22), radius: 16, y: 8)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .accessibilityAddTraits(.isStaticText)
     }
 

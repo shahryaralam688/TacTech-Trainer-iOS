@@ -100,7 +100,7 @@ struct TrainerAssessmentFlowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .padding(.top, 6)
         .padding(.bottom, 8)
     }
@@ -1240,7 +1240,7 @@ private func title(_ text: String) -> some View {
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
         .padding(.top, 24)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
 }
 
 #Preview("Trainer Assessment") {

@@ -33,7 +33,7 @@ struct NutritionView: View {
                         suggestedMeal
                         browseMeals
                     }
-                    .padding(.horizontal, 20)
+                    .padding(.horizontal, TTSpace.screen)
                     .padding(.top, 20)
                     .padding(.bottom, 36)
                 }
@@ -202,7 +202,7 @@ struct NutritionView: View {
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .padding(.top, 10)
         .padding(.bottom, 20)
         .frame(maxWidth: .infinity, alignment: .leading)

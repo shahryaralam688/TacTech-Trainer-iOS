@@ -42,29 +42,30 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let barHeight: CGFloat = 64
-    private let capsuleCorner: CGFloat = 28
-    private let horizontalInset: CGFloat = 16
-    private let floatGap: CGFloat = 10
-    private let centerSize: CGFloat = 54
-    private let fabCorner: CGFloat = 16
-    private let iconSize: CGFloat = 23
-    private let indicatorWidth: CGFloat = 14
-    private let indicatorHeight: CGFloat = 3
+    // 8pt grid — base 375×812; outer margin 16; micro 2/4/6; scale 8/16/32/64.
+    private let barHeight: CGFloat = TTSpace.s64
+    private let capsuleCorner: CGFloat = TTSpace.s32
+    private let horizontalInset: CGFloat = TTSpace.screen
+    private let floatGap: CGFloat = TTSpace.s8
+    private let centerSize: CGFloat = 56
+    private let fabCorner: CGFloat = TTSpace.s16
+    private let iconSize: CGFloat = 24
+    private let indicatorWidth: CGFloat = TTSpace.s16
+    private let indicatorHeight: CGFloat = TTSpace.micro2
 
-    /// Even air between FAB and notch walls (left / right / bottom).
-    private let notchGap: CGFloat = 5
+    /// Even air between FAB and notch walls (left / right / bottom) — micro scale.
+    private let notchGap: CGFloat = TTSpace.micro4
     private var notchWidth: CGFloat { centerSize + notchGap * 2 }
-    private var notchDepth: CGFloat { 22 }
-    private var notchCorner: CGFloat { 14 }
+    private var notchDepth: CGFloat { 24 }
+    private var notchCorner: CGFloat { TTSpace.s16 }
     /// Chrome height reserved above the capsule so the FAB isn’t clipped.
     private var fabLift: CGFloat { max(0, centerSize - notchDepth + notchGap) }
 
     /// Solid capsule height (excludes FAB overhang). Use for content bottom padding.
-    static var barBodyHeight: CGFloat { 64 + 10 } // bar + floatGap
-    static var contentHeight: CGFloat { 54 - 22 + 5 + 64 }
-    static var centerFABSize: CGFloat { 54 }
-    static var fabLiftAmount: CGFloat { 54 - 22 + 5 }
+    static var barBodyHeight: CGFloat { TTSpace.s64 + TTSpace.s8 }
+    static var contentHeight: CGFloat { 56 - 24 + TTSpace.micro4 + TTSpace.s64 }
+    static var centerFABSize: CGFloat { 56 }
+    static var fabLiftAmount: CGFloat { 56 - 24 + TTSpace.micro4 }
     /// Overlay FAB bottom padding above the home-indicator so it sits on the cradle +.
     static var liquidMenuFABBottomReserve: CGFloat {
         barBodyHeight - centerFABSize + fabLiftAmount
@@ -89,12 +90,12 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                         .padding(.horizontal, horizontalInset)
                         .padding(.top, fabLift)
 
+                    // 4-column tab row: 2 left + notch + 2 right, screen-margin aligned.
                     HStack(spacing: 0) {
                         ForEach(leftTabs) { item in
                             tabButton(item)
                         }
 
-                        // Reserve the same width as the notch so tabs stay balanced.
                         Color.clear
                             .frame(width: notchWidth)
 
@@ -103,7 +104,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                         }
                     }
                     .frame(height: barHeight)
-                    .padding(.horizontal, horizontalInset + 6)
+                    .padding(.horizontal, horizontalInset + TTSpace.micro6)
                     .padding(.top, fabLift)
 
                     centerButton
@@ -114,7 +115,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             .frame(height: fabLift + barHeight)
             .frame(maxWidth: .infinity)
 
-            // Clear float above the home indicator — page shows through.
             Color.clear
                 .frame(height: floatGap + max(bottomInset, 0))
                 .frame(maxWidth: .infinity)
@@ -208,11 +208,11 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
             UISelectionFeedbackGenerator().selectionChanged()
             #endif
         } label: {
-            VStack(spacing: 5) {
+            VStack(spacing: TTSpace.micro4) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(isActive ? activeChipFill : Color.clear)
-                        .frame(width: 46, height: 34)
+                        .frame(width: 48, height: 32)
 
                     TTIcon(icon: item.icon, filled: isActive, size: iconSize)
                         .foregroundStyle(isActive ? activeIconColor : inactiveIconColor)
@@ -223,7 +223,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                     .frame(width: indicatorWidth, height: indicatorHeight)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: barHeight - 6)
+            .frame(height: barHeight - TTSpace.micro6)
             .contentShape(Rectangle())
             .animation(
                 reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.86),

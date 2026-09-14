@@ -105,7 +105,7 @@ struct FitnessAssessmentFlowView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, TTSpace.screen)
         .padding(.top, 6)
         .padding(.bottom, 8)
     }

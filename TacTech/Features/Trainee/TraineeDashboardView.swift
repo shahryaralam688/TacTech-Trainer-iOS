@@ -47,7 +47,7 @@ struct TraineeDashboardView: View {
                             formInsightsSection
                                 .ttHomeAppear(index: 5)
                         }
-                        .padding(.horizontal, 20)
+                        .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
                         .padding(.bottom, 36)
                     }

@@ -213,7 +213,7 @@ struct RoleSelectionView: View {
                     continueButton
                         .padding(.bottom, 32)
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, TTSpace.screen)
                 .padding(.top, 8)
             }
         }

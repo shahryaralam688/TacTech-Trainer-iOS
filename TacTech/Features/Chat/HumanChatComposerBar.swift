@@ -19,7 +19,6 @@ struct HumanChatComposerBar: View {
     var onSendImage: (String?) -> Void
     var onSendVideo: (String?) -> Void
     var onPickMedia: () -> Void
-    var onCall: () -> Void
     var onStartVoice: () -> Void
     var onStopVoice: () -> Void
     var onCancelVoice: () -> Void
@@ -179,15 +178,6 @@ struct HumanChatComposerBar: View {
             }
             .buttonStyle(AssessmentCardPressStyle())
             .accessibilityLabel("Share photo or video")
-
-            Button {
-                fieldFocused = false
-                onCall()
-            } label: {
-                iconCircle(systemName: "video.fill")
-            }
-            .buttonStyle(AssessmentCardPressStyle())
-            .accessibilityLabel("Video call")
 
             HStack(spacing: 8) {
                 TextField(placeholder, text: $draft, axis: .vertical)
@@ -387,17 +377,6 @@ struct HumanChatComposerBar: View {
                 .fill(Color.black.opacity(0.05))
                 .frame(width: 40, height: 40)
             TTIcon(icon: icon, filled: filled, size: 17)
-                .foregroundStyle(ink)
-        }
-    }
-
-    private func iconCircle(systemName: String) -> some View {
-        ZStack {
-            Circle()
-                .fill(Color.black.opacity(0.05))
-                .frame(width: 40, height: 40)
-            Image(systemName: systemName)
-                .font(TTFont.workSans(15, weight: .semibold))
                 .foregroundStyle(ink)
         }
     }

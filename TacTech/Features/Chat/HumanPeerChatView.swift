@@ -454,11 +454,6 @@ struct HumanPeerChatView: View {
                     composerFocused = false
                     showPhotoSource = true
                 },
-                onCall: {
-                    composerFocused = false
-                    TTKeyboard.dismiss()
-                    Task { await startCall(with: peer) }
-                },
                 onStartVoice: {
                     chatStore.armAutoSend(peerId: peer.id)
                     Task { await chatStore.startRecording() }

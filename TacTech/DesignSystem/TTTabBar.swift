@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - Tokens
 
@@ -21,68 +24,59 @@ struct TTTabBarItem<Tab: Hashable>: Identifiable {
     }
 }
 
-// MARK: - Docked bottom tab bar (Tab Bar Main)
+// MARK: - Floating capsule tab bar
 
-/// Full-width docked tab bar — not a floating pill.
-/// Top corners rounded with a center notch; orange plus floats above the cradle.
-/// Extends into the bottom safe area so the home-indicator strip matches the bar.
+/// Floating capsule bottom bar with an inverted rectangular top-center notch.
+/// Orange square FAB hovers freely in the cutout (does not touch the bar).
 struct TTFloatingTabBar<Tab: Hashable>: View {
     let tabs: [TTTabBarItem<Tab>]
     @Binding var selection: Tab
     var onCenterTap: () -> Void
     /// Device home-indicator inset — passed from a full-screen GeometryReader.
     var bottomInset: CGFloat = 0
-    /// Shared with `TTAICoachChatOverlay` for Plus → chat morph.
     var aiChatNamespace: Namespace.ID? = nil
     var isAIChatPresented: Bool = false
-    /// Center liquid action menu — hides the docked + so the overlay FAB owns the morph.
     var isCenterMenuPresented: Bool = false
-    /// Shared with `TTLiquidFABOverlay` so close morphs back into the cradle + without a snap.
     var liquidFABNamespace: Namespace.ID? = nil
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private let barHeight: CGFloat = 70
-    private let topCornerRadius: CGFloat = 28
-    private let centerSize: CGFloat = 56
-    /// How far the plus sits above the bar’s top edge.
-    private let fabLift: CGFloat = 24
-    private let iconSize: CGFloat = 24
-    private let indicatorWidth: CGFloat = 16
+    private let barHeight: CGFloat = 64
+    private let capsuleCorner: CGFloat = 28
+    private let horizontalInset: CGFloat = 16
+    private let floatGap: CGFloat = 10
+    private let centerSize: CGFloat = 54
+    private let fabCorner: CGFloat = 16
+    /// Clear air between FAB bottom and notch floor — FAB never touches the bar.
+    private let fabLift: CGFloat = 30
+    private let iconSize: CGFloat = 23
+    private let indicatorWidth: CGFloat = 14
     private let indicatorHeight: CGFloat = 3
 
-    /// Solid docked bar height (excludes FAB overhang). Use this for content bottom padding
-    /// so the page can show through the cradle behind the plus — no phantom strip.
-    static var barBodyHeight: CGFloat { 70 }
-    /// Full chrome height including FAB overhang (tab bar’s own layout).
-    static var contentHeight: CGFloat { 24 + 70 }
-    static var centerFABSize: CGFloat { 56 }
-    static var fabLiftAmount: CGFloat { 24 }
+    /// Solid capsule height (excludes FAB overhang). Use for content bottom padding.
+    static var barBodyHeight: CGFloat { 64 + 10 } // bar + floatGap
+    static var contentHeight: CGFloat { 30 + 64 }
+    static var centerFABSize: CGFloat { 54 }
+    static var fabLiftAmount: CGFloat { 30 }
     /// Overlay FAB bottom padding above the home-indicator so it sits on the cradle +.
     static var liquidMenuFABBottomReserve: CGFloat {
-        barBodyHeight - centerFABSize + fabLiftAmount // 38
+        barBodyHeight - centerFABSize + fabLiftAmount
     }
 
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
 
+    private var notchWidth: CGFloat { centerSize + 18 }
+    private var notchDepth: CGFloat { 22 }
+    private var notchCorner: CGFloat { 14 }
+
     var body: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
-                // Only the notched shape is filled — never a full rectangle behind the FAB.
-                TTTabBarNotchShape(
-                    topCornerRadius: topCornerRadius,
-                    notchRadius: centerSize * 0.62,
-                    notchPadding: 8
-                )
-                .fill(barFill)
-                .frame(height: barHeight)
-                .shadow(
-                    color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08),
-                    radius: 16,
-                    y: -4
-                )
-                .padding(.top, fabLift)
+                capsuleBar
+                    .padding(.horizontal, horizontalInset)
+                    .padding(.top, fabLift)
 
                 HStack(spacing: 0) {
                     ForEach(leftTabs) { item in
@@ -90,33 +84,71 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                     }
 
                     Color.clear
-                        .frame(width: centerSize + 8)
+                        .frame(width: centerSize + 20)
 
                     ForEach(rightTabs) { item in
                         tabButton(item)
                     }
                 }
                 .frame(height: barHeight)
+                .padding(.horizontal, horizontalInset + 6)
                 .padding(.top, fabLift)
-                .padding(.horizontal, 4)
 
                 centerButton
             }
             .frame(height: fabLift + barHeight)
             .frame(maxWidth: .infinity)
 
-            // Home-indicator strip only (matches bar fill, not a second “bar” behind the FAB).
-            barFill
-                .frame(height: max(bottomInset, 0))
+            // Clear float above the home indicator — page shows through.
+            Color.clear
+                .frame(height: floatGap + max(bottomInset, 0))
                 .frame(maxWidth: .infinity)
         }
         .accessibilityElement(children: .contain)
     }
 
-    // MARK: Pieces
+    // MARK: - Capsule
+
+    private var capsuleBar: some View {
+        TTTabBarNotchShape(
+            cornerRadius: capsuleCorner,
+            notchWidth: notchWidth,
+            notchDepth: notchDepth,
+            notchCornerRadius: notchCorner
+        )
+        .fill(barFill)
+        .frame(height: barHeight)
+        .overlay {
+            TTTabBarNotchShape(
+                cornerRadius: capsuleCorner,
+                notchWidth: notchWidth,
+                notchDepth: notchDepth,
+                notchCornerRadius: notchCorner
+            )
+            .stroke(barStroke, lineWidth: 0.75)
+        }
+        .shadow(color: barShadow, radius: 18, y: 8)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.06), radius: 4, y: 2)
+    }
+
+    // MARK: - Pieces
 
     private var barFill: Color {
-        colorScheme == .dark ? Color(white: 0.16) : .white
+        colorScheme == .dark
+            ? Color(white: 0.14)
+            : Color.white
+    }
+
+    private var barStroke: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.10)
+            : Color.black.opacity(0.05)
+    }
+
+    private var barShadow: Color {
+        colorScheme == .dark
+            ? Color.black.opacity(0.55)
+            : Color.black.opacity(0.12)
     }
 
     private var activeIconColor: Color {
@@ -124,25 +156,26 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     }
 
     private var inactiveIconColor: Color {
-        colorScheme == .dark ? Color(white: 0.48) : Color(white: 0.68)
+        colorScheme == .dark ? Color(white: 0.48) : Color(white: 0.62)
     }
 
     private var activeChipFill: Color {
-        colorScheme == .dark ? Color.white.opacity(0.10) : Color(white: 0.93)
+        colorScheme == .dark ? Color.white.opacity(0.10) : Color(white: 0.94)
     }
 
     private func tabButton(_ item: TTTabBarItem<Tab>) -> some View {
         let isActive = selection == item.id
 
         return Button {
-            // Don't animate the root content swap — heavy tabs (Profile) block the
-            // main thread and trip "System gesture gate timed out" near the home indicator.
             guard selection != item.id else { return }
             var transaction = Transaction(animation: nil)
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 selection = item.id
             }
+            #if canImport(UIKit)
+            UISelectionFeedbackGenerator().selectionChanged()
+            #endif
         } label: {
             VStack(spacing: 5) {
                 ZStack {
@@ -159,9 +192,12 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                     .frame(width: indicatorWidth, height: indicatorHeight)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: barHeight - 4)
+            .frame(height: barHeight - 6)
             .contentShape(Rectangle())
-            .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isActive)
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.86),
+                value: isActive
+            )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.accessibilityLabel)
@@ -171,11 +207,15 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     private var centerButton: some View {
         Button(action: onCenterTap) {
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: fabCorner, style: .continuous)
                     .fill(TTColor.actionOrange)
                     .frame(width: centerSize, height: centerSize)
-                    .shadow(color: TTColor.actionOrange.opacity(0.42), radius: 14, y: 6)
-                    .shadow(color: TTColor.actionOrange.opacity(0.22), radius: 4, y: 2)
+                    .shadow(color: TTColor.actionOrange.opacity(0.50), radius: 16, y: 6)
+                    .shadow(color: TTColor.actionOrange.opacity(0.28), radius: 5, y: 2)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: fabCorner, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.28), lineWidth: 0.8)
+                    }
 
                 TTIcon(icon: .plus, filled: false, size: 20)
                     .foregroundStyle(.white)
@@ -185,11 +225,11 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
         .opacity(isCenterMenuPresented || isAIChatPresented ? 0 : 1)
         .allowsHitTesting(!(isCenterMenuPresented || isAIChatPresented))
         .animation(
-            .spring(response: 0.34, dampingFraction: 0.9),
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9),
             value: isCenterMenuPresented
         )
         .animation(
-            .spring(response: 0.34, dampingFraction: 0.9),
+            reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9),
             value: isAIChatPresented
         )
         .modifier(TTOptionalMatchedGeometry(
@@ -218,45 +258,90 @@ private struct TTOptionalMatchedGeometry: ViewModifier {
     }
 }
 
-// MARK: - Notch shape
+// MARK: - Inverted rectangular notch (soft corner radii)
 
-/// Full-width bar: rounded top corners, square bottom, concave cradle for the FAB.
+/// Capsule bar path with a smooth inverted rectangular cutout on the top-center edge.
 struct TTTabBarNotchShape: Shape {
-    var topCornerRadius: CGFloat
-    var notchRadius: CGFloat
-    var notchPadding: CGFloat
+    var cornerRadius: CGFloat
+    var notchWidth: CGFloat
+    var notchDepth: CGFloat
+    var notchCornerRadius: CGFloat
 
+    /// Legacy initializer — maps old circular cradle params into the rectangular notch.
     init(topCornerRadius: CGFloat, notchRadius: CGFloat, notchPadding: CGFloat) {
-        self.topCornerRadius = topCornerRadius
-        self.notchRadius = notchRadius
-        self.notchPadding = notchPadding
+        self.cornerRadius = topCornerRadius
+        self.notchWidth = (notchRadius + notchPadding) * 2
+        self.notchDepth = notchRadius * 0.75
+        self.notchCornerRadius = min(14, notchRadius * 0.45)
     }
 
-    /// Backward-compatible alias.
     init(cornerRadius: CGFloat, notchRadius: CGFloat, notchPadding: CGFloat) {
-        self.topCornerRadius = cornerRadius
-        self.notchRadius = notchRadius
-        self.notchPadding = notchPadding
+        self.init(topCornerRadius: cornerRadius, notchRadius: notchRadius, notchPadding: notchPadding)
+    }
+
+    init(
+        cornerRadius: CGFloat,
+        notchWidth: CGFloat,
+        notchDepth: CGFloat,
+        notchCornerRadius: CGFloat
+    ) {
+        self.cornerRadius = cornerRadius
+        self.notchWidth = notchWidth
+        self.notchDepth = notchDepth
+        self.notchCornerRadius = notchCornerRadius
     }
 
     func path(in rect: CGRect) -> Path {
-        let r = min(topCornerRadius, rect.height, rect.width / 4)
+        let r = min(cornerRadius, rect.height / 2, rect.width / 4)
         let midX = rect.midX
-        let notchHalf = notchRadius + notchPadding
-        let notchDepth = notchRadius * 0.88
+        let halfNotch = min(notchWidth, rect.width * 0.42) / 2
+        let depth = min(notchDepth, rect.height * 0.55)
+        let nr = min(notchCornerRadius, halfNotch * 0.9, depth * 0.9)
+
+        let left = midX - halfNotch
+        let right = midX + halfNotch
+        let floorY = rect.minY + depth
 
         var path = Path()
 
+        // Top-left outer corner → notch entry
         path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
-        path.addLine(to: CGPoint(x: midX - notchHalf, y: rect.minY))
+        path.addLine(to: CGPoint(x: left - nr, y: rect.minY))
 
-        // Concave cradle under the floating plus.
-        path.addCurve(
-            to: CGPoint(x: midX + notchHalf, y: rect.minY),
-            control1: CGPoint(x: midX - notchHalf * 0.28, y: rect.minY + notchDepth),
-            control2: CGPoint(x: midX + notchHalf * 0.28, y: rect.minY + notchDepth)
+        // Soft curve into the notch (top-left of cutout)
+        path.addQuadCurve(
+            to: CGPoint(x: left, y: rect.minY + nr),
+            control: CGPoint(x: left, y: rect.minY)
         )
 
+        // Down the left wall
+        path.addLine(to: CGPoint(x: left, y: floorY - nr))
+
+        // Bottom-left notch corner
+        path.addQuadCurve(
+            to: CGPoint(x: left + nr, y: floorY),
+            control: CGPoint(x: left, y: floorY)
+        )
+
+        // Notch floor
+        path.addLine(to: CGPoint(x: right - nr, y: floorY))
+
+        // Bottom-right notch corner
+        path.addQuadCurve(
+            to: CGPoint(x: right, y: floorY - nr),
+            control: CGPoint(x: right, y: floorY)
+        )
+
+        // Up the right wall
+        path.addLine(to: CGPoint(x: right, y: rect.minY + nr))
+
+        // Soft curve out of the notch (top-right of cutout)
+        path.addQuadCurve(
+            to: CGPoint(x: right + nr, y: rect.minY),
+            control: CGPoint(x: right, y: rect.minY)
+        )
+
+        // Top edge → top-right outer corner
         path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
         path.addArc(
             center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
@@ -265,8 +350,24 @@ struct TTTabBarNotchShape: Shape {
             endAngle: .degrees(0),
             clockwise: false
         )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+
+        // Right → bottom-right → bottom → bottom-left → left → close
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        path.addArc(
+            center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(0),
+            endAngle: .degrees(90),
+            clockwise: false
+        )
+        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        path.addArc(
+            center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+            radius: r,
+            startAngle: .degrees(90),
+            endAngle: .degrees(180),
+            clockwise: false
+        )
         path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
         path.addArc(
             center: CGPoint(x: rect.minX + r, y: rect.minY + r),
@@ -448,6 +549,27 @@ struct TTSegmentedPillTabs<Value: Hashable>: View {
                 TTFloatingTabBar(tabs: items, selection: $tab, onCenterTap: {}, bottomInset: 34)
             }
             .ignoresSafeArea(edges: .bottom)
+        }
+    }
+    return Demo()
+}
+
+#Preview("Tab Bar · Dark") {
+    struct Demo: View {
+        @State private var tab = 0
+        private let items = [
+            TTTabBarItem(0, icon: .house1, label: "Home"),
+            TTTabBarItem(1, icon: .barbellDiagonal, label: "Workout"),
+            TTTabBarItem(2, icon: .forkKnife, label: "Nutrition"),
+            TTTabBarItem(3, icon: .user, label: "Profile")
+        ]
+        var body: some View {
+            ZStack(alignment: .bottom) {
+                Color(white: 0.08).ignoresSafeArea()
+                TTFloatingTabBar(tabs: items, selection: $tab, onCenterTap: {}, bottomInset: 34)
+            }
+            .ignoresSafeArea(edges: .bottom)
+            .preferredColorScheme(.dark)
         }
     }
     return Demo()

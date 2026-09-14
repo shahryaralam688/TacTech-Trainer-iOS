@@ -61,7 +61,7 @@ struct PersonalInformationSettingsView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 12)
-                .padding(.bottom, 24)
+                .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset + 24)
                 .disabled(isLoading || isSaving)
             }
             .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)

@@ -72,13 +72,14 @@ struct SecuritySettingsView: View {
                             .foregroundStyle(TTColor.success)
                             .frame(maxWidth: .infinity)
                     }
+
+                    saveButton
+                        .padding(.top, 8)
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
-                .padding(.bottom, 110)
+                .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset + 24)
             }
-
-            saveBar
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
@@ -151,31 +152,20 @@ struct SecuritySettingsView: View {
 
     // MARK: - Save
 
-    private var saveBar: some View {
-        VStack(spacing: 0) {
-            Button(action: save) {
-                HStack(spacing: 8) {
-                    Text("Save Settings")
-                        .font(TTFont.workSans(16, weight: .bold))
-                    TTIcon(icon: .check, filled: true, size: 14)
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 56)
-                .background(ctaFill)
-                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+    private var saveButton: some View {
+        Button(action: save) {
+            HStack(spacing: 8) {
+                Text("Save Settings")
+                    .font(TTFont.workSans(16, weight: .bold))
+                TTIcon(icon: .check, filled: true, size: 14)
             }
-            .buttonStyle(TTSearchPressStyle(scale: 0.98))
-            .padding(.horizontal, 18)
-            .padding(.top, 12)
-            .padding(.bottom, 18)
-            .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset)
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(ctaFill)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
-        .background(
-            canvas
-                .shadow(color: .black.opacity(0.04), radius: 12, y: -4)
-                .ignoresSafeArea(edges: .bottom)
-        )
+        .buttonStyle(TTSearchPressStyle(scale: 0.98))
     }
 
     // MARK: - Logic

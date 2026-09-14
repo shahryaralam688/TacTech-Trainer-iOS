@@ -67,34 +67,49 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }
 
-    private var notchWidth: CGFloat { centerSize + 18 }
+    /// Even air between FAB and notch walls (matches prior side padding: +18 → 9pt each side).
+    private let notchGap: CGFloat = 9
+    private var notchWidth: CGFloat { centerSize + notchGap * 2 }
     private var notchDepth: CGFloat { 22 }
     private var notchCorner: CGFloat { 14 }
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .top) {
-                capsuleBar
-                    .padding(.horizontal, horizontalInset)
+            GeometryReader { geo in
+                let fabFrame = Self.fabFrameInChrome(
+                    containerWidth: geo.size.width,
+                    fabLift: fabLift,
+                    centerSize: centerSize,
+                    notchDepth: notchDepth,
+                    notchGap: notchGap
+                )
+
+                ZStack(alignment: .top) {
+                    capsuleBar
+                        .padding(.horizontal, horizontalInset)
+                        .padding(.top, fabLift)
+
+                    HStack(spacing: 0) {
+                        ForEach(leftTabs) { item in
+                            tabButton(item)
+                        }
+
+                        // Reserve the same width as the notch so tabs stay balanced.
+                        Color.clear
+                            .frame(width: notchWidth)
+
+                        ForEach(rightTabs) { item in
+                            tabButton(item)
+                        }
+                    }
+                    .frame(height: barHeight)
+                    .padding(.horizontal, horizontalInset + 6)
                     .padding(.top, fabLift)
 
-                HStack(spacing: 0) {
-                    ForEach(leftTabs) { item in
-                        tabButton(item)
-                    }
-
-                    Color.clear
-                        .frame(width: centerSize + 20)
-
-                    ForEach(rightTabs) { item in
-                        tabButton(item)
-                    }
+                    centerButton
+                        .frame(width: centerSize, height: centerSize)
+                        .position(x: fabFrame.midX, y: fabFrame.midY)
                 }
-                .frame(height: barHeight)
-                .padding(.horizontal, horizontalInset + 6)
-                .padding(.top, fabLift)
-
-                centerButton
             }
             .frame(height: fabLift + barHeight)
             .frame(maxWidth: .infinity)
@@ -105,6 +120,21 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 .frame(maxWidth: .infinity)
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// Centers the FAB on the notch: equal `notchGap` on left, right, and bottom.
+    private static func fabFrameInChrome(
+        containerWidth: CGFloat,
+        fabLift: CGFloat,
+        centerSize: CGFloat,
+        notchDepth: CGFloat,
+        notchGap: CGFloat
+    ) -> CGRect {
+        let barTop = fabLift
+        let notchFloor = barTop + notchDepth
+        let fabTop = notchFloor - notchGap - centerSize
+        let fabLeft = (containerWidth - centerSize) * 0.5
+        return CGRect(x: fabLeft, y: fabTop, width: centerSize, height: centerSize)
     }
 
     // MARK: - Capsule

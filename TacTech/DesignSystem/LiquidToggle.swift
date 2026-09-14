@@ -1,4 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 /// Shared rectangular “Liquid Glass” toggle for the whole app.
 /// Shape: rounded-rect track + rounded-square thumb (not pill / not circle).
@@ -46,6 +49,7 @@ struct LiquidToggle: View {
         .accessibilityHint(isEnabled ? "Double tap to toggle" : "")
         .accessibilityAction {
             guard isEnabled else { return }
+            fireHaptic()
             withAnimation(animation) { isOn.toggle() }
         }
     }
@@ -224,10 +228,17 @@ struct LiquidToggle: View {
             }
             .onEnded { _ in
                 guard isEnabled else { return }
+                fireHaptic()
                 withAnimation(animation) {
                     isOn.toggle()
                 }
             }
+    }
+
+    private func fireHaptic() {
+        #if canImport(UIKit)
+        UISelectionFeedbackGenerator().selectionChanged()
+        #endif
     }
 }
 

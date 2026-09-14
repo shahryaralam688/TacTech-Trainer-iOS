@@ -346,6 +346,8 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     /// Subtracted from raw offset so a settled 0/1 state stays put with residual offset.
     private var offsetBaseline: CGFloat = 0
     private var isUserScrolling = false
+    /// Cumulative offset delta for the active gesture — used to prefer expand on scroll-down.
+    private var gestureDeltaY: CGFloat = 0
     private var pendingCanScroll: Bool?
 
     private var pendingOffset: CGFloat?
@@ -361,6 +363,9 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     func setUserScrolling(_ active: Bool) {
         let wasScrolling = isUserScrolling
         isUserScrolling = active
+        if active, !wasScrolling {
+            gestureDeltaY = 0
+        }
         // Commit overflow gating only when idle — flipping `scrollDisabled`
         // mid-deceleration hard-stops the rubber band and looks like a vibrate.
         if wasScrolling, !active {
@@ -424,6 +429,29 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         }
 
         let rawY = max(0, y)
+        let deltaRaw = rawY - lastRawY
+        lastRawY = rawY
+        if isUserScrolling {
+            gestureDeltaY += deltaRaw
+        } else if abs(deltaRaw) >= 2.0 {
+            // iOS 17 has no phase API — treat clear offset moves as gesture intent.
+            gestureDeltaY += deltaRaw
+        }
+
+        // Back at (or very near) the top — always fully expand.
+        // Short pages often never accumulate enough raw offset for the
+        // distance-based baseline to unwind on its own.
+        if rawY <= TTHomeHeaderCollapse.leadIn {
+            offsetBaseline = 0
+            if lastProgress > 0.001 {
+                apply(0, animated: !isUserScrolling)
+            }
+            if !isUserScrolling {
+                scheduleDebouncedSettle()
+            }
+            return
+        }
+
         let effectiveRaw = max(0, rawY - offsetBaseline)
         // Fixed-point: p == f(y + travel * p). Exact solve keeps UIKit’s offset
         // compensation and our header height in agreement every frame.
@@ -433,18 +461,17 @@ final class TTHomeScrollCollapseModel: ObservableObject {
             solved = TTHomeHeaderCollapse.progress(for: compensated)
         }
         let target = min(1, max(0, solved))
-        let deltaRaw = rawY - lastRawY
-        lastRawY = rawY
 
         // Ignore idle layout echo that only nudges collapse upward.
         if !isUserScrolling, target > lastProgress, (target - lastProgress) < 0.04, abs(deltaRaw) < 1.5 {
             return
         }
 
-        // While settled, ignore tiny geometry drift so we don’t re-enter a mid state.
+        // While settled, ignore tiny geometry drift — but allow a real scroll
+        // delta through so short-page expand (scroll down) is not swallowed.
         if !isUserScrolling {
             let settled: CGFloat = lastProgress >= 0.5 ? 1 : 0
-            if abs(lastProgress - settled) < 0.001, abs(target - settled) < 0.08 {
+            if abs(lastProgress - settled) < 0.001, abs(deltaRaw) < 2.0 {
                 return
             }
         }
@@ -463,10 +490,23 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         guard allowsScrolling else {
             offsetBaseline = 0
             apply(0, animated: true)
+            gestureDeltaY = 0
             return
         }
 
-        let snap: CGFloat = lastProgress >= TTHomeHeaderCollapse.settleThreshold ? 1 : 0
+        // Near the top always expands — short pages may still report mid progress
+        // because collapse travel never fit in raw offset.
+        // Scroll toward top (negative delta) also prefers expand so reverse
+        // shrink returns to the full header instead of snapping back compact.
+        let snap: CGFloat
+        if lastRawY <= TTHomeHeaderCollapse.leadIn {
+            snap = 0
+        } else if gestureDeltaY <= -4 {
+            snap = lastProgress >= 0.92 ? 1 : 0
+        } else {
+            snap = lastProgress >= TTHomeHeaderCollapse.settleThreshold ? 1 : 0
+        }
+        gestureDeltaY = 0
         guard abs(lastProgress - snap) > 0.02 else {
             // Already near an endpoint — lock baseline so residual offset doesn’t creep.
             lockBaseline(for: snap)
@@ -495,7 +535,9 @@ final class TTHomeScrollCollapseModel: ObservableObject {
             offsetBaseline = lastRawY
         } else {
             // Keep progress reading as fully compact at the current offset.
-            offsetBaseline = lastRawY - TTHomeHeaderCollapse.distance
+            // Clamp to ≥ 0 — on short pages lastRawY << distance; a negative
+            // baseline makes top-of-scroll still look collapsed and blocks expand.
+            offsetBaseline = max(0, lastRawY - TTHomeHeaderCollapse.distance)
         }
     }
 

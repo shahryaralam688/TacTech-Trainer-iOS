@@ -750,7 +750,7 @@ final class HumanChatStore {
         stopVoicePlayback()
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default, options: [.defaultToSpeaker])
+            try session.setCategory(.playback, mode: .default, options: [.duckOthers])
             try session.setActive(true)
             let fileURL = try await localVoiceURL(from: url)
             let player = try AVAudioPlayer(contentsOf: fileURL)

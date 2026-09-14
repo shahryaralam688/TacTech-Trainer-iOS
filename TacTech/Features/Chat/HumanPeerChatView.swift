@@ -305,29 +305,38 @@ struct HumanPeerChatView: View {
 
     // MARK: - Thread
 
+    private var threadSubtitle: String {
+        if chatStore.peerTyping { return "Typing…" }
+        if chatStore.isLoadingThread { return "Loading…" }
+        return "tap here for contact info"
+    }
+
     private func threadColumn(_ peer: HumanChatPeer) -> some View {
         let messages = chatStore.messages(for: peer.id)
         let items = HumanChatThreadBuilder.items(messages: messages, peerTyping: chatStore.peerTyping)
         return VStack(spacing: 0) {
-            headerBar(
-                title: peer.name,
-                subtitle: chatStore.peerTyping ? "Typing…" : (chatStore.isLoadingThread ? "Loading…" : "Text · photo · video · voice · call"),
-                showBack: audience == .trainer || peers.count > 1,
-                trailing: {
-                    Button {
-                        composerFocused = false
-                        TTKeyboard.dismiss()
-                        Task { await startCall(with: peer) }
-                    } label: {
-                        Image(systemName: "video.fill")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(ink)
-                            .frame(width: 36, height: 36)
-                            .background(Color.black.opacity(0.05))
-                            .clipShape(Circle())
+            HumanChatContactHeader(
+                name: peer.name,
+                subtitle: threadSubtitle,
+                onBack: {
+                    composerFocused = false
+                    TTKeyboard.dismiss()
+                    if audience == .trainer || peers.count > 1 {
+                        chatStore.closeThread()
+                        selectedPeerId = nil
+                    } else {
+                        dismiss()
                     }
-                    .buttonStyle(AssessmentCardPressStyle())
-                    .accessibilityLabel("Start video call")
+                },
+                onVideo: {
+                    composerFocused = false
+                    TTKeyboard.dismiss()
+                    Task { await startCall(with: peer) }
+                },
+                onVoice: {
+                    composerFocused = false
+                    TTKeyboard.dismiss()
+                    Task { await startCall(with: peer) }
                 }
             )
 
@@ -668,6 +677,71 @@ struct HumanPeerChatView: View {
                 pendingVideoURL = nil
             }
         }
+    }
+}
+
+/// WhatsApp-style thread chrome — TacTech tokens (Sandow, Work Sans, action orange).
+private struct HumanChatContactHeader: View {
+    let name: String
+    var subtitle: String
+    var onBack: () -> Void
+    var onVideo: () -> Void
+    var onVoice: () -> Void
+
+    private let accent = TTColor.actionOrange
+    private let barFill = Color(red: 248 / 255, green: 249 / 255, blue: 250 / 255)
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 0) {
+            Button(action: onBack) {
+                TTIcon(icon: .chevronLeft, size: 18)
+                    .foregroundStyle(accent)
+                    .frame(width: 36, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
+
+            HStack(alignment: .center, spacing: 8) {
+                TTAvatar(name: name, size: 36, tint: accent)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(name)
+                        .font(TTFont.workSans(17, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(TTFont.workSans(12, weight: .regular))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 6) {
+                headerAction(icon: .video, label: "Video call", action: onVideo)
+                headerAction(icon: .telephone1, label: "Voice call", action: onVoice)
+            }
+        }
+        .padding(.leading, 6)
+        .padding(.trailing, 10)
+        .padding(.vertical, 4)
+        .background(barFill)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.black.opacity(0.08))
+                .frame(height: 0.5)
+        }
+    }
+
+    private func headerAction(icon: SandowIcon, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            TTIcon(icon: icon, size: 22)
+                .foregroundStyle(accent)
+                .frame(width: 40, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 }
 

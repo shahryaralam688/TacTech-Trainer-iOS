@@ -155,9 +155,7 @@ struct NotificationSettingsView: View {
                 .foregroundStyle(TTColor.ink)
                 .lineLimit(2)
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(orange)
+            LiquidToggle(isOn: isOn)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -178,9 +176,7 @@ struct NotificationSettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(orange)
+            LiquidToggle(isOn: isOn)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)

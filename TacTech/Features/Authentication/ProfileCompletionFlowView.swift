@@ -920,8 +920,7 @@ struct ProfileCompletionFlowView: View {
             Text(title)
                 .font(TTFont.workSans(16, weight: .semibold))
             Spacer()
-            Toggle("", isOn: isOn)
-                .labelsHidden()
+            LiquidToggle(isOn: isOn)
                 .onChange(of: isOn.wrappedValue) { _, enabled in
                     if enabled {
                         Task {

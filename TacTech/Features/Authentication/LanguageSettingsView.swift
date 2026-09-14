@@ -119,9 +119,7 @@ struct LanguageSettingsView: View {
                 .font(TTFont.workSans(15, weight: .semibold))
                 .foregroundStyle(TTColor.ink)
             Spacer(minLength: 8)
-            Toggle("", isOn: $bilingual)
-                .labelsHidden()
-                .tint(orange)
+            LiquidToggle(isOn: $bilingual)
                 .onChange(of: bilingual) { _, value in
                     bilingualEnabled = value
                 }

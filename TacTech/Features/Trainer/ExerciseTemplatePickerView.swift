@@ -244,11 +244,12 @@ struct ExerciseTemplateCustomizeView: View {
                     .background(cardFill)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                    Toggle(isOn: $saveAsTemplate) {
+                    HStack(spacing: 12) {
                         Text("Save for next time")
                             .font(TTFont.workSans(15, weight: .semibold))
+                        Spacer(minLength: 8)
+                        LiquidToggle(isOn: $saveAsTemplate)
                     }
-                    .tint(orange)
                     .padding(14)
                     .background(cardFill)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))

@@ -140,9 +140,7 @@ struct SecuritySettingsView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(orange)
+            LiquidToggle(isOn: isOn)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 14)

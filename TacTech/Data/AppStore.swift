@@ -67,9 +67,11 @@ final class AppStore {
         defer { isRestoringSession = false }
         guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
         do {
+            try await AuthTokenRefresher.shared.refreshIfExpiring()
             try await refreshSession()
             refreshAssessmentFlag()
             scheduleCoachMemorySync()
+            await AuthTokenRefresher.shared.scheduleProactiveRefresh()
         } catch {
             clearLocalSession()
         }
@@ -817,7 +819,12 @@ final class AppStore {
     }
 
     private func apply(auth response: AuthResponse) {
-        TokenStore.save(accessToken: response.accessToken, refreshToken: response.refreshToken)
+        TokenStore.save(
+            accessToken: response.accessToken,
+            refreshToken: response.refreshToken,
+            expiresIn: response.expiresIn
+        )
+        Task { await AuthTokenRefresher.shared.scheduleProactiveRefresh() }
         upsert(response.user.asUser())
         if let trainer = response.trainer { upsert(trainer) }
         if let trainee = response.trainee { upsert(trainee) }
@@ -944,6 +951,7 @@ final class AppStore {
     }
 
     private func clearLocalSession() {
+        Task { await AuthTokenRefresher.shared.cancelProactiveRefresh() }
         TokenStore.clear()
         session = nil
         isBootstrappingSession = false
@@ -1179,7 +1187,7 @@ enum AppError: LocalizedError, Equatable {
         case .invalidCredentials: "Email or password is incorrect."
         case .validation(let message), .api(let message), .notFound(let message): message
         case .rateLimited(let message, _): message
-        case .unauthorized: "Session expired. Please sign in again."
+        case .unauthorized: "Please sign in again."
         }
     }
 

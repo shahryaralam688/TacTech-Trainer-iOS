@@ -143,6 +143,7 @@ actor ChatAPI {
     }
 
     private func sendMultipart<T: Decodable>(path: String, fields: [MultipartFormField], allowRetry: Bool = true) async throws -> T {
+        try await AuthTokenRefresher.shared.refreshIfExpiring()
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = try makeRequest(path: path, method: .post, authorized: true, jsonContentType: false)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -154,7 +155,7 @@ actor ChatAPI {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await sendMultipart(path: path, fields: fields, allowRetry: false)
         }
         try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
@@ -207,6 +208,9 @@ actor ChatAPI {
         authorized: Bool,
         allowRetry: Bool = true
     ) async throws -> Data {
+        if authorized {
+            try await AuthTokenRefresher.shared.refreshIfExpiring()
+        }
         var request = try makeRequest(path: path, method: method, authorized: authorized)
         if let body {
             request.httpBody = try encoder.encode(body)
@@ -216,7 +220,7 @@ actor ChatAPI {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, allowRetry, authorized {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await raw(path: path, method: method, body: body, authorized: authorized, allowRetry: false)
         }
         try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
@@ -244,30 +248,6 @@ actor ChatAPI {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
-    }
-
-    private func refreshTokens() async throws {
-        guard let refresh = TokenStore.refreshToken() else {
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        var request = try makeRequest(path: "/auth/refresh", method: .post, authorized: false)
-        request.httpBody = try encoder.encode(RefreshBody(refreshToken: refresh))
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        if let tokens = try? decoder.decode(TokenResponse.self, from: data) {
-            TokenStore.save(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? refresh)
-            return
-        }
-        if let auth = try? decoder.decode(AuthResponse.self, from: data) {
-            TokenStore.save(accessToken: auth.accessToken, refreshToken: auth.refreshToken)
-            return
-        }
-        TokenStore.clear()
-        throw AppError.unauthorized
     }
 
     private static func throwMappedFailure(status: Int, data: Data, response: HTTPURLResponse) throws {

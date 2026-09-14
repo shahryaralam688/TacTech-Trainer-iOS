@@ -478,7 +478,6 @@ actor APIClient {
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
-    private var refreshTask: Task<Void, Error>?
 
     init() {
         let configuration = URLSessionConfiguration.ephemeral
@@ -703,9 +702,7 @@ actor APIClient {
         fields: [MultipartFormField],
         allowRetry: Bool = true
     ) async throws -> T {
-        if let refreshTask {
-            _ = try? await refreshTask.value
-        }
+        try await AuthTokenRefresher.shared.refreshIfExpiring()
         let boundary = "Boundary-\(UUID().uuidString)"
         guard let url = URL(string: path, relativeTo: APIConfig.baseURL)?.absoluteURL else {
             throw AppError.api("Invalid URL.")
@@ -725,7 +722,7 @@ actor APIClient {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await sendMultipart(path: path, fields: fields, allowRetry: false)
         }
         if !(200...299).contains(http.statusCode) {
@@ -797,8 +794,8 @@ actor APIClient {
     }
 
     private func raw<B: Encodable>(path: String, method: HTTPMethod, body: B?, authorized: Bool, allowRetry: Bool = true) async throws -> Data {
-        if let refreshTask {
-            _ = try? await refreshTask.value
+        if authorized {
+            try await AuthTokenRefresher.shared.refreshIfExpiring()
         }
 
         var request = try makeRequest(path: path, method: method, authorized: authorized)
@@ -812,7 +809,7 @@ actor APIClient {
         }
 
         if http.statusCode == 401, authorized, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await raw(path: path, method: method, body: body, authorized: authorized, allowRetry: false)
         }
 
@@ -828,39 +825,6 @@ actor APIClient {
             throw AppError.notFound(Self.detail(from: data) ?? "Not found.")
         }
         throw AppError.api(Self.detail(from: data) ?? "Request failed (\(http.statusCode)).")
-    }
-
-    private func refreshTokens() async throws {
-        if let refreshTask {
-            try await refreshTask.value
-            return
-        }
-        let task = Task<Void, Error> {
-            guard let refresh = TokenStore.refreshToken() else {
-                TokenStore.clear()
-                throw AppError.unauthorized
-            }
-            var request = try makeRequest(path: "/auth/refresh", method: .post, authorized: false)
-            request.httpBody = try encoder.encode(RefreshBody(refreshToken: refresh))
-            let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-                TokenStore.clear()
-                throw AppError.unauthorized
-            }
-            if let tokens = try? decoder.decode(TokenResponse.self, from: data) {
-                TokenStore.save(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? refresh)
-                return
-            }
-            if let auth = try? decoder.decode(AuthResponse.self, from: data) {
-                TokenStore.save(accessToken: auth.accessToken, refreshToken: auth.refreshToken)
-                return
-            }
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        refreshTask = task
-        defer { refreshTask = nil }
-        try await task.value
     }
 
     private func makeRequest(path: String, method: HTTPMethod, authorized: Bool) throws -> URLRequest {
@@ -921,6 +885,7 @@ enum TokenStore {
     static func clear() {
         delete(account: accessAccount)
         delete(account: refreshAccount)
+        clearExpiry()
     }
 
     private static func write(account: String, value: String) {

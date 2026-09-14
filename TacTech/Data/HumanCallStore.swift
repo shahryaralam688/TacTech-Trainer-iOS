@@ -3,6 +3,11 @@ import AudioToolbox
 import Foundation
 import UIKit
 
+/// Live video/voice calls — keep code wired; flip to `true` when shipping again.
+enum HumanCallFeatures {
+    static let isEnabled = false
+}
+
 // MARK: - Ringtone / ringback
 
 @MainActor
@@ -147,6 +152,10 @@ final class HumanCallStore {
     // MARK: Lifecycle (keep alive while logged in — even if chat UI closed)
 
     func startMonitoring() {
+        guard HumanCallFeatures.isEnabled else {
+            stopMonitoring()
+            return
+        }
         if monitoring {
             realtime.connect()
             Task { await pollForIncomingInvites() }
@@ -163,6 +172,7 @@ final class HumanCallStore {
 
     /// Force one `GET /chat/rtc/incoming` (scene active / push wake).
     func refreshIncomingNow() async {
+        guard HumanCallFeatures.isEnabled else { return }
         await pollForIncomingInvites()
     }
 
@@ -182,6 +192,7 @@ final class HumanCallStore {
         threadId: String,
         fromName: String? = nil
     ) async {
+        guard HumanCallFeatures.isEnabled else { return }
         hangupLocal(outcome: nil, notifyPeer: false)
         do {
             let session = try await api.createRtcSession(threadId: threadId)
@@ -213,6 +224,8 @@ final class HumanCallStore {
             )
             lastError = nil
         } catch {
+            if error is CancellationError { return }
+            if let url = error as? URLError, url.code == .cancelled { return }
             lastError = (error as? AppError)?.errorDescription ?? error.localizedDescription
             phase = .idle
             activeInvite = nil
@@ -339,7 +352,7 @@ final class HumanCallStore {
         activeInvite = invite
         phase = .incomingRinging
         ringtone.start(.incoming)
-        Task { await HumanChatStore.shared.refreshInbox() }
+        Task { await HumanChatStore.shared.refreshInbox(quiet: true) }
     }
 
     /// Poll `GET /chat/rtc/incoming` (primary) + legacy message markers.
@@ -417,6 +430,7 @@ final class HumanCallStore {
 
     /// Handle push / cold deep-link payloads: `{ type: chat_call, sessionId, threadId, ... }`.
     func handlePushPayload(_ userInfo: [AnyHashable: Any]) {
+        guard HumanCallFeatures.isEnabled else { return }
         let type = (userInfo["type"] as? String)
             ?? ((userInfo["data"] as? [AnyHashable: Any])?["type"] as? String)
         guard type == "chat_call" else { return }

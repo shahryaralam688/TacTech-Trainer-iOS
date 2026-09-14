@@ -76,13 +76,17 @@ final class HumanChatStore {
     // MARK: - Lifecycle
 
     func bootstrap() async {
+        lastError = nil
         currentUserId = Self.jwtUserId()
         realtime.onEvent = { [weak self] event in
             self?.handleRealtime(event)
         }
         realtime.connect()
-        await refreshInbox()
-        startPollingFallback()
+        // Inbox load is background sync — never modal (iMessage / WhatsApp style).
+        await refreshInbox(quiet: true)
+        if pollTask == nil {
+            startPollingFallback()
+        }
     }
 
     func teardown() {
@@ -93,6 +97,7 @@ final class HumanChatStore {
         }
         realtime.disconnect()
         cancelRecording()
+        lastError = nil
         activePeerUserId = nil
         peerTyping = false
         replyDraft = nil
@@ -101,19 +106,20 @@ final class HumanChatStore {
 
     // MARK: - Inbox
 
-    func refreshInbox() async {
-        isLoadingInbox = true
-        defer { isLoadingInbox = false }
+    func refreshInbox(quiet: Bool = false) async {
+        if Task.isCancelled { return }
+        if !quiet { isLoadingInbox = true }
+        defer { if !quiet { isLoadingInbox = false } }
         do {
             let threads = try await api.listThreads()
+            if Task.isCancelled { return }
             for thread in threads {
                 threadIdByPeer[thread.peerUserId] = thread.id
                 peerByThread[thread.id] = thread.peerUserId
             }
             inbox = threads.map(HumanChatPeer.init(from:))
-            lastError = nil
         } catch {
-            lastError = Self.userFacing(error)
+            // Sync failures stay silent — pull-to-refresh / reopen will retry.
         }
     }
 
@@ -171,17 +177,24 @@ final class HumanChatStore {
         isLoadingThread = true
         defer { isLoadingThread = false }
 
-        do {
-            let thread = try await api.createOrGetThread(
-                peerUserId: peer.id,
-                peerTraineeProfileId: peer.role == .trainee ? peer.profileId : nil,
-                peerTrainerProfileId: peer.role == .trainer ? peer.profileId : nil
-            )
-            threadIdByPeer[peer.id] = thread.id
-            peerByThread[thread.id] = peer.id
-            realtime.join(threadId: thread.id)
+        // Clear any stale modal from a previous cancelled bootstrap.
+        lastError = nil
 
-            let page = try await api.listMessages(threadId: thread.id)
+        // Ensure inbox maps are warm so we can reuse an existing thread id (no roster POST).
+        if threadIdByPeer[peer.id] == nil, peer.threadId == nil {
+            await refreshInbox(quiet: true)
+        }
+        if Task.isCancelled { return }
+
+        do {
+            let threadId = try await resolveThreadId(for: peer)
+            if Task.isCancelled { return }
+            threadIdByPeer[peer.id] = threadId
+            peerByThread[threadId] = peer.id
+            realtime.join(threadId: threadId)
+
+            let page = try await api.listMessages(threadId: threadId)
+            if Task.isCancelled { return }
             let uid = currentUserId ?? Self.jwtUserId() ?? ""
             let mapped = page.items
                 .map { HumanChatMessage.from(api: $0, currentUserId: uid, peerUserId: peer.id) }
@@ -194,15 +207,16 @@ final class HumanChatStore {
             }
 
             if let lastIncoming = mapped.last(where: { !$0.isOutgoing }) {
-                _ = try? await api.markRead(threadId: thread.id, upToMessageId: lastIncoming.id)
+                _ = try? await api.markRead(threadId: threadId, upToMessageId: lastIncoming.id)
                 if let idx = inbox.firstIndex(where: { $0.id == peer.id }) {
                     inbox[idx].unreadCount = 0
                 }
             }
-            lastError = nil
-            await refreshInbox()
+            await refreshInbox(quiet: true)
         } catch {
-            lastError = Self.userFacing(error)
+            // Opening a conversation must never block with a modal (industry standard).
+            // Keep cached messages if any; user can still leave / retry by re-entering.
+            _ = error
         }
     }
 
@@ -294,7 +308,6 @@ final class HumanChatStore {
                     replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
                 } catch {
                     markFailed(clientId: clientId, peerUserId: peerUserId)
-                    lastError = Self.userFacing(error)
                 }
             }
         case .voice:
@@ -321,7 +334,6 @@ final class HumanChatStore {
                     replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
                 } catch {
                     markFailed(clientId: clientId, peerUserId: peerUserId)
-                    lastError = Self.userFacing(error)
                 }
             }
         default:
@@ -404,7 +416,6 @@ final class HumanChatStore {
                 lastError = nil
             } catch {
                 markFailed(clientId: clientId, peerUserId: peerUserId)
-                lastError = Self.userFacing(error)
             }
         }
     }
@@ -452,7 +463,6 @@ final class HumanChatStore {
                 lastError = nil
             } catch {
                 markFailed(clientId: clientId, peerUserId: peerUserId)
-                lastError = Self.userFacing(error)
             }
         }
     }
@@ -506,7 +516,6 @@ final class HumanChatStore {
                 self.lastError = nil
             } catch {
                 self.markFailed(clientId: clientId, peerUserId: peerUserId)
-                self.lastError = Self.userFacing(error)
             }
         }
     }
@@ -549,7 +558,6 @@ final class HumanChatStore {
                 lastError = nil
             } catch {
                 markFailed(clientId: clientId, peerUserId: peerUserId)
-                lastError = Self.userFacing(error)
             }
         }
     }
@@ -576,12 +584,10 @@ final class HumanChatStore {
                 let dto = try await api.sendCallEvent(threadId: threadId, outcome: outcome, clientId: clientId)
                 replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerId)
             } catch {
-                lastError = Self.userFacing(error)
+                markFailed(clientId: clientId, peerUserId: peerId)
             }
         }
     }
-
-    // MARK: - Voice capture
 
     func startRecording() async {
         guard !isRecording else { return }
@@ -623,7 +629,7 @@ final class HumanChatStore {
             haptic()
             startRecordingCapTimer()
         } catch {
-            lastError = error.localizedDescription
+            lastError = "Couldn’t start voice recording."
         }
     }
 
@@ -862,7 +868,7 @@ final class HumanChatStore {
             peerByThread[dto.threadId] = peerId
             threadIdByPeer[peerId] = dto.threadId
             upsertMessage(HumanChatMessage.from(api: dto, currentUserId: uid, peerUserId: peerId), peerUserId: peerId)
-            Task { await refreshInbox() }
+            Task { await refreshInbox(quiet: true) }
         case .threadUpdated(let thread):
             threadIdByPeer[thread.peerUserId] = thread.id
             peerByThread[thread.id] = thread.peerUserId
@@ -908,7 +914,7 @@ final class HumanChatStore {
                 if self.activePeerUserId != nil {
                     await self.refreshActiveThreadQuietly()
                 } else {
-                    await self.refreshInbox()
+                    await self.refreshInbox(quiet: true)
                 }
             }
         }
@@ -940,13 +946,68 @@ final class HumanChatStore {
     // MARK: - Helpers
 
     func ensureThreadId(peerUserId: String) async throws -> String {
-        if let id = threadIdByPeer[peerUserId] { return id }
-        let peer = inbox.first(where: { $0.id == peerUserId })
-        let thread = try await api.createOrGetThread(
-            peerUserId: peerUserId,
-            peerTraineeProfileId: peer?.role == .trainee ? peer?.profileId : nil,
-            peerTrainerProfileId: peer?.role == .trainer ? peer?.profileId : nil
-        )
+        try await resolveThreadId(for: HumanChatPeer(
+            id: peerUserId,
+            name: inbox.first(where: { $0.id == peerUserId })?.name ?? "Chat",
+            role: inbox.first(where: { $0.id == peerUserId })?.role ?? .trainee,
+            profileId: inbox.first(where: { $0.id == peerUserId })?.profileId,
+            threadId: inbox.first(where: { $0.id == peerUserId })?.threadId
+        ))
+    }
+
+    /// Prefer an existing inbox thread. Create only when needed, with roster-safe fallbacks.
+    private func resolveThreadId(for peer: HumanChatPeer) async throws -> String {
+        let peerId = peer.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !peerId.isEmpty else {
+            throw AppError.api("Missing chat peer.")
+        }
+        if let id = threadIdByPeer[peerId], !id.isEmpty { return id }
+        if let id = peer.threadId, !id.isEmpty {
+            threadIdByPeer[peerId] = id
+            peerByThread[id] = peerId
+            return id
+        }
+        if let id = inbox.first(where: { $0.id == peerId })?.threadId, !id.isEmpty {
+            threadIdByPeer[peerId] = id
+            peerByThread[id] = peerId
+            return id
+        }
+
+        // 1) Canonical: User.id
+        do {
+            let thread = try await api.createOrGetThread(peerUserId: peerId)
+            return cacheThread(thread, peerUserId: peerId)
+        } catch {
+            if Self.isIgnorable(error) { throw error }
+            // 2) Fallback: profile id (backend accepts either per chat contract)
+            if let profileId = peer.profileId?.nilIfEmpty {
+                do {
+                    let thread = try await api.createOrGetThread(
+                        peerUserId: nil,
+                        peerTraineeProfileId: peer.role == .trainee ? profileId : nil,
+                        peerTrainerProfileId: peer.role == .trainer ? profileId : nil
+                    )
+                    let canonicalPeer = thread.peerUserId.nilIfEmpty ?? peerId
+                    let id = cacheThread(thread, peerUserId: canonicalPeer)
+                    if canonicalPeer != peerId {
+                        threadIdByPeer[peerId] = id
+                    }
+                    return id
+                } catch {
+                    if Self.isIgnorable(error) { throw error }
+                }
+            }
+            // 3) Last chance: refresh inbox — thread may already exist under another code path
+            await refreshInbox(quiet: true)
+            if let id = threadIdByPeer[peerId] ?? inbox.first(where: { $0.id == peerId })?.threadId,
+               !id.isEmpty {
+                return id
+            }
+            throw error
+        }
+    }
+
+    private func cacheThread(_ thread: ChatThreadDTO, peerUserId: String) -> String {
         threadIdByPeer[peerUserId] = thread.id
         peerByThread[thread.id] = peerUserId
         realtime.join(threadId: thread.id)
@@ -1008,7 +1069,7 @@ final class HumanChatStore {
         upsertMessage(mapped, peerUserId: peerUserId)
         threadIdByPeer[peerUserId] = dto.threadId
         peerByThread[dto.threadId] = peerUserId
-        Task { await refreshInbox() }
+        Task { await refreshInbox(quiet: true) }
     }
 
     private func markFailed(clientId: String, peerUserId: String) {
@@ -1083,9 +1144,54 @@ final class HumanChatStore {
         return nil
     }
 
-    private static func userFacing(_ error: Error) -> String {
-        if let app = error as? AppError { return app.errorDescription ?? "Something went wrong." }
-        return error.localizedDescription
+    /// Soft toast only for local capability issues. Never cancel / roster / sync / open failures.
+    func presentError(_ error: Error) {
+        presentActionError(error)
+    }
+
+    func presentActionError(_ error: Error) {
+        guard let message = Self.userFacing(error) else { return }
+        lastError = message
+    }
+
+    private static func isIgnorable(_ error: Error) -> Bool {
+        if Task.isCancelled { return true }
+        if error is CancellationError { return true }
+        if let url = error as? URLError, url.code == .cancelled { return true }
+        let ns = error as NSError
+        if ns.domain == NSURLErrorDomain && ns.code == NSURLErrorCancelled { return true }
+        let text = ((error as? AppError)?.errorDescription ?? error.localizedDescription)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        if text.isEmpty { return true }
+        if text.contains("cancel") { return true }
+        if text.contains("roster") { return true }
+        if text.contains("forbidden") { return true }
+        return false
+    }
+
+    private static func userFacing(_ error: Error) -> String? {
+        if isIgnorable(error) { return nil }
+        if let app = error as? AppError {
+            let text = (app.errorDescription ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if text.isEmpty { return nil }
+            let lower = text.lowercased()
+            if lower.contains("cancel") || lower.contains("roster") || lower.contains("forbidden") {
+                return nil
+            }
+            // Only local/capability style messages — never raw API sync noise.
+            if lower.contains("microphone")
+                || lower.contains("permission")
+                || lower.contains("encode")
+                || lower.contains("audio") {
+                return text
+            }
+            return nil
+        }
+        let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.isEmpty { return nil }
+        if text.lowercased().contains("cancel") { return nil }
+        return nil
     }
 }
 

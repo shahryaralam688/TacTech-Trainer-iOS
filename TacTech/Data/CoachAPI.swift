@@ -65,6 +65,7 @@ actor CoachAPI {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
+                    try await AuthTokenRefresher.shared.refreshIfExpiring()
                     var request = try makeRequest(path: "/coach/chat", method: .post, authorized: true)
                     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
                     request.httpBody = try encoder.encode(
@@ -77,7 +78,7 @@ actor CoachAPI {
                         throw AppError.api("Invalid stream response.")
                     }
                     if http.statusCode == 401 {
-                        try await refreshTokens()
+                        try await AuthTokenRefresher.shared.refresh()
                         var retry = try makeRequest(path: "/coach/chat", method: .post, authorized: true)
                         retry.setValue("text/event-stream", forHTTPHeaderField: "Accept")
                         retry.httpBody = request.httpBody
@@ -229,6 +230,7 @@ actor CoachAPI {
     }
 
     private func sendMultipart<T: Decodable>(path: String, fields: [MultipartFormField], allowRetry: Bool = true) async throws -> T {
+        try await AuthTokenRefresher.shared.refreshIfExpiring()
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = try makeRequest(path: path, method: .post, authorized: true)
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
@@ -240,7 +242,7 @@ actor CoachAPI {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await sendMultipart(path: path, fields: fields, allowRetry: false)
         }
         try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
@@ -280,7 +282,7 @@ actor CoachAPI {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await sendEmpty(path: path, method: method, allowRetry: false)
         }
         // 200 / 204 both OK for delete.
@@ -323,6 +325,9 @@ actor CoachAPI {
         authorized: Bool,
         allowRetry: Bool = true
     ) async throws -> Data {
+        if authorized {
+            try await AuthTokenRefresher.shared.refreshIfExpiring()
+        }
         var request = try makeRequest(path: path, method: method, authorized: authorized)
         if let body, method != .get {
             request.httpBody = try encoder.encode(body)
@@ -332,7 +337,7 @@ actor CoachAPI {
             throw AppError.api("Invalid response from server.")
         }
         if http.statusCode == 401, authorized, allowRetry {
-            try await refreshTokens()
+            try await AuthTokenRefresher.shared.refresh()
             return try await raw(path: path, method: method, body: body, authorized: authorized, allowRetry: false)
         }
         try Self.throwMappedFailure(status: http.statusCode, data: data, response: http)
@@ -355,30 +360,6 @@ actor CoachAPI {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         return request
-    }
-
-    private func refreshTokens() async throws {
-        guard let refresh = TokenStore.refreshToken() else {
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        var request = try makeRequest(path: "/auth/refresh", method: .post, authorized: false)
-        request.httpBody = try encoder.encode(RefreshBody(refreshToken: refresh))
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            TokenStore.clear()
-            throw AppError.unauthorized
-        }
-        if let tokens = try? decoder.decode(TokenResponse.self, from: data) {
-            TokenStore.save(accessToken: tokens.accessToken, refreshToken: tokens.refreshToken ?? refresh)
-            return
-        }
-        if let auth = try? decoder.decode(AuthResponse.self, from: data) {
-            TokenStore.save(accessToken: auth.accessToken, refreshToken: auth.refreshToken)
-            return
-        }
-        TokenStore.clear()
-        throw AppError.unauthorized
     }
 
     /// Maps HTTP failures to `AppError`, preferring server `detail` and handling 429 / RATE_LIMITED.

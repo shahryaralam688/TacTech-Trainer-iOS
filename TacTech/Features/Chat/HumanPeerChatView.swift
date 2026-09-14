@@ -30,6 +30,7 @@ struct HumanPeerChatView: View {
     @State private var highlightMessageId: String?
     @State private var failedActionMessage: HumanChatMessage?
     @State private var jumpBottomTick = 0
+    @State private var capabilityToast: TTToastMessage?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -42,9 +43,11 @@ struct HumanPeerChatView: View {
         switch audience {
         case .trainer:
             guard let trainer = appStore.currentTrainer else { return [] }
-            return appStore.trainees(for: trainer).map { trainee in
-                HumanChatPeer(
-                    id: trainee.userId,
+            return appStore.trainees(for: trainer).compactMap { trainee -> HumanChatPeer? in
+                let userId = trainee.userId.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !userId.isEmpty else { return nil }
+                return HumanChatPeer(
+                    id: userId,
                     name: appStore.user(forTrainee: trainee)?.name ?? "Trainee",
                     role: .trainee,
                     profileId: trainee.id
@@ -82,7 +85,9 @@ struct HumanPeerChatView: View {
             }
         }
         .task {
+            chatStore.lastError = nil
             await chatStore.bootstrap()
+            guard !Task.isCancelled else { return }
             if let preferredThreadId,
                let peerId = chatStore.peerUserId(forThreadId: preferredThreadId)
                 ?? peers.first(where: { $0.threadId == preferredThreadId })?.id {
@@ -95,13 +100,14 @@ struct HumanPeerChatView: View {
                 selectedPeerId = peer.id
                 await chatStore.openThread(peer)
             }
+            guard !Task.isCancelled else { return }
             try? await Task.sleep(for: .milliseconds(350))
             enableListMotion = true
         }
         .onDisappear {
+            // Close the active thread; keep socket teardown soft so in-flight sync
+            // cannot surface as a user-facing “cancelled” error.
             chatStore.closeThread()
-            // Keep Socket connected only while chat is open for messages;
-            // call ringing uses HumanCallStore's own socket (app-wide).
             chatStore.teardown()
         }
         .onChange(of: libraryItem) { _, item in
@@ -175,13 +181,16 @@ struct HumanPeerChatView: View {
             }
         }
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.55), trigger: chatStore.hapticTick)
-        .alert("Chat", isPresented: Binding(
-            get: { chatStore.lastError != nil },
-            set: { if !$0 { chatStore.lastError = nil } }
-        )) {
-            Button("OK", role: .cancel) { chatStore.lastError = nil }
-        } message: {
-            Text(chatStore.lastError ?? "")
+        // WhatsApp-style: no blocking “Chat” alert on open/sync.
+        // Failed sends use the bubble “Message failed” sheet; capability errors use a soft toast.
+        .ttToast($capabilityToast)
+        .onChange(of: chatStore.lastError) { _, message in
+            guard let message, shouldPresentCapabilityToast(message) else {
+                if message != nil { chatStore.lastError = nil }
+                return
+            }
+            capabilityToast = TTToastMessage(text: message, style: .error)
+            chatStore.lastError = nil
         }
         .alert("Message failed", isPresented: Binding(
             get: { failedActionMessage != nil },
@@ -232,7 +241,7 @@ struct HumanPeerChatView: View {
                     }
                     .padding(16)
                 }
-                .refreshable { await chatStore.refreshInbox() }
+                .refreshable { await chatStore.refreshInbox(quiet: true) }
             }
         }
     }
@@ -246,7 +255,7 @@ struct HumanPeerChatView: View {
                 .foregroundStyle(ink)
             Text(
                 audience == .trainer
-                    ? "When athletes join your roster, you can message, share media, and video call here."
+                    ? "When athletes join your roster, you can message and share media here."
                     : "Join a trainer with an invite code to start chatting."
             )
             .font(TTFont.workSans(14, weight: .medium))
@@ -558,7 +567,7 @@ struct HumanPeerChatView: View {
             Text(peer.name)
                 .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(ink)
-            Text("Share form clips, meal photos, voice notes, or hop on a live video call — same look as TacTech AI chat.")
+            Text("Share form clips, meal photos, or voice notes — same look as TacTech AI chat.")
                 .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(muted)
                 .multilineTextAlignment(.center)
@@ -629,7 +638,27 @@ struct HumanPeerChatView: View {
 
     // MARK: - Helpers
 
+    /// Soft toast only for local capability issues (mic / encode). Never cancel / roster / sync.
+    private func shouldPresentCapabilityToast(_ message: String) -> Bool {
+        let lower = message.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if lower.isEmpty { return false }
+        if lower.contains("cancel") { return false }
+        if lower.contains("roster") { return false }
+        if lower.contains("session expired") { return false }
+        if lower.contains("sign in") { return false }
+        return lower.contains("microphone")
+            || lower.contains("permission")
+            || lower.contains("encode")
+            || lower.contains("audio")
+            || lower.contains("couldn’t read")
+            || lower.contains("couldn’t play")
+            || lower.contains("missing voice")
+            || lower.contains("no audio")
+            || lower.contains("isn’t available")
+    }
+
     private func startCall(with peer: HumanChatPeer) async {
+        guard HumanCallFeatures.isEnabled else { return }
         do {
             let threadId = try await chatStore.ensureThreadId(peerUserId: peer.id)
             await HumanCallStore.shared.startOutgoing(
@@ -639,7 +668,7 @@ struct HumanPeerChatView: View {
                 fromName: appStore.currentUser?.name
             )
         } catch {
-            chatStore.lastError = (error as? AppError)?.errorDescription ?? error.localizedDescription
+            // Calls are hidden — swallow.
         }
     }
 
@@ -720,8 +749,10 @@ private struct HumanChatContactHeader: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             HStack(spacing: 6) {
-                headerAction(icon: .video, label: "Video call", action: onVideo)
-                headerAction(icon: .telephone1, label: "Voice call", action: onVoice)
+                if HumanCallFeatures.isEnabled {
+                    headerAction(icon: .video, label: "Video call", action: onVideo)
+                    headerAction(icon: .telephone1, label: "Voice call", action: onVoice)
+                }
             }
         }
         .padding(.leading, 6)

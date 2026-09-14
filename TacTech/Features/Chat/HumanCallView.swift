@@ -181,7 +181,7 @@ struct HumanCallOverlayHost: ViewModifier {
     func body(content: Content) -> some View {
         content
             .overlay {
-                if callStore.phase != .idle {
+                if HumanCallFeatures.isEnabled, callStore.phase != .idle {
                     HumanCallView()
                         .transition(.opacity)
                         .zIndex(10_000)

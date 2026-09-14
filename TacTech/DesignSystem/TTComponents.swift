@@ -784,12 +784,8 @@ private struct TTTopRoundedSheetModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .background {
-                shape
-                    .fill(fill)
-                    .ignoresSafeArea(edges: .bottom)
-            }
-            // Keeps scroll / bounce content inside the top curve.
+            // Clip scroll / bounce to the top curve only — applied before the fill
+            // so the canvas can still extend under the home indicator.
             .clipShape(shape)
             .overlay {
                 // Soft rim light along the top lip only.
@@ -804,6 +800,12 @@ private struct TTTopRoundedSheetModifier: ViewModifier {
                     )
                     .allowsHitTesting(false)
             }
+            // Canvas fill behind clipped content — no bottom safe-area gap.
+            .background {
+                shape
+                    .fill(fill)
+                    .ignoresSafeArea(edges: .bottom)
+            }
             // Upward contact shadow onto the black/charcoal header.
             .background {
                 shape
@@ -811,6 +813,7 @@ private struct TTTopRoundedSheetModifier: ViewModifier {
                     .shadow(color: Color.black.opacity(0.38), radius: 16, y: -5)
                     .shadow(color: Color.black.opacity(0.16), radius: 3, y: -1)
                     .allowsHitTesting(false)
+                    .ignoresSafeArea(edges: .bottom)
             }
     }
 }

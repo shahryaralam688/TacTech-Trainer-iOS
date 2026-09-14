@@ -48,6 +48,7 @@ struct TraineeRootView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .ignoresSafeArea(edges: .bottom)
                     // Keep scroll content clear of the floating bar without painting an opaque bottom plate.
                     .contentMargins(
                         .bottom,

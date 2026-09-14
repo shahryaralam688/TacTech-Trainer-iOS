@@ -37,35 +37,44 @@ struct PersonalInformationSettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            staticHeader
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if isLoading {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                    }
-
-                    labeledField("Full Name", icon: .user, text: $name, field: .name)
-                    labeledField("Email", icon: .envelope1, text: $email, field: .email, keyboard: .emailAddress)
-                    passwordSection
-                    if isTrainee {
-                        heightSlider
-                        weightSlider
-                    }
-                    genderRow
-                    labeledField("Location", icon: .mapPin1, text: $location, field: .location)
-
-                    saveButton
+        ZStack(alignment: .top) {
+            VStack(spacing: 0) {
+                TTDarkPageHeader(title: "Personal Info") {
+                    dismiss()
                 }
-                .padding(.horizontal, 18)
-                .padding(.top, 12)
-                .padding(.bottom, tabBarClearance + 24)
-                .disabled(isLoading || isSaving)
+
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if isLoading {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        }
+
+                        labeledField("Full Name", icon: .user, text: $name, field: .name)
+                        labeledField("Email", icon: .envelope1, text: $email, field: .email, keyboard: .emailAddress)
+                        passwordSection
+                        if isTrainee {
+                            heightSlider
+                            weightSlider
+                        }
+                        genderRow
+                        labeledField("Location", icon: .mapPin1, text: $location, field: .location)
+
+                        saveButton
+                    }
+                    .padding(.horizontal, 18)
+                    // Half avatar overlaps the sheet; keep fields clear of avatar + edit badge.
+                    .padding(.top, avatarSize / 2 + 18)
+                    .padding(.bottom, tabBarClearance + 24)
+                    .disabled(isLoading || isSaving)
+                }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
+
+            // Drawn above the sheet so the lower half truly overlaps the white card.
+            avatarWithEdit
+                .padding(.top, TTDarkPageHeader.cardHeight + 10 + 16 - avatarSize / 2)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
@@ -102,19 +111,7 @@ struct PersonalInformationSettingsView: View {
         }
     }
 
-    // MARK: - Header
-
-    private var staticHeader: some View {
-        ZStack(alignment: .bottom) {
-            TTDarkPageHeader(title: "Personal Info") {
-                dismiss()
-            }
-
-            avatarWithEdit
-                .offset(y: avatarSize / 2)
-        }
-        .padding(.bottom, avatarSize / 2)
-    }
+    // MARK: - Avatar
 
     private var avatarWithEdit: some View {
         ZStack(alignment: .bottom) {
@@ -149,6 +146,7 @@ struct PersonalInformationSettingsView: View {
             .offset(y: 4)
             .accessibilityLabel("Edit avatar")
         }
+        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

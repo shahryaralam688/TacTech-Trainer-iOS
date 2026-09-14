@@ -41,7 +41,13 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var selectedShort: String?
     @State private var rangeLabel = "Weekly"
     @State private var path = NavigationPath()
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
+        let model = TTHomeScrollCollapseModel()
+        // Must match real hero height travel or ScrollView offset compensation fights
+        // (short profile content then fails to expand cleanly on scroll-down).
+        model.layoutTravel = 236 - 108
+        return model
+    }()
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)

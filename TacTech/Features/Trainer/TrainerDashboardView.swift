@@ -313,10 +313,10 @@ struct TrainerDashboardView: View {
             Spacer(minLength: 0)
         }
         .foregroundStyle(.white)
-        .padding(16)
+        .padding(TTCardTokens.padding)
         .frame(width: 148, height: 168, alignment: .topLeading)
         .background(tint)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 
     // MARK: - Roster spotlight

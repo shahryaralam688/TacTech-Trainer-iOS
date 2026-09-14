@@ -630,13 +630,13 @@ extension View {
         )
     }
 
-    func ttCard(padding: CGFloat = TTSpace.lg) -> some View {
+    func ttCard(padding: CGFloat = TTCardTokens.padding) -> some View {
         self
             .padding(padding)
             .background(TTColor.surface)
-            .clipShape(RoundedRectangle(cornerRadius: TTRadius.md, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: TTRadius.md, style: .continuous)
+                RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous)
                     .stroke(TTColor.line, lineWidth: 1)
             )
             .shadow(color: TTShadow.card, radius: TTShadow.cardRadius, y: TTShadow.cardY)

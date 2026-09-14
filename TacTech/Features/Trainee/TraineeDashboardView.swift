@@ -198,10 +198,10 @@ struct TraineeDashboardView: View {
                 .font(TTFont.workSans(28, weight: .bold))
         }
         .foregroundStyle(.white)
-        .padding(16)
+        .padding(TTCardTokens.padding)
         .frame(width: 148, height: 148, alignment: .topLeading)
         .background(tint)
-        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 
     // MARK: - Today's Workout (primary CTA)
@@ -210,7 +210,6 @@ struct TraineeDashboardView: View {
         let plan = store.currentTrainee.flatMap { store.assignedPlan(for: $0) }
         let session = plan?.session(on: selectedDay) ?? plan?.nextSession(from: selectedDay)
         let minutes = session?.durationMinutes ?? plan?.durationMinutes ?? 25
-        let kcal = max(minutes * 12, 180)
         let series = session?.exercises.count ?? plan?.allExercises.count ?? 0
         let level = plan?.level ?? "Training"
         let title = session?.title ?? plan?.title ?? "Today’s training"
@@ -244,21 +243,14 @@ struct TraineeDashboardView: View {
                     endPoint: .bottom
                 )
 
-                // Soft moving highlight over the hero
                 TTHomeHeroSheen()
 
-                HStack(spacing: 8) {
-                    workoutPill(icon: "clock", text: "\(minutes)min")
-                    workoutPill(icon: "flame.fill", text: "\(kcal)kcal")
-                    if plan != nil {
-                        workoutPill(icon: "calendar", text: selectedDay.formatted(.dateTime.weekday(.abbreviated)))
-                    }
-                }
-                .padding(14)
+                TTCardBadge(text: "\(minutes) Min")
+                    .padding(TTCardTokens.padding)
 
                 VStack {
                     Spacer()
-                    HStack(alignment: .bottom, spacing: 12) {
+                    HStack(alignment: .bottom, spacing: TTCardTokens.listSpacing) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(title)
                                 .font(TTFont.headingMD(.semibold))
@@ -288,10 +280,21 @@ struct TraineeDashboardView: View {
                             label: plan == nil ? "—" : "\(series)"
                         )
                     }
-                    .padding(16)
+                    .padding(TTCardTokens.padding)
                 }
+
+                VStack {
+                    Spacer(minLength: 0)
+                    HStack {
+                        Spacer(minLength: 0)
+                        TTCardActionButton(systemImage: "play.fill")
+                            .padding(TTCardTokens.padding)
+                            .padding(.bottom, 56)
+                    }
+                }
+                .allowsHitTesting(false)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
             .ttHomeCardMorph()
 
             if let plan {
@@ -336,20 +339,6 @@ struct TraineeDashboardView: View {
                 .buttonStyle(TTHomeCardPressStyle())
             }
         }
-    }
-
-    private func workoutPill(icon: String, text: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(TTFont.workSans(11, weight: .bold))
-            Text(text)
-                .font(TTFont.workSans(12, weight: .bold))
-        }
-        .foregroundStyle(.white)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(Color.black.opacity(0.45))
-        .clipShape(Capsule())
     }
 
     // MARK: - Diet & Nutrition
@@ -409,73 +398,40 @@ struct TraineeDashboardView: View {
             TTHomeHaptics.light()
             showNutrition = true
         } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .topLeading) {
-                    Image("OnboardingNutrition")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(height: 128)
-                        .frame(maxWidth: .infinity)
-                        .clipped()
-
-                    if !empty {
-                        HStack(spacing: 6) {
-                            mealStatPill("\(protein)g Protein")
-                            mealStatPill("\(fat)g Fat")
-                        }
-                        .padding(10)
-                    }
-                }
-
+            TTMediaActivityCard(
+                badge: empty ? nil : "\(minutes) Min",
+                actionSystemImage: empty ? "plus" : "arrow.right",
+                showsAction: true
+            ) {
+                Image("OnboardingNutrition")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(height: 128)
+                    .frame(maxWidth: .infinity)
+            } footer: {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(name)
-                        .font(TTFont.workSans(16, weight: .bold))
-                        .foregroundStyle(.black)
+                        .font(TTFont.workSans(TTCardTokens.titleSize, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
                         .lineLimit(2)
 
-                    HStack {
-                        if empty {
-                            Label("Scan or add a meal", systemImage: "fork.knife")
-                                .font(TTFont.workSans(12, weight: .medium))
-                                .foregroundStyle(Color(white: 0.45))
-                        } else {
-                            Label("\(calories)kcal", systemImage: "flame.fill")
-                                .font(TTFont.workSans(12, weight: .medium))
-                                .foregroundStyle(Color(white: 0.45))
-                            Label("\(minutes)min", systemImage: "clock")
-                                .font(TTFont.workSans(12, weight: .medium))
-                                .foregroundStyle(Color(white: 0.45))
-                        }
-
-                        Spacer(minLength: 0)
-
-                        Image(systemName: "arrow.right")
-                            .font(TTFont.workSans(12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 28, height: 28)
-                            .background(orange)
-                            .clipShape(Circle())
+                    if empty {
+                        Label("Scan or add a meal", systemImage: "fork.knife")
+                            .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                    } else {
+                        Text("\(calories) kcal · \(protein)g protein · \(fat)g fat")
+                            .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(1)
                     }
                 }
-                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(width: 220)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.06), radius: 10, y: 4)
             .ttHomeCardMorph()
         }
         .buttonStyle(TTHomeCardPressStyle())
-    }
-
-    private func mealStatPill(_ text: String) -> some View {
-        Text(text)
-            .font(TTFont.workSans(10, weight: .bold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(Color.black.opacity(0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     // MARK: - Activities
@@ -571,9 +527,9 @@ struct TraineeDashboardView: View {
                     )
                 }
             }
-            .padding(16)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .padding(TTCardTokens.padding)
+            .background(TTCardTokens.mediaFillLight)
+            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
             .shadow(color: .black.opacity(0.05), radius: 10, y: 4)
             .ttHomeCardMorph()
         }

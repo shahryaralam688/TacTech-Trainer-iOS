@@ -554,40 +554,20 @@ struct NutritionView: View {
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             } else {
-                VStack(spacing: 12) {
+                VStack(spacing: TTCardTokens.itemSpacing) {
                     ForEach(filteredFoods.prefix(8), id: \.name) { food in
                         Button {
                             addCatalogMeal(food)
                         } label: {
-                            HStack(spacing: 14) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(food.name)
-                                        .font(TTFont.textLG(.bold))
-                                        .foregroundStyle(.black)
-                                        .multilineTextAlignment(.leading)
-                                        .lineLimit(2)
-
-                                    HStack(spacing: 12) {
-                                        Label("\(food.per100g.calories)kcal", systemImage: "flame.fill")
-                                        Label(String(format: "%.1f", popularityScore(food)), systemImage: "star.fill")
-                                        Label("\(Int(food.per100g.protein))g", systemImage: "clock")
-                                    }
-                                    .font(TTFont.textSM(.medium))
-                                    .foregroundStyle(Color(white: 0.45))
-                                }
-
-                                Spacer(minLength: 0)
-
-                                Image("OnboardingNutrition")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 72, height: 72)
-                                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            TTListTile(
+                                title: food.name,
+                                subtitle: "\(food.per100g.calories) kcal · \(Int(food.per100g.protein))g protein · \(String(format: "%.1f", popularityScore(food)))★"
+                            ) {
+                                TTListTileThumb(assetName: "OnboardingNutrition")
+                            } trailing: {
+                                TTCardActionButton(systemImage: "plus")
+                                    .scaleEffect(0.85)
                             }
-                            .padding(14)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
                         }
                         .buttonStyle(.plain)
                     }

@@ -355,29 +355,11 @@ struct TTMetricCard: View {
     let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: icon)
-                    .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .frame(width: 34, height: 34)
-                    .background(tint.opacity(0.14))
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                Spacer()
-            }
-            VStack(alignment: .leading, spacing: 4) {
-                Text(value)
-                    .font(TTFont.title(22))
-                    .foregroundStyle(TTColor.ink)
-                Text(title)
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.inkMuted)
-                Text(subtitle)
-                    .font(TTFont.caption(11))
-                    .foregroundStyle(TTColor.inkSubtle)
-            }
-        }
-        .ttCard()
+        TTMetricSplitCard(
+            title: value,
+            metadata: "\(title) · \(subtitle)",
+            systemImage: icon
+        )
     }
 }
 

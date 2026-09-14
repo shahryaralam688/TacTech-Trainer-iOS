@@ -189,18 +189,18 @@ struct MyTraineesView: View {
         let last = store.logs(for: trainee.id).first
         let active = last != nil
 
-        return HStack(spacing: 12) {
-            TTAvatar(name: user?.name ?? "T", size: 54)
+        return HStack(spacing: TTCardTokens.listSpacing) {
+            TTAvatar(name: user?.name ?? "T", size: TTCardTokens.thumbSize)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(user?.name ?? "Trainee")
-                    .font(TTFont.workSans(16, weight: .bold))
+                    .font(TTFont.workSans(TTCardTokens.titleSize, weight: .bold))
                     .foregroundStyle(TTColor.ink)
                 Text(plan?.title ?? "No plan assigned")
-                    .font(TTFont.caption(12))
+                    .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
                     .foregroundStyle(TTColor.inkMuted)
                 Text(trainee.goal)
-                    .font(TTFont.caption(12))
+                    .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
                     .foregroundStyle(TTColor.inkSubtle)
                     .lineLimit(1)
             }
@@ -221,9 +221,7 @@ struct MyTraineesView: View {
                     .foregroundStyle(TTColor.inkSubtle)
             }
         }
-        .padding(14)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .ttListSurface()
     }
 
     private var emptyCard: some View {

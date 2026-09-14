@@ -109,7 +109,7 @@ struct NotificationSettingsView: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .ttToast($toast, bottomInset: 96)
+        .ttToast($toast, bottomInset: 56 + TTFloatingTabBar<Int>.stickyCTABottomInset)
         .task { await hydrateFromServer() }
     }
 
@@ -222,6 +222,8 @@ struct NotificationSettingsView: View {
             .padding(.horizontal, 18)
             .padding(.top, 12)
             .padding(.bottom, 18)
+            // Sit above the floating tab bar (custom bar is not in the safe-area).
+            .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset)
         }
         .background(
             canvas

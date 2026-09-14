@@ -169,6 +169,7 @@ struct SecuritySettingsView: View {
             .padding(.horizontal, 18)
             .padding(.top, 12)
             .padding(.bottom, 18)
+            .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset)
         }
         .background(
             canvas

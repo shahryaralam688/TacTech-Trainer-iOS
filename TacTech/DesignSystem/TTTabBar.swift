@@ -70,6 +70,8 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     static var liquidMenuFABBottomReserve: CGFloat {
         barBodyHeight - centerFABSize + fabLiftAmount
     }
+    /// Sticky bottom CTAs (Save bars) inside tab roots — clears the floating capsule + small gap.
+    static var stickyCTABottomInset: CGFloat { barBodyHeight + TTSpace.s8 }
 
     private var leftTabs: [TTTabBarItem<Tab>] { Array(tabs.prefix(2)) }
     private var rightTabs: [TTTabBarItem<Tab>] { Array(tabs.dropFirst(2).prefix(2)) }

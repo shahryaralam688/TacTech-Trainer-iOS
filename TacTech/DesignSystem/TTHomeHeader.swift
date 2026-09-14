@@ -323,22 +323,23 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
 /// `onScrollGeometryChange` never mutates layout in the same frame (avoids
 /// “tried to update multiple times per frame”).
 ///
-/// Short / barely-tall content: scrolling + collapse stay off so the header
-/// never fights UIKit offset compensation (vibrate / mid-stuck).
-/// Tall content (overflow covers full header travel): scroll + shrink unchanged.
+/// Short pages get an invisible bottom fill so overflow always covers a full
+/// header collapse — scroll + animated shrink/expand work the same as tall
+/// pages, and bottom content stays reachable (scroll is never locked off).
 @MainActor
 final class TTHomeScrollCollapseModel: ObservableObject {
     @Published private(set) var progress: CGFloat = 0
-    /// `false` when content cannot afford a full header collapse — ScrollView locked.
+    /// Kept for ScrollView wiring; always `true` so short pages stay reachable.
     @Published private(set) var allowsScrolling = true
+    /// Extra scrollable space under short content so collapse can complete without fighting.
+    @Published private(set) var bottomFillHeight: CGFloat = 0
 
     /// How many points the header chrome shrinks from expanded → compact.
     /// Matches `TTDarkPageHeader` / `trainerListHeader` travel by default.
     var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
 
-    /// Extra room past `layoutTravel` before collapse/scroll turns on (and hysteresis off).
+    /// Extra room past `layoutTravel` so post-shrink overflow stays positive.
     private static let collapseAffordSlack: CGFloat = 24
-    private static let collapseAffordOffSlack: CGFloat = 8
 
     private var lastProgress: CGFloat = 0
     private var lastRawY: CGFloat = 0
@@ -390,23 +391,29 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     }
 
     func setScrollableOverflow(_ overflow: CGFloat) {
-        // Collapse shortens the header and lengthens the ScrollView by ~layoutTravel.
-        // Measured overflow therefore shrinks while collapsed — restore that delta so
-        // the gate reflects “can we afford a full shrink?” not the current chrome height.
-        let expandableOverflow = overflow + layoutTravel * lastProgress
-        let onThreshold = layoutTravel + Self.collapseAffordSlack
-        let offThreshold = layoutTravel + Self.collapseAffordOffSlack
-        // Hysteresis: avoid toggling when contentSize ≈ the affordance edge.
-        let next: Bool
-        if allowsScrolling {
-            next = expandableOverflow > offThreshold
-        } else {
-            next = expandableOverflow > onThreshold
-        }
-        pendingCanScroll = next
+        updateBottomFill(measuredOverflow: overflow)
+        // Never lock scroll off — short content uses bottom fill instead, so the
+        // user can always reach bottom rows and complete animated shrink/expand.
+        pendingCanScroll = true
         if !isUserScrolling {
             commitPendingScrollGate()
         }
+    }
+
+    /// Keep enough scroll range under short content for a full collapse travel.
+    private func updateBottomFill(measuredOverflow: CGFloat) {
+        guard measuredOverflow.isFinite else {
+            // iOS 17 path has no overflow metric — use a fixed collapse affordance.
+            let target = (layoutTravel + Self.collapseAffordSlack).rounded()
+            if abs(target - bottomFillHeight) >= 1 { bottomFillHeight = target }
+            return
+        }
+        // Measured overflow already includes the current fill (contentMargins).
+        let natural = measuredOverflow - bottomFillHeight
+        let needed = layoutTravel + Self.collapseAffordSlack
+        let target = max(0, (needed - max(0, natural)).rounded())
+        guard abs(target - bottomFillHeight) >= 1 else { return }
+        bottomFillHeight = target
     }
 
     func setOffsetY(_ y: CGFloat) {
@@ -518,13 +525,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private func commitPendingScrollGate() {
         guard let next = pendingCanScroll else { return }
         pendingCanScroll = nil
-        guard allowsScrolling != next else {
-            if !next {
-                offsetBaseline = 0
-                apply(0)
-            }
-            return
-        }
+        guard allowsScrolling != next else { return }
         allowsScrolling = next
         if !next {
             offsetBaseline = 0
@@ -569,7 +570,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
 extension View {
     /// Put on the **ScrollView**. Pairs with `TTHomeScrollCollapseProbe` inside the content (iOS 17).
-    /// Also gates bounce/scroll when content fits the screen.
+    /// Short pages receive an invisible bottom fill so collapse can complete without locking scroll.
     func ttObserveHomeScrollCollapse(
         _ model: TTHomeScrollCollapseModel,
         space: String
@@ -624,12 +625,16 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
     let model: TTHomeScrollCollapseModel
     let space: String
     @State private var allowsScrolling = true
+    @State private var bottomFillHeight: CGFloat = 0
 
     @ViewBuilder
     func body(content: Content) -> some View {
         let gated = content
             .scrollBounceBehavior(.basedOnSize)
             .scrollDisabled(!allowsScrolling)
+            // Invisible pad under short content — enough travel for full shrink/expand.
+            // contentMargins accumulate with tab-bar clearance margins on root screens.
+            .contentMargins(.bottom, bottomFillHeight, for: .scrollContent)
 
         if #available(iOS 18.0, *) {
             gated
@@ -646,16 +651,24 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
                 .onScrollPhaseChange { _, phase in
                     model.setUserScrolling(phase != .idle)
                 }
-                .onAppear { allowsScrolling = model.allowsScrolling }
+                .onAppear {
+                    allowsScrolling = model.allowsScrolling
+                    bottomFillHeight = model.bottomFillHeight
+                }
                 .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
+                .onReceive(model.$bottomFillHeight) { bottomFillHeight = $0 }
         } else {
             gated
                 .coordinateSpace(name: space)
                 .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
                     model.ingestScrollMetrics(offset: value, overflow: .infinity)
                 }
-                .onAppear { allowsScrolling = model.allowsScrolling }
+                .onAppear {
+                    allowsScrolling = model.allowsScrolling
+                    bottomFillHeight = model.bottomFillHeight
+                }
                 .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
+                .onReceive(model.$bottomFillHeight) { bottomFillHeight = $0 }
         }
     }
 }

@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 // MARK: - Sandow Profile Screen
-// Hero + overlapping avatar + sheet identity; header collapses on scroll.
+// Overlay hero + in-scroll clearance; header collapses on scroll without resizing the ScrollView.
 
 struct TTProfileMetric: Identifiable {
     let id: String
@@ -43,9 +43,9 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var path = NavigationPath()
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
-        // Must match real hero height travel or ScrollView offset compensation fights
-        // (short profile content then fails to expand cleanly on scroll-down).
-        model.layoutTravel = 236 - 108
+        // Hero is an overlay — ScrollView bounds stay fixed, so layout travel is 0.
+        // (Non-zero travel was fighting contentOffset and causing hold-drag vibration.)
+        model.layoutTravel = 0
         return model
     }()
 
@@ -90,28 +90,32 @@ struct TTProfileScreen<Extra: View>: View {
                 let width = geo.size.width
 
                 ZStack(alignment: .top) {
-                    VStack(spacing: 0) {
-                        Color.clear
-                            .frame(height: heroHeight)
+                    // Full-height scroll — hero clearance lives *inside* content so the
+                    // ScrollView frame never resizes while dragging (no vibrate / stuck expand).
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 0) {
+                            TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
-                        ScrollView(showsIndicators: false) {
-                            VStack(spacing: 0) {
-                                TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+                            Color.clear
+                                .frame(height: expandedHero)
+                                .accessibilityHidden(true)
 
-                                VStack(spacing: 10) {
-                                    identityBlock
-                                    sandowCard
-                                    metricsRow
-                                    extra()
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.top, avatarSide / 2 + 14)
-                                .padding(.bottom, 20)
+                            VStack(spacing: 10) {
+                                identityBlock
+                                sandowCard
+                                metricsRow
+                                extra()
                             }
+                            .padding(.horizontal, 16)
+                            // Fixed clearance for the overlapping avatar (expanded size).
+                            // Tying this to collapse progress changed contentSize mid-drag.
+                            .padding(.top, expandedAvatar / 2 + 14)
+                            .padding(.bottom, 20)
+                            .frame(maxWidth: .infinity, alignment: .top)
+                            .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
                         }
-                        .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
-                        .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                     }
+                    .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
 
                     heroCard
                         .frame(height: heroHeight)

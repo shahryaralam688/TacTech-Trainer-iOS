@@ -409,13 +409,15 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private func updateBottomFill(measuredOverflow: CGFloat) {
         guard measuredOverflow.isFinite else {
             // iOS 17 path has no overflow metric — use a fixed collapse affordance.
-            let target = (layoutTravel + Self.collapseAffordSlack).rounded()
+            let target = (max(layoutTravel, TTHomeHeaderCollapse.distance) + Self.collapseAffordSlack).rounded()
             if abs(target - bottomFillHeight) >= 1 { bottomFillHeight = target }
             return
         }
         // Measured overflow already includes the current fill (contentMargins).
         let natural = measuredOverflow - bottomFillHeight
-        let needed = layoutTravel + Self.collapseAffordSlack
+        // Overlay headers use layoutTravel = 0 but still need ~`distance` of scroll
+        // to reach full collapse; frame-shrinking headers need the travel delta.
+        let needed = max(layoutTravel, TTHomeHeaderCollapse.distance) + Self.collapseAffordSlack
         let target = max(0, (needed - max(0, natural)).rounded())
         guard abs(target - bottomFillHeight) >= 1 else { return }
         bottomFillHeight = target

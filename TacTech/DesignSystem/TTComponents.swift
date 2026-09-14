@@ -845,18 +845,56 @@ struct TTToastMessage: Equatable {
 }
 
 /// Floating bottom toast — Sandow alert chrome; auto-dismisses after `duration`.
+///
+/// Presentation follows WCAG 2.2 Timing Adjustable + Material Snackbar:
+/// - status is announced to assistive tech
+/// - user can dismiss early (does not change call-site trigger logic)
+/// - error/warning stay visible longer by default
 struct TTToastBanner: View {
     let message: TTToastMessage
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
         TTAlertBanner(
             tone: message.style.alertTone,
             title: message.text,
-            subtitle: message.subtitle
+            subtitle: message.subtitle,
+            onDismiss: onDismiss
         )
         .frame(maxWidth: 360)
         .padding(.horizontal, TTSpace.screen)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilitySummary)
         .accessibilityAddTraits(.isStaticText)
+    }
+
+    private var accessibilitySummary: String {
+        var parts = [message.style.accessibilityRoleName, message.text]
+        if let subtitle = message.subtitle, !subtitle.isEmpty {
+            parts.append(subtitle)
+        }
+        return parts.joined(separator: ". ")
+    }
+}
+
+extension TTToastStyle {
+    /// Spoken role prefix for VoiceOver / TalkBack-style announcements.
+    var accessibilityRoleName: String {
+        switch self {
+        case .success: "Success"
+        case .error: "Error"
+        case .info: "Information"
+        case .warning: "Warning"
+        case .accent: "Notice"
+        }
+    }
+
+    /// WCAG 2.2.1 — give critical statuses more time before auto-dismiss.
+    var minimumReadableDuration: TimeInterval {
+        switch self {
+        case .error, .warning: 4.0
+        case .success, .info, .accent: 1.8
+        }
     }
 }
 
@@ -876,30 +914,57 @@ private struct TTToastModifier: ViewModifier {
     let duration: TimeInterval
     let bottomInset: CGFloat
     @State private var dismissTask: Task<Void, Never>?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
             .overlay(alignment: .bottom) {
                 if let message {
-                    TTToastBanner(message: message)
-                        .padding(.bottom, bottomInset)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                        .allowsHitTesting(false)
-                        .zIndex(1000)
+                    TTToastBanner(message: message) {
+                        dismissToast()
+                    }
+                    .padding(.bottom, bottomInset)
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .move(edge: .bottom).combined(with: .opacity)
+                    )
+                    // Hit-testing on so dismiss control meets WCAG / Material snackbar norms.
+                    .allowsHitTesting(true)
+                    .zIndex(1000)
                 }
             }
-            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: message)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.35, dampingFraction: 0.86),
+                value: message
+            )
             .onChange(of: message) { _, newValue in
                 dismissTask?.cancel()
-                guard newValue != nil else { return }
+                guard let newValue else { return }
+                announce(newValue)
+                let hold = max(duration, newValue.style.minimumReadableDuration)
                 dismissTask = Task { @MainActor in
-                    try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                    try? await Task.sleep(nanoseconds: UInt64(hold * 1_000_000_000))
                     guard !Task.isCancelled else { return }
-                    withAnimation(.easeIn(duration: 0.2)) {
-                        message = nil
-                    }
+                    dismissToast()
                 }
             }
+    }
+
+    private func dismissToast() {
+        withAnimation(reduceMotion ? .easeIn(duration: 0.12) : .easeIn(duration: 0.2)) {
+            message = nil
+        }
+    }
+
+    private func announce(_ message: TTToastMessage) {
+        #if canImport(UIKit)
+        var parts = [message.style.accessibilityRoleName, message.text]
+        if let subtitle = message.subtitle, !subtitle.isEmpty {
+            parts.append(subtitle)
+        }
+        UIAccessibility.post(notification: .announcement, argument: parts.joined(separator: ". "))
+        #endif
     }
 }
 

@@ -83,14 +83,17 @@ struct NotificationsInboxView: View {
     }
 
     private func row(_ note: AppNotificationDTO) -> some View {
-        HStack(alignment: .top, spacing: 12) {
+        // Keep list-row structure + open behavior; only apply Alerts semantic chrome (ISO/Material list status).
+        let tone = TTAlertTone.forNotificationType(note.type)
+        return HStack(alignment: .top, spacing: 12) {
             ZStack {
                 Circle()
-                    .fill(note.isUnread ? TTColor.actionOrange.opacity(0.15) : Color(white: 0.93))
+                    .fill(tone.iconFill)
                 TTIcon(icon: icon(for: note.type), size: 16)
-                    .foregroundStyle(note.isUnread ? TTColor.actionOrange : TTColor.inkMuted)
+                    .foregroundStyle(.white)
             }
             .frame(width: 40, height: 40)
+            .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
@@ -111,17 +114,34 @@ struct NotificationsInboxView: View {
             }
         }
         .padding(14)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(tone.background)
+        .clipShape(RoundedRectangle(cornerRadius: TTAlertMetrics.corner, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: TTAlertMetrics.corner, style: .continuous)
+                .strokeBorder(tone.stroke.opacity(note.isUnread ? 0.7 : 0.35), lineWidth: TTAlertMetrics.borderWidth)
+        }
         .overlay(alignment: .topTrailing) {
             if note.isUnread {
                 Circle()
-                    .fill(TTColor.actionOrange)
+                    .fill(tone.stroke)
                     .frame(width: 8, height: 8)
                     .padding(10)
+                    .accessibilityLabel("Unread")
             }
         }
-        .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(inboxAccessibilityLabel(note))
+        .accessibilityHint("Opens this notification")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private func inboxAccessibilityLabel(_ note: AppNotificationDTO) -> String {
+        var parts: [String] = []
+        if note.isUnread { parts.append("Unread") }
+        parts.append(TTAlertTone.forNotificationType(note.type).accessibilityName)
+        parts.append(note.title)
+        if !note.body.isEmpty { parts.append(note.body) }
+        return parts.joined(separator: ". ")
     }
 
     private func icon(for type: String) -> SandowIcon {

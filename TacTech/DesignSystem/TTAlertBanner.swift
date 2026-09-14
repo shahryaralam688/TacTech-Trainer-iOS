@@ -31,6 +31,16 @@ enum TTAlertTone: Equatable {
 
     var iconFill: Color { stroke }
 
+    var accessibilityName: String {
+        switch self {
+        case .warning: "Warning"
+        case .success: "Success"
+        case .info: "Information"
+        case .error: "Error"
+        case .accent: "Notice"
+        }
+    }
+
     var systemIcon: String {
         switch self {
         case .warning: "exclamationmark"
@@ -38,6 +48,24 @@ enum TTAlertTone: Equatable {
         case .info: "gearshape.fill"
         case .error: "exclamationmark"
         case .accent: "star.fill"
+        }
+    }
+
+    /// Maps backend notification `type` → semantic tone (visual only).
+    static func forNotificationType(_ type: String) -> TTAlertTone {
+        switch type.lowercased() {
+        case "chat_call", "call", "incoming_call":
+            return .warning
+        case "chat", "message":
+            return .info
+        case "error", "failure", "permission":
+            return .error
+        case "success", "completed":
+            return .success
+        case "pro", "subscription", "promo":
+            return .accent
+        default:
+            return .info
         }
     }
 }

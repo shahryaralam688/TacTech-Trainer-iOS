@@ -57,6 +57,7 @@ struct TraineeDashboardView: View {
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
+            .ttSyncRootTabBarWithNavigationDepth()
             .task(id: selectedDay) {
                 if let trainee = store.currentTrainee {
                     await store.refreshDay(for: trainee.id, on: selectedDay)

@@ -41,6 +41,7 @@ struct NutritionView: View {
             }
             .background(charcoal.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
+            .ttSyncRootTabBarWithNavigationDepth()
             .sheet(isPresented: $showManual) {
                 ManualMealView(day: selectedDay)
                     .ttModalSheetPresentation()

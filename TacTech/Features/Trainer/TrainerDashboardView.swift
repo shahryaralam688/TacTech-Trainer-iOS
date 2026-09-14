@@ -56,6 +56,7 @@ struct TrainerDashboardView: View {
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
+            .ttSyncRootTabBarWithNavigationDepth()
             .sheet(isPresented: $showProfile) {
                 TrainerProfileView(showsBack: true)
                     .ttModalSheetPresentation(dragIndicator: .hidden)

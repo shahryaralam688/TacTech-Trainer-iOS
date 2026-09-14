@@ -4,6 +4,7 @@ import UIKit
 /// Sandow Notification Settings — light canvas, shared `TTBackButton`, Sandow icons.
 struct NotificationSettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ttRootTabBarClearance) private var tabBarClearance
 
     @AppStorage("notifications.push") private var pushEnabled = true
     @AppStorage("notifications.aiCoach") private var aiCoachEnabled = false
@@ -105,12 +106,12 @@ struct NotificationSettingsView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 18)
-                .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset + 24)
+                .padding(.bottom, tabBarClearance + 24)
             }
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .ttToast($toast, bottomInset: TTFloatingTabBar<Int>.stickyCTABottomInset + 16)
+        .ttToast($toast, bottomInset: max(tabBarClearance, 16) + 16)
         .task { await hydrateFromServer() }
     }
 

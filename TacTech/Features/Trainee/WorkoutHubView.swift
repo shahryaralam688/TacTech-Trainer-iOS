@@ -51,6 +51,7 @@ struct WorkoutHubView: View {
             }
             .ttScreenBackground()
             .ttHideSystemNavigationBar()
+            .ttSyncRootTabBarWithNavigationDepth()
         }
     }
 

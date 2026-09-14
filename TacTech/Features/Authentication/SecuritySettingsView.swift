@@ -4,6 +4,7 @@ import SwiftUI
 /// Sandow Security Settings — light canvas, shared `TTBackButton`, hero shield asset.
 struct SecuritySettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.ttRootTabBarClearance) private var tabBarClearance
 
     @AppStorage("security.twoFactor") private var twoFactorEnabled = false
     @AppStorage("security.googleAuth") private var googleAuthEnabled = true
@@ -78,7 +79,7 @@ struct SecuritySettingsView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 8)
-                .padding(.bottom, TTFloatingTabBar<Int>.stickyCTABottomInset + 24)
+                .padding(.bottom, tabBarClearance + 24)
             }
         }
         .background(canvas.ignoresSafeArea())

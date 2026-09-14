@@ -130,6 +130,9 @@ struct TTProfileScreen<Extra: View>: View {
                     PersonalInformationSettingsView()
                 }
             }
+            // Pushed Account / Settings live on this stack — hide floating tab chrome off-root.
+            .ttRootTabBarVisible(path.isEmpty)
+            .ttSyncRootTabBarWithNavigationDepth()
         }
     }
 

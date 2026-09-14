@@ -11,6 +11,7 @@ struct TraineeRootView: View {
     @State private var showLiquidMenu = false
     @State private var showCoachChat = false
     @State private var pendingChatThreadId: String?
+    @State private var rootTabBarVisible = true
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -24,50 +25,70 @@ struct TraineeRootView: View {
     var body: some View {
         ZStack {
             GeometryReader { geo in
+                let tabClearance = rootTabBarVisible
+                    ? TTFloatingTabBar<TraineeTab>.barBodyHeight + geo.safeAreaInsets.bottom
+                    : geo.safeAreaInsets.bottom
+
                 ZStack(alignment: .bottom) {
                     ZStack {
                         if mounted.contains(.home) {
                             TraineeDashboardView()
                                 .opacity(tab == .home ? 1 : 0)
                                 .allowsHitTesting(tab == .home)
+                                .transformPreference(TTRootTabBarVisibleKey.self) { visible in
+                                    if tab != .home { visible = true }
+                                }
                         }
                         if mounted.contains(.workout) {
                             WorkoutHubView()
                                 .opacity(tab == .workout ? 1 : 0)
                                 .allowsHitTesting(tab == .workout)
+                                .transformPreference(TTRootTabBarVisibleKey.self) { visible in
+                                    if tab != .workout { visible = true }
+                                }
                         }
                         if mounted.contains(.nutrition) {
                             NutritionView()
                                 .opacity(tab == .nutrition ? 1 : 0)
                                 .allowsHitTesting(tab == .nutrition)
+                                .transformPreference(TTRootTabBarVisibleKey.self) { visible in
+                                    if tab != .nutrition { visible = true }
+                                }
                         }
                         if mounted.contains(.profile) {
                             TraineeProfileView()
                                 .opacity(tab == .profile ? 1 : 0)
                                 .allowsHitTesting(tab == .profile)
+                                .transformPreference(TTRootTabBarVisibleKey.self) { visible in
+                                    if tab != .profile { visible = true }
+                                }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(edges: .bottom)
-                    // Keep scroll content clear of the floating bar without painting an opaque bottom plate.
-                    .contentMargins(
-                        .bottom,
-                        TTFloatingTabBar<TraineeTab>.barBodyHeight + geo.safeAreaInsets.bottom,
-                        for: .scrollContent
-                    )
+                    .contentMargins(.bottom, tabClearance, for: .scrollContent)
+                    .environment(\.ttRootTabBarClearance, rootTabBarVisible ? TTFloatingTabBar<TraineeTab>.barBodyHeight : 0)
+                    .onPreferenceChange(TTRootTabBarVisibleKey.self) { visible in
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            rootTabBarVisible = visible
+                        }
+                    }
 
-                    TTFloatingTabBar(
-                        tabs: tabs,
-                        selection: $tab,
-                        onCenterTap: openLiquidMenu,
-                        bottomInset: geo.safeAreaInsets.bottom,
-                        aiChatNamespace: aiChatNamespace,
-                        isAIChatPresented: showAIChat,
-                        isCenterMenuPresented: showLiquidMenu,
-                        liquidFABNamespace: liquidFABNamespace
-                    )
-                    .background(Color.clear)
-                    .zIndex(20)
+                    if rootTabBarVisible {
+                        TTFloatingTabBar(
+                            tabs: tabs,
+                            selection: $tab,
+                            onCenterTap: openLiquidMenu,
+                            bottomInset: geo.safeAreaInsets.bottom,
+                            aiChatNamespace: aiChatNamespace,
+                            isAIChatPresented: showAIChat,
+                            isCenterMenuPresented: showLiquidMenu,
+                            liquidFABNamespace: liquidFABNamespace
+                        )
+                        .background(Color.clear)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                        .zIndex(20)
+                    }
                 }
             }
             .ignoresSafeArea(edges: .bottom)

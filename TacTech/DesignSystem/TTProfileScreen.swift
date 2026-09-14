@@ -2,7 +2,7 @@ import Charts
 import SwiftUI
 
 // MARK: - Sandow Profile Screen
-// Overlay hero + in-scroll clearance; header collapses on scroll without resizing the ScrollView.
+// Hero + overlapping avatar + sheet identity. Scrolls without collapsing the hero.
 
 struct TTProfileMetric: Identifiable {
     let id: String
@@ -41,42 +41,21 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var selectedShort: String?
     @State private var rangeLabel = "Weekly"
     @State private var path = NavigationPath()
-    @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
-        let model = TTHomeScrollCollapseModel()
-        // Hero is an overlay — ScrollView bounds stay fixed, so layout travel is 0.
-        // (Non-zero travel was fighting contentOffset and causing hold-drag vibration.)
-        model.layoutTravel = 0
-        return model
-    }()
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let expandedAvatar: CGFloat = 112
-    private let collapsedAvatar: CGFloat = 44
-    private let expandedHero: CGFloat = 236
-    private let collapsedHero: CGFloat = 108
+    private let avatarSide: CGFloat = 112
+    private let heroHeight: CGFloat = 236
     private let contentTopRadius: CGFloat = 36
     private let chromeButton: CGFloat = 52
     private let chromeIcon: CGFloat = 22
     private let chromeBottomPad: CGFloat = 20
     private let chromeSidePad: CGFloat = 20
-    private let scrollSpace = "profileScreen"
 
     private enum ProfileRoute: Hashable {
         case accountSettings
         case personalInfo
-    }
-
-    private var p: CGFloat { scrollCollapse.progress }
-    private var expand: CGFloat { 1 - p }
-
-    private var heroHeight: CGFloat {
-        collapsedHero + (expandedHero - collapsedHero) * expand
-    }
-
-    private var avatarSide: CGFloat {
-        collapsedAvatar + (expandedAvatar - collapsedAvatar) * expand
     }
 
     private var activeDayId: String {
@@ -90,16 +69,11 @@ struct TTProfileScreen<Extra: View>: View {
                 let width = geo.size.width
 
                 ZStack(alignment: .top) {
-                    // Full-height scroll — hero clearance lives *inside* content so the
-                    // ScrollView frame never resizes while dragging (no vibrate / stuck expand).
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+                    VStack(spacing: 0) {
+                        Color.clear
+                            .frame(height: heroHeight)
 
-                            Color.clear
-                                .frame(height: expandedHero)
-                                .accessibilityHidden(true)
-
+                        ScrollView(showsIndicators: false) {
                             VStack(spacing: 10) {
                                 identityBlock
                                 sandowCard
@@ -107,15 +81,11 @@ struct TTProfileScreen<Extra: View>: View {
                                 extra()
                             }
                             .padding(.horizontal, 16)
-                            // Fixed clearance for the overlapping avatar (expanded size).
-                            // Tying this to collapse progress changed contentSize mid-drag.
-                            .padding(.top, expandedAvatar / 2 + 14)
+                            .padding(.top, avatarSide / 2 + 14)
                             .padding(.bottom, 20)
-                            .frame(maxWidth: .infinity, alignment: .top)
-                            .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
                         }
+                        .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
                     }
-                    .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
 
                     heroCard
                         .frame(height: heroHeight)
@@ -154,7 +124,6 @@ struct TTProfileScreen<Extra: View>: View {
             Image(heroImage)
                 .resizable()
                 .scaledToFill()
-                .opacity(0.55 + 0.45 * Double(expand))
             LinearGradient(
                 colors: [
                     Color.black.opacity(0.18),
@@ -167,13 +136,10 @@ struct TTProfileScreen<Extra: View>: View {
         }
     }
 
-    // MARK: - Chrome (left / right) — rise on collapse
+    // MARK: - Chrome (left / right)
 
-    private func chromeButtons(topSafe: CGFloat) -> some View {
-        let collapsedTop = topSafe + 8
-        let expandedTop = heroHeight - chromeBottomPad - chromeButton
-        let top = collapsedTop + (expandedTop - collapsedTop) * expand
-        let buttonScale = 1 - 0.12 * p
+    private func chromeButtons(topSafe _: CGFloat) -> some View {
+        let top = heroHeight - chromeBottomPad - chromeButton
 
         return HStack {
             profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
@@ -188,7 +154,6 @@ struct TTProfileScreen<Extra: View>: View {
                 path.append(ProfileRoute.accountSettings)
             }
         }
-        .scaleEffect(buttonScale, anchor: .top)
         .padding(.horizontal, chromeSidePad)
         .padding(.top, top)
         .frame(maxWidth: .infinity, alignment: .top)
@@ -196,25 +161,21 @@ struct TTProfileScreen<Extra: View>: View {
 
     private func profileChromeButton(icon: SandowIcon, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            TTIcon(icon: icon, filled: true, size: chromeIcon - 2 * p)
+            TTIcon(icon: icon, filled: true, size: chromeIcon)
                 .foregroundStyle(.white)
-                .frame(width: chromeButton - 6 * p, height: chromeButton - 6 * p)
+                .frame(width: chromeButton, height: chromeButton)
                 .background(Color(white: 0.22).opacity(0.82))
                 .background(.ultraThinMaterial)
-                .clipShape(RoundedRectangle(cornerRadius: 16 - 2 * p, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(icon == .gear1 ? "Settings" : (showsBack ? "Back" : "Edit"))
     }
 
-    // MARK: - Avatar (half hero / half sheet → shrink + slide left)
+    // MARK: - Avatar (half hero / half sheet)
 
     private func overlappingAvatar(width: CGFloat) -> some View {
         let corner = avatarSide * 0.28
-        let expandedX = width / 2
-        let collapsedX = chromeSidePad + (chromeButton - 6) + 10 + avatarSide / 2
-        let x = expandedX + (collapsedX - expandedX) * p
-        let y = heroHeight
 
         return TTAvatarImage(
             assetName: avatarAsset,
@@ -225,10 +186,10 @@ struct TTProfileScreen<Extra: View>: View {
         .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(.white, lineWidth: 3.5 - p)
+                .strokeBorder(.white, lineWidth: 3.5)
         )
-        .shadow(color: .black.opacity(0.16 * Double(expand) + 0.08), radius: 12 - 6 * p, y: 4 - 2 * p)
-        .position(x: x, y: y)
+        .shadow(color: .black.opacity(0.24), radius: 12, y: 4)
+        .position(x: width / 2, y: heroHeight)
         .allowsHitTesting(false)
     }
 
@@ -237,7 +198,7 @@ struct TTProfileScreen<Extra: View>: View {
     private var identityBlock: some View {
         VStack(spacing: 6) {
             Text(name)
-                .font(TTFont.workSans(24 - 2 * p, weight: .bold))
+                .font(TTFont.workSans(24, weight: .bold))
                 .foregroundStyle(TTColor.ink)
                 .multilineTextAlignment(.center)
 
@@ -261,7 +222,6 @@ struct TTProfileScreen<Extra: View>: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
-        .opacity(Double(0.35 + 0.65 * expand))
     }
 
     // MARK: Sandow Score

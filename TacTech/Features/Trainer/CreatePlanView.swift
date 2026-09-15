@@ -1,11 +1,48 @@
 import SwiftUI
 
-// MARK: - Create Plan (Sandow / TecTach theme)
+// MARK: - Create Plan (guided 3-step builder)
+
+private enum CreatePlanStep: Int, CaseIterable, Hashable {
+    case basics = 0
+    case days = 1
+    case sessions = 2
+
+    var number: Int { rawValue + 1 }
+    var total: Int { Self.allCases.count }
+
+    var title: String {
+        switch self {
+        case .basics: "Program basics"
+        case .days: "Training days"
+        case .sessions: "Build sessions"
+        }
+    }
+
+    var instruction: String {
+        switch self {
+        case .basics:
+            "Name the plan and set level. You can refine focus and notes — or skip them for now."
+        case .days:
+            "Tap every day this program runs. You’ll add exercises on the next step."
+        case .sessions:
+            "Open a day, tap Add, and prescribe exercises. Only days with exercises are saved."
+        }
+    }
+
+    var primaryTitle: String {
+        switch self {
+        case .basics, .days: "Continue"
+        case .sessions: "Save plan"
+        }
+    }
+}
 
 struct CreatePlanView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    @State private var step: CreatePlanStep = .basics
     @State private var title = ""
     @State private var focus = ""
     @State private var level = "Intermediate"
@@ -15,28 +52,65 @@ struct CreatePlanView: View {
     @State private var pickerDay: Weekday?
     @State private var isSaving = false
     @State private var error: String?
+    @State private var showLeaveConfirm = false
+    @State private var showSessionTips = false
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
     private let levels = ["Beginner", "Intermediate", "Advanced"]
 
+    private var stepMotion: Animation {
+        reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.88)
+    }
+
+    private var hasDraftProgress: Bool {
+        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !selectedDays.isEmpty
+            || sessions.values.contains { !$0.exercises.isEmpty }
+    }
+
+    private var canAdvance: Bool {
+        switch step {
+        case .basics:
+            !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .days:
+            !selectedDays.isEmpty
+        case .sessions:
+            canSave
+        }
+    }
+
+    private var canSave: Bool {
+        !title.trimmingCharacters(in: .whitespaces).isEmpty
+            && selectedDays.contains { !(sessions[$0]?.exercises.isEmpty ?? true) }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
-            header
+            wizardHeader
+            progressTrack
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: TTModalSheetChrome.contentSpacing) {
-                    planHeader
-                    dayPicker
+                    stepGuidance
 
-                    ForEach(selectedDays, id: \.self) { day in
-                        if let binding = binding(for: day) {
-                            SessionEditor(day: day, draft: binding) {
-                                pickerDay = day
-                            }
+                    Group {
+                        switch step {
+                        case .basics: basicsStep
+                        case .days: daysStep
+                        case .sessions: sessionsStep
                         }
                     }
+                    .id(step)
+                    .transition(
+                        reduceMotion
+                            ? .opacity
+                            : .asymmetric(
+                                insertion: .opacity.combined(with: .move(edge: .trailing)),
+                                removal: .opacity.combined(with: .move(edge: .leading))
+                            )
+                    )
 
                     if let error {
                         Text(error)
@@ -44,13 +118,14 @@ struct CreatePlanView: View {
                             .foregroundStyle(TTColor.danger)
                             .padding(.horizontal, 4)
                     }
-
-                    saveButton
                 }
                 .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
                 .padding(.top, TTModalSheetChrome.contentTopPadding)
-                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
+                .padding(.bottom, 12)
+                .animation(stepMotion, value: step)
             }
+
+            wizardFooter
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
@@ -60,46 +135,134 @@ struct CreatePlanView: View {
             }
             .ttModalSheetPresentation()
         }
-    }
-
-    // MARK: Header
-
-    private var header: some View {
-        TTModalSheetHeader(
-            title: "New Plan",
-            subtitle: "Build a weekly program",
-            background: .white
+        .confirmationDialog(
+            "Continue later?",
+            isPresented: $showLeaveConfirm,
+            titleVisibility: .visible
         ) {
-            Button {
-                Task { await save() }
-            } label: {
-                Group {
-                    if isSaving {
-                        ProgressView()
-                            .tint(.white)
-                    } else {
-                        TTIcon(icon: .check, filled: true, size: 16)
-                            .foregroundStyle(.white)
-                    }
-                }
-                .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
-                .background(canSave ? orange : Color(white: 0.75))
-                .clipShape(RoundedRectangle(cornerRadius: TTModalSheetChrome.controlCornerRadius, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSave || isSaving)
-            .accessibilityLabel("Save plan")
+            Button("Continue later", role: .destructive) { dismiss() }
+            Button("Keep editing", role: .cancel) {}
+        } message: {
+            Text("This plan isn’t saved yet. You can start again anytime from Plans.")
         }
     }
 
-    // MARK: Program
+    // MARK: - Chrome
 
-    private var planHeader: some View {
+    private var wizardHeader: some View {
+        TTModalSheetHeader(
+            title: "New Plan",
+            subtitle: "Step \(step.number) of \(CreatePlanStep.basics.total)",
+            background: .white,
+            onBack: { goBack() }
+        ) {
+            Text("\(step.number)/\(CreatePlanStep.basics.total)")
+                .font(TTFont.workSans(13, weight: .bold))
+                .foregroundStyle(TTColor.inkMuted)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(Color(white: 0.94))
+                .clipShape(Capsule())
+        }
+    }
+
+    private var progressTrack: some View {
+        GeometryReader { geo in
+            let fraction = CGFloat(step.number) / CGFloat(CreatePlanStep.basics.total)
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.black.opacity(0.06))
+                Capsule()
+                    .fill(orange)
+                    .frame(width: max(8, geo.size.width * fraction))
+                    .animation(stepMotion, value: step)
+            }
+        }
+        .frame(height: 4)
+        .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+        .padding(.bottom, 8)
+        .background(Color.white)
+    }
+
+    private var stepGuidance: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(step.title)
+                .font(TTFont.workSans(22, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text(step.instruction)
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(orange.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private var wizardFooter: some View {
+        VStack(spacing: 10) {
+            Button {
+                Task { await advance() }
+            } label: {
+                HStack(spacing: 8) {
+                    if isSaving {
+                        ProgressView().tint(.white)
+                    } else {
+                        Text(step.primaryTitle)
+                            .font(TTFont.workSans(16, weight: .bold))
+                        if step != .sessions {
+                            TTIcon(icon: .chevronRight, size: 14)
+                        } else {
+                            TTIcon(icon: .check, filled: true, size: 14)
+                        }
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 56)
+                .background(canAdvance ? Color.black : Color(white: 0.72))
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(TTSearchPressStyle(scale: 0.98))
+            .disabled(!canAdvance || isSaving)
+            .accessibilityLabel(step.primaryTitle)
+
+            Button {
+                requestLeave()
+            } label: {
+                Text("Continue later")
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+            }
+            .buttonStyle(.plain)
+            .disabled(isSaving)
+            .accessibilityLabel("Continue later")
+        }
+        .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+        .padding(.top, 10)
+        .padding(.bottom, 12)
+        .background(
+            Color.white
+                .shadow(color: .black.opacity(0.06), radius: 12, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        )
+    }
+
+    // MARK: - Steps
+
+    private var basicsStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionLabel("Program", icon: .clipboard)
 
             sandowField("Plan title", text: $title, prompt: "e.g. 4-day strength block")
-            sandowField("Focus", text: $focus, prompt: "Hypertrophy · posterior chain")
+            sandowField("Focus (optional)", text: $focus, prompt: "Hypertrophy · posterior chain")
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("LEVEL")
@@ -109,7 +272,7 @@ struct CreatePlanView: View {
                     ForEach(levels, id: \.self) { item in
                         let on = level == item
                         Button {
-                            level = item
+                            withAnimation(stepMotion) { level = item }
                         } label: {
                             Text(item)
                                 .font(TTFont.workSans(13, weight: .semibold))
@@ -125,32 +288,30 @@ struct CreatePlanView: View {
             }
 
             sandowField(
-                "Coach notes for the trainee",
+                "Coach notes (optional)",
                 text: $notes,
                 prompt: "How this week should feel, deload rules…",
                 axis: .vertical
             )
+
+            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                tipRow("Add a plan title to continue.")
+            }
         }
         .padding(18)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    // MARK: Days
-
-    private var dayPicker: some View {
+    private var daysStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionLabel("Training days", icon: .calendar1)
-
-            Text("Pick every training day, then set time, cues, and weights for each set.")
-                .font(TTFont.body(13))
-                .foregroundStyle(TTColor.inkMuted)
+            sectionLabel("This week’s days", icon: .calendar1)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
                 ForEach(Weekday.allCases) { day in
                     let on = selectedDays.contains(day)
                     Button {
-                        toggle(day)
+                        withAnimation(stepMotion) { toggle(day) }
                     } label: {
                         Text(day.short)
                             .font(TTFont.workSans(13, weight: .bold))
@@ -167,34 +328,73 @@ struct CreatePlanView: View {
                     .buttonStyle(TTSearchPressStyle(scale: 0.97))
                 }
             }
+
+            if selectedDays.isEmpty {
+                tipRow("Select at least one training day.")
+            } else {
+                Text("\(selectedDays.count) day\(selectedDays.count == 1 ? "" : "s") selected")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(orange)
+                    .fontWeight(.semibold)
+            }
         }
         .padding(18)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
-    private var saveButton: some View {
-        Button {
-            Task { await save() }
-        } label: {
-            HStack(spacing: 8) {
-                if isSaving {
-                    ProgressView().tint(.white)
-                } else {
-                    Text("Save detailed plan")
-                        .font(TTFont.workSans(16, weight: .bold))
-                    TTIcon(icon: .check, filled: true, size: 14)
+    private var sessionsStep: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                sectionLabel("Sessions", icon: .kettlebell)
+                Spacer()
+                Button {
+                    withAnimation(stepMotion) { showSessionTips.toggle() }
+                } label: {
+                    Text(showSessionTips ? "Hide tips" : "Tips")
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(orange)
+                }
+                .buttonStyle(.plain)
+            }
+
+            if showSessionTips {
+                tipRow("Expand a day → Add exercise → set reps & weight. Collapse days you are done with.")
+            }
+
+            if selectedDays.isEmpty {
+                tipRow("Go back and pick training days first.")
+            } else {
+                ForEach(selectedDays, id: \.self) { day in
+                    if let binding = binding(for: day) {
+                        SessionEditor(day: day, draft: binding) {
+                            pickerDay = day
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
                 }
             }
-            .foregroundStyle(.white)
-            .frame(maxWidth: .infinity)
-            .frame(height: 56)
-            .background(canSave ? Color.black : Color(white: 0.72))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+
+            if !canSave, !selectedDays.isEmpty {
+                tipRow("Add at least one exercise to any day before saving.")
+            }
         }
-        .buttonStyle(TTSearchPressStyle(scale: 0.98))
-        .disabled(!canSave || isSaving)
-        .padding(.top, 4)
+    }
+
+    private func tipRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            TTIcon(icon: .infoCircle, filled: true, size: 14)
+                .foregroundStyle(orange)
+                .padding(.top, 1)
+            Text(text)
+                .font(TTFont.body(13))
+                .foregroundStyle(TTColor.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(orange.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     private func sectionLabel(_ title: String, icon: SandowIcon) -> some View {
@@ -216,7 +416,41 @@ struct CreatePlanView: View {
         TTSandowLabeledField(title: title, prompt: prompt, axis: axis, idleFill: .white, text: text)
     }
 
-    // MARK: Logic
+    // MARK: - Navigation
+
+    private func goBack() {
+        error = nil
+        if step == .basics {
+            requestLeave()
+            return
+        }
+        withAnimation(stepMotion) {
+            if let prev = CreatePlanStep(rawValue: step.rawValue - 1) {
+                step = prev
+            }
+        }
+    }
+
+    private func advance() async {
+        error = nil
+        switch step {
+        case .basics, .days:
+            guard canAdvance, let next = CreatePlanStep(rawValue: step.rawValue + 1) else { return }
+            withAnimation(stepMotion) { step = next }
+        case .sessions:
+            await save()
+        }
+    }
+
+    private func requestLeave() {
+        if hasDraftProgress {
+            showLeaveConfirm = true
+        } else {
+            dismiss()
+        }
+    }
+
+    // MARK: - Logic
 
     private func toggle(_ day: Weekday) {
         if let index = selectedDays.firstIndex(of: day) {
@@ -239,11 +473,6 @@ struct CreatePlanView: View {
 
     private func add(_ draft: ExerciseDraft, to day: Weekday) {
         sessions[day, default: SessionDraft(day: day, focus: focus)].exercises.append(draft)
-    }
-
-    private var canSave: Bool {
-        !title.trimmingCharacters(in: .whitespaces).isEmpty
-            && selectedDays.contains { !(sessions[$0]?.exercises.isEmpty ?? true) }
     }
 
     private func save() async {
@@ -383,7 +612,8 @@ struct SessionEditor: View {
     var addExercise: () -> Void
 
     @Environment(AppStore.self) private var store
-    @State private var isExpanded = true
+    @State private var isExpanded = false
+    @State private var showMoreOptions = false
 
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
@@ -429,6 +659,7 @@ struct SessionEditor: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .animation(morph, value: isExpanded)
         .animation(morph, value: draft.exercises.count)
+        .animation(morph, value: showMoreOptions)
     }
 
     // MARK: Header
@@ -566,27 +797,47 @@ struct SessionEditor: View {
                 }
             }
 
-            TTSandowLabeledField(
-                title: "How to start (warm-up)",
-                prompt: "Warm-up",
-                axis: .vertical,
-                idleFill: .white,
-                text: $draft.warmup
-            )
-            TTSandowLabeledField(
-                title: "How to finish (cool-down)",
-                prompt: "Cool-down",
-                axis: .vertical,
-                idleFill: .white,
-                text: $draft.cooldown
-            )
-            TTSandowLabeledField(
-                title: "How they should do this day",
-                prompt: "Pace, rest rules, form priority…",
-                axis: .vertical,
-                idleFill: .white,
-                text: $draft.coachNotes
-            )
+            Button {
+                withAnimation(morph) { showMoreOptions.toggle() }
+            } label: {
+                HStack(spacing: 8) {
+                    Text(showMoreOptions ? "Hide warm-up & notes" : "More options")
+                        .font(TTFont.workSans(13, weight: .bold))
+                    Spacer()
+                    TTIcon(icon: .chevronDown, size: 12)
+                        .rotationEffect(.degrees(showMoreOptions ? 180 : 0))
+                }
+                .foregroundStyle(orange)
+                .padding(.vertical, 4)
+            }
+            .buttonStyle(.plain)
+
+            if showMoreOptions {
+                VStack(alignment: .leading, spacing: 14) {
+                    TTSandowLabeledField(
+                        title: "How to start (warm-up)",
+                        prompt: "Warm-up",
+                        axis: .vertical,
+                        idleFill: .white,
+                        text: $draft.warmup
+                    )
+                    TTSandowLabeledField(
+                        title: "How to finish (cool-down)",
+                        prompt: "Cool-down",
+                        axis: .vertical,
+                        idleFill: .white,
+                        text: $draft.cooldown
+                    )
+                    TTSandowLabeledField(
+                        title: "How they should do this day",
+                        prompt: "Pace, rest rules, form priority…",
+                        axis: .vertical,
+                        idleFill: .white,
+                        text: $draft.coachNotes
+                    )
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
         }
     }
 

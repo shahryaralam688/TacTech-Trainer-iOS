@@ -159,34 +159,22 @@ struct WorkoutHubView: View {
     }
 
     private func exerciseRow(_ exercise: Exercise, _ item: WorkoutExercise) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(systemName: exercise.icon)
-                    .foregroundStyle(TTColor.brand)
-                    .frame(width: 44, height: 44)
-                    .background(TTColor.brandSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(exercise.name)
-                        .font(TTFont.heading(15))
-                        .foregroundStyle(TTColor.ink)
-                    Text(item.prescriptionLine)
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
-                Spacer()
-                TTChevronForward(size: 14, color: TTColor.inkSubtle)
+        HStack(spacing: 12) {
+            Image(systemName: exercise.icon)
+                .foregroundStyle(TTColor.brand)
+                .frame(width: 44, height: 44)
+                .background(TTColor.brandSoft)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(exercise.name)
+                    .font(TTFont.heading(15))
+                    .foregroundStyle(TTColor.ink)
+                Text(item.prescriptionLine)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
             }
-            ForEach(item.workingSets.prefix(4)) { set in
-                HStack {
-                    Text("Set \(set.setNumber)")
-                    Spacer()
-                    Text("\(set.reps) reps")
-                    Text(set.weightKg.map { "\($0.cleanKg) kg" } ?? "BW")
-                }
-                .font(TTFont.caption(11))
-                .foregroundStyle(TTColor.inkMuted)
-            }
+            Spacer()
+            TTChevronForward(size: 14, color: TTColor.inkSubtle)
         }
         .ttCard()
     }

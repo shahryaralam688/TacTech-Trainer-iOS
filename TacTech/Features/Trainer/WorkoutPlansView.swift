@@ -362,42 +362,88 @@ struct WorkoutPlanDetailView: View {
 
 struct PlanDayDetailCard: View {
     let day: PlanDay
+    @State private var isExpanded = false
 
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let orange = TTColor.actionOrange
+
+    private var morph: Animation {
+        .spring(response: 0.34, dampingFraction: 0.86)
+    }
+
+    private var collapsedSummary: String {
+        let focus = day.focus.trimmingCharacters(in: .whitespacesAndNewlines)
+        let head = focus.isEmpty ? day.title : focus
+        return "\(head) · \(day.exercises.count) exercise\(day.exercises.count == 1 ? "" : "s") · \(day.durationMinutes) min"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(day.weekday.title)
-                    .font(TTFont.workSans(17, weight: .bold))
-                Spacer()
-                Text(day.timeLabel)
-                    .font(TTFont.workSans(14, weight: .semibold))
-                    .foregroundStyle(TTColor.actionOrange)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(morph) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Text(day.weekday.title)
+                                .font(TTFont.workSans(17, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                            Spacer(minLength: 8)
+                            Text(day.timeLabel)
+                                .font(TTFont.workSans(14, weight: .semibold))
+                                .foregroundStyle(orange)
+                        }
+                        Text(collapsedSummary)
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(2)
+                    }
+
+                    ZStack {
+                        Circle()
+                            .fill(Color.white)
+                            .frame(width: 34, height: 34)
+                        TTIcon(icon: .chevronDown, size: 14)
+                            .foregroundStyle(TTColor.inkMuted)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                }
+                .padding(14)
+                .contentShape(Rectangle())
             }
-            Text("\(day.title) · \(day.durationMinutes) min · \(day.location ?? "Gym")")
-                .font(TTFont.caption(13))
-                .foregroundStyle(TTColor.inkMuted)
-            if !day.focus.isEmpty {
-                Text(day.focus)
-                    .font(TTFont.body(14))
-            }
-            if let notes = day.coachNotes, !notes.isEmpty {
-                labeled("How to do this day", notes)
-            }
-            if let warmup = day.warmup, !warmup.isEmpty {
-                labeled("Warm-up", warmup)
-            }
-            ForEach(Array(day.exercises.enumerated()), id: \.element.id) { index, item in
-                ExercisePrescriptionCard(index: index + 1, item: item)
-            }
-            if let cooldown = day.cooldown, !cooldown.isEmpty {
-                labeled("Cool-down", cooldown)
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Minimize \(day.weekday.title)" : "Expand \(day.weekday.title)")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("\(day.title) · \(day.durationMinutes) min · \(day.location ?? "Gym")")
+                        .font(TTFont.caption(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                    if !day.focus.isEmpty {
+                        Text(day.focus)
+                            .font(TTFont.body(14))
+                    }
+                    if let notes = day.coachNotes, !notes.isEmpty {
+                        labeled("How to do this day", notes)
+                    }
+                    if let warmup = day.warmup, !warmup.isEmpty {
+                        labeled("Warm-up", warmup)
+                    }
+                    ForEach(Array(day.exercises.enumerated()), id: \.element.id) { index, item in
+                        ExercisePrescriptionCard(index: index + 1, item: item)
+                    }
+                    if let cooldown = day.cooldown, !cooldown.isEmpty {
+                        labeled("Cool-down", cooldown)
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.bottom, 14)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .animation(morph, value: isExpanded)
     }
 
     private func labeled(_ title: String, _ value: String) -> some View {
@@ -416,44 +462,77 @@ struct ExercisePrescriptionCard: View {
     @Environment(AppStore.self) private var store
     let index: Int
     let item: WorkoutExercise
+    @State private var isExpanded = false
+
+    private let orange = TTColor.actionOrange
+
+    private var morph: Animation {
+        .spring(response: 0.32, dampingFraction: 0.88)
+    }
 
     var body: some View {
         let exercise = store.exercise(id: item.exerciseId)
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 10) {
-                Text("\(index)")
-                    .font(TTFont.workSans(13, weight: .bold))
-                    .foregroundStyle(TTColor.actionOrange)
-                    .frame(width: 28, height: 28)
-                    .background(TTColor.actionOrange.opacity(0.12))
-                    .clipShape(Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(exercise?.name ?? "Exercise")
-                        .font(TTFont.workSans(15, weight: .semibold))
-                    Text(item.prescriptionLine)
+        VStack(alignment: .leading, spacing: 0) {
+            Button {
+                withAnimation(morph) { isExpanded.toggle() }
+            } label: {
+                HStack(alignment: .top, spacing: 10) {
+                    Text("\(index)")
+                        .font(TTFont.workSans(13, weight: .bold))
+                        .foregroundStyle(orange)
+                        .frame(width: 28, height: 28)
+                        .background(orange.opacity(0.12))
+                        .clipShape(Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(exercise?.name ?? "Exercise")
+                            .font(TTFont.workSans(15, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                        Text(item.prescriptionLine)
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                    Spacer(minLength: 8)
+                    ZStack {
+                        Circle()
+                            .fill(Color(white: 0.94))
+                            .frame(width: 28, height: 28)
+                        TTIcon(icon: .chevronDown, size: 12)
+                            .foregroundStyle(TTColor.inkMuted)
+                            .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                    }
+                }
+                .padding(12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Minimize exercise" : "Expand exercise")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(item.workingSets) { set in
+                        HStack {
+                            Text("Set \(set.setNumber)")
+                            Spacer()
+                            Text("\(set.reps) reps")
+                            Text(set.weightKg.map { "\($0.cleanKg) kg" } ?? "bodyweight")
+                        }
                         .font(TTFont.caption(12))
                         .foregroundStyle(TTColor.inkMuted)
+                    }
+                    if let notes = item.notes, !notes.isEmpty {
+                        Text(notes)
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.ink)
+                    }
                 }
-            }
-            ForEach(item.workingSets) { set in
-                HStack {
-                    Text("Set \(set.setNumber)")
-                    Spacer()
-                    Text("\(set.reps) reps")
-                    Text(set.weightKg.map { "\($0.cleanKg) kg" } ?? "bodyweight")
-                }
-                .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.inkMuted)
-            }
-            if let notes = item.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.ink)
+                .padding(.horizontal, 12)
+                .padding(.bottom, 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .padding(12)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .animation(morph, value: isExpanded)
     }
 }
 

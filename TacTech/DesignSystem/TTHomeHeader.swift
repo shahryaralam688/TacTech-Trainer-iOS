@@ -18,23 +18,32 @@ struct TTHomeProfileMetric: Identifiable, Hashable {
 /// How far home must scroll before the header is fully compact.
 enum TTHomeHeaderCollapse {
     /// Longer travel = shrink/expand feels paced, not sudden.
-    static let distance: CGFloat = 168
+    static let distance: CGFloat = 188
 
     /// Ignore tiny flicks so light scrolls don’t enter a half-shrunk look.
-    static let leadIn: CGFloat = 28
+    static let leadIn: CGFloat = 36
 
     /// On finger-up, snap fully expanded below this; fully compact at/above.
-    static let settleThreshold: CGFloat = 0.42
+    static let settleThreshold: CGFloat = 0.38
 
     /// Approximate height delta of `TTHomeProfileHeader` expanded → compact.
     /// Must match real layout travel or ScrollView offset compensation fights and vibrates.
     static let homeLayoutTravel: CGFloat = 102
+
+    /// Finger-up settle — soft spring (Apple Music / Photos style), not a hard ease.
+    static let settleAnimation: Animation = .spring(response: 0.44, dampingFraction: 0.86)
 
     /// Linear map after lead-in — mid values are temporary while dragging only.
     static func progress(for offset: CGFloat) -> CGFloat {
         let adjusted = max(0, offset - leadIn)
         let span = max(1, distance - leadIn)
         return min(1, max(0, adjusted / span))
+    }
+
+    /// Visual easing so mid-drag doesn’t look half-broken (smoothstep).
+    static func displayProgress(from linear: CGFloat) -> CGFloat {
+        let t = min(1, max(0, linear))
+        return t * t * (3 - 2 * t)
     }
 }
 
@@ -56,7 +65,9 @@ struct TTHomeProfileHeader: View {
     private let dateGrey = Color.white.opacity(0.55)
     private let bellBG = Color(white: 0.22)
 
-    private var p: CGFloat { min(1, max(0, collapseProgress)) }
+    private var p: CGFloat {
+        TTHomeHeaderCollapse.displayProgress(from: collapseProgress)
+    }
     private var expand: CGFloat { 1 - p }
 
     private var avatarSide: CGFloat { 58 - 18 * p } // 58 → 40
@@ -89,9 +100,11 @@ struct TTHomeProfileHeader: View {
             }
             .ignoresSafeArea(edges: .top)
         }
+        // Soft lift into compact — reads as chrome morph, not a hard cut.
+        .shadow(color: .black.opacity(0.18 * Double(p)), radius: 10 * p, y: 4 * p)
         .contentShape(Rectangle())
         .allowsHitTesting(true)
-        // No spring on `p` — collapse must track scroll 1:1 (esp. expand on scroll-down).
+        // No spring on scroll-driven `p` — collapse tracks finger 1:1; settle spring is in the model.
     }
 
     // MARK: - Rows
@@ -339,7 +352,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
 
     /// Extra room past `layoutTravel` so post-shrink overflow stays positive.
-    private static let collapseAffordSlack: CGFloat = 24
+    private static let collapseAffordSlack: CGFloat = 18
 
     private var lastProgress: CGFloat = 0
     private var lastRawY: CGFloat = 0
@@ -349,6 +362,8 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     /// Cumulative offset delta for the active gesture — used to prefer expand on scroll-down.
     private var gestureDeltaY: CGFloat = 0
     private var pendingCanScroll: Bool?
+    /// Last endpoint we haptic’d — avoids double buzz on layout echo.
+    private var lastHapticEndpoint: CGFloat?
 
     private var pendingOffset: CGFloat?
     private var pendingOverflow: CGFloat?
@@ -500,11 +515,14 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         // because collapse travel never fit in raw offset.
         // Scroll toward top (negative delta) also prefers expand so reverse
         // shrink returns to the full header instead of snapping back compact.
+        // Strong downward flick past mid commits compact even under threshold.
         let snap: CGFloat
         if lastRawY <= TTHomeHeaderCollapse.leadIn {
             snap = 0
-        } else if gestureDeltaY <= -4 {
-            snap = lastProgress >= 0.92 ? 1 : 0
+        } else if gestureDeltaY <= -6 {
+            snap = lastProgress >= 0.90 ? 1 : 0
+        } else if gestureDeltaY >= 14, lastProgress >= 0.28 {
+            snap = 1
         } else {
             snap = lastProgress >= TTHomeHeaderCollapse.settleThreshold ? 1 : 0
         }
@@ -525,7 +543,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private func scheduleDebouncedSettle() {
         settleDebounceTask?.cancel()
         settleDebounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(160))
+            try? await Task.sleep(for: .milliseconds(140))
             guard let self, !Task.isCancelled, !self.isUserScrolling else { return }
             self.settleToEndpointIfNeeded()
         }
@@ -579,16 +597,18 @@ final class TTHomeScrollCollapseModel: ObservableObject {
 
     private func apply(_ stepped: CGFloat, animated: Bool = false) {
         guard abs(stepped - lastProgress) > 0.0005 || abs(progress - stepped) > 0.0005 else { return }
+        let previous = lastProgress
         lastProgress = stepped
         suppressGeometryIngest = true
         settleUnlockTask?.cancel()
 
         if animated {
-            withAnimation(.easeInOut(duration: 0.28)) {
+            withAnimation(TTHomeHeaderCollapse.settleAnimation) {
                 progress = stepped
             }
+            playSettleHapticIfNeeded(from: previous, to: stepped)
             settleUnlockTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(320))
+                try? await Task.sleep(for: .milliseconds(480))
                 guard let self, !Task.isCancelled else { return }
                 self.suppressGeometryIngest = false
                 self.pendingOffset = nil
@@ -609,6 +629,21 @@ final class TTHomeScrollCollapseModel: ObservableObject {
                 self.pendingOverflow = nil
             }
         }
+    }
+
+    private func playSettleHapticIfNeeded(from previous: CGFloat, to next: CGFloat) {
+        let endpoint: CGFloat? =
+            next <= 0.02 ? 0 :
+            next >= 0.98 ? 1 :
+            nil
+        guard let endpoint else { return }
+        // Only when we actually crossed into an endpoint (not echo re-apply).
+        let crossed =
+            (endpoint == 0 && previous > 0.08) ||
+            (endpoint == 1 && previous < 0.92)
+        guard crossed, lastHapticEndpoint != endpoint else { return }
+        lastHapticEndpoint = endpoint
+        TTHomeHaptics.soft()
     }
 }
 
@@ -674,7 +709,8 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         let gated = content
-            .scrollBounceBehavior(.basedOnSize)
+            // Always rubber-band so short home pages still feel like a real gesture.
+            .scrollBounceBehavior(.always)
             .scrollDisabled(!allowsScrolling)
             // Invisible pad under short content — enough travel for full shrink/expand.
             // contentMargins accumulate with tab-bar clearance margins on root screens.

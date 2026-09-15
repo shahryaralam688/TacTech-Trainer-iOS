@@ -78,6 +78,11 @@ struct NotificationReadRequest: Encodable {
     var notificationId: String?
 }
 
+struct NotificationDeleteRequest: Encodable {
+    /// Omit / null = clear all notifications for the current user.
+    var notificationId: String?
+}
+
 struct NotificationPreferencesDTO: Codable, Equatable {
     var push: Bool = true
     var aiCoach: Bool = false

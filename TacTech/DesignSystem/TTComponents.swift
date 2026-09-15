@@ -588,8 +588,16 @@ private struct TTDropPickerSheet<Value: Hashable>: View {
 enum TTSheetChrome {
     /// Home dashboard — continuous squircle, slightly softer than a hard 56pt bubble.
     static let homeTopRadius: CGFloat = 44
+    /// Compact home lip when header is fully collapsed.
+    static let homeTopRadiusCompact: CGFloat = 28
     /// Settings / detail pages under `TTDarkPageHeader`.
     static let pageTopRadius: CGFloat = TTDarkPageHeader.contentTopRadius
+
+    /// Morph home sheet lip with header collapse (0 = expanded, 1 = compact).
+    static func homeTopRadius(collapseProgress: CGFloat) -> CGFloat {
+        let t = TTHomeHeaderCollapse.displayProgress(from: collapseProgress)
+        return homeTopRadius + (homeTopRadiusCompact - homeTopRadius) * t
+    }
 }
 
 /// Shared chrome for modal `.sheet` presentations (Create Plan, library, assign, inbox, …).

@@ -4,6 +4,7 @@ import SwiftUI
 struct NotificationsInboxView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable private var store = NotificationStore.shared
+    @State private var confirmClearAll = false
 
     private let canvas = Color(red: 248 / 255, green: 249 / 255, blue: 250 / 255)
 
@@ -46,6 +47,35 @@ struct NotificationsInboxView: View {
                         ))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                            Button(role: .destructive) {
+                                Task { await store.delete(note) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                        .contextMenu {
+                            if note.isUnread {
+                                Button {
+                                    Task { await store.markRead(note) }
+                                } label: {
+                                    Label("Mark as read", systemImage: "envelope.open")
+                                }
+                            }
+                            Button(role: .destructive) {
+                                Task { await store.delete(note) }
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                        }
+                    }
+                    .onDelete { indexSet in
+                        let toDelete = indexSet.compactMap { store.items.indices.contains($0) ? store.items[$0] : nil }
+                        Task {
+                            for note in toDelete {
+                                await store.delete(note)
+                            }
+                        }
                     }
 
                     if store.items.count >= 20 {
@@ -65,6 +95,18 @@ struct NotificationsInboxView: View {
         .task {
             await store.refreshInbox()
         }
+        .confirmationDialog(
+            "Clear all notifications?",
+            isPresented: $confirmClearAll,
+            titleVisibility: .visible
+        ) {
+            Button("Clear all", role: .destructive) {
+                Task { await store.clearAll() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes every notification from your inbox. You can’t undo this.")
+        }
     }
 
     private var header: some View {
@@ -72,12 +114,30 @@ struct NotificationsInboxView: View {
             title: "Notifications",
             background: canvas
         ) {
-            if store.unreadCount > 0 {
-                Button("Mark all read") {
-                    Task { await store.markAllRead() }
+            if !store.items.isEmpty || store.unreadCount > 0 {
+                Menu {
+                    if store.unreadCount > 0 {
+                        Button {
+                            Task { await store.markAllRead() }
+                        } label: {
+                            Label("Mark all read", systemImage: "envelope.open")
+                        }
+                    }
+                    if !store.items.isEmpty {
+                        Button(role: .destructive) {
+                            confirmClearAll = true
+                        } label: {
+                            Label("Clear all", systemImage: "trash")
+                        }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(TTColor.actionOrange)
+                        .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
+                        .contentShape(Rectangle())
                 }
-                .font(TTFont.caption(13))
-                .foregroundStyle(TTColor.actionOrange)
+                .accessibilityLabel("Notification actions")
             }
         }
     }
@@ -131,7 +191,7 @@ struct NotificationsInboxView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(inboxAccessibilityLabel(note))
-        .accessibilityHint("Opens this notification")
+        .accessibilityHint("Opens this notification. Swipe to delete.")
         .accessibilityAddTraits(.isButton)
     }
 

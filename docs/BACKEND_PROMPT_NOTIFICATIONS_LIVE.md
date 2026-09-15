@@ -123,6 +123,36 @@ Upsert by `(userId, token)`.
 | GET | `/me/notifications?limit=&cursor=` | Newest first; `{ items, nextCursor?, unreadCount? }` |
 | GET | `/me/notifications/unread-count` | `{ "unreadCount": N }` |
 | POST | `/me/notifications/read` | `{ "notificationId": "…" }` or omit / null = mark all |
+| POST | `/me/notifications/delete` | `{ "notificationId": "…" }` or omit / null = **clear all** |
+
+### Delete / clear (iOS is wired)
+
+```http
+POST /me/notifications/delete
+```
+
+**Body**
+```json
+{ "notificationId": "n1" }
+```
+or clear entire inbox:
+```json
+{ "notificationId": null }
+```
+(or omit `notificationId`)
+
+**Auth:** JWT user owns the rows only (never delete another user’s notifications).
+
+**200**
+```json
+{ "unreadCount": 0 }
+```
+
+**Rules**
+- Single id: soft- or hard-delete that row; return updated unread count for the user.
+- Null / omitted: delete **all** notifications for the current user; `unreadCount` must be `0`.
+- Idempotent: deleting a missing id → still `200` with current `unreadCount` (do not 404 the whole clear).
+- After clear, `GET /me/notifications` returns empty `items`.
 
 ### Inbox item shape (Socket + REST)
 ```json

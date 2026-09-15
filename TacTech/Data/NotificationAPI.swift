@@ -54,6 +54,17 @@ actor NotificationAPI {
         return out.unreadCount
     }
 
+    /// Delete one notification, or clear all when `notificationId` is nil.
+    @discardableResult
+    func deleteNotifications(notificationId: String? = nil) async throws -> Int {
+        let out: NotificationUnreadCountOut = try await send(
+            path: "/me/notifications/delete",
+            method: .post,
+            body: NotificationDeleteRequest(notificationId: notificationId)
+        )
+        return out.unreadCount
+    }
+
     // MARK: Preferences
 
     func getPreferences() async throws -> NotificationPreferencesDTO {

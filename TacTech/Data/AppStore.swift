@@ -932,6 +932,22 @@ final class AppStore {
         }
     }
 
+    /// Pull latest assigned plan for the signed-in trainee (Workout tab / home refresh).
+    func refreshAssignedPlanForCurrentTrainee() async {
+        guard session?.role == .trainee, let trainee = currentTrainee else { return }
+        do {
+            if let plan = try await api.assignedPlan() {
+                upsert(plan)
+                assignments.removeAll { $0.traineeId == trainee.id }
+                assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
+            } else {
+                assignments.removeAll { $0.traineeId == trainee.id }
+            }
+        } catch {
+            // Keep local assignment on transient network errors.
+        }
+    }
+
     private func apply(auth response: AuthResponse) {
         TokenStore.save(
             accessToken: response.accessToken,

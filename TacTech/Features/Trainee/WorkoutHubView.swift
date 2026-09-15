@@ -13,6 +13,7 @@ struct WorkoutHubView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                            assignedPlanHeader(plan)
                             TTWeekStrip(selected: $selectedDay)
                             sessionHero(plan)
                             sessionDetail(plan)
@@ -52,7 +53,36 @@ struct WorkoutHubView: View {
             .ttScreenBackground()
             .ttHideSystemNavigationBar()
             .ttSyncRootTabBarWithNavigationDepth()
+            .task {
+                await store.refreshAssignedPlanForCurrentTrainee()
+            }
         }
+    }
+
+    private func assignedPlanHeader(_ plan: WorkoutPlan) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("YOUR PLAN")
+                .font(TTFont.caption(11))
+                .tracking(0.8)
+                .foregroundStyle(TTColor.brand)
+            Text(plan.title)
+                .font(TTFont.title(22))
+                .foregroundStyle(TTColor.ink)
+            Text("\(plan.level) · \(plan.focus)")
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+            Text(plan.scheduleLine)
+                .font(TTFont.caption(12))
+                .foregroundStyle(TTColor.inkSubtle)
+                .fixedSize(horizontal: false, vertical: true)
+            if let notes = plan.notes, !notes.isEmpty {
+                Text(notes)
+                    .font(TTFont.body(13))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ttCard(padding: 20)
     }
 
     private func session(in plan: WorkoutPlan) -> PlanDay? {

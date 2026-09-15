@@ -51,7 +51,10 @@ struct TrainerDashboardView: View {
                         .padding(.bottom, 28)
                     }
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
+                .ttTopRoundedSheet(
+                    radius: TTSheetChrome.homeTopRadius(collapseProgress: scrollCollapse.progress),
+                    fill: canvas
+                )
                 .ttObserveHomeScrollCollapse(scrollCollapse, space: "trainerHome")
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

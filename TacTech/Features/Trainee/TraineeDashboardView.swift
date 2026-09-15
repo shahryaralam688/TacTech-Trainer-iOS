@@ -52,7 +52,10 @@ struct TraineeDashboardView: View {
                         .padding(.bottom, 36)
                     }
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.homeTopRadius, fill: canvas)
+                .ttTopRoundedSheet(
+                    radius: TTSheetChrome.homeTopRadius(collapseProgress: scrollCollapse.progress),
+                    fill: canvas
+                )
                 .ttObserveHomeScrollCollapse(scrollCollapse, space: "traineeHome")
             }
             .background(Color.black.ignoresSafeArea(edges: .top))

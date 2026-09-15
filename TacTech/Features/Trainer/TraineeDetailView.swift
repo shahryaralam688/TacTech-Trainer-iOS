@@ -12,6 +12,8 @@ struct TraineeDetailView: View {
     @State private var assignSucceeded = false
     @State private var celebrateAssign = false
     @State private var feedbackToast: TTToastMessage?
+    @State private var unassignConfirm = false
+    @State private var isUnassigning = false
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
@@ -20,6 +22,10 @@ struct TraineeDetailView: View {
 
     private var displayName: String {
         store.user(forTrainee: trainee)?.name ?? "Trainee"
+    }
+
+    private var currentAssignedPlan: WorkoutPlan? {
+        store.assignedPlan(for: trainee)
     }
 
     var body: some View {
@@ -66,6 +72,18 @@ struct TraineeDetailView: View {
             await store.refreshDay(for: trainee.id, on: selectedDay)
         }
         .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
+        .confirmationDialog(
+            "Unassign this plan?",
+            isPresented: $unassignConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Unassign", role: .destructive) {
+                Task { await unassignCurrentPlan() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("\(displayName) will no longer see this plan as their assigned program.")
+        }
     }
 
     private var profileCard: some View {
@@ -108,12 +126,34 @@ struct TraineeDetailView: View {
 
     private var assignCard: some View {
         let plans = store.plans.filter { $0.trainerId == store.currentTrainer?.id }
-        return VStack(alignment: .leading, spacing: 12) {
+        let assigned = currentAssignedPlan
+        let alreadySelected = assigned?.id == selectedPlanId && !selectedPlanId.isEmpty
+
+        return VStack(alignment: .leading, spacing: 14) {
+            if let assigned {
+                assignedPlanSummary(assigned)
+            } else {
+                HStack(alignment: .top, spacing: 10) {
+                    TTIcon(icon: .barbellDiagonal, filled: true, size: 16)
+                        .foregroundStyle(TTColor.actionOrange)
+                    Text("No plan assigned yet. Pick a plan below to put \(displayName) on a program.")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
             if plans.isEmpty {
-                Text("No plans to assign yet.")
+                Text("No plans to assign yet. Create a plan first.")
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
             } else {
+                Text(assigned == nil ? "Assign a plan" : "Change plan")
+                    .font(TTFont.caption(11))
+                    .fontWeight(.bold)
+                    .foregroundStyle(TTColor.inkSubtle)
+                    .tracking(0.4)
+
                 Picker("Plan", selection: $selectedPlanId) {
                     Text("Select plan").tag("")
                     ForEach(plans) { plan in
@@ -124,23 +164,148 @@ struct TraineeDetailView: View {
                 .tint(TTColor.actionOrange)
                 .onAppear {
                     if selectedPlanId.isEmpty || !plans.contains(where: { $0.id == selectedPlanId }) {
-                        selectedPlanId = store.assignedPlan(for: trainee)?.id ?? plans.first?.id ?? ""
+                        selectedPlanId = assigned?.id ?? plans.first?.id ?? ""
                     }
                 }
-            }
 
-            TTAssignSuccessButton(
-                title: "Assign to trainee",
-                isEnabled: !selectedPlanId.isEmpty,
-                isLoading: isAssigning,
-                showSuccess: assignSucceeded
-            ) {
-                Task { await assignSelectedPlan() }
+                TTAssignSuccessButton(
+                    title: alreadySelected ? "Already assigned" : (assigned == nil ? "Assign to trainee" : "Switch to this plan"),
+                    isEnabled: !selectedPlanId.isEmpty && !alreadySelected,
+                    isLoading: isAssigning,
+                    showSuccess: assignSucceeded
+                ) {
+                    Task { await assignSelectedPlan() }
+                }
             }
         }
         .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func assignedPlanSummary(_ plan: WorkoutPlan) -> some View {
+        let status = store.planFollowStatus(traineeId: trainee.id, plan: plan)
+        let adherence = store.planAdherencePercent(traineeId: trainee.id, plan: plan)
+        let statusColor = followStatusColor(status)
+        let last = store.lastPlanWorkoutDate(traineeId: trainee.id, planId: plan.id)
+        let assignmentDate = store.assignments
+            .filter { $0.traineeId == trainee.id && $0.planId == plan.id }
+            .map(\.assignedAt)
+            .max()
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("CURRENT PLAN")
+                        .font(TTFont.caption(10))
+                        .fontWeight(.bold)
+                        .tracking(0.6)
+                        .foregroundStyle(TTColor.actionOrange)
+                    Text(plan.title)
+                        .font(TTFont.workSans(17, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("\(plan.level) · \(plan.focus)")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                    Text(plan.scheduleLine)
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkSubtle)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Text(status.title)
+                    .font(TTFont.caption(11))
+                    .fontWeight(.bold)
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(statusColor.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            HStack(spacing: 10) {
+                Text("\(adherence)% follow")
+                    .font(TTFont.caption(12))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(TTColor.inkMuted)
+                Text("·")
+                    .foregroundStyle(TTColor.inkSubtle)
+                if let last {
+                    Text("Last \(last.formatted(date: .abbreviated, time: .omitted))")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                } else {
+                    Text("No workouts logged")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+            }
+
+            if let assignmentDate {
+                Text("Assigned \(assignmentDate.formatted(date: .abbreviated, time: .omitted))")
+                    .font(TTFont.caption(11))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.black.opacity(0.06))
+                    Capsule()
+                        .fill(statusColor)
+                        .frame(width: max(4, geo.size.width * CGFloat(adherence) / 100))
+                }
+            }
+            .frame(height: 4)
+
+            HStack(spacing: 10) {
+                NavigationLink {
+                    WorkoutPlanDetailView(plan: plan)
+                } label: {
+                    Text("View plan")
+                        .font(TTFont.workSans(13, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    unassignConfirm = true
+                } label: {
+                    HStack(spacing: 6) {
+                        if isUnassigning {
+                            ProgressView()
+                        } else {
+                            Text("Unassign")
+                                .font(TTFont.workSans(13, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(TTColor.danger)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(TTColor.danger.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isUnassigning)
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func followStatusColor(_ status: PlanFollowStatus) -> Color {
+        switch status {
+        case .trainedToday: TTColor.success
+        case .following: TTColor.actionOrange
+        case .dueToday: Color(red: 0.95, green: 0.55, blue: 0.15)
+        case .behind: TTColor.danger
+        case .notStarted: TTColor.inkMuted
+        }
     }
 
     private func assignSelectedPlan() async {
@@ -166,6 +331,25 @@ struct TraineeDetailView: View {
         } catch {
             feedbackToast = TTToastMessage(
                 text: "Couldn’t assign plan",
+                style: .error,
+                subtitle: error.localizedDescription
+            )
+        }
+    }
+
+    private func unassignCurrentPlan() async {
+        guard let plan = currentAssignedPlan else { return }
+        isUnassigning = true
+        defer { isUnassigning = false }
+        do {
+            try await store.unassign(planId: plan.id, from: trainee.id)
+            TTAssignSuccessFeedback.playUnassign(toast: $feedbackToast, traineeName: displayName)
+            if selectedPlanId == plan.id {
+                selectedPlanId = store.plans.first(where: { $0.trainerId == store.currentTrainer?.id })?.id ?? ""
+            }
+        } catch {
+            feedbackToast = TTToastMessage(
+                text: "Couldn’t unassign",
                 style: .error,
                 subtitle: error.localizedDescription
             )

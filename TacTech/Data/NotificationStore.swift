@@ -132,6 +132,45 @@ final class NotificationStore {
         }
     }
 
+    func delete(_ notification: AppNotificationDTO) async {
+        let removed = notification
+        let wasUnread = removed.isUnread
+        items.removeAll { $0.id == removed.id }
+        if wasUnread { unreadCount = max(0, unreadCount - 1) }
+        syncAppBadge()
+        do {
+            unreadCount = try await api.deleteNotifications(notificationId: removed.id)
+            syncAppBadge()
+        } catch {
+            // Roll back optimistic remove.
+            if !items.contains(where: { $0.id == removed.id }) {
+                items.insert(removed, at: 0)
+                items.sort { $0.createdAt > $1.createdAt }
+            }
+            if wasUnread { unreadCount += 1 }
+            syncAppBadge()
+            lastError = error.localizedDescription
+        }
+    }
+
+    func clearAll() async {
+        let snapshot = items
+        let previousUnread = unreadCount
+        items = []
+        nextCursor = nil
+        unreadCount = 0
+        syncAppBadge()
+        do {
+            unreadCount = try await api.deleteNotifications(notificationId: nil)
+            syncAppBadge()
+        } catch {
+            items = snapshot
+            unreadCount = previousUnread
+            syncAppBadge()
+            lastError = error.localizedDescription
+        }
+    }
+
     /// Socket `notification.created` — prepend + bump badge (dedupe by id).
     func handleCreated(_ note: AppNotificationDTO) {
         if items.contains(where: { $0.id == note.id }) { return }

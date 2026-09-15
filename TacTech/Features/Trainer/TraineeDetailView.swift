@@ -8,6 +8,10 @@ struct TraineeDetailView: View {
     @State private var note = ""
     @State private var selectedDay = Date()
     @FocusState private var noteFocused: Bool
+    @State private var isAssigning = false
+    @State private var assignSucceeded = false
+    @State private var celebrateAssign = false
+    @State private var feedbackToast: TTToastMessage?
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
@@ -61,6 +65,7 @@ struct TraineeDetailView: View {
         .task(id: selectedDay) {
             await store.refreshDay(for: trainee.id, on: selectedDay)
         }
+        .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
     }
 
     private var profileCard: some View {
@@ -124,27 +129,47 @@ struct TraineeDetailView: View {
                 }
             }
 
-            Button {
-                Task { try? await store.assign(planId: selectedPlanId, to: trainee.id) }
-            } label: {
-                HStack(spacing: 8) {
-                    Text("Assign to trainee")
-                        .font(TTFont.workSans(16, weight: .semibold))
-                    TTIcon(icon: .check, filled: true, size: 14)
-                }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 52)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            TTAssignSuccessButton(
+                title: "Assign to trainee",
+                isEnabled: !selectedPlanId.isEmpty,
+                isLoading: isAssigning,
+                showSuccess: assignSucceeded
+            ) {
+                Task { await assignSelectedPlan() }
             }
-            .buttonStyle(.plain)
-            .disabled(selectedPlanId.isEmpty)
-            .opacity(selectedPlanId.isEmpty ? 0.45 : 1)
         }
         .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func assignSelectedPlan() async {
+        guard !selectedPlanId.isEmpty else { return }
+        isAssigning = true
+        defer { isAssigning = false }
+        do {
+            try await store.assign(planId: selectedPlanId, to: trainee.id)
+            let planTitle = store.plans.first(where: { $0.id == selectedPlanId })?.title ?? "Plan"
+            TTAssignSuccessFeedback.play(
+                toast: $feedbackToast,
+                celebrate: $celebrateAssign,
+                planTitle: planTitle,
+                traineeName: displayName
+            )
+            withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
+                assignSucceeded = true
+            }
+            try? await Task.sleep(for: .milliseconds(1400))
+            withAnimation(.easeOut(duration: 0.2)) {
+                assignSucceeded = false
+            }
+        } catch {
+            feedbackToast = TTToastMessage(
+                text: "Couldn’t assign plan",
+                style: .error,
+                subtitle: error.localizedDescription
+            )
+        }
     }
 
     private var nutritionCard: some View {

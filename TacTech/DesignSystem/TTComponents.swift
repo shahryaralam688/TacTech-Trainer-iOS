@@ -950,6 +950,112 @@ private struct TTToastModifier: ViewModifier {
     }
 }
 
+// MARK: - Assign success feedback (Material snackbar + iOS success haptic)
+
+/// Fires toast + haptic + brief celebration when a plan is assigned.
+@MainActor
+enum TTAssignSuccessFeedback {
+    static func play(
+        toast: Binding<TTToastMessage?>,
+        celebrate: Binding<Bool>,
+        planTitle: String,
+        traineeName: String
+    ) {
+        toast.wrappedValue = TTToastMessage(
+            text: "Plan assigned",
+            style: .success,
+            subtitle: "\(planTitle) → \(traineeName)"
+        )
+        celebrate.wrappedValue = true
+        TTHomeHaptics.success()
+    }
+
+    static func playUnassign(
+        toast: Binding<TTToastMessage?>,
+        traineeName: String
+    ) {
+        toast.wrappedValue = TTToastMessage(
+            text: "Plan unassigned",
+            style: .info,
+            subtitle: traineeName
+        )
+        TTHomeHaptics.soft()
+    }
+}
+
+extension View {
+    /// Toast + confetti burst for assign success. Pair with `TTAssignSuccessFeedback.play`.
+    func ttAssignSuccessChrome(
+        toast: Binding<TTToastMessage?>,
+        celebrate: Binding<Bool>,
+        bottomInset: CGFloat = 28
+    ) -> some View {
+        modifier(
+            TTAssignSuccessChromeModifier(
+                toast: toast,
+                celebrate: celebrate,
+                bottomInset: bottomInset
+            )
+        )
+    }
+}
+
+private struct TTAssignSuccessChromeModifier: ViewModifier {
+    @Binding var toast: TTToastMessage?
+    @Binding var celebrate: Bool
+    var bottomInset: CGFloat
+
+    func body(content: Content) -> some View {
+        content
+            .ttToast($toast, duration: 2.4, bottomInset: bottomInset)
+            .ttHomeWin(celebrate: $celebrate, tint: TTColor.success)
+    }
+}
+
+/// Primary CTA that morphs to a green “Assigned” state after success.
+struct TTAssignSuccessButton: View {
+    var title: String
+    var successTitle: String = "Assigned"
+    var isEnabled: Bool
+    var isLoading: Bool
+    var showSuccess: Bool
+    var action: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView().tint(.white)
+                } else if showSuccess {
+                    TTIcon(icon: .check, filled: true, size: 16)
+                    Text(successTitle)
+                        .font(TTFont.workSans(16, weight: .bold))
+                } else {
+                    Text(title)
+                        .font(TTFont.workSans(16, weight: .semibold))
+                    TTIcon(icon: .check, filled: true, size: 14)
+                }
+            }
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(showSuccess ? TTColor.success : (isEnabled ? Color.black : Color(white: 0.72)))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .scaleEffect(showSuccess && !reduceMotion ? 1.02 : 1)
+            .animation(
+                reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.36, dampingFraction: 0.78),
+                value: showSuccess
+            )
+            .animation(.easeOut(duration: 0.15), value: isLoading)
+        }
+        .buttonStyle(TTSearchPressStyle(scale: 0.98))
+        .disabled(!isEnabled || isLoading || showSuccess)
+        .accessibilityLabel(showSuccess ? successTitle : title)
+    }
+}
+
 #Preview("Buttons & Fields") {
     VStack(spacing: 16) {
         TTBackButton(style: .onLight) {}

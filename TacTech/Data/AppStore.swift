@@ -550,6 +550,92 @@ final class AppStore {
         workoutLogs.filter { $0.traineeId == traineeId }.sorted { $0.completedAt > $1.completedAt }
     }
 
+    /// Trainees currently assigned to this plan (latest assignment wins per trainee).
+    func traineesAssigned(toPlanId planId: String) -> [(trainee: TraineeProfile, assignedAt: Date)] {
+        let latestByTrainee = Dictionary(grouping: assignments.filter { $0.planId == planId }, by: \.traineeId)
+            .compactMapValues { group in group.max(by: { $0.assignedAt < $1.assignedAt }) }
+        return latestByTrainee.compactMap { traineeId, assignment in
+            // Only count if this is still their active assigned plan.
+            guard assignedPlan(forTraineeId: traineeId)?.id == planId,
+                  let trainee = trainees.first(where: { $0.id == traineeId })
+            else { return nil }
+            return (trainee, assignment.assignedAt)
+        }
+        .sorted { lhs, rhs in
+            let ln = user(forTrainee: lhs.trainee)?.name ?? ""
+            let rn = user(forTrainee: rhs.trainee)?.name ?? ""
+            return ln.localizedCaseInsensitiveCompare(rn) == .orderedAscending
+        }
+    }
+
+    private func assignedPlan(forTraineeId traineeId: String) -> WorkoutPlan? {
+        guard let assignment = assignments
+            .filter({ $0.traineeId == traineeId })
+            .sorted(by: { $0.assignedAt > $1.assignedAt })
+            .first
+        else { return nil }
+        return plans.first { $0.id == assignment.planId }
+    }
+
+    /// Follow / adherence status for a trainee on a specific plan.
+    func planFollowStatus(traineeId: String, plan: WorkoutPlan) -> PlanFollowStatus {
+        let calendar = Calendar.current
+        let today = Date()
+        let planLogs = workoutLogs
+            .filter { $0.traineeId == traineeId && $0.planId == plan.id }
+            .sorted { $0.completedAt > $1.completedAt }
+
+        if planLogs.contains(where: { calendar.isDate($0.completedAt, inSameDayAs: today) }) {
+            return .trainedToday
+        }
+        if plan.session(on: today) != nil {
+            return .dueToday
+        }
+        if let last = planLogs.first?.completedAt {
+            let days = calendar.dateComponents([.day], from: last, to: today).day ?? 99
+            if days <= 7 { return .following }
+            return .behind
+        }
+        return .notStarted
+    }
+
+    /// % of scheduled plan days in the lookback window that have a matching workout log.
+    func planAdherencePercent(traineeId: String, plan: WorkoutPlan, lookbackDays: Int = 14) -> Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard lookbackDays > 0 else { return 0 }
+
+        var expected = 0
+        var completed = 0
+        let planLogs = workoutLogs.filter { $0.traineeId == traineeId && $0.planId == plan.id }
+
+        for offset in 0..<lookbackDays {
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+            guard plan.session(on: day) != nil else { continue }
+            expected += 1
+            if planLogs.contains(where: { calendar.isDate($0.completedAt, inSameDayAs: day) }) {
+                completed += 1
+            }
+        }
+
+        guard expected > 0 else {
+            // Flat plans without scheduled days: any log in window counts as engaged.
+            let recent = planLogs.contains {
+                guard let start = calendar.date(byAdding: .day, value: -lookbackDays, to: today) else { return false }
+                return $0.completedAt >= start
+            }
+            return recent ? 100 : 0
+        }
+        return Int((Double(completed) / Double(expected) * 100).rounded())
+    }
+
+    func lastPlanWorkoutDate(traineeId: String, planId: String) -> Date? {
+        workoutLogs
+            .filter { $0.traineeId == traineeId && $0.planId == planId }
+            .map(\.completedAt)
+            .max()
+    }
+
     func feedback(for traineeId: String) -> [TrainerFeedback] {
         feedback.filter { $0.traineeId == traineeId }.sorted { $0.createdAt > $1.createdAt }
     }

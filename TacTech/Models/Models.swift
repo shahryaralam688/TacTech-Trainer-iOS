@@ -351,6 +351,25 @@ struct PlanAssignment: Identifiable, Codable, Hashable {
     var assignedAt: Date
 }
 
+/// Coach-facing follow status for a trainee on an assigned plan.
+enum PlanFollowStatus: String, Hashable {
+    case trainedToday
+    case following
+    case dueToday
+    case behind
+    case notStarted
+
+    var title: String {
+        switch self {
+        case .trainedToday: "Trained today"
+        case .following: "Following"
+        case .dueToday: "Due today"
+        case .behind: "Behind"
+        case .notStarted: "Not started"
+        }
+    }
+}
+
 struct WorkoutSetLog: Identifiable, Codable, Hashable {
     var id: String
     var exerciseId: String

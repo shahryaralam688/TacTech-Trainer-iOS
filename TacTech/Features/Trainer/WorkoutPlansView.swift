@@ -254,6 +254,9 @@ struct WorkoutPlanDetailView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         overviewCard
 
+                        sectionLabel("Assigned & status")
+                        assignmentAnalyticsCard
+
                         if plan.scheduledDays.isEmpty {
                             sectionLabel("Exercise plan")
                             ForEach(Array(plan.exercises.enumerated()), id: \.element.id) { index, item in
@@ -305,6 +308,118 @@ struct WorkoutPlanDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var assignedAthletes: [(trainee: TraineeProfile, assignedAt: Date)] {
+        store.traineesAssigned(toPlanId: plan.id)
+    }
+
+    private var assignmentAnalyticsCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if assignedAthletes.isEmpty {
+                HStack(alignment: .top, spacing: 10) {
+                    TTIcon(icon: .usersTwo, filled: true, size: 16)
+                        .foregroundStyle(TTColor.actionOrange)
+                    Text("No trainee is on this plan yet. Assign someone below to track follow-through.")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            } else {
+                HStack {
+                    Text("\(assignedAthletes.count) athlete\(assignedAthletes.count == 1 ? "" : "s")")
+                        .font(TTFont.workSans(13, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Spacer()
+                    Text("14-day adherence")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
+
+                ForEach(assignedAthletes, id: \.trainee.id) { item in
+                    assignmentStatusRow(trainee: item.trainee, assignedAt: item.assignedAt)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func assignmentStatusRow(trainee: TraineeProfile, assignedAt: Date) -> some View {
+        let name = store.user(forTrainee: trainee)?.name ?? "Trainee"
+        let status = store.planFollowStatus(traineeId: trainee.id, plan: plan)
+        let adherence = store.planAdherencePercent(traineeId: trainee.id, plan: plan)
+        let last = store.lastPlanWorkoutDate(traineeId: trainee.id, planId: plan.id)
+        let statusColor = followStatusColor(status)
+
+        return HStack(alignment: .top, spacing: 12) {
+            TTAvatar(name: name, size: 44)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text(name)
+                        .font(TTFont.workSans(15, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(status.title)
+                        .font(TTFont.caption(11))
+                        .fontWeight(.bold)
+                        .foregroundStyle(statusColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(statusColor.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+
+                HStack(spacing: 10) {
+                    Text("\(adherence)% follow")
+                        .font(TTFont.caption(12))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TTColor.inkMuted)
+                    Text("·")
+                        .foregroundStyle(TTColor.inkSubtle)
+                    if let last {
+                        Text("Last \(last.formatted(date: .abbreviated, time: .omitted))")
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                    } else {
+                        Text("No workouts logged")
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                }
+
+                Text("Assigned \(assignedAt.formatted(date: .abbreviated, time: .omitted))")
+                    .font(TTFont.caption(11))
+                    .foregroundStyle(TTColor.inkSubtle)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(Color.black.opacity(0.06))
+                        Capsule()
+                            .fill(statusColor)
+                            .frame(width: max(4, geo.size.width * CGFloat(adherence) / 100))
+                    }
+                }
+                .frame(height: 4)
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private func followStatusColor(_ status: PlanFollowStatus) -> Color {
+        switch status {
+        case .trainedToday, .following: TTColor.success
+        case .dueToday: TTColor.actionOrange
+        case .behind: Color(red: 0.86, green: 0.45, blue: 0.14)
+        case .notStarted: TTColor.inkMuted
+        }
     }
 
     private func assignCard(trainer: TrainerProfile) -> some View {
@@ -700,6 +815,9 @@ struct PlanAssignmentsListSheet: View {
         let planTitle: String
         let assignedAt: Date?
         let hasPlan: Bool
+        let statusTitle: String
+        let statusColor: Color
+        let adherence: Int
     }
 
     private var rows: [Row] {
@@ -710,12 +828,31 @@ struct PlanAssignmentsListSheet: View {
                 .filter { $0.traineeId == trainee.id }
                 .sorted { $0.assignedAt > $1.assignedAt }
                 .first
+            let status = plan.map { store.planFollowStatus(traineeId: trainee.id, plan: $0) }
+            let adherence = plan.map { store.planAdherencePercent(traineeId: trainee.id, plan: $0) } ?? 0
+            let statusTitle: String
+            let statusColor: Color
+            if let status {
+                statusTitle = status.title
+                switch status {
+                case .trainedToday, .following: statusColor = TTColor.success
+                case .dueToday: statusColor = TTColor.actionOrange
+                case .behind: statusColor = Color(red: 0.86, green: 0.45, blue: 0.14)
+                case .notStarted: statusColor = TTColor.inkMuted
+                }
+            } else {
+                statusTitle = "Idle"
+                statusColor = TTColor.inkMuted
+            }
             return Row(
                 id: trainee.id,
                 traineeName: store.user(forTrainee: trainee)?.name ?? "Trainee",
                 planTitle: plan?.title ?? "No plan assigned",
                 assignedAt: assignment?.assignedAt,
-                hasPlan: plan != nil
+                hasPlan: plan != nil,
+                statusTitle: statusTitle,
+                statusColor: statusColor,
+                adherence: adherence
             )
         }
         .sorted { lhs, rhs in
@@ -772,6 +909,11 @@ struct PlanAssignmentsListSheet: View {
                     .font(TTFont.caption(13))
                     .foregroundStyle(row.hasPlan ? TTColor.actionOrange : TTColor.inkMuted)
                     .lineLimit(2)
+                if row.hasPlan {
+                    Text("\(row.adherence)% follow · \(row.statusTitle)")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
                 if let date = row.assignedAt, row.hasPlan {
                     Text("Assigned \(date.formatted(date: .abbreviated, time: .omitted))")
                         .font(TTFont.caption(11))
@@ -781,14 +923,16 @@ struct PlanAssignmentsListSheet: View {
 
             Spacer(minLength: 8)
 
-            Text(row.hasPlan ? "Active" : "Idle")
+            Text(row.statusTitle)
                 .font(TTFont.caption(11))
                 .fontWeight(.bold)
-                .foregroundStyle(row.hasPlan ? TTColor.success : TTColor.inkMuted)
+                .foregroundStyle(row.statusColor)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background((row.hasPlan ? TTColor.success : TTColor.inkMuted).opacity(0.12))
+                .background(row.statusColor.opacity(0.12))
                 .clipShape(Capsule())
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .padding(14)
         .background(cardFill)

@@ -564,11 +564,27 @@ actor APIClient {
         try await sendOptional(path: "/trainer/plans", method: .post, body: body)
     }
 
+    func updatePlan(id: String, _ body: PlanBody) async throws -> WorkoutPlan? {
+        try await sendOptional(path: "/trainer/plans/\(id)", method: .patch, body: body)
+    }
+
+    func deletePlan(id: String) async throws {
+        try await sendVoid(path: "/trainer/plans/\(id)", method: .delete, body: EmptyBody())
+    }
+
     func assignPlan(planId: String, traineeId: String) async throws {
         try await sendVoid(
             path: "/trainer/assignments",
             method: .post,
             body: AssignPlanBody(planId: planId, traineeId: traineeId)
+        )
+    }
+
+    func unassignPlan(planId: String, traineeId: String) async throws {
+        try await sendVoid(
+            path: "/trainer/assignments?planId=\(planId)&traineeId=\(traineeId)",
+            method: .delete,
+            body: EmptyBody()
         )
     }
 

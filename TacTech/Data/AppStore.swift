@@ -442,6 +442,34 @@ final class AppStore {
         assignments.append(PlanAssignment(id: UUID().uuidString, planId: planId, traineeId: traineeId, assignedAt: .now))
     }
 
+    func unassign(planId: String, from traineeId: String) async throws {
+        try await api.unassignPlan(planId: planId, traineeId: traineeId)
+        assignments.removeAll { $0.traineeId == traineeId && $0.planId == planId }
+    }
+
+    func updatePlan(_ draft: WorkoutPlan) async throws {
+        let updated = try await api.updatePlan(id: draft.id, PlanBody(plan: draft))
+        if var updated {
+            if updated.days.isEmpty { updated.days = draft.days }
+            if updated.notes == nil { updated.notes = draft.notes }
+            upsert(updated)
+            saveTemplates(from: updated)
+        } else {
+            upsert(draft)
+            saveTemplates(from: draft)
+            let remote = (try? await api.trainerPlans()) ?? []
+            if !remote.isEmpty { plans = remote }
+        }
+        scheduleCoachMemorySync(force: true)
+    }
+
+    func deletePlan(id: String) async throws {
+        try await api.deletePlan(id: id)
+        plans.removeAll { $0.id == id }
+        assignments.removeAll { $0.planId == id }
+        scheduleCoachMemorySync(force: true)
+    }
+
     func createPlan(_ draft: WorkoutPlan) async throws {
         let created = try await api.createPlan(PlanBody(plan: draft))
         if var created {

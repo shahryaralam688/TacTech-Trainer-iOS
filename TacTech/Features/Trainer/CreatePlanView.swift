@@ -42,6 +42,9 @@ struct CreatePlanView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// When set, wizard edits this plan instead of creating a new one.
+    var editingPlan: WorkoutPlan? = nil
+
     @State private var step: CreatePlanStep = .basics
     @State private var title = ""
     @State private var focus = ""
@@ -54,11 +57,14 @@ struct CreatePlanView: View {
     @State private var error: String?
     @State private var showLeaveConfirm = false
     @State private var showSessionTips = false
+    @State private var didHydrate = false
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
     private let levels = ["Beginner", "Intermediate", "Advanced"]
+
+    private var isEditing: Bool { editingPlan != nil }
 
     private var stepMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.88)
@@ -143,15 +149,20 @@ struct CreatePlanView: View {
             Button("Continue later", role: .destructive) { dismiss() }
             Button("Keep editing", role: .cancel) {}
         } message: {
-            Text("This plan isn’t saved yet. You can start again anytime from Plans.")
+            Text(
+                isEditing
+                    ? "Unsaved edits will be discarded."
+                    : "This plan isn’t saved yet. You can start again anytime from Plans."
+            )
         }
+        .onAppear { hydrateFromEditingPlanIfNeeded() }
     }
 
     // MARK: - Chrome
 
     private var wizardHeader: some View {
         TTModalSheetHeader(
-            title: "New Plan",
+            title: isEditing ? "Edit Plan" : "New Plan",
             subtitle: "Step \(step.number) of \(CreatePlanStep.basics.total)",
             background: .white,
             onBack: { goBack() }
@@ -213,7 +224,7 @@ struct CreatePlanView: View {
                     if isSaving {
                         ProgressView().tint(.white)
                     } else {
-                        Text(step.primaryTitle)
+                        Text(step == .sessions ? (isEditing ? "Save changes" : "Save plan") : step.primaryTitle)
                             .font(TTFont.workSans(16, weight: .bold))
                         if step != .sessions {
                             TTIcon(icon: .chevronRight, size: 14)
@@ -482,25 +493,41 @@ struct CreatePlanView: View {
         defer { isSaving = false }
         let planDays = selectedDays.compactMap { sessions[$0]?.asPlanDay() }
         let flat = planDays.flatMap(\.exercises)
+        let draft = WorkoutPlan(
+            id: editingPlan?.id ?? UUID().uuidString,
+            trainerId: trainer.id,
+            title: title,
+            focus: focus,
+            durationMinutes: planDays.map(\.durationMinutes).max() ?? 45,
+            level: level,
+            daysPerWeek: planDays.count,
+            exercises: flat,
+            notes: notes.isEmpty ? nil : notes,
+            days: planDays
+        )
         do {
-            try await store.createPlan(
-                WorkoutPlan(
-                    id: UUID().uuidString,
-                    trainerId: trainer.id,
-                    title: title,
-                    focus: focus,
-                    durationMinutes: planDays.map(\.durationMinutes).max() ?? 45,
-                    level: level,
-                    daysPerWeek: planDays.count,
-                    exercises: flat,
-                    notes: notes.isEmpty ? nil : notes,
-                    days: planDays
-                )
-            )
+            if isEditing {
+                try await store.updatePlan(draft)
+            } else {
+                try await store.createPlan(draft)
+            }
             dismiss()
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    private func hydrateFromEditingPlanIfNeeded() {
+        guard !didHydrate, let plan = editingPlan else { return }
+        didHydrate = true
+        title = plan.title
+        focus = plan.focus
+        level = plan.level.isEmpty ? "Intermediate" : plan.level
+        notes = plan.notes ?? ""
+        selectedDays = plan.scheduledDays.map(\.weekday)
+        sessions = Dictionary(uniqueKeysWithValues: plan.scheduledDays.map { day in
+            (day.weekday, SessionDraft(from: day))
+        })
     }
 }
 
@@ -518,6 +545,24 @@ struct SessionDraft {
     var coachNotes = ""
     var exercises: [ExerciseDraft] = []
 
+    init(day: Weekday, focus: String = "") {
+        self.day = day
+        self.focus = focus
+    }
+
+    init(from planDay: PlanDay) {
+        day = planDay.weekday
+        time = Date.fromHHMM(planDay.startTime) ?? Calendar.current.date(bySettingHour: 7, minute: 30, second: 0, of: Date()) ?? Date()
+        title = planDay.title
+        focus = planDay.focus
+        duration = planDay.durationMinutes
+        location = planDay.location ?? "Gym"
+        warmup = planDay.warmup ?? ""
+        cooldown = planDay.cooldown ?? ""
+        coachNotes = planDay.coachNotes ?? ""
+        exercises = planDay.exercises.map(ExerciseDraft.init(from:))
+    }
+
     func asPlanDay() -> PlanDay {
         PlanDay(
             id: UUID().uuidString,
@@ -527,8 +572,8 @@ struct SessionDraft {
             focus: focus,
             durationMinutes: duration,
             location: location,
-            warmup: warmup,
-            cooldown: cooldown,
+            warmup: warmup.isEmpty ? nil : warmup,
+            cooldown: cooldown.isEmpty ? nil : cooldown,
             coachNotes: coachNotes.isEmpty ? nil : coachNotes,
             exercises: exercises.map { $0.asExercise() }
         )
@@ -556,6 +601,34 @@ struct ExerciseDraft: Identifiable {
         self.exerciseId = exerciseId
         self.templateName = templateName
         self.setRows = (1...4).map { SetDraft(setNumber: $0, reps: 8, weight: 40) }
+    }
+
+    init(from exercise: WorkoutExercise) {
+        let workingWeight = exercise.recommendedWeightKg ?? 0
+        let workingReps = max(1, exercise.reps)
+        let workingSetsCount = max(1, exercise.sets)
+        let sourceRows = exercise.workingSets
+        let builtRows: [SetDraft]
+        if sourceRows.isEmpty {
+            builtRows = (1...workingSetsCount).map {
+                SetDraft(setNumber: $0, reps: workingReps, weight: workingWeight)
+            }
+        } else {
+            builtRows = sourceRows.map {
+                SetDraft(setNumber: $0.setNumber, reps: $0.reps, weight: $0.weightKg ?? workingWeight)
+            }
+        }
+
+        exerciseId = exercise.exerciseId
+        sets = max(1, builtRows.count)
+        reps = workingReps
+        rest = max(0, exercise.restSeconds)
+        weight = workingWeight
+        tempo = exercise.tempo ?? "3-1-1-0"
+        rpe = exercise.rpe ?? 7.5
+        howTo = exercise.notes ?? ""
+        side = exercise.side ?? "Both"
+        setRows = builtRows
     }
 
     var prescriptionSummary: String {
@@ -1190,6 +1263,13 @@ extension Date {
     var hhmm: String {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: self)
         return String(format: "%02d:%02d", parts.hour ?? 0, parts.minute ?? 0)
+    }
+
+    static func fromHHMM(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        let parts = value.split(separator: ":")
+        guard parts.count >= 2, let hour = Int(parts[0]), let minute = Int(parts[1]) else { return nil }
+        return Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date())
     }
 }
 

@@ -230,13 +230,26 @@ struct WorkoutPlansView: View {
 struct WorkoutPlanDetailView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-    let plan: WorkoutPlan
+    let planSeed: WorkoutPlan
     @State private var selectedTraineeId = ""
+    @State private var showEdit = false
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var actionError: String?
+    @State private var unassignTraineeId: String?
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "workoutPlanDetail"
+
+    init(plan: WorkoutPlan) {
+        self.planSeed = plan
+    }
+
+    private var plan: WorkoutPlan {
+        store.plans.first(where: { $0.id == planSeed.id }) ?? planSeed
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -253,6 +266,7 @@ struct WorkoutPlanDetailView: View {
 
                     VStack(alignment: .leading, spacing: 12) {
                         overviewCard
+                        managePlanCard
 
                         sectionLabel("Assigned & status")
                         assignmentAnalyticsCard
@@ -272,6 +286,12 @@ struct WorkoutPlanDetailView: View {
                             sectionLabel("Assign")
                             assignCard(trainer: trainer)
                         }
+
+                        if let actionError {
+                            Text(actionError)
+                                .font(TTFont.caption(13))
+                                .foregroundStyle(TTColor.danger)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
@@ -287,6 +307,81 @@ struct WorkoutPlanDetailView: View {
             if let trainer = store.currentTrainer {
                 selectedTraineeId = store.trainees(for: trainer).first?.id ?? ""
             }
+        }
+        .sheet(isPresented: $showEdit) {
+            CreatePlanView(editingPlan: plan)
+                .ttModalSheetPresentation()
+        }
+        .confirmationDialog(
+            "Delete this plan?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete plan", role: .destructive) {
+                Task { await deletePlan() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the plan and clears active assignments. Workout history stays.")
+        }
+        .confirmationDialog(
+            "Unassign trainee?",
+            isPresented: Binding(
+                get: { unassignTraineeId != nil },
+                set: { if !$0 { unassignTraineeId = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("Unassign", role: .destructive) {
+                guard let traineeId = unassignTraineeId else { return }
+                Task { await unassign(traineeId: traineeId) }
+            }
+            Button("Cancel", role: .cancel) {
+                unassignTraineeId = nil
+            }
+        } message: {
+            Text("They will no longer see this plan as their assigned program.")
+        }
+    }
+
+    private var managePlanCard: some View {
+        HStack(spacing: 10) {
+            Button {
+                showEdit = true
+            } label: {
+                HStack(spacing: 8) {
+                    TTIcon(icon: .pencil1, filled: true, size: 14)
+                    Text("Modify")
+                        .font(TTFont.workSans(15, weight: .bold))
+                }
+                .foregroundStyle(TTColor.ink)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                showDeleteConfirm = true
+            } label: {
+                HStack(spacing: 8) {
+                    if isDeleting {
+                        ProgressView()
+                    } else {
+                        TTIcon(icon: .trash1, filled: true, size: 14)
+                        Text("Delete")
+                            .font(TTFont.workSans(15, weight: .bold))
+                    }
+                }
+                .foregroundStyle(TTColor.danger)
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(TTColor.danger.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isDeleting)
         }
     }
 
@@ -406,6 +501,19 @@ struct WorkoutPlanDetailView: View {
                     }
                 }
                 .frame(height: 4)
+
+                Button {
+                    unassignTraineeId = trainee.id
+                } label: {
+                    Text("Unassign")
+                        .font(TTFont.workSans(13, weight: .bold))
+                        .foregroundStyle(TTColor.danger)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 36)
+                        .background(TTColor.danger.opacity(0.08))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                }
+                .buttonStyle(.plain)
             }
         }
         .padding(12)
@@ -424,6 +532,8 @@ struct WorkoutPlanDetailView: View {
 
     private func assignCard(trainer: TrainerProfile) -> some View {
         let trainees = store.trainees(for: trainer)
+        let alreadyOnPlan = !selectedTraineeId.isEmpty
+            && assignedAthletes.contains(where: { $0.trainee.id == selectedTraineeId })
         return VStack(alignment: .leading, spacing: 12) {
             if trainees.isEmpty {
                 Text("No trainees on your roster yet.")
@@ -445,22 +555,23 @@ struct WorkoutPlanDetailView: View {
             }
 
             Button {
-                Task { try? await store.assign(planId: plan.id, to: selectedTraineeId) }
+                Task { await assignSelected() }
             } label: {
                 HStack(spacing: 8) {
-                    Text("Assign this plan")
+                    Text(alreadyOnPlan ? "Already assigned" : "Assign this plan")
                         .font(TTFont.workSans(16, weight: .semibold))
-                    TTIcon(icon: .check, filled: true, size: 14)
+                    if !alreadyOnPlan {
+                        TTIcon(icon: .check, filled: true, size: 14)
+                    }
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Color.black)
+                .background(alreadyOnPlan || selectedTraineeId.isEmpty ? Color(white: 0.72) : Color.black)
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(selectedTraineeId.isEmpty)
-            .opacity(selectedTraineeId.isEmpty ? 0.45 : 1)
+            .disabled(selectedTraineeId.isEmpty || alreadyOnPlan)
         }
         .padding(14)
         .background(cardFill)
@@ -472,6 +583,37 @@ struct WorkoutPlanDetailView: View {
             .font(TTFont.workSans(15, weight: .bold))
             .foregroundStyle(TTColor.ink)
             .padding(.top, 4)
+    }
+
+    private func assignSelected() async {
+        actionError = nil
+        do {
+            try await store.assign(planId: plan.id, to: selectedTraineeId)
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func unassign(traineeId: String) async {
+        actionError = nil
+        defer { unassignTraineeId = nil }
+        do {
+            try await store.unassign(planId: plan.id, from: traineeId)
+        } catch {
+            actionError = error.localizedDescription
+        }
+    }
+
+    private func deletePlan() async {
+        isDeleting = true
+        actionError = nil
+        defer { isDeleting = false }
+        do {
+            try await store.deletePlan(id: plan.id)
+            dismiss()
+        } catch {
+            actionError = error.localizedDescription
+        }
     }
 }
 

@@ -162,7 +162,12 @@ actor CoachAPI {
         case "done":
             guard let message = dto.message else { return .unknown }
             return .done(message: message, citations: dto.citations)
+        case "error":
+            return .error(code: dto.code, detail: dto.detail ?? dto.error ?? dto.text)
         default:
+            if dto.code == "AI_REQUIRED" {
+                return .error(code: dto.code, detail: dto.detail ?? dto.error ?? dto.text)
+            }
             return .unknown
         }
     }
@@ -362,7 +367,7 @@ actor CoachAPI {
         return request
     }
 
-    /// Maps HTTP failures to `AppError`, preferring server `detail` and handling 429 / RATE_LIMITED.
+    /// Maps HTTP failures to `AppError`, preferring server `detail` and handling 429 / RATE_LIMITED / 402.
     private static func throwMappedFailure(status: Int, data: Data, response: HTTPURLResponse) throws {
         if (200...299).contains(status) { return }
         let detail = detail(from: data)
@@ -370,6 +375,24 @@ actor CoachAPI {
         if status == 401 {
             TokenStore.clear()
             throw AppError.unauthorized
+        }
+        if status == 402 || code == "AI_REQUIRED" {
+            throw AppError.aiRequired(
+                detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    ?? "AI Coach Pro is required."
+            )
+        }
+        if status == 409 || code == "CONFLICT" {
+            throw AppError.conflict(
+                detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    ?? "This Apple subscription is already linked to another TacTech account. Sign in with that account or contact support."
+            )
+        }
+        if status == 502 || code == "PROVIDER_ERROR" {
+            throw AppError.providerError(
+                detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    ?? "Payment provider error — try again"
+            )
         }
         if status == 404 {
             throw AppError.notFound(detail ?? "Not found.")

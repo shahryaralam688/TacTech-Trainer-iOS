@@ -24,6 +24,8 @@ struct AccountSettingsView: View {
     @AppStorage("settings.biometric") private var biometricEnabled = false
     @AppStorage("settings.language") private var language = "English (EN)"
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    @State private var isRestoringPurchases = false
+    @State private var toast: TTToastMessage?
 
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
@@ -40,6 +42,7 @@ struct AccountSettingsView: View {
 
                     VStack(alignment: .leading, spacing: 22) {
                         generalSection
+                        aiCoachProSection
                         securitySection
                         helpSection
                         dangerSection
@@ -56,6 +59,16 @@ struct AccountSettingsView: View {
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
+        .ttToast($toast, bottomInset: 28)
+        .task {
+            await store.refreshAIEntitlements()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIEntitlementDidChange)) { _ in
+            Task { await store.refreshAIEntitlements() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
+            Task { await store.refreshAIEntitlements() }
+        }
         .navigationDestination(for: AccountSettingsRoute.self) { route in
             destination(for: route)
         }
@@ -83,9 +96,120 @@ struct AccountSettingsView: View {
                 badge: store.session?.role == .trainee ? "15+" : nil,
                 route: .coachContact
             )
+            restorePurchasesRow
             valueRow("Language", icon: "flag", value: language, route: .language)
             toggleRow("Dark Mode", icon: "moon", isOn: $darkMode)
             valueRow("Linked Devices", icon: "applewatch", value: "Apple Watch", route: .linkedDevices)
+        }
+    }
+
+    private var restorePurchasesRow: some View {
+        Button {
+            Task { await restorePurchases() }
+        } label: {
+            settingsRowLabel(title: "Restore Purchases", icon: "arrow.clockwise") {
+                if isRestoringPurchases {
+                    ProgressView()
+                } else {
+                    TTChevronForward()
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isRestoringPurchases)
+        .accessibilityLabel("Restore Purchases")
+    }
+
+    private var aiCoachProSection: some View {
+        settingsGroup(title: "Subscriptions") {
+            aiCoachProRow
+        }
+    }
+
+    @ViewBuilder
+    private var aiCoachProRow: some View {
+        let ai = store.aiEntitlement
+        if let ai, ai.active {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 14) {
+                    Image(systemName: "sparkles")
+                        .font(TTFont.workSans(16, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 8) {
+                            Text("AI Coach Pro")
+                                .font(TTFont.workSans(16, weight: .semibold))
+                                .foregroundStyle(.black)
+                            AIProBadge(
+                                style: .compact,
+                                label: ai.resolvedBadgeLabel,
+                                fullLabel: ai.resolvedFullLabel
+                            )
+                        }
+                        Text(ai.activeStatusLine)
+                            .font(TTFont.workSans(12, weight: .medium))
+                            .foregroundStyle(Color(white: 0.45))
+                            .lineLimit(2)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    Text({
+                        let s = ai.status?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        return s.isEmpty ? "Active" : s
+                    }())
+                        .font(TTFont.workSans(13, weight: .semibold))
+                        .foregroundStyle(Color(red: 22 / 255, green: 163 / 255, blue: 74 / 255))
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 14)
+                .background(rowBG)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("AI Coach Pro subscriber, \(ai.activeStatusLine)")
+        } else {
+            Button {
+                store.presentAIPaywall()
+            } label: {
+                settingsRowLabel(title: "AI Coach Pro", icon: "sparkles") {
+                    HStack(spacing: 8) {
+                        Text("Not subscribed")
+                            .font(TTFont.workSans(13, weight: .medium))
+                            .foregroundStyle(Color(white: 0.45))
+                        TTChevronForward()
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("AI Coach Pro, Not subscribed")
+        }
+    }
+
+    @MainActor
+    private func restorePurchases() async {
+        guard !isRestoringPurchases else { return }
+        isRestoringPurchases = true
+        defer { isRestoringPurchases = false }
+        do {
+            let me = try await AIStoreKitService.shared.restorePurchases()
+            store.aiEntitlement = me
+            await store.refreshAIEntitlements()
+            toast = TTToastMessage(text: "Purchases restored", style: .success)
+        } catch let error as AppError where error.isConflict {
+            toast = TTToastMessage(
+                text: "Subscription linked elsewhere",
+                style: .error,
+                subtitle: error.localizedDescription
+            )
+        } catch {
+            toast = TTToastMessage(
+                text: "Restore failed",
+                style: .error,
+                subtitle: error.localizedDescription
+            )
         }
     }
 

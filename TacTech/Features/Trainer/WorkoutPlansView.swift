@@ -50,7 +50,14 @@ struct WorkoutPlansView: View {
                                         : "Try a different search."
                                 )
                             } else {
-                                ForEach(filtered) { plan in
+                                TTStackedSections(
+                                    data: filtered,
+                                    stackOffset: TTStackedTokens.stackOffset,
+                                    withDramaEffect: true,
+                                    paneGap: TTSpace.md,
+                                    scrollRunway: TTStackedTokens.defaultRunway,
+                                    coordinateSpaceName: scrollSpace
+                                ) { plan in
                                     NavigationLink {
                                         WorkoutPlanDetailView(plan: plan)
                                     } label: {
@@ -195,7 +202,8 @@ struct WorkoutPlansView: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 3)
     }
 
     private func metaChip(icon: SandowIcon, text: String) -> some View {

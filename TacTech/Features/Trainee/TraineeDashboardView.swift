@@ -9,6 +9,7 @@ struct TraineeDashboardView: View {
     @State private var showNutrition = false
     @State private var showWorkouts = false
     @State private var showNotifications = false
+    @State private var showFindCoaches = false
     @State private var celebrateStart = false
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var activitySegmentNS
@@ -79,12 +80,16 @@ struct TraineeDashboardView: View {
                     .ttModalSheetPresentation(dragIndicator: .hidden)
             }
             .sheet(isPresented: $showWorkouts) {
-                WorkoutHubView()
-                    .ttModalSheetPresentation()
+                WorkoutHubView(showsCloseChrome: true)
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationsInboxView()
                     .ttModalSheetPresentation()
+            }
+            .sheet(isPresented: $showFindCoaches) {
+                FindCoachesView()
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
             }
         }
     }
@@ -94,9 +99,11 @@ struct TraineeDashboardView: View {
     private var darkHeader: some View {
         TTHomeProfileHeader(
             name: firstName,
-            avatarSymbol: avatarSymbol,
+            avatarSymbol: store.displayAvatarAsset,
+            avatarUrl: store.remoteAvatarURL,
             avatarUserId: store.session?.userId,
             badgeCount: notificationStore.unreadCount,
+            showsAIPro: store.aiEntitlement?.active == true,
             metrics: [
                 TTHomeProfileMetric(
                     id: "health",
@@ -105,10 +112,13 @@ struct TraineeDashboardView: View {
                     text: "\(healthScore)% Healthy"
                 ),
                 TTHomeProfileMetric(
-                    id: "pro",
+                    id: "member",
                     icon: .starFull,
                     iconColor: blue,
-                    text: "Pro"
+                    text: {
+                        let goal = store.currentTrainee?.goal.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                        return goal.isEmpty ? "Trainee" : goal
+                    }()
                 )
             ],
             collapseProgress: scrollCollapse.progress,
@@ -549,9 +559,9 @@ struct TraineeDashboardView: View {
 
         return VStack(alignment: .leading, spacing: 14) {
             sectionHeader("My Coach") {
-                Button("Profile") {
+                Button("Find Coaches") {
                     TTHomeHaptics.light()
-                    showProfile = true
+                    showFindCoaches = true
                 }
                     .font(TTFont.workSans(14, weight: .semibold))
                     .foregroundStyle(orange)
@@ -740,10 +750,6 @@ struct TraineeDashboardView: View {
 
     private var workoutCount: Int {
         store.currentTrainee.map { store.logs(for: $0.id).count } ?? 0
-    }
-
-    private var avatarSymbol: String? {
-        TTAvatarCatalog.saved(for: store.session?.userId)
     }
 
     private var cueSuggestionCount: Int {

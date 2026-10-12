@@ -39,6 +39,17 @@
 	<string>TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TacTech uses your photos for profile pictures and to estimate nutrition from meals.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.tactech.trainer.billing</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tactech</string>
+			</array>
+		</dict>
+	</array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>WorkSans-Regular.ttf</string>

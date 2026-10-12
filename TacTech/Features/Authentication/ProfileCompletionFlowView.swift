@@ -241,7 +241,11 @@ struct ProfileCompletionFlowView: View {
     // MARK: - Steps
 
     private var avatarStep: some View {
-        AssessmentAvatarStep(selection: $draft.avatarSymbol, userId: store.session?.userId ?? store.currentUser?.id)
+        AssessmentAvatarStep(
+            selection: $draft.avatarSymbol,
+            userId: store.session?.userId ?? store.currentUser?.id,
+            remoteAvatarUrl: store.remoteAvatarURL
+        )
     }
 
     private var profileStep: some View {
@@ -746,9 +750,13 @@ struct ProfileCompletionFlowView: View {
         if let w = store.currentTrainee?.weightKg, w > 0 {
             draft.weightText = String(Int(w))
         }
-        if let userId = store.session?.userId,
-           let symbol = TTAvatarCatalog.saved(for: userId),
-           TTAvatarCatalog.hasRenderableAvatar(symbol) {
+        if store.remoteAvatarURL != nil {
+            draft.avatarSymbol = TTAvatarCatalog.customToken
+        } else if let asset = store.displayAvatarAsset {
+            draft.avatarSymbol = asset
+        } else if let userId = store.session?.userId,
+                  let symbol = TTAvatarCatalog.saved(for: userId),
+                  TTAvatarCatalog.isAssetName(symbol) {
             draft.avatarSymbol = symbol
         } else if store.session?.userId != nil {
             draft.avatarSymbol = TTAvatarCatalog.default

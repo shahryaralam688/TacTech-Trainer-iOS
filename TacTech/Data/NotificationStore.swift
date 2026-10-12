@@ -15,6 +15,9 @@ final class NotificationStore {
     var preferences: NotificationPreferencesDTO = .init()
 
     private let api = NotificationAPI()
+    /// Keepalive socket so home badge updates even when chat/call UI is closed.
+    /// (HumanCallStore monitoring is gated by `HumanCallFeatures.isEnabled`.)
+    private let realtime = ChatRealtimeClient()
     private var nextCursor: String?
     private var monitoring = false
     private var seenMessageIds = Set<String>()
@@ -38,6 +41,7 @@ final class NotificationStore {
     // MARK: Lifecycle
 
     func start() {
+        startRealtimeKeepalive()
         guard !monitoring else {
             Task { await refreshUnread() }
             return
@@ -56,11 +60,27 @@ final class NotificationStore {
 
     func stop() {
         monitoring = false
+        realtime.disconnect()
         items = []
         unreadCount = 0
         nextCursor = nil
         seenMessageIds.removeAll()
         seenSessionIds.removeAll()
+    }
+
+    private func startRealtimeKeepalive() {
+        realtime.onEvent = { [weak self] event in
+            guard let self else { return }
+            if case .notificationCreated(let note) = event {
+                self.handleCreated(note)
+                if note.type == "chat_call" {
+                    var info: [AnyHashable: Any] = ["type": "chat_call"]
+                    for (k, v) in note.data { info[k] = v }
+                    _ = self.handleUserInfo(info, fromUserTap: false)
+                }
+            }
+        }
+        realtime.connect()
     }
 
     // MARK: Inbox
@@ -133,24 +153,47 @@ final class NotificationStore {
     }
 
     func delete(_ notification: AppNotificationDTO) async {
-        let removed = notification
-        let wasUnread = removed.isUnread
-        items.removeAll { $0.id == removed.id }
-        if wasUnread { unreadCount = max(0, unreadCount - 1) }
+        await deleteMany([notification.id])
+    }
+
+    /// Bulk delete by id. Keeps local removal even if the server call soft-fails
+    /// (except unauthorized), so inbox UX stays responsive for trainer + trainee.
+    func deleteMany(_ ids: [String]) async {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return }
+
+        let idSet = Set(unique)
+        let removed = items.filter { idSet.contains($0.id) }
+        guard !removed.isEmpty else { return }
+
+        let unreadRemoved = removed.filter(\.isUnread).count
+        items.removeAll { idSet.contains($0.id) }
+        unreadCount = max(0, unreadCount - unreadRemoved)
         syncAppBadge()
-        do {
-            unreadCount = try await api.deleteNotifications(notificationId: removed.id)
-            syncAppBadge()
-        } catch {
-            // Roll back optimistic remove.
-            if !items.contains(where: { $0.id == removed.id }) {
-                items.insert(removed, at: 0)
-                items.sort { $0.createdAt > $1.createdAt }
+
+        var firstError: String?
+        var mustRestore = false
+        for note in removed {
+            do {
+                let count = try await api.deleteNotifications(notificationId: note.id)
+                unreadCount = count
+            } catch {
+                if Self.shouldRestoreInbox(after: error) {
+                    mustRestore = true
+                    firstError = Self.deleteFailureMessage(error)
+                    break
+                }
+                if firstError == nil {
+                    firstError = error.localizedDescription
+                }
             }
-            if wasUnread { unreadCount += 1 }
-            syncAppBadge()
-            lastError = error.localizedDescription
         }
+        if mustRestore {
+            items = (removed + items).sorted { $0.createdAt > $1.createdAt }
+            unreadCount += unreadRemoved
+        }
+        syncAppBadge()
+        lastError = firstError
     }
 
     func clearAll() async {
@@ -163,12 +206,46 @@ final class NotificationStore {
         do {
             unreadCount = try await api.deleteNotifications(notificationId: nil)
             syncAppBadge()
+            lastError = nil
         } catch {
-            items = snapshot
-            unreadCount = previousUnread
-            syncAppBadge()
-            lastError = error.localizedDescription
+            if Self.shouldRestoreInbox(after: error) {
+                items = snapshot
+                unreadCount = previousUnread
+                syncAppBadge()
+            }
+            lastError = Self.deleteFailureMessage(error)
         }
+    }
+
+    /// 404 means the delete route is missing on the server — restore local inbox.
+    private static func shouldRestoreInbox(after error: Error) -> Bool {
+        if let appError = error as? AppError {
+            switch appError {
+            case .unauthorized, .notFound:
+                return true
+            case .api(let message):
+                return message.localizedCaseInsensitiveContains("not found")
+            default:
+                return false
+            }
+        }
+        return false
+    }
+
+    private static func deleteFailureMessage(_ error: Error) -> String {
+        if let appError = error as? AppError {
+            switch appError {
+            case .notFound, .api:
+                let text = appError.localizedDescription
+                if text.localizedCaseInsensitiveContains("not found") {
+                    return "Server delete API missing (404). Backend needs POST /me/notifications/delete."
+                }
+                return text
+            default:
+                break
+            }
+        }
+        return error.localizedDescription
     }
 
     /// Socket `notification.created` — prepend + bump badge (dedupe by id).
@@ -228,9 +305,8 @@ final class NotificationStore {
         let center = UNUserNotificationCenter.current()
         _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
 
-        // Remote APNs is deferred until a paid Apple Developer team enables Push
-        // Notifications + `aps-environment`. Do not call registerForRemoteNotifications()
-        // without that entitlement (signing fails on personal teams; console spam otherwise).
+        // Remote APNs only when Push capability / remote-notification background mode is present.
+        // Foreground inbox still updates via socket keepalive (above).
         guard Self.isRemotePushRegistrationEnabled else { return }
 
         await MainActor.run {
@@ -238,8 +314,21 @@ final class NotificationStore {
         }
     }
 
-    /// Flip to `true` only after Push capability is added on a paid Apple team.
-    private static let isRemotePushRegistrationEnabled = false
+    /// Safe default: off until Push entitlement / `remote-notification` background mode exists.
+    /// Override for QA: `UserDefaults.standard.set(true, forKey: "tt.forceRemotePushRegistration")`.
+    private static var isRemotePushRegistrationEnabled: Bool {
+        #if DEBUG
+        if UserDefaults.standard.bool(forKey: "tt.forceRemotePushRegistration") {
+            return true
+        }
+        #endif
+        if let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String],
+           modes.contains("remote-notification") {
+            return true
+        }
+        // Explicit opt-in for paid-team builds that added Push but not yet UIBackgroundModes.
+        return UserDefaults.standard.bool(forKey: "tt.enableRemotePushRegistration")
+    }
 
     // MARK: Deep links
 
@@ -357,4 +446,18 @@ final class NotificationStore {
 extension Notification.Name {
     /// Open human chat for `threadId` (and optional `messageId`).
     static let ttOpenHumanChat = Notification.Name("ttOpenHumanChat")
+    /// Boost checkout finished successfully (confirm + refresh done).
+    static let ttBoostCheckoutSucceeded = Notification.Name("ttBoostCheckoutSucceeded")
+    /// Boost checkout canceled by user / cancel deep link.
+    static let ttBoostCheckoutCanceled = Notification.Name("ttBoostCheckoutCanceled")
+    /// Boost confirm failed after deep link — `userInfo["detail"]`.
+    static let ttBoostCheckoutFailed = Notification.Name("ttBoostCheckoutFailed")
+    /// Coach generate hit 402 — present AI paywall (trainee).
+    static let ttPresentAIPaywall = Notification.Name("ttPresentAIPaywall")
+    /// Paywall purchase/restore unlocked AI — coach may retry pending send.
+    static let ttAIPaywallUnlocked = Notification.Name("ttAIPaywallUnlocked")
+    /// StoreKit `Transaction.updates` verified — refresh UI.
+    static let ttAIEntitlementDidChange = Notification.Name("ttAIEntitlementDidChange")
+    /// Workout logged / Boost confirmed — Profile Sandow chart should reload.
+    static let ttSandowScoreShouldRefresh = Notification.Name("ttSandowScoreShouldRefresh")
 }

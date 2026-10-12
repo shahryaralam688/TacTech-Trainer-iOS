@@ -95,7 +95,8 @@ struct PersonalInformationSettingsView: View {
                         get: { avatarAsset ?? TTAvatarCatalog.default },
                         set: { avatarAsset = $0 }
                     ),
-                    userId: store.session?.userId
+                    userId: store.session?.userId,
+                    remoteAvatarUrl: avatarURL ?? store.remoteAvatarURL
                 )
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
@@ -115,23 +116,20 @@ struct PersonalInformationSettingsView: View {
 
     private var avatarWithEdit: some View {
         ZStack(alignment: .bottom) {
-            Group {
-                if let avatarURL, let url = URL(string: avatarURL) {
-                    AsyncImage(url: url) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image.resizable().scaledToFill()
-                        default:
-                            localAvatarFallback
-                        }
-                    }
-                } else {
-                    localAvatarFallback
-                }
-            }
-            .frame(width: avatarSize, height: avatarSize)
-            .clipShape(Circle())
-            .overlay(Circle().strokeBorder(.white, lineWidth: 3.5))
+            TTUserAvatarView(
+                avatarUrl: avatarURL ?? store.remoteAvatarURL,
+                avatarAsset: {
+                    if avatarURL != nil || store.remoteAvatarURL != nil { return nil }
+                    if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) { return avatarAsset }
+                    return store.displayAvatarAsset
+                }(),
+                userId: store.session?.userId,
+                name: name.isEmpty ? (store.currentUser?.name ?? "") : name,
+                size: avatarSize,
+                shape: .circle,
+                strokeColor: .white,
+                strokeWidth: 3.5
+            )
             .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
 
             Button { showAvatarPicker = true } label: {
@@ -147,26 +145,6 @@ struct PersonalInformationSettingsView: View {
             .accessibilityLabel("Edit avatar")
         }
         .frame(maxWidth: .infinity)
-    }
-
-    @ViewBuilder
-    private var localAvatarFallback: some View {
-        if let avatarAsset, TTAvatarCatalog.isCustom(avatarAsset),
-           let custom = TTAvatarCatalog.loadCustomImage(for: store.session?.userId) {
-            Image(uiImage: custom)
-                .resizable()
-                .scaledToFill()
-        } else if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
-            Image(avatarAsset)
-                .resizable()
-                .scaledToFill()
-        } else {
-            Text(initials)
-                .font(TTFont.workSans(34, weight: .bold))
-                .foregroundStyle(Color(white: 0.35))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(white: 0.92))
-        }
     }
 
     private var initials: String {
@@ -413,7 +391,11 @@ struct PersonalInformationSettingsView: View {
         if let h = store.currentTrainee?.heightCm, h > 0 { heightCm = Double(h) }
         if let w = store.currentTrainee?.weightKg, w > 0 { weightKg = w }
         avatarURL = store.remoteAvatarURL
-        avatarAsset = TTAvatarCatalog.saved(for: store.session?.userId)
+        if store.remoteAvatarURL != nil {
+            avatarAsset = TTAvatarCatalog.customToken
+        } else {
+            avatarAsset = store.displayAvatarAsset ?? TTAvatarCatalog.default
+        }
         currentPassword = ""
         newPassword = ""
     }
@@ -504,7 +486,7 @@ struct PersonalInformationSettingsView: View {
                let image = TTAvatarCatalog.loadCustomImage(for: store.session?.userId),
                let data = CoachImageEncoder.jpegData(from: image) ?? image.jpegData(compressionQuality: 0.88) {
                 let uploaded = try await store.uploadProfileAvatar(jpegData: data, previewImage: image)
-                avatarURL = uploaded.avatarUrl
+                avatarURL = uploaded.avatarUrl ?? store.remoteAvatarURL
                 avatarAsset = TTAvatarCatalog.customToken
             } else if TTAvatarCatalog.isAssetName(selection) {
                 let response = try await store.saveMeProfile(UpdateMeProfileBody(avatarAsset: selection))

@@ -69,6 +69,27 @@ struct AppRootView: View {
         }
         // Must be overlay (not another fullScreenCover) — roots already present chat/AI covers.
         .humanCallOverlay()
+        .sheet(isPresented: Binding(
+            get: { store.showAIPaywall },
+            set: { if !$0 { store.dismissAIPaywall(unlocked: false) } }
+        )) {
+            AIPaywallView(
+                onUnlocked: {
+                    store.dismissAIPaywall(unlocked: true)
+                }
+            )
+            .ttModalSheetPresentation(dragIndicator: .visible)
+            .environment(store)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttPresentAIPaywall)) { _ in
+            store.presentAIPaywall()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIEntitlementDidChange)) { _ in
+            Task { await store.refreshAIEntitlements() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
+            Task { await store.refreshAIEntitlements() }
+        }
     }
 
     @ViewBuilder

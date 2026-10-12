@@ -30,7 +30,11 @@ struct TrainerAssessmentFlowView: View {
                 case 9: TrainerGenderStep(draft: $draft, onSkip: skipGender)
                 case 10: TrainerBioStep(draft: $draft)
                 case 11: TrainerPhilosophyStep(draft: $draft)
-                default: AssessmentAvatarStep(selection: $avatarSelection, userId: store.currentUser?.id)
+                default: AssessmentAvatarStep(
+                    selection: $avatarSelection,
+                    userId: store.currentUser?.id,
+                    remoteAvatarUrl: store.remoteAvatarURL
+                )
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)

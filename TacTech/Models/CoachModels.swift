@@ -136,6 +136,7 @@ enum CoachStreamEvent {
     case user(conversationId: String, message: CoachMessage)
     case delta(String)
     case done(message: CoachMessage, citations: [CoachCitation]?)
+    case error(code: String?, detail: String?)
     case unknown
 }
 
@@ -145,6 +146,9 @@ struct CoachStreamEventDTO: Decodable {
     var text: String?
     var message: CoachMessage?
     var citations: [CoachCitation]?
+    var code: String?
+    var detail: String?
+    var error: String?
 }
 
 // MARK: - Display message (optimistic UI)

@@ -32,7 +32,11 @@ struct FitnessAssessmentFlowView: View {
                 case 14: BodyScanStep(draft: $draft)
                 case 15: VoiceStep(draft: $draft)
                 case 16: TextAnalysisStep(draft: $draft)
-                default: AssessmentAvatarStep(selection: $avatarSelection, userId: store.currentUser?.id)
+                default: AssessmentAvatarStep(
+                    selection: $avatarSelection,
+                    userId: store.currentUser?.id,
+                    remoteAvatarUrl: store.remoteAvatarURL
+                )
                 }
             }
             .animation(.easeInOut(duration: 0.25), value: step)

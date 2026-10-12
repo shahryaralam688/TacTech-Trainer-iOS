@@ -8,6 +8,7 @@ struct TraineeProfileView: View {
 
     @State private var invite = ""
     @State private var message: String?
+    @State private var showFindCoaches = false
 
     private var initials: String {
         let parts = (store.currentUser?.name ?? "A").split(separator: " ")
@@ -55,18 +56,54 @@ struct TraineeProfileView: View {
             name: store.currentUser?.name ?? "Trainee",
             location: store.currentTrainee?.location?.nilIfBlank ?? "Add location",
             membership: store.currentTrainee?.goal.nilIfBlank ?? "Basic Member",
-            avatarAsset: TTAvatarCatalog.saved(for: store.session?.userId),
+            avatarAsset: store.displayAvatarAsset,
+            avatarUrl: store.remoteAvatarURL,
             avatarUserId: store.session?.userId,
             initials: initials,
-            scores: store.weeklySandowScores(),
             metrics: metrics,
             showsBack: showsBack
         ) {
             VStack(alignment: .leading, spacing: 16) {
+                findCoachesCard
                 MyTrainerCard()
                 joinCard
             }
         }
+        .sheet(isPresented: $showFindCoaches) {
+            FindCoachesView()
+                .ttModalSheetPresentation(dragIndicator: .hidden)
+        }
+    }
+
+    private var findCoachesCard: some View {
+        Button {
+            showFindCoaches = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.3.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(width: 40, height: 40)
+                    .background(TTColor.actionOrange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Find Coaches")
+                        .font(TTFont.heading(16))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Browse public trainers and start a chat.")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            .padding(16)
+            .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var joinCard: some View {

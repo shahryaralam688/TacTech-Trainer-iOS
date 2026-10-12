@@ -180,6 +180,8 @@ struct TTAvatarImage: View {
 struct AssessmentAvatarStep: View {
     @Binding var selection: String
     var userId: String? = nil
+    /// Server avatar URL (reinstall / existing custom photo).
+    var remoteAvatarUrl: String? = nil
     var title: String = "Choose your avatar"
     var subtitle: String = "Pick a look, choose from gallery, or take a photo."
 
@@ -191,6 +193,7 @@ struct AssessmentAvatarStep: View {
     @State private var showCamera = false
     @State private var cameraImage: UIImage?
     @State private var customPreview: UIImage?
+    @State private var remotePreview: UIImage?
     @State private var isImporting = false
 
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
@@ -344,6 +347,20 @@ struct AssessmentAvatarStep: View {
                     Image(uiImage: customPreview)
                         .resizable()
                         .scaledToFill()
+                } else if TTAvatarCatalog.isCustom(selection), let remotePreview {
+                    Image(uiImage: remotePreview)
+                        .resizable()
+                        .scaledToFill()
+                } else if TTAvatarCatalog.isCustom(selection), remoteAvatarUrl != nil {
+                    TTUserAvatarView(
+                        avatarUrl: remoteAvatarUrl,
+                        avatarAsset: nil,
+                        userId: userId,
+                        name: "A",
+                        size: 124,
+                        shape: .roundedRect,
+                        cornerRadius: 32
+                    )
                 } else if TTAvatarCatalog.isAssetName(selection) {
                     Image(selection)
                         .resizable()
@@ -367,6 +384,13 @@ struct AssessmentAvatarStep: View {
         }
         .frame(height: 180)
         .animation(selectSpring, value: selection)
+        .task(id: remoteAvatarUrl) {
+            guard let remoteAvatarUrl, !remoteAvatarUrl.isEmpty else {
+                remotePreview = nil
+                return
+            }
+            remotePreview = await TTRemoteImageCache.shared.image(for: remoteAvatarUrl)
+        }
     }
 
     // MARK: - Grid cell

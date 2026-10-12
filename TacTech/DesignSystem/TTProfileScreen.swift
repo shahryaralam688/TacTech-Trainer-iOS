@@ -13,24 +13,43 @@ struct TTProfileMetric: Identifiable {
     let label: String
 }
 
-struct TTSandowDayScore: Identifiable {
+struct TTSandowDayScore: Identifiable, Equatable {
     let id: String
-    let weekday: Weekday
+    let label: String
     let score: Int
-    var short: String { weekday.short }
+    var weekday: Weekday? = nil
+    /// `yyyy-MM-DD` when known — used to highlight “today”.
+    var dateKey: String? = nil
+
+    var short: String { label }
+
+    init(id: String, label: String, score: Int, weekday: Weekday? = nil, dateKey: String? = nil) {
+        self.id = id
+        self.label = label
+        self.score = score
+        self.weekday = weekday
+        self.dateKey = dateKey
+    }
+
+    init(id: String, weekday: Weekday, score: Int, dateKey: String? = nil) {
+        self.init(id: id, label: weekday.short, score: score, weekday: weekday, dateKey: dateKey)
+    }
 }
 
 /// Shared profile chrome — hero, identity, Sandow Score, metric tiles.
 struct TTProfileScreen<Extra: View>: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppStore.self) private var store
 
     let name: String
     let location: String
     let membership: String
     let avatarAsset: String?
+    var avatarUrl: String? = nil
     var avatarUserId: String? = nil
     let initials: String
-    let scores: [TTSandowDayScore]
+    /// Preview / override only — live profile uses `AppStore.sandowChartScores`.
+    var scoresOverride: [TTSandowDayScore]? = nil
     let metrics: [TTProfileMetric]
     var showsBack: Bool = false
     /// Static top card background — same family as Profile / Setup headers.
@@ -39,7 +58,7 @@ struct TTProfileScreen<Extra: View>: View {
 
     @State private var selectedDayId: String?
     @State private var selectedShort: String?
-    @State private var rangeLabel = "Weekly"
+    @State private var period: SandowScorePeriod = .week
     @State private var path = NavigationPath()
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
@@ -58,8 +77,50 @@ struct TTProfileScreen<Extra: View>: View {
         case personalInfo
     }
 
+    private var scores: [TTSandowDayScore] {
+        scoresOverride ?? store.sandowChartScores
+    }
+
+    private var sandowTitle: String {
+        store.sandowScore?.resolvedTitle ?? "TacTech Score"
+    }
+
+    private var sandowSubtitle: String? {
+        store.sandowScore?.resolvedSubtitle
+    }
+
+    private var emptyCaption: String? {
+        guard scoresOverride == nil else { return nil }
+        if let caption = store.sandowScore?.emptyCaption, !caption.isEmpty { return caption }
+        guard !scores.contains(where: { $0.score > 0 }) else { return nil }
+        switch store.sandowScore?.mode {
+        case "boost_analytics": return "Boost to see reach"
+        case "roster_performance": return "No client activity yet"
+        default:
+            return store.session?.role == .trainer
+                ? (store.isBoostActiveForSandow ? "Boost to see reach" : "No client activity yet")
+                : "Log workouts to build your score"
+        }
+    }
+
+    private var todayKey: String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        return f.string(from: Date())
+    }
+
+    /// Latest day with score > 0, else today, else last bar.
     private var activeDayId: String {
-        selectedDayId ?? scores.max(by: { $0.score < $1.score })?.id ?? scores.first?.id ?? ""
+        if let selectedDayId { return selectedDayId }
+        if let latestActive = scores.last(where: { $0.score > 0 }) {
+            return latestActive.id
+        }
+        if let today = scores.first(where: { $0.dateKey == todayKey }) {
+            return today.id
+        }
+        return scores.last?.id ?? scores.first?.id ?? ""
     }
 
     var body: some View {
@@ -83,6 +144,9 @@ struct TTProfileScreen<Extra: View>: View {
                             .padding(.horizontal, 16)
                             .padding(.top, avatarSide / 2 + 14)
                             .padding(.bottom, 20)
+                        }
+                        .refreshable {
+                            await store.loadSandowScore(period: period, force: true)
                         }
                         .ttTopRoundedSheet(radius: contentTopRadius, fill: canvas)
                     }
@@ -113,6 +177,20 @@ struct TTProfileScreen<Extra: View>: View {
             // Pushed Account / Settings live on this stack — hide floating tab chrome off-root.
             .ttRootTabBarVisible(path.isEmpty)
             .ttSyncRootTabBarWithNavigationDepth()
+            .task {
+                period = store.sandowPeriod
+                await store.loadSandowScore(period: period)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttSandowScoreShouldRefresh)) { _ in
+                Task { await store.loadSandowScore(period: period, force: true) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttBoostCheckoutSucceeded)) { _ in
+                Task { await store.loadSandowScore(period: period, force: true) }
+            }
+            .onChange(of: scores.map(\.id)) { _, _ in
+                selectedDayId = nil
+                selectedShort = nil
+            }
         }
     }
 
@@ -177,16 +255,16 @@ struct TTProfileScreen<Extra: View>: View {
     private func overlappingAvatar(width: CGFloat) -> some View {
         let corner = avatarSide * 0.28
 
-        return TTAvatarImage(
-            assetName: avatarAsset,
+        return TTUserAvatarView(
+            avatarUrl: avatarUrl,
+            avatarAsset: avatarAsset,
             userId: avatarUserId,
-            initials: initials,
-            size: avatarSide
-        )
-        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(.white, lineWidth: 3.5)
+            name: name,
+            size: avatarSide,
+            shape: .roundedRect,
+            cornerRadius: corner,
+            strokeColor: .white,
+            strokeWidth: 3.5
         )
         .shadow(color: .black.opacity(0.24), radius: 12, y: 4)
         .position(x: width / 2, y: heroHeight)
@@ -197,10 +275,13 @@ struct TTProfileScreen<Extra: View>: View {
 
     private var identityBlock: some View {
         VStack(spacing: 6) {
-            Text(name)
-                .font(TTFont.workSans(24, weight: .bold))
-                .foregroundStyle(TTColor.ink)
-                .multilineTextAlignment(.center)
+            HStack(spacing: 8) {
+                Text(name)
+                    .font(TTFont.workSans(24, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                    .multilineTextAlignment(.center)
+                AIProBadgeIfActive(entitlement: store.aiEntitlement, style: .compact)
+            }
 
             HStack(spacing: 6) {
                 HStack(spacing: 4) {
@@ -219,33 +300,55 @@ struct TTProfileScreen<Extra: View>: View {
                 }
             }
             .foregroundStyle(TTColor.inkMuted)
+
+            if let ai = store.aiEntitlement, ai.active {
+                Text(ai.activeStatusLine)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .multilineTextAlignment(.center)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 8)
+        .task {
+            await store.refreshAIEntitlements()
+        }
     }
 
     // MARK: Sandow Score
 
     private var sandowCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                HStack(spacing: 8) {
-                    TTIcon(icon: .plus, filled: true, size: 14)
-                        .foregroundStyle(TTColor.actionOrange)
-                    Text("Sandow Score")
-                        .font(TTFont.workSans(18, weight: .bold))
-                        .foregroundStyle(TTColor.ink)
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        TTIcon(icon: .plus, filled: true, size: 14)
+                            .foregroundStyle(TTColor.actionOrange)
+                        Text(sandowTitle)
+                            .font(TTFont.workSans(18, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                    }
+                    if let sandowSubtitle {
+                        Text(sandowSubtitle)
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
                 }
                 Spacer()
                 Menu {
-                    Button("Weekly") { rangeLabel = "Weekly" }
-                    Button("Monthly") { rangeLabel = "Monthly" }
+                    Button("Weekly") { selectPeriod(.week) }
+                    Button("Monthly") { selectPeriod(.month) }
                 } label: {
                     HStack(spacing: 6) {
                         TTIcon(icon: .calendar1, size: 12)
-                        Text(rangeLabel)
+                        Text(period.menuTitle)
                             .font(TTFont.caption(12))
-                        TTIcon(icon: .chevronDown, size: 10)
+                        if store.isLoadingSandowScore {
+                            ProgressView()
+                                .controlSize(.mini)
+                        } else {
+                            TTIcon(icon: .chevronDown, size: 10)
+                        }
                     }
                     .foregroundStyle(TTColor.inkMuted)
                     .padding(.horizontal, 10)
@@ -253,15 +356,39 @@ struct TTProfileScreen<Extra: View>: View {
                     .background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
+                .disabled(store.isLoadingSandowScore && scoresOverride == nil)
             }
 
             chart
                 .frame(height: 150)
+                .opacity(store.isLoadingSandowScore && scores.allSatisfy({ $0.score == 0 }) ? 0.55 : 1)
+
+            if let emptyCaption {
+                Text(emptyCaption)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
         .padding(12)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
+
+    private func selectPeriod(_ next: SandowScorePeriod) {
+        guard period != next else { return }
+        period = next
+        Task { await store.loadSandowScore(period: next, force: true) }
+    }
+
+    private var chartYDomain: ClosedRange<Int> {
+        let maxScore = scores.map(\.score).max() ?? 0
+        if maxScore <= 0 { return 0...100 }
+        if maxScore <= 60 { return 0...100 }
+        return 0...100
+    }
+
+    private var chartYMarks: [Int] { [0, 25, 50, 75, 100] }
 
     private var chart: some View {
         Chart(scores) { item in
@@ -270,9 +397,9 @@ struct TTProfileScreen<Extra: View>: View {
                 y: .value("Score", item.score)
             )
             .foregroundStyle(item.id == activeDayId ? Color.black : Color(white: 0.82))
-            .cornerRadius(8)
+            .cornerRadius(period == .month ? 4 : 8)
             .annotation(position: .top, spacing: 6) {
-                if item.id == activeDayId {
+                if item.id == activeDayId, period == .week || scores.count <= 10 {
                     Text("\(item.score)")
                         .font(TTFont.workSans(12, weight: .bold))
                         .foregroundStyle(.white)
@@ -291,9 +418,9 @@ struct TTProfileScreen<Extra: View>: View {
                 }
             }
         }
-        .chartYScale(domain: 60...100)
+        .chartYScale(domain: chartYDomain)
         .chartYAxis {
-            AxisMarks(position: .leading, values: [60, 70, 80, 90, 100]) { value in
+            AxisMarks(position: .leading, values: chartYMarks) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
                     .foregroundStyle(Color.black.opacity(0.06))
                 AxisValueLabel {
@@ -309,9 +436,12 @@ struct TTProfileScreen<Extra: View>: View {
             AxisMarks { value in
                 AxisValueLabel {
                     if let label = value.as(String.self) {
+                        // Monthly: thin labels — show every few ticks via length check.
                         Text(label)
-                            .font(TTFont.caption(11))
+                            .font(TTFont.caption(period == .month ? 9 : 11))
                             .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
             }
@@ -322,6 +452,7 @@ struct TTProfileScreen<Extra: View>: View {
             guard let day, let match = scores.first(where: { $0.short == day }) else { return }
             selectedDayId = match.id
         }
+        .animation(.easeInOut(duration: 0.25), value: scores.map(\.score))
     }
 
     // MARK: Metrics
@@ -359,9 +490,10 @@ extension TTProfileScreen where Extra == EmptyView {
         location: String,
         membership: String,
         avatarAsset: String?,
+        avatarUrl: String? = nil,
         avatarUserId: String? = nil,
         initials: String,
-        scores: [TTSandowDayScore],
+        scoresOverride: [TTSandowDayScore]? = nil,
         metrics: [TTProfileMetric],
         showsBack: Bool = false,
         heroImage: String = "ProfileHero"
@@ -371,9 +503,10 @@ extension TTProfileScreen where Extra == EmptyView {
             location: location,
             membership: membership,
             avatarAsset: avatarAsset,
+            avatarUrl: avatarUrl,
             avatarUserId: avatarUserId,
             initials: initials,
-            scores: scores,
+            scoresOverride: scoresOverride,
             metrics: metrics,
             showsBack: showsBack,
             heroImage: heroImage,
@@ -389,7 +522,7 @@ extension TTProfileScreen where Extra == EmptyView {
         membership: "Basic Member",
         avatarAsset: TTAvatarCatalog.default,
         initials: "MK",
-        scores: [
+        scoresOverride: [
             TTSandowDayScore(id: "monday", weekday: .monday, score: 78),
             TTSandowDayScore(id: "tuesday", weekday: .tuesday, score: 95),
             TTSandowDayScore(id: "wednesday", weekday: .wednesday, score: 82),

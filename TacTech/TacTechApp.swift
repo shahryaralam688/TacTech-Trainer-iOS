@@ -11,6 +11,9 @@ struct TacTechApp: App {
             AppRootView()
                 .environment(store)
                 .tint(TTColor.accent)
+                .onOpenURL { url in
+                    Task { await store.handleOpenURL(url) }
+                }
                 .onChange(of: scenePhase) { _, phase in
                     guard store.session != nil else { return }
                     if phase == .active {

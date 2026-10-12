@@ -1,56 +1,52 @@
 import SwiftUI
 
+// MARK: - Trainee Workout Hub (Sandow / TacTech system design)
+
 struct WorkoutHubView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
+
+    /// When presented as a sheet from Home, show a back control.
+    var showsCloseChrome: Bool = false
+
     @State private var selectedDay = Date()
+    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let orange = TTColor.actionOrange
+    private let scrollSpace = "traineeWorkout"
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                TTModalSheetHeader(title: "Workout", subtitle: "Follow the plan", background: .white)
+                header
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
-                            assignedPlanHeader(plan)
-                            TTWeekStrip(selected: $selectedDay)
-                            sessionHero(plan)
-                            sessionDetail(plan)
-                            NavigationLink {
-                                LiveFormCorrectionView(initialExerciseId: currentExercises(in: plan).first?.exerciseId)
-                            } label: {
-                                HStack {
-                                    Image(systemName: "camera.viewfinder")
-                                        .foregroundStyle(TTColor.brand)
-                                        .frame(width: 44, height: 44)
-                                        .background(TTColor.brandSoft)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text("Live form correction")
-                                            .font(TTFont.heading(16))
-                                            .foregroundStyle(TTColor.ink)
-                                        Text("Use the camera for real-time cues")
-                                            .font(TTFont.caption(12))
-                                            .foregroundStyle(TTColor.inkMuted)
-                                    }
-                                    Spacer()
-                                    TTChevronForward(size: 14, color: TTColor.inkSubtle)
-                                }
-                                .ttCard()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                                planOverviewCard(plan)
+                                TTHomeWeekDatePicker(selected: $selectedDay, accent: orange)
+                                sessionHero(plan)
+                                sessionDetail(plan)
+                                liveFormCard(plan)
+                            } else {
+                                emptyCard
                             }
-                            .buttonStyle(.plain)
-                        } else {
-                            TTEmptyState(icon: "dumbbell", title: "No workout assigned", message: "Your trainer will attach a plan with days, times, and weights.")
-                                .ttCard()
                         }
+                        .padding(.horizontal, TTSpace.screen)
+                        .padding(.top, 16)
+                        .padding(.bottom, 36)
                     }
-                    .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
-                    .padding(.top, TTModalSheetChrome.contentTopPadding)
-                    .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
                 }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             }
-            .ttScreenBackground()
+            .background(charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .ttSyncRootTabBarWithNavigationDepth()
             .task {
@@ -59,22 +55,104 @@ struct WorkoutHubView: View {
         }
     }
 
-    private func assignedPlanHeader(_ plan: WorkoutPlan) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+    // MARK: - Header
+
+    @ViewBuilder
+    private var header: some View {
+        if showsCloseChrome {
+            TTDarkPageHeader(
+                title: "Workout",
+                collapseProgress: scrollCollapse.progress
+            ) {
+                dismiss()
+            }
+        } else {
+            workoutTabHeader
+        }
+    }
+
+    private var headerSubtitle: String {
+        if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+            return plan.scheduleLine
+        }
+        return "Follow the plan"
+    }
+
+    private var workoutTabHeader: some View {
+        let p = min(1, max(0, scrollCollapse.progress))
+        let expand = 1 - p
+        let compactHeight: CGFloat = 64
+        let headerHeight = compactHeight + (TTDarkPageHeader.cardHeight - compactHeight) * expand
+
+        return VStack(alignment: .leading, spacing: 10 * expand) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 4 * expand) {
+                    Text("Workout")
+                        .font(TTFont.workSans(28 - 8 * p, weight: .bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+
+                    Text(headerSubtitle)
+                        .font(TTFont.textSM(.medium))
+                        .foregroundStyle(.white.opacity(0.65))
+                        .opacity(Double(expand))
+                        .frame(height: 18 * expand, alignment: .top)
+                        .clipped()
+                }
+
+                Spacer(minLength: 8)
+
+                if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                    NavigationLink {
+                        LiveFormCorrectionView(
+                            initialExerciseId: currentExercises(in: plan).first?.exerciseId
+                        )
+                    } label: {
+                        TTIcon(icon: .camera1, filled: true, size: 18 - 2 * p)
+                            .foregroundStyle(.white)
+                            .frame(width: 44 - 4 * p, height: 44 - 4 * p)
+                            .background(orange)
+                            .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(.horizontal, TTSpace.screen)
+        .padding(.top, 14 - 4 * p)
+        .padding(.bottom, 20 - 8 * p)
+        .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .bottomLeading)
+        .background {
+            Rectangle()
+                .fill(charcoal)
+                .ignoresSafeArea(edges: .top)
+        }
+    }
+
+    // MARK: - Plan / session
+
+    private func planOverviewCard(_ plan: WorkoutPlan) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
             Text("YOUR PLAN")
                 .font(TTFont.caption(11))
+                .fontWeight(.bold)
                 .tracking(0.8)
-                .foregroundStyle(TTColor.brand)
+                .foregroundStyle(orange)
+
             Text(plan.title)
-                .font(TTFont.title(22))
+                .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(TTColor.ink)
+
             Text("\(plan.level) · \(plan.focus)")
-                .font(TTFont.body(14))
+                .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(TTColor.inkMuted)
+
             Text(plan.scheduleLine)
                 .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.inkSubtle)
+                .foregroundStyle(orange)
                 .fixedSize(horizontal: false, vertical: true)
+
             if let notes = plan.notes, !notes.isEmpty {
                 Text(notes)
                     .font(TTFont.body(13))
@@ -82,7 +160,9 @@ struct WorkoutHubView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .ttCard(padding: 20)
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 
     private func session(in plan: WorkoutPlan) -> PlanDay? {
@@ -93,36 +173,50 @@ struct WorkoutHubView: View {
         session(in: plan)?.exercises ?? plan.exercises
     }
 
+    private func hubExercises(in plan: WorkoutPlan) -> [HubExerciseItem] {
+        currentExercises(in: plan).compactMap { item in
+            guard let exercise = store.exercise(id: item.exerciseId) else { return nil }
+            return HubExerciseItem(id: item.id, exercise: exercise, prescription: item)
+        }
+    }
+
     private func sessionHero(_ plan: WorkoutPlan) -> some View {
         let day = session(in: plan)
         let next = plan.nextSession(from: selectedDay)
         return VStack(alignment: .leading, spacing: 10) {
             Text(day == nil ? "NO SESSION THIS DAY" : "THIS SESSION")
                 .font(TTFont.caption(11))
+                .fontWeight(.bold)
                 .tracking(0.8)
-                .foregroundStyle(TTColor.brand)
+                .foregroundStyle(orange)
+
             Text(day?.title ?? plan.title)
-                .font(TTFont.title(22))
+                .font(TTFont.workSans(20, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+
             if let day {
                 Text("\(day.weekday.title) · \(day.timeLabel) · \(day.durationMinutes) min · \(day.location ?? "Gym")")
-                    .font(TTFont.body(14))
+                    .font(TTFont.workSans(14, weight: .medium))
                     .foregroundStyle(TTColor.inkMuted)
+
                 if !day.focus.isEmpty {
                     Text(day.focus)
                         .font(TTFont.body(14))
                         .foregroundStyle(TTColor.inkMuted)
                 }
+
                 NavigationLink {
                     ActiveWorkoutView(plan: plan, day: day)
                 } label: {
                     Text("Start session")
-                        .font(TTFont.heading(15))
-                        .foregroundStyle(TTColor.surface)
+                        .font(TTFont.workSans(15, weight: .bold))
+                        .foregroundStyle(.white)
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(TTColor.brand)
-                        .clipShape(Capsule())
+                        .frame(height: 44)
+                        .background(orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
+                .buttonStyle(.plain)
                 .padding(.top, 4)
             } else {
                 Text(next.map { "Rest day. Next is \($0.weekday.title) at \($0.timeLabel)." } ?? plan.focus)
@@ -131,7 +225,9 @@ struct WorkoutHubView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .ttCard(padding: 20)
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 
     @ViewBuilder
@@ -143,35 +239,48 @@ struct WorkoutHubView: View {
             if let warmup = day.warmup, !warmup.isEmpty {
                 labeledCard("Warm-up", warmup)
             }
-            TTSectionHeader(title: "Exercises")
-            ForEach(Array(day.exercises.enumerated()), id: \.element.id) { _, item in
-                if let exercise = store.exercise(id: item.exerciseId) {
-                    NavigationLink {
-                        ExerciseDetailView(exercise: exercise, prescription: item)
-                    } label: {
-                        exerciseRow(exercise, item)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
+
+            exercisesSection(hubExercises(in: plan))
+
             if let cooldown = day.cooldown, !cooldown.isEmpty {
                 labeledCard("Cool-down", cooldown)
             }
         } else if !plan.exercises.isEmpty {
-            TTSectionHeader(title: "Exercises")
-            ForEach(plan.exercises) { item in
-                if let exercise = store.exercise(id: item.exerciseId) {
-                    NavigationLink {
-                        ExerciseDetailView(exercise: exercise, prescription: item)
-                    } label: {
-                        exerciseRow(exercise, item)
+            // Rest day — still show the program library as a stacked deck.
+            exercisesSection(hubExercises(in: plan))
+            if let notes = plan.notes, !notes.isEmpty {
+                labeledCard("Trainer notes", notes)
+            }
+        } else if let notes = plan.notes, !notes.isEmpty {
+            labeledCard("Trainer notes", notes)
+        }
+    }
+
+    private func exercisesSection(_ items: [HubExerciseItem]) -> some View {
+        Group {
+            if !items.isEmpty {
+                VStack(alignment: .leading, spacing: TTCardTokens.listSpacing) {
+                    Text("Exercises")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+
+                    TTStackedSections(
+                        data: items,
+                        stackOffset: TTStackedTokens.stackOffset,
+                        withDramaEffect: true,
+                        paneGap: TTSpace.md,
+                        scrollRunway: TTStackedTokens.defaultRunway,
+                        coordinateSpaceName: scrollSpace
+                    ) { row in
+                        NavigationLink {
+                            ExerciseDetailView(exercise: row.exercise, prescription: row.prescription)
+                        } label: {
+                            exerciseRow(row.exercise, row.prescription)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
             }
-        }
-        if let notes = plan.notes, !notes.isEmpty {
-            labeledCard("Trainer notes", notes)
         }
     }
 
@@ -179,109 +288,224 @@ struct WorkoutHubView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title.uppercased())
                 .font(TTFont.caption(11))
+                .fontWeight(.bold)
                 .foregroundStyle(TTColor.inkSubtle)
             Text(body)
                 .font(TTFont.body(14))
                 .foregroundStyle(TTColor.ink)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .ttCard()
+        .padding(TTCardTokens.padding)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.listCorner, style: .continuous))
     }
 
     private func exerciseRow(_ exercise: Exercise, _ item: WorkoutExercise) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: exercise.icon)
-                .foregroundStyle(TTColor.brand)
-                .frame(width: 44, height: 44)
-                .background(TTColor.brandSoft)
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        HStack(spacing: TTCardTokens.listSpacing) {
+            ZStack {
+                RoundedRectangle(cornerRadius: TTCardTokens.thumbCorner, style: .continuous)
+                    .fill(orange.opacity(0.12))
+                TTIcon(icon: .kettlebell, filled: true, size: 18)
+                    .foregroundStyle(orange)
+            }
+            .frame(width: TTCardTokens.thumbSize, height: TTCardTokens.thumbSize)
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(exercise.name)
-                    .font(TTFont.heading(15))
+                    .font(TTFont.workSans(TTCardTokens.titleSize + 1, weight: .bold))
                     .foregroundStyle(TTColor.ink)
                 Text(item.prescriptionLine)
-                    .font(TTFont.caption(12))
+                    .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
                     .foregroundStyle(TTColor.inkMuted)
             }
-            Spacer()
-            TTChevronForward(size: 14, color: TTColor.inkSubtle)
+
+            Spacer(minLength: 8)
+
+            TTIcon(icon: .chevronRight, size: 14)
+                .foregroundStyle(TTColor.inkSubtle)
         }
-        .ttCard()
+        .padding(TTCardTokens.padding)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+        .shadow(color: Color.black.opacity(0.05), radius: 8, y: 3)
+    }
+
+    private func liveFormCard(_ plan: WorkoutPlan) -> some View {
+        NavigationLink {
+            LiveFormCorrectionView(initialExerciseId: currentExercises(in: plan).first?.exerciseId)
+        } label: {
+            HStack(spacing: TTCardTokens.listSpacing) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: TTCardTokens.thumbCorner, style: .continuous)
+                        .fill(orange.opacity(0.12))
+                    TTIcon(icon: .camera1, filled: true, size: 18)
+                        .foregroundStyle(orange)
+                }
+                .frame(width: TTCardTokens.thumbSize, height: TTCardTokens.thumbSize)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Live form correction")
+                        .font(TTFont.workSans(15, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Use the camera for real-time cues")
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+
+                Spacer(minLength: 8)
+
+                TTIcon(icon: .chevronRight, size: 14)
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            .padding(TTCardTokens.padding)
+            .background(cardFill)
+            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var emptyCard: some View {
+        VStack(spacing: 12) {
+            TTIcon(icon: .barbellDiagonal, filled: true, size: 28)
+                .foregroundStyle(orange)
+            Text("No workout assigned")
+                .font(TTFont.workSans(17, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text("Your trainer will attach a plan with days, times, and weights.")
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 }
 
+private struct HubExerciseItem: Identifiable {
+    let id: String
+    let exercise: Exercise
+    let prescription: WorkoutExercise
+}
+
+// MARK: - Exercise detail
+
 struct ExerciseDetailView: View {
+    @Environment(\.dismiss) private var dismiss
     let exercise: Exercise
     let prescription: WorkoutExercise
 
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(exercise.muscleGroup.uppercased())
-                        .font(TTFont.caption(11))
-                        .foregroundStyle(TTColor.brand)
-                    Text(exercise.name)
-                        .font(TTFont.display(32))
-                    Text(prescription.prescriptionLine)
-                        .font(TTFont.body(15))
-                        .foregroundStyle(TTColor.inkMuted)
-                }
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let orange = TTColor.actionOrange
 
-                VStack(alignment: .leading, spacing: 10) {
-                    TTSectionHeader(title: "Prescribed sets")
-                    ForEach(prescription.workingSets) { set in
-                        HStack {
-                            Text("Set \(set.setNumber)")
-                                .font(TTFont.heading(14))
-                            Spacer()
-                            Text("\(set.reps) reps")
-                            Text(set.weightKg.map { "\($0.cleanKg) kg" } ?? "bodyweight")
-                            if let rpe = set.rpe {
-                                Text("RPE \(rpe.cleanKg)")
+    var body: some View {
+        VStack(spacing: 0) {
+            TTDarkPageHeader(title: exercise.name) {
+                dismiss()
+            }
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(exercise.muscleGroup.uppercased())
+                            .font(TTFont.caption(11))
+                            .fontWeight(.bold)
+                            .foregroundStyle(orange)
+                        Text(prescription.prescriptionLine)
+                            .font(TTFont.workSans(15, weight: .medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Prescribed sets")
+                            .font(TTFont.workSans(15, weight: .bold))
+                        ForEach(prescription.workingSets) { set in
+                            HStack {
+                                Text("Set \(set.setNumber)")
+                                    .font(TTFont.workSans(14, weight: .semibold))
+                                Spacer()
+                                Text("\(set.reps) reps")
+                                Text(set.weightKg.map { "\($0.cleanKg) kg" } ?? "bodyweight")
+                                if let rpe = set.rpe {
+                                    Text("RPE \(rpe.cleanKg)")
+                                }
+                            }
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+
+                    if let notes = prescription.notes, !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("How to perform")
+                                .font(TTFont.workSans(15, weight: .bold))
+                            Text(notes)
+                                .font(TTFont.body(15))
+                                .foregroundStyle(TTColor.inkMuted)
+                        }
+                        .padding(16)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(cardFill)
+                        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                    }
+
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Cues")
+                            .font(TTFont.workSans(15, weight: .bold))
+                        ForEach(exercise.cues, id: \.self) { cue in
+                            HStack(alignment: .top, spacing: 10) {
+                                Circle().fill(orange).frame(width: 6, height: 6).padding(.top, 7)
+                                Text(cue)
+                                    .font(TTFont.body(15))
+                                    .foregroundStyle(TTColor.ink)
                             }
                         }
-                        .font(TTFont.caption(13))
-                        .foregroundStyle(TTColor.inkMuted)
                     }
-                }
-                .ttCard()
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
 
-                if let notes = prescription.notes, !notes.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        TTSectionHeader(title: "How to perform")
-                        Text(notes)
-                            .font(TTFont.body(15))
-                    }
-                    .ttCard()
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    TTSectionHeader(title: "Cues")
-                    ForEach(exercise.cues, id: \.self) { cue in
-                        HStack(alignment: .top, spacing: 10) {
-                            Circle().fill(TTColor.brand).frame(width: 6, height: 6).padding(.top, 7)
-                            Text(cue)
-                                .font(TTFont.body(15))
+                    NavigationLink {
+                        LiveFormCorrectionView(initialExerciseId: exercise.id)
+                    } label: {
+                        HStack(spacing: 10) {
+                            TTIcon(icon: .camera1, filled: true, size: 16)
+                            Text("Open live form AI")
+                                .font(TTFont.workSans(15, weight: .bold))
                         }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 52)
+                        .background(orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
-                .ttCard()
-
-                NavigationLink {
-                    LiveFormCorrectionView(initialExerciseId: exercise.id)
-                } label: {
-                    TTButton(title: "Open live form AI", icon: "camera.viewfinder", action: {})
-                        .allowsHitTesting(false)
-                }
-                .buttonStyle(.plain)
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 16)
+                .padding(.bottom, 36)
             }
-            .padding(20)
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
         }
-        .ttScreenBackground()
-        .navigationBarTitleDisplayMode(.inline)
+        .background(charcoal.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
     }
 }
+
+// MARK: - Active workout
 
 struct ActiveWorkoutView: View {
     @Environment(AppStore.self) private var store
@@ -293,80 +517,118 @@ struct ActiveWorkoutView: View {
     @State private var logs: [WorkoutSetLog] = []
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let orange = TTColor.actionOrange
+
     private var exercises: [WorkoutExercise] {
         day?.exercises ?? plan.exercises
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                HStack {
-                    VStack(alignment: .leading) {
-                        Text(day.map { "\($0.weekday.title) · \($0.timeLabel)" } ?? "Session")
-                            .font(TTFont.caption(12))
-                            .foregroundStyle(TTColor.inkMuted)
-                        Text(timeString)
-                            .font(TTFont.display(36))
-                    }
-                    Spacer()
-                    Button(timerRunning ? "Pause" : "Start") {
-                        timerRunning.toggle()
-                    }
-                    .font(TTFont.heading(14))
-                    .foregroundStyle(TTColor.brand)
-                }
-                .ttCard()
+        VStack(spacing: 0) {
+            TTDarkPageHeader(title: day?.title ?? plan.title) {
+                dismiss()
+            }
 
-                if let notes = day?.coachNotes, !notes.isEmpty {
-                    Text(notes)
-                        .font(TTFont.body(14))
-                        .foregroundStyle(TTColor.inkMuted)
-                        .ttCard()
-                }
-
-                ForEach(exercises) { item in
-                    if let exercise = store.exercise(id: item.exerciseId) {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text(exercise.name)
-                                .font(TTFont.heading(16))
-                            Text(item.prescriptionLine)
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(day.map { "\($0.weekday.title) · \($0.timeLabel)" } ?? "Session")
                                 .font(TTFont.caption(12))
                                 .foregroundStyle(TTColor.inkMuted)
-                            if let notes = item.notes, !notes.isEmpty {
-                                Text(notes)
+                            Text(timeString)
+                                .font(TTFont.workSans(34, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                        }
+                        Spacer()
+                        Button(timerRunning ? "Pause" : "Start") {
+                            timerRunning.toggle()
+                        }
+                        .font(TTFont.workSans(14, weight: .bold))
+                        .foregroundStyle(orange)
+                    }
+                    .padding(16)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+
+                    if let notes = day?.coachNotes, !notes.isEmpty {
+                        Text(notes)
+                            .font(TTFont.body(14))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(cardFill)
+                            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                    }
+
+                    TTStackedSections(
+                        data: exercises,
+                        stackOffset: TTStackedTokens.stackOffset,
+                        withDramaEffect: true,
+                        paneGap: TTSpace.md,
+                        scrollRunway: TTStackedTokens.defaultRunway
+                    ) { item in
+                        if let exercise = store.exercise(id: item.exerciseId) {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(exercise.name)
+                                    .font(TTFont.workSans(16, weight: .bold))
+                                Text(item.prescriptionLine)
                                     .font(TTFont.caption(12))
                                     .foregroundStyle(TTColor.inkMuted)
+                                if let notes = item.notes, !notes.isEmpty {
+                                    Text(notes)
+                                        .font(TTFont.caption(12))
+                                        .foregroundStyle(TTColor.inkMuted)
+                                }
+                                ForEach(item.workingSets) { set in
+                                    setRow(exercise: exercise, item: item, set: set)
+                                }
                             }
-                            ForEach(item.workingSets) { set in
-                                setRow(exercise: exercise, item: item, set: set)
-                            }
+                            .padding(16)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(cardFill)
+                            .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                            .shadow(color: Color.black.opacity(0.05), radius: 8, y: 3)
                         }
-                        .ttCard()
                     }
-                }
 
-                TTButton(title: "Finish workout", icon: "checkmark") {
-                    guard let trainee = store.currentTrainee else { return }
-                    Task {
-                        try? await store.saveWorkoutLog(
-                            WorkoutLog(
-                                id: UUID().uuidString,
-                                traineeId: trainee.id,
-                                planId: plan.id,
-                                completedAt: .now,
-                                durationMinutes: max(elapsed / 60, 1),
-                                sets: logs
+                    Button {
+                        guard let trainee = store.currentTrainee else { return }
+                        Task {
+                            try? await store.saveWorkoutLog(
+                                WorkoutLog(
+                                    id: UUID().uuidString,
+                                    traineeId: trainee.id,
+                                    planId: plan.id,
+                                    completedAt: .now,
+                                    durationMinutes: max(elapsed / 60, 1),
+                                    sets: logs
+                                )
                             )
-                        )
-                        dismiss()
+                            dismiss()
+                        }
+                    } label: {
+                        Text("Finish workout")
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(orange)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
+                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 16)
+                .padding(.bottom, 36)
             }
-            .padding(20)
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
         }
-        .ttScreenBackground()
-        .navigationTitle(day?.title ?? plan.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .background(charcoal.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
         .onReceive(timer) { _ in
             if timerRunning { elapsed += 1 }
         }
@@ -381,7 +643,7 @@ struct ActiveWorkoutView: View {
         let existing = logs.first { $0.exerciseId == exercise.id && $0.setNumber == set.setNumber }
         return HStack {
             Text("Set \(set.setNumber)")
-                .font(TTFont.heading(14))
+                .font(TTFont.workSans(14, weight: .semibold))
             Spacer()
             Text("\(set.reps) reps · \(set.weightKg.map { "\($0.cleanKg) kg" } ?? "BW")")
                 .font(TTFont.caption(13))
@@ -400,7 +662,8 @@ struct ActiveWorkoutView: View {
                 }
             }
             .font(TTFont.caption(13))
-            .foregroundStyle(existing == nil ? TTColor.brand : TTColor.success)
+            .fontWeight(.bold)
+            .foregroundStyle(existing == nil ? orange : TTColor.success)
         }
     }
 }

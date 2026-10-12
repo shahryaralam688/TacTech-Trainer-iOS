@@ -3,6 +3,8 @@ import SwiftUI
 struct CoachMessageBubble: View {
     let message: CoachDisplayMessage
     var onRetry: (() -> Void)? = nil
+    /// Button label for failed messages — e.g. "Unlock" for AI_REQUIRED.
+    var retryTitle: String = "Retry"
     var onPlayAudio: (() -> Void)? = nil
     var onCitations: (() -> Void)? = nil
     var onFullscreenImage: ((UIImage) -> Void)? = nil
@@ -138,9 +140,10 @@ struct CoachMessageBubble: View {
                     .foregroundStyle(Color.red.opacity(0.85))
                     .lineLimit(2)
                 if onRetry != nil {
-                    Button("Retry") { onRetry?() }
+                    Button(retryTitle) { onRetry?() }
                         .font(TTFont.workSans(12, weight: .bold))
                         .foregroundStyle(orange)
+                        .accessibilityLabel(retryTitle)
                 }
             }
 

@@ -376,6 +376,28 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
     var setNumber: Int
     var reps: Int
     var weightKg: Double
+
+    enum CodingKeys: String, CodingKey {
+        case id, exerciseId, setNumber, reps, weightKg
+    }
+
+    init(id: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double) {
+        self.id = id
+        self.exerciseId = exerciseId
+        self.setNumber = setNumber
+        self.reps = reps
+        self.weightKg = weightKg
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        exerciseId = try c.decode(String.self, forKey: .exerciseId)
+        setNumber = try c.decode(Int.self, forKey: .setNumber)
+        reps = try c.decode(Int.self, forKey: .reps)
+        weightKg = try c.decodeIfPresent(Double.self, forKey: .weightKg) ?? 0
+        id = try c.decodeIfPresent(String.self, forKey: .id)
+            ?? "\(exerciseId)-\(setNumber)-\(reps)-\(weightKg)"
+    }
 }
 
 struct WorkoutLog: Identifiable, Codable, Hashable {
@@ -385,6 +407,86 @@ struct WorkoutLog: Identifiable, Codable, Hashable {
     var completedAt: Date
     var durationMinutes: Int
     var sets: [WorkoutSetLog]
+
+    var setCount: Int { sets.count }
+
+    /// Volume = Σ(weight × reps) across sets.
+    var totalVolumeKg: Double {
+        sets.reduce(0) { $0 + ($1.weightKg * Double($1.reps)) }
+    }
+}
+
+/// Live coach analytics for one trainee (`GET /trainer/trainees/{id}/analytics`).
+struct TraineeAnalytics: Codable, Hashable {
+    var traineeId: String
+    var periodDays: Int
+    var sessionsCompleted: Int
+    var totalDurationMinutes: Int
+    var totalVolumeKg: Double
+    var lastWorkoutAt: Date?
+    var workoutsByDay: [TraineeAnalyticsDay]
+    var topExercises: [TraineeAnalyticsExercise]
+    var recentLogs: [WorkoutLog]
+
+    enum CodingKeys: String, CodingKey {
+        case traineeId, periodDays, sessionsCompleted, totalDurationMinutes
+        case totalVolumeKg, lastWorkoutAt, workoutsByDay, topExercises, recentLogs
+    }
+
+    init(
+        traineeId: String,
+        periodDays: Int,
+        sessionsCompleted: Int,
+        totalDurationMinutes: Int,
+        totalVolumeKg: Double,
+        lastWorkoutAt: Date? = nil,
+        workoutsByDay: [TraineeAnalyticsDay] = [],
+        topExercises: [TraineeAnalyticsExercise] = [],
+        recentLogs: [WorkoutLog] = []
+    ) {
+        self.traineeId = traineeId
+        self.periodDays = periodDays
+        self.sessionsCompleted = sessionsCompleted
+        self.totalDurationMinutes = totalDurationMinutes
+        self.totalVolumeKg = totalVolumeKg
+        self.lastWorkoutAt = lastWorkoutAt
+        self.workoutsByDay = workoutsByDay
+        self.topExercises = topExercises
+        self.recentLogs = recentLogs
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        traineeId = try c.decode(String.self, forKey: .traineeId)
+        periodDays = try c.decodeIfPresent(Int.self, forKey: .periodDays) ?? 30
+        sessionsCompleted = try c.decodeIfPresent(Int.self, forKey: .sessionsCompleted) ?? 0
+        totalDurationMinutes = try c.decodeIfPresent(Int.self, forKey: .totalDurationMinutes) ?? 0
+        totalVolumeKg = try c.decodeIfPresent(Double.self, forKey: .totalVolumeKg) ?? 0
+        lastWorkoutAt = try c.decodeIfPresent(Date.self, forKey: .lastWorkoutAt)
+        workoutsByDay = try c.decodeIfPresent([TraineeAnalyticsDay].self, forKey: .workoutsByDay) ?? []
+        topExercises = try c.decodeIfPresent([TraineeAnalyticsExercise].self, forKey: .topExercises) ?? []
+        recentLogs = try c.decodeIfPresent([WorkoutLog].self, forKey: .recentLogs) ?? []
+    }
+
+    var hasSessions: Bool { sessionsCompleted > 0 || !recentLogs.isEmpty }
+}
+
+struct TraineeAnalyticsDay: Identifiable, Codable, Hashable {
+    var date: Date
+    var sessions: Int
+    var durationMinutes: Int
+    var volumeKg: Double
+
+    var id: String { "\(date.timeIntervalSince1970)" }
+}
+
+struct TraineeAnalyticsExercise: Identifiable, Codable, Hashable {
+    var exerciseId: String
+    var sets: Int
+    var reps: Int
+    var volumeKg: Double
+
+    var id: String { exerciseId }
 }
 
 struct MacroEstimate: Codable, Hashable {
@@ -422,6 +524,149 @@ struct FormReport: Identifiable, Codable, Hashable {
     var score: Int
     var cues: [String]
     var repCount: Int
+}
+
+// MARK: - Sandow Score (Profile chart)
+
+enum SandowScorePeriod: String, Codable, CaseIterable, Identifiable {
+    case week
+    case month
+
+    var id: String { rawValue }
+
+    var menuTitle: String {
+        switch self {
+        case .week: "Weekly"
+        case .month: "Monthly"
+        }
+    }
+
+    var queryValue: String { rawValue }
+
+    var dayCount: Int {
+        switch self {
+        case .week: 7
+        case .month: 30
+        }
+    }
+}
+
+struct SandowScorePoint: Codable, Identifiable, Equatable, Hashable {
+    var date: String
+    var label: String
+    var score: Int
+    var views: Int?
+    var impressions: Int?
+    var contacts: Int?
+    var workouts: Int?
+
+    var id: String { date.isEmpty ? label : date }
+
+    enum CodingKeys: String, CodingKey {
+        case date, label, score, views, impressions, contacts, workouts
+    }
+
+    init(
+        date: String,
+        label: String,
+        score: Int,
+        views: Int? = nil,
+        impressions: Int? = nil,
+        contacts: Int? = nil,
+        workouts: Int? = nil
+    ) {
+        self.date = date
+        self.label = label
+        self.score = score
+        self.views = views
+        self.impressions = impressions
+        self.contacts = contacts
+        self.workouts = workouts
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        date = (try? c.decodeIfPresent(String.self, forKey: .date)) ?? ""
+        label = (try? c.decodeIfPresent(String.self, forKey: .label)) ?? ""
+        score = (try? c.decodeIfPresent(Int.self, forKey: .score)) ?? 0
+        views = try? c.decodeIfPresent(Int.self, forKey: .views)
+        impressions = try? c.decodeIfPresent(Int.self, forKey: .impressions)
+        contacts = try? c.decodeIfPresent(Int.self, forKey: .contacts)
+        workouts = try? c.decodeIfPresent(Int.self, forKey: .workouts)
+    }
+}
+
+struct SandowScoreResponse: Codable, Equatable {
+    var role: String
+    var mode: String
+    var period: String
+    var title: String?
+    var subtitle: String?
+    var summaryScore: Int?
+    var boostActive: Bool?
+    var traineeCount: Int?
+    var emptyCaption: String?
+    var points: [SandowScorePoint]
+
+    enum CodingKeys: String, CodingKey {
+        case role, mode, period, title, subtitle, summaryScore
+        case boostActive, traineeCount, emptyCaption, points
+    }
+
+    init(
+        role: String,
+        mode: String,
+        period: String,
+        title: String? = nil,
+        subtitle: String? = nil,
+        summaryScore: Int? = nil,
+        boostActive: Bool? = nil,
+        traineeCount: Int? = nil,
+        emptyCaption: String? = nil,
+        points: [SandowScorePoint]
+    ) {
+        self.role = role
+        self.mode = mode
+        self.period = period
+        self.title = title
+        self.subtitle = subtitle
+        self.summaryScore = summaryScore
+        self.boostActive = boostActive
+        self.traineeCount = traineeCount
+        self.emptyCaption = emptyCaption
+        self.points = points
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        role = (try? c.decodeIfPresent(String.self, forKey: .role)) ?? ""
+        mode = (try? c.decodeIfPresent(String.self, forKey: .mode)) ?? ""
+        period = (try? c.decodeIfPresent(String.self, forKey: .period)) ?? "week"
+        title = try? c.decodeIfPresent(String.self, forKey: .title)
+        subtitle = try? c.decodeIfPresent(String.self, forKey: .subtitle)
+        summaryScore = try? c.decodeIfPresent(Int.self, forKey: .summaryScore)
+        boostActive = try? c.decodeIfPresent(Bool.self, forKey: .boostActive)
+        traineeCount = try? c.decodeIfPresent(Int.self, forKey: .traineeCount)
+        emptyCaption = try? c.decodeIfPresent(String.self, forKey: .emptyCaption)
+        points = (try? c.decodeIfPresent([SandowScorePoint].self, forKey: .points)) ?? []
+    }
+
+    var resolvedTitle: String {
+        let t = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if t.isEmpty || t.localizedCaseInsensitiveCompare("Sandow Score") == .orderedSame {
+            return "TacTech Score"
+        }
+        return t
+    }
+
+    var resolvedSubtitle: String? {
+        let s = subtitle?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return s.isEmpty ? nil : s
+    }
+
+    var hasActivity: Bool {
+        points.contains { $0.score > 0 }
+    }
 }
 
 /// Trainer-saved (or plan-derived) prescription for a catalog exercise.

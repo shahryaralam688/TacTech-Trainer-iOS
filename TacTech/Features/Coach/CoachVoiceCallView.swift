@@ -11,6 +11,7 @@ struct CoachVoiceCallView: View {
     @State private var holding = false
     @State private var hint: String?
     @State private var errorText: String?
+    @State private var needsAIUnlock = false
     @State private var pulse = false
 
     private let orange = TTColor.actionOrange
@@ -66,11 +67,21 @@ struct CoachVoiceCallView: View {
                 }
 
                 if let errorText {
-                    Text(errorText)
-                        .font(TTFont.workSans(13, weight: .semibold))
-                        .foregroundStyle(Color.red.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
+                    VStack(spacing: 10) {
+                        Text(errorText)
+                            .font(TTFont.workSans(13, weight: .semibold))
+                            .foregroundStyle(Color.red.opacity(0.85))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                        if needsAIUnlock {
+                            Button("Unlock") {
+                                NotificationCenter.default.post(name: .ttPresentAIPaywall, object: nil)
+                            }
+                            .font(TTFont.workSans(14, weight: .bold))
+                            .foregroundStyle(orange)
+                            .accessibilityLabel("Unlock")
+                        }
+                    }
                 }
 
                 holdButton
@@ -101,6 +112,11 @@ struct CoachVoiceCallView: View {
         .task { await bootstrap() }
         .onDisappear { teardownWS() }
         .onAppear { pulse = true }
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
+            needsAIUnlock = false
+            errorText = nil
+            Task { await bootstrap() }
+        }
         .sensoryFeedback(.impact(flexibility: .solid, intensity: 0.8), trigger: holding)
     }
 
@@ -143,7 +159,12 @@ struct CoachVoiceCallView: View {
             let created = try await store.createCallSession()
             session = created
             connectWS(created)
+        } catch let error as AppError where error.isAIRequired {
+            needsAIUnlock = true
+            errorText = error.localizedDescription
+            NotificationCenter.default.post(name: .ttPresentAIPaywall, object: nil)
         } catch {
+            needsAIUnlock = false
             errorText = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
     }

@@ -28,6 +28,38 @@ final class AppStore {
     var isBootstrappingSession = false
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
+    /// Live analytics keyed by traineeId (`GET …/analytics`).
+    var traineeAnalyticsById: [String: TraineeAnalytics] = [:]
+    /// Marketplace entitlements — Phase 1 cache only; do **not** gate AI chat on launch.
+    var entitlements: EntitlementsDTO?
+    /// AI Coach Pro status (`GET /me/ai`).
+    var aiEntitlement: MeAIResponse?
+    /// Trainer Boost status (`GET /me/boost`). Nil for trainees / before first load.
+    var myBoost: MeBoostDTO?
+    /// Live Sandow Score chart (`GET /me/sandow-score` or local compose fallback).
+    var sandowScore: SandowScoreResponse?
+    var sandowPeriod: SandowScorePeriod = .week
+    var isLoadingSandowScore = false
+    /// Pending Boost checkout (Stripe session and/or local wallet attempt).
+    var pendingBoostCheckout: PendingBoostCheckout? {
+        didSet { Self.persistPendingBoost(pendingBoostCheckout) }
+    }
+
+    /// Backward-compatible accessor used by older call sites.
+    var pendingBoostCheckoutSessionId: String? {
+        get { pendingBoostCheckout?.checkoutSessionId }
+        set {
+            var pending = pendingBoostCheckout ?? PendingBoostCheckout()
+            pending.checkoutSessionId = newValue
+            if pending.hasIdentity {
+                pendingBoostCheckout = pending
+            } else {
+                pendingBoostCheckout = nil
+            }
+        }
+    }
+    /// Global AI paywall sheet (trainee). Prevents re-entrant present loops.
+    var showAIPaywall = false
     private var macrosByKey: [String: MacroEstimate] = [:]
     /// Last values from `GET /me` or login/signup — nil means backend omitted the field.
     private var serverAssessmentCompleted: Bool?
@@ -48,6 +80,7 @@ final class AppStore {
     }
 
     init() {
+        pendingBoostCheckout = Self.loadPendingBoost()
         Task { await restoreIfNeeded() }
     }
 
@@ -159,7 +192,22 @@ final class AppStore {
 
     /// Last successful profile snapshot (optimistic UI cache; not UserDefaults source of truth).
     var meProfileCache: MeProfileResponse?
+    /// Server absolute avatar URL — source of truth for custom photos.
     var remoteAvatarURL: String?
+    /// Server catalog asset (e.g. Avatar_01_Color) when no custom URL.
+    var remoteAvatarAsset: String?
+
+    /// Catalog asset for display when `remoteAvatarURL` is absent. Never returns broken `custom`.
+    var displayAvatarAsset: String? {
+        if let url = remoteAvatarURL, !url.isEmpty { return nil }
+        if let asset = remoteAvatarAsset, TTAvatarCatalog.isAssetName(asset) { return asset }
+        if let userId = session?.userId,
+           let saved = TTAvatarCatalog.saved(for: userId),
+           TTAvatarCatalog.isAssetName(saved) {
+            return saved
+        }
+        return nil
+    }
 
     @discardableResult
     func fetchMeProfile() async throws -> MeProfileResponse {
@@ -187,21 +235,30 @@ final class AppStore {
             filename: "avatar.jpg",
             mimeType: "image/jpeg"
         )
-        if let url = response.avatarUrl, !url.isEmpty {
+        if let url = response.avatarUrl?.trimmingCharacters(in: .whitespacesAndNewlines), !url.isEmpty {
             remoteAvatarURL = url
-        }
-        if let previewImage, let userId = session?.userId {
-            _ = TTAvatarCatalog.saveCustomImage(previewImage, for: userId)
+            remoteAvatarAsset = nil
+            if let previewImage {
+                Task { await TTRemoteImageCache.shared.store(previewImage, for: url) }
+                if let userId = session?.userId {
+                    _ = TTAvatarCatalog.saveCustomImage(previewImage, for: userId)
+                }
+            }
         }
         _ = try? await fetchMeProfile()
         return response
     }
 
     func deleteProfileAvatar() async throws {
+        let previousURL = remoteAvatarURL
         try await api.deleteMeAvatar()
         remoteAvatarURL = nil
+        if let previousURL {
+            Task { await TTRemoteImageCache.shared.remove(for: previousURL) }
+        }
         if let userId = session?.userId {
             try? FileManager.default.removeItem(at: TTAvatarCatalog.customImageURL(for: userId))
+            UserDefaults.standard.removeObject(forKey: TTAvatarCatalog.storageKey(userId: userId))
         }
         _ = try? await fetchMeProfile()
     }
@@ -248,14 +305,50 @@ final class AppStore {
             )
         }
 
-        let url = response.profile.avatarUrl ?? response.user.avatarUrl
-        remoteAvatarURL = (url?.isEmpty == false) ? url : nil
+        applyRemoteAvatarFields(
+            url: response.profile.avatarUrl ?? response.user.avatarUrl,
+            asset: response.profile.avatarAsset ?? response.user.avatarAsset
+        )
+    }
 
-        if let userId = session?.userId {
-            if let asset = response.profile.avatarAsset ?? response.user.avatarAsset,
-               TTAvatarCatalog.isAssetName(asset),
-               remoteAvatarURL == nil {
+    /// Syncs in-memory avatar from server; local disk is cache only, never required to show.
+    private func applyRemoteAvatarFields(url: String?, asset: String?) {
+        let trimmedURL = url?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasURL = trimmedURL.map { !$0.isEmpty && $0.lowercased().hasPrefix("http") } ?? false
+        let previousURL = remoteAvatarURL
+
+        if hasURL, let trimmedURL {
+            remoteAvatarURL = trimmedURL
+            remoteAvatarAsset = nil
+            if previousURL != trimmedURL {
+                Task { _ = await TTRemoteImageCache.shared.image(for: trimmedURL) }
+            }
+            if let userId = session?.userId {
+                // Drop broken `custom` token — URL is source of truth after reinstall.
+                UserDefaults.standard.removeObject(forKey: TTAvatarCatalog.storageKey(userId: userId))
+            }
+            return
+        }
+
+        remoteAvatarURL = nil
+
+        if let asset, TTAvatarCatalog.isAssetName(asset) {
+            remoteAvatarAsset = asset
+            if let previousURL {
+                Task { await TTRemoteImageCache.shared.remove(for: previousURL) }
+            }
+            if let userId = session?.userId {
                 TTAvatarCatalog.save(asset, for: userId)
+                try? FileManager.default.removeItem(at: TTAvatarCatalog.customImageURL(for: userId))
+            }
+        } else {
+            remoteAvatarAsset = nil
+            if let userId = session?.userId {
+                let saved = TTAvatarCatalog.saved(for: userId)
+                if TTAvatarCatalog.isCustom(saved),
+                   TTAvatarCatalog.loadCustomImage(for: userId) == nil {
+                    UserDefaults.standard.removeObject(forKey: TTAvatarCatalog.storageKey(userId: userId))
+                }
             }
         }
     }
@@ -578,6 +671,23 @@ final class AppStore {
         workoutLogs.filter { $0.traineeId == traineeId }.sorted { $0.completedAt > $1.completedAt }
     }
 
+    func analytics(for traineeId: String) -> TraineeAnalytics? {
+        traineeAnalyticsById[traineeId]
+    }
+
+    /// Reloads logs + analytics for a trainee (trainer detail pull-to-refresh / open).
+    func refreshTraineePerformance(traineeId: String, periodDays: Int = 30) async throws {
+        async let logsTask = api.trainerLogs(traineeId: traineeId)
+        async let analyticsTask = api.trainerTraineeAnalytics(traineeId: traineeId, periodDays: periodDays)
+        let (logs, analytics) = try await (logsTask, analyticsTask)
+        replaceLogs(logs, traineeId: traineeId)
+        // Prefer full /logs list; merge any recentLogs that might be newer.
+        if !analytics.recentLogs.isEmpty {
+            mergeLogs(analytics.recentLogs, traineeId: traineeId)
+        }
+        traineeAnalyticsById[traineeId] = analytics
+    }
+
     /// Trainees currently assigned to this plan (latest assignment wins per trainee).
     func traineesAssigned(toPlanId planId: String) -> [(trainee: TraineeProfile, assignedAt: Date)] {
         let latestByTrainee = Dictionary(grouping: assignments.filter { $0.planId == planId }, by: \.traineeId)
@@ -684,32 +794,247 @@ final class AppStore {
         return draft.age
     }
 
-    /// Weekly Sandow score bars — real form scores when available, else plan consistency.
+    var isBoostActiveForSandow: Bool {
+        myBoost?.active == true || entitlements?.boost.active == true
+    }
+
+    /// Chart bars from last loaded Sandow response (empty → zeros for current period).
+    var sandowChartScores: [TTSandowDayScore] {
+        if let sandowScore {
+            return Self.mapSandowPoints(sandowScore.points)
+        }
+        return Self.zeroSandowScores(for: sandowPeriod)
+    }
+
+    /// Loads live Sandow Score. Prefers `GET /me/sandow-score`; falls back to local compose on 404.
+    func loadSandowScore(period: SandowScorePeriod? = nil, force: Bool = false) async {
+        let target = period ?? sandowPeriod
+        if isLoadingSandowScore && !force { return }
+        sandowPeriod = target
+        isLoadingSandowScore = true
+        defer { isLoadingSandowScore = false }
+
+        do {
+            let response = try await api.sandowScore(period: target.queryValue)
+            sandowScore = response
+            return
+        } catch let error as AppError where error.isNotFound {
+            sandowScore = await composeSandowScoreFallback(period: target)
+        } catch let error as AppError where error == .unauthorized {
+            // Keep last known; session clear handled elsewhere.
+        } catch {
+            // Keep previous points while offline; only seed zeros if never loaded.
+            if sandowScore == nil {
+                sandowScore = await composeSandowScoreFallback(period: target)
+            }
+        }
+    }
+
+    /// Local compose when `/me/sandow-score` is not shipped yet. Never invents random scores.
+    func composeSandowScoreFallback(period: SandowScorePeriod) async -> SandowScoreResponse {
+        if session?.role == .trainer {
+            if isBoostActiveForSandow {
+                return await composeTrainerBoostSandow(period: period)
+            }
+            return composeTrainerRosterSandow(period: period)
+        }
+        return composeTraineeWorkoutSandow(period: period)
+    }
+
+    /// @deprecated Prefer `loadSandowScore` / `sandowChartScores`. Real data only — zeros when empty.
     func weeklySandowScores(forTraineeId traineeId: String? = nil) -> [TTSandowDayScore] {
-        let calendar = Calendar.current
-        let today = Date()
-        let start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)) ?? today
+        let id = traineeId ?? currentTrainee?.id
+        let response = composeTraineeWorkoutSandow(period: .week, traineeId: id)
+        return Self.mapSandowPoints(response.points)
+    }
+
+    private func composeTraineeWorkoutSandow(
+        period: SandowScorePeriod,
+        traineeId: String? = nil
+    ) -> SandowScoreResponse {
         let id = traineeId ?? currentTrainee?.id
         let reports = id.map { formReports(for: $0) } ?? []
-        let weekLogs = id.map { self.logs(for: $0) } ?? []
-
-        return Weekday.allCases.map { day in
-            let dayDate = calendar.date(byAdding: .day, value: day.sortIndex, to: start) ?? today
-            let dayReports = reports.filter { calendar.isDate($0.createdAt, inSameDayAs: dayDate) }
-            let dayLogs = weekLogs.filter { calendar.isDate($0.completedAt, inSameDayAs: dayDate) }
-            let score: Int
+        let logs = id.map { self.logs(for: $0) } ?? []
+        let points = Self.buildDayPoints(period: period) { dayStart in
+            let dayReports = reports.filter { Calendar.current.isDate($0.createdAt, inSameDayAs: dayStart) }
+            let dayLogs = logs.filter { Calendar.current.isDate($0.completedAt, inSameDayAs: dayStart) }
             if !dayReports.isEmpty {
-                let avg = dayReports.map(\.score).reduce(0, +) / dayReports.count
-                score = min(100, max(60, avg))
-            } else if !dayLogs.isEmpty {
-                score = min(100, max(70, 72 + dayLogs.count * 6))
-            } else {
-                // Stable placeholder so the chart never looks empty.
-                let seed = abs((id ?? "x").hashValue &+ day.sortIndex * 17)
-                score = 68 + (seed % 22)
+                let avg = dayReports.map(\.score).reduce(0, +) / max(dayReports.count, 1)
+                return min(100, max(0, avg))
             }
-            return TTSandowDayScore(id: day.rawValue, weekday: day, score: score)
+            if !dayLogs.isEmpty {
+                return min(100, max(0, 55 + dayLogs.count * 8 + min(dayLogs.map(\.durationMinutes).reduce(0, +) / 10, 20)))
+            }
+            return 0
         }
+        let empty = !points.contains { $0.score > 0 }
+        return SandowScoreResponse(
+            role: "trainee",
+            mode: "workout_performance",
+            period: period.queryValue,
+            title: "TacTech Score",
+            subtitle: "Workout & form performance",
+            summaryScore: points.map(\.score).max(),
+            emptyCaption: empty ? "Log workouts to build your score" : nil,
+            points: points
+        )
+    }
+
+    private func composeTrainerRosterSandow(period: SandowScorePeriod) -> SandowScoreResponse {
+        let clients = currentTrainer.map { trainees(for: $0) } ?? []
+        let allLogs = clients.flatMap { logs(for: $0.id) }
+        let allReports = clients.flatMap { formReports(for: $0.id) }
+        let points = Self.buildDayPoints(period: period) { dayStart in
+            let dayReports = allReports.filter { Calendar.current.isDate($0.createdAt, inSameDayAs: dayStart) }
+            let dayLogs = allLogs.filter { Calendar.current.isDate($0.completedAt, inSameDayAs: dayStart) }
+            if !dayReports.isEmpty {
+                let avg = dayReports.map(\.score).reduce(0, +) / max(dayReports.count, 1)
+                return min(100, max(0, avg))
+            }
+            if !dayLogs.isEmpty {
+                return min(100, max(0, 50 + dayLogs.count * 6))
+            }
+            return 0
+        }
+        let empty = !points.contains { $0.score > 0 }
+        return SandowScoreResponse(
+            role: "trainer",
+            mode: "roster_performance",
+            period: period.queryValue,
+            title: "TacTech Score",
+            subtitle: "Clients performance",
+            summaryScore: points.map(\.score).max(),
+            boostActive: false,
+            traineeCount: clients.count,
+            emptyCaption: empty ? "No client activity yet" : nil,
+            points: points
+        )
+    }
+
+    private func composeTrainerBoostSandow(period: SandowScorePeriod) async -> SandowScoreResponse {
+        let days = period.dayCount
+        do {
+            let analytics = try await api.fetchCoachAnalytics(periodDays: days)
+            let series = analytics.series ?? []
+            let points: [SandowScorePoint]
+            if series.isEmpty {
+                points = Self.buildDayPoints(period: period) { _ in 0 }
+            } else {
+                let maxRaw = max(series.map { $0.views + $0.impressions + $0.contacts * 3 }.max() ?? 1, 1)
+                points = series.map { day in
+                    let raw = day.views + day.impressions + day.contacts * 3
+                    let score = Int((Double(raw) / Double(maxRaw) * 100).rounded())
+                    let label = Self.shortLabel(forDateKey: day.date, period: period)
+                    return SandowScorePoint(
+                        date: day.date,
+                        label: label,
+                        score: min(100, max(0, score)),
+                        views: day.views,
+                        impressions: day.impressions,
+                        contacts: day.contacts
+                    )
+                }
+            }
+            let empty = !points.contains { $0.score > 0 }
+            return SandowScoreResponse(
+                role: "trainer",
+                mode: "boost_analytics",
+                period: period.queryValue,
+                title: "TacTech Score",
+                subtitle: "Boost reach",
+                summaryScore: points.map(\.score).max(),
+                boostActive: true,
+                traineeCount: currentTrainer.map { trainees(for: $0).count },
+                emptyCaption: empty ? "Boost to see reach" : nil,
+                points: points
+            )
+        } catch {
+            let points = Self.buildDayPoints(period: period) { _ in 0 }
+            return SandowScoreResponse(
+                role: "trainer",
+                mode: "boost_analytics",
+                period: period.queryValue,
+                title: "TacTech Score",
+                subtitle: "Boost reach",
+                boostActive: true,
+                emptyCaption: "Boost to see reach",
+                points: points
+            )
+        }
+    }
+
+    private static func buildDayPoints(
+        period: SandowScorePeriod,
+        scoreForDay: (Date) -> Int
+    ) -> [SandowScorePoint] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let dates: [Date]
+        switch period {
+        case .week:
+            let start = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today))
+                ?? today
+            dates = (0..<7).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+        case .month:
+            dates = (0..<30).reversed().compactMap { offset in
+                calendar.date(byAdding: .day, value: -offset, to: today)
+            }
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        return dates.map { day in
+            let key = formatter.string(from: day)
+            let label = shortLabel(forDateKey: key, period: period, date: day)
+            return SandowScorePoint(date: key, label: label, score: scoreForDay(day))
+        }
+    }
+
+    private static func shortLabel(forDateKey key: String, period: SandowScorePeriod, date: Date? = nil) -> String {
+        let calendar = Calendar.current
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let resolved = date ?? formatter.date(from: key) ?? Date()
+        switch period {
+        case .week:
+            return Weekday.from(date: resolved).short
+        case .month:
+            return "\(calendar.component(.day, from: resolved))"
+        }
+    }
+
+    private static func mapSandowPoints(_ points: [SandowScorePoint]) -> [TTSandowDayScore] {
+        points.map { point in
+            let weekday: Weekday? = {
+                let formatter = DateFormatter()
+                formatter.calendar = Calendar(identifier: .gregorian)
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.dateFormat = "yyyy-MM-dd"
+                if let date = formatter.date(from: point.date) {
+                    return Weekday.from(date: date)
+                }
+                let lower = point.label.lowercased()
+                return Weekday.allCases.first {
+                    $0.short.lowercased() == lower || $0.rawValue == lower
+                }
+            }()
+            return TTSandowDayScore(
+                id: point.id,
+                label: point.label.isEmpty ? (weekday?.short ?? point.date) : point.label,
+                score: max(0, min(100, point.score)),
+                weekday: weekday,
+                dateKey: point.date.isEmpty ? nil : point.date
+            )
+        }
+    }
+
+    private static func zeroSandowScores(for period: SandowScorePeriod) -> [TTSandowDayScore] {
+        mapSandowPoints(buildDayPoints(period: period) { _ in 0 })
     }
 
     /// Saved templates plus unique prescriptions previously used in this trainer's plans.
@@ -876,6 +1201,352 @@ final class AppStore {
         } else {
             try await loadTraineeWorkspace()
         }
+        await refreshEntitlements()
+        await refreshAIEntitlements()
+        // Avatar source of truth — required so home/profile work after reinstall.
+        _ = try? await fetchMeProfile()
+        if session?.role == .trainer {
+            await refreshMyBoost()
+        }
+        AIStoreKitService.shared.startListeningForUpdates()
+    }
+
+    /// Loads `/me/entitlements`. Failures are silent — never blocks workspace or AI.
+    func refreshEntitlements() async {
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        do {
+            entitlements = try await api.entitlements()
+        } catch let error as AppError where error == .unauthorized {
+            // Session clear is handled by callers of authenticated workspace loads.
+            entitlements = nil
+        } catch {
+            // Keep last known value; Phase 1 treats missing as inactive.
+        }
+    }
+
+    /// Loads `/me/ai` (+ mirrors into entitlements.ai when possible). Silent on failure.
+    func refreshAIEntitlements() async {
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        do {
+            let me = try await api.myAI()
+            aiEntitlement = me
+            // Keep entitlements.ai in sync when we already have a payload.
+            if var ents = entitlements {
+                ents.ai = EntitlementSlice(
+                    active: me.active,
+                    plan: me.plan,
+                    tier: nil,
+                    startsAt: me.startsAt,
+                    endsAt: me.endsAt,
+                    source: me.source
+                )
+                entitlements = ents
+            } else {
+                await refreshEntitlements()
+            }
+        } catch let error as AppError where error == .unauthorized {
+            aiEntitlement = nil
+        } catch {
+            // Keep last known.
+        }
+    }
+
+    /// Presents AI paywall for trainee and trainer. Returns true if presented / already showing.
+    @discardableResult
+    func presentAIPaywallIfNeeded(for error: Error) -> Bool {
+        guard let app = error as? AppError, app.isAIRequired else { return false }
+        guard session != nil else { return false }
+        guard !showAIPaywall else { return true }
+        showAIPaywall = true
+        return true
+    }
+
+    /// Present AI paywall from Unlock CTA (both roles).
+    func presentAIPaywall() {
+        guard session != nil else { return }
+        guard !showAIPaywall else { return }
+        showAIPaywall = true
+    }
+
+    func dismissAIPaywall(unlocked: Bool) {
+        showAIPaywall = false
+        if unlocked {
+            NotificationCenter.default.post(name: .ttAIPaywallUnlocked, object: nil)
+        }
+    }
+
+    /// Loads trainer Boost status. Silent for non-trainers / failures.
+    func refreshMyBoost() async {
+        guard session?.role == .trainer else {
+            myBoost = nil
+            return
+        }
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        do {
+            myBoost = try await api.myBoost()
+        } catch let error as AppError where error == .unauthorized {
+            myBoost = nil
+        } catch {
+            // Keep last known value.
+        }
+    }
+
+    /// Trainee contacts a public coach — opens existing human chat via `ttOpenHumanChat`.
+    @discardableResult
+    func contactCoach(profileId: String, message: String? = nil) async throws -> CoachContactResponse {
+        guard session?.role == .trainee else {
+            throw AppError.validation("Only trainees can contact coaches.")
+        }
+        let response = try await api.contactCoach(id: profileId, message: message)
+        NotificationCenter.default.post(
+            name: .ttOpenHumanChat,
+            object: nil,
+            userInfo: ["threadId": response.threadId]
+        )
+        return response
+    }
+
+    /// Trainee inquires about a coach package — opens human chat with package context.
+    @discardableResult
+    func inquireCoachPackage(
+        coachProfileId: String,
+        packageId: String,
+        message: String? = nil
+    ) async throws -> PackageInquireResponse {
+        guard session?.role == .trainee else {
+            throw AppError.validation("Only trainees can inquire about packages.")
+        }
+        let response = try await api.inquireCoachPackage(
+            coachProfileId: coachProfileId,
+            packageId: packageId,
+            message: message
+        )
+        NotificationCenter.default.post(
+            name: .ttOpenHumanChat,
+            object: nil,
+            userInfo: ["threadId": response.threadId]
+        )
+        return response
+    }
+
+    enum BoostPurchaseResult: Equatable {
+        case confirmed(MeBoostDTO)
+        case canceled
+        case stillPending
+    }
+
+    struct BoostPurchaseOutcome: Equatable {
+        var result: BoostPurchaseResult
+        /// Soft publish warning from checkout response (non-blocking).
+        var warning: String?
+    }
+
+    private static let pendingBoostDefaultsKey = "tactech.pendingBoostCheckout"
+
+    /// Creates Boost checkout (Stripe or local wallet), presents pay URL, confirms on return.
+    func purchaseBoost(productId: String, provider: String?) async throws -> BoostPurchaseOutcome {
+        guard session?.role == .trainer else {
+            throw AppError.validation("Only trainers can purchase Boost.")
+        }
+        let checkout = try await api.createBoostCheckout(productId: productId, provider: provider)
+        rememberPendingBoost(from: checkout)
+        let trimmedWarning = checkout.warning?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let warning = (trimmedWarning?.isEmpty == false) ? trimmedWarning : nil
+        guard let url = URL(string: checkout.url) else {
+            throw AppError.api("Invalid checkout URL.")
+        }
+
+        do {
+            let callback = try await BoostCheckoutPresenter.shared.present(checkoutURL: url)
+            let result = try await finalizeBoostCallback(callback)
+            return BoostPurchaseOutcome(result: result, warning: warning)
+        } catch let error as BoostCheckoutPresenter.PresentError where error == .canceled {
+            clearPendingBoost()
+            return BoostPurchaseOutcome(result: .canceled, warning: warning)
+        }
+    }
+
+    /// Handles `tactech://billing/boost/…` from `onOpenURL` (Safari / cold start).
+    @discardableResult
+    func handleOpenURL(_ url: URL) async -> Bool {
+        if pendingBoostCheckout == nil {
+            restorePendingBoostFromDisk()
+        }
+        guard let outcome = BoostBillingURL.parse(url) else { return false }
+        switch outcome {
+        case .cancel:
+            clearPendingBoost()
+            NotificationCenter.default.post(name: .ttBoostCheckoutCanceled, object: nil)
+            return true
+        case .stripeSuccess(let sessionId):
+            do {
+                _ = try await confirmBoostCheckout(
+                    checkoutSessionId: sessionId,
+                    attemptId: nil,
+                    provider: pendingBoostCheckout?.provider ?? "stripe",
+                    retryIfInactive: true
+                )
+                NotificationCenter.default.post(name: .ttBoostCheckoutSucceeded, object: nil)
+                NotificationCenter.default.post(name: .ttSandowScoreShouldRefresh, object: nil)
+            } catch {
+                NotificationCenter.default.post(
+                    name: .ttBoostCheckoutFailed,
+                    object: nil,
+                    userInfo: ["detail": error.localizedDescription]
+                )
+            }
+            return true
+        case .localSuccess(let attemptId):
+            do {
+                let provider = pendingBoostCheckout?.provider
+                _ = try await confirmBoostCheckout(
+                    checkoutSessionId: nil,
+                    attemptId: attemptId,
+                    provider: provider,
+                    retryIfInactive: true
+                )
+                NotificationCenter.default.post(name: .ttBoostCheckoutSucceeded, object: nil)
+                NotificationCenter.default.post(name: .ttSandowScoreShouldRefresh, object: nil)
+            } catch {
+                NotificationCenter.default.post(
+                    name: .ttBoostCheckoutFailed,
+                    object: nil,
+                    userInfo: ["detail": error.localizedDescription]
+                )
+            }
+            return true
+        }
+    }
+
+    private func finalizeBoostCallback(_ url: URL) async throws -> BoostPurchaseResult {
+        guard let outcome = BoostBillingURL.parse(url) else {
+            if let pending = pendingBoostCheckout, pending.hasIdentity {
+                let boost = try await confirmBoostCheckout(
+                    checkoutSessionId: pending.checkoutSessionId,
+                    attemptId: pending.attemptId,
+                    provider: pending.provider,
+                    retryIfInactive: true
+                )
+                return boost.active ? .confirmed(boost) : .stillPending
+            }
+            throw AppError.api("Unexpected checkout return.")
+        }
+        switch outcome {
+        case .cancel:
+            clearPendingBoost()
+            return .canceled
+        case .stripeSuccess(let sessionId):
+            let boost = try await confirmBoostCheckout(
+                checkoutSessionId: sessionId,
+                attemptId: nil,
+                provider: pendingBoostCheckout?.provider ?? "stripe",
+                retryIfInactive: true
+            )
+            return boost.active ? .confirmed(boost) : .stillPending
+        case .localSuccess(let attemptId):
+            let boost = try await confirmBoostCheckout(
+                checkoutSessionId: nil,
+                attemptId: attemptId,
+                provider: pendingBoostCheckout?.provider,
+                retryIfInactive: true
+            )
+            return boost.active ? .confirmed(boost) : .stillPending
+        }
+    }
+
+    /// Confirms Stripe session or local wallet attempt; retries when IPN lags.
+    @discardableResult
+    func confirmBoostCheckout(
+        checkoutSessionId: String? = nil,
+        attemptId: String? = nil,
+        provider: String? = nil,
+        retryIfInactive: Bool = false
+    ) async throws -> MeBoostDTO {
+        // Legacy call site: `confirmBoostCheckout(sessionId:)`.
+        let session = checkoutSessionId
+        let attempt = attemptId
+        let prov = provider ?? pendingBoostCheckout?.provider
+
+        var lastError: Error?
+        let attempts = retryIfInactive ? 3 : 1
+        for i in 0..<attempts {
+            if i > 0 {
+                try? await Task.sleep(for: .milliseconds(900 + i * 300))
+            }
+            do {
+                let boost = try await api.confirmBoostCheckout(
+                    checkoutSessionId: session,
+                    attemptId: attempt,
+                    provider: prov
+                )
+                myBoost = boost
+                if boost.active {
+                    clearPendingBoost()
+                    await refreshEntitlements()
+                    await refreshMyBoost()
+                    return myBoost ?? boost
+                }
+                // Inactive — IPN may still be in flight; keep pending and retry.
+                lastError = AppError.api("Boost payment is still processing.")
+            } catch {
+                lastError = error
+                await refreshMyBoost()
+                await refreshEntitlements()
+                if let boost = myBoost, boost.active {
+                    clearPendingBoost()
+                    return boost
+                }
+            }
+        }
+
+        await refreshMyBoost()
+        await refreshEntitlements()
+        if let boost = myBoost, boost.active {
+            clearPendingBoost()
+            return boost
+        }
+        throw lastError ?? AppError.api("Could not confirm Boost.")
+    }
+
+    /// Compatibility wrapper for Phase 2 Stripe-only call sites.
+    @discardableResult
+    func confirmBoostCheckout(sessionId: String) async throws -> MeBoostDTO {
+        try await confirmBoostCheckout(
+            checkoutSessionId: sessionId,
+            attemptId: nil,
+            provider: "stripe",
+            retryIfInactive: true
+        )
+    }
+
+    func rememberPendingBoost(from checkout: BoostCheckoutResponse) {
+        pendingBoostCheckout = PendingBoostCheckout(
+            checkoutSessionId: checkout.checkoutSessionId,
+            attemptId: checkout.attemptId,
+            provider: checkout.provider?.lowercased()
+        )
+    }
+
+    func clearPendingBoost() {
+        pendingBoostCheckout = nil
+    }
+
+    func restorePendingBoostFromDisk() {
+        pendingBoostCheckout = Self.loadPendingBoost()
+    }
+
+    private static func persistPendingBoost(_ value: PendingBoostCheckout?) {
+        if let value, value.hasIdentity,
+           let data = try? JSONEncoder().encode(value) {
+            UserDefaults.standard.set(data, forKey: pendingBoostDefaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: pendingBoostDefaultsKey)
+        }
+    }
+
+    private static func loadPendingBoost() -> PendingBoostCheckout? {
+        guard let data = UserDefaults.standard.data(forKey: pendingBoostDefaultsKey) else { return nil }
+        return try? JSONDecoder().decode(PendingBoostCheckout.self, from: data)
     }
 
     private func loadTrainerWorkspace() async throws {
@@ -894,6 +1565,12 @@ final class AppStore {
         }
         if let logs = try? await api.trainerLogs(traineeId: traineeId) {
             replaceLogs(logs, traineeId: traineeId)
+        }
+        if let analytics = try? await api.trainerTraineeAnalytics(traineeId: traineeId) {
+            traineeAnalyticsById[traineeId] = analytics
+            if !analytics.recentLogs.isEmpty {
+                mergeLogs(analytics.recentLogs, traineeId: traineeId)
+            }
         }
         if let reports = try? await api.trainerFormReports(traineeId: traineeId) {
             replaceFormReports(reports, traineeId: traineeId)
@@ -1030,6 +1707,7 @@ final class AppStore {
         } else {
             workoutLogs.append(log)
         }
+        NotificationCenter.default.post(name: .ttSandowScoreShouldRefresh, object: nil)
     }
 
     private func upsert(_ meal: Meal) {
@@ -1066,6 +1744,19 @@ final class AppStore {
         workoutLogs.append(contentsOf: items)
     }
 
+    /// Upsert logs without wiping the full trainee history (analytics recentLogs merge).
+    private func mergeLogs(_ items: [WorkoutLog], traineeId: String) {
+        for item in items where item.traineeId == traineeId || item.traineeId.isEmpty {
+            var log = item
+            if log.traineeId.isEmpty { log.traineeId = traineeId }
+            if let idx = workoutLogs.firstIndex(where: { $0.id == log.id }) {
+                workoutLogs[idx] = log
+            } else {
+                workoutLogs.append(log)
+            }
+        }
+    }
+
     private func replaceFeedback(_ items: [TrainerFeedback], traineeId: String) {
         feedback.removeAll { $0.traineeId == traineeId }
         feedback.append(contentsOf: items)
@@ -1092,16 +1783,29 @@ final class AppStore {
         plans = []
         assignments = []
         workoutLogs = []
+        traineeAnalyticsById = [:]
         meals = []
         feedback = []
         formReports = []
         macrosByKey = [:]
         foodCatalog = SeedData.foodCatalog
         exerciseTemplates = []
+        entitlements = nil
+        aiEntitlement = nil
+        myBoost = nil
+        clearPendingBoost()
+        showAIPaywall = false
+        AIStoreKitService.shared.stopListeningForUpdates()
         assessmentCompleted = false
         profileSetupCompleted = false
         serverAssessmentCompleted = nil
         serverOnboardingCompleted = nil
+        meProfileCache = nil
+        remoteAvatarURL = nil
+        remoteAvatarAsset = nil
+        sandowScore = nil
+        sandowPeriod = .week
+        isLoadingSandowScore = false
     }
 
     // MARK: - Preview seeding
@@ -1311,11 +2015,18 @@ enum AppError: LocalizedError, Equatable {
     case notFound(String)
     /// Coach / upstream rate limit — `retryAfter` is suggested wait in seconds.
     case rateLimited(String, retryAfter: TimeInterval)
+    /// HTTP 402 / `AI_REQUIRED` — present AI paywall (trainee + trainer).
+    case aiRequired(String)
+    /// HTTP 409 — Apple subscription linked to another account.
+    case conflict(String)
+    /// HTTP 502 / `PROVIDER_ERROR` — JazzCash / Easypaisa / Stripe upstream.
+    case providerError(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidCredentials: "Email or password is incorrect."
-        case .validation(let message), .api(let message), .notFound(let message): message
+        case .validation(let message), .api(let message), .notFound(let message),
+             .aiRequired(let message), .conflict(let message), .providerError(let message): message
         case .rateLimited(let message, _): message
         case .unauthorized: "Please sign in again."
         }
@@ -1323,6 +2034,16 @@ enum AppError: LocalizedError, Equatable {
 
     var isRateLimited: Bool {
         if case .rateLimited = self { return true }
+        return false
+    }
+
+    var isAIRequired: Bool {
+        if case .aiRequired = self { return true }
+        return false
+    }
+
+    var isConflict: Bool {
+        if case .conflict = self { return true }
         return false
     }
 

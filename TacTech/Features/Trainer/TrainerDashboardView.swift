@@ -39,12 +39,14 @@ struct TrainerDashboardView: View {
                                 .ttHomeAppear(index: 1)
                             coachingMetrics
                                 .ttHomeAppear(index: 2)
-                            rosterSpotlight
+                            discoveryInsightsStrip
                                 .ttHomeAppear(index: 3)
-                            coachShortcuts
+                            rosterSpotlight
                                 .ttHomeAppear(index: 4)
-                            recentForm
+                            coachShortcuts
                                 .ttHomeAppear(index: 5)
+                            recentForm
+                                .ttHomeAppear(index: 6)
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -71,14 +73,20 @@ struct TrainerDashboardView: View {
         }
     }
 
+    private var discoveryInsightsStrip: some View {
+        TrainerDiscoveryInsightsStrip()
+    }
+
     // MARK: - Header
 
     private var darkHeader: some View {
         TTHomeProfileHeader(
             name: firstName,
-            avatarSymbol: TTAvatarCatalog.saved(for: store.session?.userId),
+            avatarSymbol: store.displayAvatarAsset,
+            avatarUrl: store.remoteAvatarURL,
             avatarUserId: store.session?.userId,
             badgeCount: notificationStore.unreadCount,
+            showsAIPro: store.aiEntitlement?.active == true,
             metrics: [
                 TTHomeProfileMetric(
                     id: "trainees",

@@ -51,9 +51,12 @@ enum TTHomeHeaderCollapse {
 struct TTHomeProfileHeader: View {
     let name: String
     var avatarSymbol: String? = nil
+    var avatarUrl: String? = nil
     var avatarUserId: String? = nil
     var avatarInitial: String? = nil
     var badgeCount: Int = 0
+    /// Shows AI Coach Pro chip next to name when true (server-confirmed).
+    var showsAIPro: Bool = false
     var metrics: [TTHomeProfileMetric] = []
     var date: Date = .now
     /// 0 = expanded. 1 = compact (avatar + name + chevron).
@@ -221,57 +224,53 @@ struct TTHomeProfileHeader: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
-                Text(display)
-                    .font(TTFont.workSans(titleSize, weight: .medium))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.55)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Text(display)
+                        .font(TTFont.workSans(titleSize, weight: .medium))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.55)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if showsAIPro {
+                        AIProBadge(style: .compact)
+                    }
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(TTHomeDelight.greeting(for: display, date: date))
+            .accessibilityLabel(
+                showsAIPro
+                    ? "\(TTHomeDelight.greeting(for: display, date: date)), AI Coach Pro subscriber"
+                    : TTHomeDelight.greeting(for: display, date: date)
+            )
         } else {
-            Text(display)
-                .font(TTFont.workSans(titleSize, weight: .medium))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.55)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: 6) {
+                Text(display)
+                    .font(TTFont.workSans(titleSize, weight: .medium))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.55)
+                if showsAIPro {
+                    AIProBadge(style: .compact)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
     private func avatarView(side: CGFloat, corner: CGFloat) -> some View {
-        Group {
-            if TTAvatarCatalog.isCustom(avatarSymbol),
-               let custom = TTAvatarCatalog.loadCustomImage(for: avatarUserId) {
-                Image(uiImage: custom)
-                    .resizable()
-                    .scaledToFill()
-            } else if let avatarSymbol, TTAvatarCatalog.isAssetName(avatarSymbol) {
-                Image(avatarSymbol)
-                    .resizable()
-                    .scaledToFill()
-            } else {
-                ZStack {
-                    Color.white.opacity(0.14)
-                    if let avatarSymbol, !TTAvatarCatalog.hasRenderableAvatar(avatarSymbol) {
-                        Image(systemName: avatarSymbol)
-                            .font(TTFont.workSans(side * 0.38, weight: .semibold))
-                            .foregroundStyle(.white)
-                    } else {
-                        Text((avatarInitial ?? String(name.prefix(1))).uppercased())
-                            .font(TTFont.workSans(side * 0.36, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
-                }
-            }
-        }
-        .frame(width: side, height: side)
-        .clipShape(RoundedRectangle(cornerRadius: corner, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: corner, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.22), lineWidth: 1.5)
+        TTUserAvatarView(
+            avatarUrl: avatarUrl,
+            avatarAsset: avatarSymbol,
+            userId: avatarUserId,
+            name: avatarInitial.map { String($0) } ?? name,
+            size: side,
+            shape: .roundedRect,
+            cornerRadius: corner,
+            strokeColor: Color.white.opacity(0.22),
+            strokeWidth: 1.5,
+            initialsForeground: .white,
+            initialsBackground: Color.white.opacity(0.14)
         )
     }
 

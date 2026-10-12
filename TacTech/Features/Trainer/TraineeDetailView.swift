@@ -14,6 +14,9 @@ struct TraineeDetailView: View {
     @State private var feedbackToast: TTToastMessage?
     @State private var unassignConfirm = false
     @State private var isUnassigning = false
+    @State private var performanceTab: TraineeDetailPerformanceTab = .history
+    @State private var isRefreshingPerformance = false
+    @State private var performanceError: String?
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
@@ -26,6 +29,10 @@ struct TraineeDetailView: View {
 
     private var currentAssignedPlan: WorkoutPlan? {
         store.assignedPlan(for: trainee)
+    }
+
+    private var analytics: TraineeAnalytics? {
+        store.analytics(for: trainee.id)
     }
 
     var body: some View {
@@ -45,10 +52,24 @@ struct TraineeDetailView: View {
                         profileCard
                         sectionLabel("Assigned plan")
                         assignCard
-                        sectionLabel("Nutrition")
-                        nutritionCard
-                        sectionLabel("Workout history")
-                        historyCard
+
+                        performancePicker
+
+                        Group {
+                            switch performanceTab {
+                            case .history:
+                                TraineeDetailHistorySection(trainee: trainee, analytics: analytics)
+                            case .analytics:
+                                TraineeDetailAnalyticsSection(
+                                    trainee: trainee,
+                                    analytics: analytics,
+                                    loadError: performanceError
+                                )
+                            case .meals:
+                                nutritionCard
+                            }
+                        }
+
                         sectionLabel("Form analysis")
                         formCard
                         sectionLabel("Feedback")
@@ -62,11 +83,18 @@ struct TraineeDetailView: View {
             .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
             .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
             .scrollDismissesKeyboard(.interactively)
+            .refreshable {
+                await reloadPerformance(forceErrorSurface: true)
+                await store.refreshDay(for: trainee.id, on: selectedDay)
+            }
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .onAppear {
             selectedPlanId = store.assignedPlan(for: trainee)?.id ?? store.plans.first?.id ?? ""
+        }
+        .task(id: trainee.id) {
+            await reloadPerformance(forceErrorSurface: false)
         }
         .task(id: selectedDay) {
             await store.refreshDay(for: trainee.id, on: selectedDay)
@@ -83,6 +111,50 @@ struct TraineeDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("\(displayName) will no longer see this plan as their assigned program.")
+        }
+    }
+
+    private var performancePicker: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Performance")
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Spacer()
+                if isRefreshingPerformance {
+                    ProgressView()
+                        .controlSize(.small)
+                }
+            }
+
+            Picker("Performance", selection: $performanceTab) {
+                ForEach(TraineeDetailPerformanceTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+        }
+        .padding(.top, 4)
+    }
+
+    private func reloadPerformance(forceErrorSurface: Bool) async {
+        isRefreshingPerformance = true
+        defer { isRefreshingPerformance = false }
+        do {
+            try await store.refreshTraineePerformance(traineeId: trainee.id)
+            performanceError = nil
+        } catch let error as AppError where error == .unauthorized {
+            performanceError = error.localizedDescription
+        } catch let error as AppError {
+            if case .notFound = error {
+                performanceError = "This trainee isn’t available on your roster."
+            } else if forceErrorSurface || analytics == nil {
+                performanceError = error.localizedDescription
+            }
+        } catch {
+            if forceErrorSurface || analytics == nil {
+                performanceError = error.localizedDescription
+            }
         }
     }
 
@@ -398,38 +470,6 @@ struct TraineeDetailView: View {
                 .foregroundStyle(TTColor.inkMuted)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private var historyCard: some View {
-        let logs = store.logs(for: trainee.id)
-        return VStack(alignment: .leading, spacing: 12) {
-            if logs.isEmpty {
-                Text("No sessions logged yet.")
-                    .font(TTFont.body(14))
-                    .foregroundStyle(TTColor.inkMuted)
-            } else {
-                ForEach(logs.prefix(5)) { log in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(store.plans.first { $0.id == log.planId }?.title ?? "Workout")
-                                .font(TTFont.workSans(14, weight: .semibold))
-                                .foregroundStyle(TTColor.ink)
-                            Text(log.completedAt.formatted(date: .abbreviated, time: .omitted))
-                                .font(TTFont.caption(12))
-                                .foregroundStyle(TTColor.inkMuted)
-                        }
-                        Spacer()
-                        Text("\(log.durationMinutes) min")
-                            .font(TTFont.caption(13))
-                            .foregroundStyle(TTColor.actionOrange)
-                    }
-                }
-            }
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var formCard: some View {

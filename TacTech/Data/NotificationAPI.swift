@@ -57,12 +57,26 @@ actor NotificationAPI {
     /// Delete one notification, or clear all when `notificationId` is nil.
     @discardableResult
     func deleteNotifications(notificationId: String? = nil) async throws -> Int {
-        let out: NotificationUnreadCountOut = try await send(
+        let data = try await raw(
             path: "/me/notifications/delete",
             method: .post,
-            body: NotificationDeleteRequest(notificationId: notificationId)
+            body: NotificationDeleteRequest(notificationId: notificationId),
+            authorized: true
         )
-        return out.unreadCount
+        return Self.parseUnreadCount(from: data)
+    }
+
+    /// Best-effort parse — backends sometimes return `{}`, `204`, or `{ deleted: true }`.
+    private static func parseUnreadCount(from data: Data) -> Int {
+        if data.isEmpty { return 0 }
+        if let out = try? JSONDecoder.tactech.decode(NotificationUnreadCountOut.self, from: data) {
+            return out.unreadCount
+        }
+        if let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let n = object["unreadCount"] as? Int { return n }
+            if let n = object["unreadCount"] as? NSNumber { return n.intValue }
+        }
+        return 0
     }
 
     // MARK: Preferences
@@ -167,6 +181,9 @@ actor NotificationAPI {
         if status == 401 {
             TokenStore.clear()
             throw AppError.unauthorized
+        }
+        if status == 404 {
+            throw AppError.notFound(detail ?? "Not Found")
         }
         throw AppError.api(detail ?? "Request failed (\(status)).")
     }

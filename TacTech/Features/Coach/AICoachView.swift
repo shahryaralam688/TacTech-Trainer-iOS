@@ -10,6 +10,7 @@ struct AICoachView: View {
     /// Floating bubble chrome used a grabber; full-screen presents without it.
     var showsGrabber: Bool = true
 
+    @Environment(AppStore.self) private var appStore
     @State private var draft = ""
     @State private var pendingImage: UIImage?
     @State private var libraryItem: PhotosPickerItem?
@@ -27,6 +28,9 @@ struct AICoachView: View {
     /// ChatGPT / Claude-style leading history drawer.
     @State private var isDrawerOpen = false
     @State private var pendingDelete: CoachConversation?
+    @State private var isSelectingChats = false
+    @State private var selectedChatIds: Set<String> = []
+    @State private var pendingBulkDelete = false
     /// Coalesce scroll-to-bottom so streaming `partialAssistantText` can’t
     /// fire `onChange(of: String)` layout updates multiple times per frame.
     @State private var scrollBottomScheduled = false
@@ -46,6 +50,17 @@ struct AICoachView: View {
             return match.title
         }
         return "TacTech AI"
+    }
+
+    private var freeTeaseSubtitle: String {
+        let ai = appStore.aiEntitlement
+        if let ai, ai.active {
+            return ai.activeStatusLine
+        }
+        if let ai, ai.freeTeaseLimit > 0, !ai.active {
+            return "\(ai.freeTeaseRemaining) free AI messages left"
+        }
+        return audience.headerSubtitle
     }
 
     var body: some View {
@@ -78,6 +93,7 @@ struct AICoachView: View {
         }
         .background(Color(white: 0.98))
         .task {
+            await appStore.refreshAIEntitlements()
             await store.bootstrap()
             await MainActor.run {
                 finishInitialScrollGate()
@@ -145,6 +161,9 @@ struct AICoachView: View {
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: store.hapticTick)
         .sensoryFeedback(.selection, trigger: store.isRecording)
         .sensoryFeedback(.warning, trigger: deleteHaptic)
+        .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
+            store.retryLastFailure()
+        }
         .confirmationDialog(
             "Delete this chat?",
             isPresented: Binding(
@@ -167,6 +186,66 @@ struct AICoachView: View {
             if let pendingDelete {
                 Text("“\(pendingDelete.title.isEmpty ? "AI Coach" : pendingDelete.title)” will be removed. This can’t be undone.")
             }
+        }
+        .confirmationDialog(
+            bulkDeleteTitle,
+            isPresented: $pendingBulkDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete \(selectedChatIds.count)", role: .destructive) {
+                let ids = Array(selectedChatIds)
+                pendingBulkDelete = false
+                deleteHaptic &+= 1
+                Task {
+                    await store.deleteConversations(ids)
+                    exitSelectionMode()
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                pendingBulkDelete = false
+            }
+        } message: {
+            Text("Selected chats will be removed. This can’t be undone.")
+        }
+    }
+
+    private var bulkDeleteTitle: String {
+        let n = selectedChatIds.count
+        return n == 1 ? "Delete 1 chat?" : "Delete \(n) chats?"
+    }
+
+    private func exitSelectionMode() {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : soft) {
+            isSelectingChats = false
+            selectedChatIds = []
+        }
+    }
+
+    private func enterSelectionMode(preselect id: String? = nil) {
+        withAnimation(reduceMotion ? .easeOut(duration: 0.16) : soft) {
+            isSelectingChats = true
+            selectedChatIds = id.map { [$0] } ?? []
+        }
+    }
+
+    private func toggleChatSelection(_ id: String) {
+        if selectedChatIds.contains(id) {
+            selectedChatIds.remove(id)
+        } else {
+            selectedChatIds.insert(id)
+        }
+    }
+
+    private var allChatsSelected: Bool {
+        !store.conversations.isEmpty
+            && selectedChatIds.count == store.conversations.count
+    }
+
+    private func toggleSelectAllChats() {
+        if allChatsSelected {
+            selectedChatIds = []
+        } else {
+            selectedChatIds = Set(store.conversations.map(\.id))
         }
     }
 
@@ -207,6 +286,7 @@ struct AICoachView: View {
     }
 
     private func closeDrawer() {
+        exitSelectionMode()
         withAnimation(reduceMotion ? .easeOut(duration: 0.14) : soft) {
             isDrawerOpen = false
         }
@@ -242,18 +322,27 @@ struct AICoachView: View {
 
     private func drawerChatRow(_ conversation: CoachConversation) -> some View {
         let isActive = conversation.id == store.activeConversationId
+        let isSelected = selectedChatIds.contains(conversation.id)
         return HStack(spacing: 8) {
             Button {
-                selectChatFromDrawer(conversation.id)
+                if isSelectingChats {
+                    toggleChatSelection(conversation.id)
+                } else {
+                    selectChatFromDrawer(conversation.id)
+                }
             } label: {
                 HStack(spacing: 10) {
-                    Image(systemName: "bubble.left.and.bubble.right")
-                        .font(TTFont.workSans(13, weight: .medium))
-                        .foregroundStyle(isActive ? orange : ink.opacity(0.45))
-                        .frame(width: 22)
+                    if isSelectingChats {
+                        selectionGlyph(isSelected: isSelected)
+                    } else {
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(TTFont.workSans(13, weight: .medium))
+                            .foregroundStyle(isActive ? orange : ink.opacity(0.45))
+                            .frame(width: 22)
+                    }
                     VStack(alignment: .leading, spacing: 2) {
                         Text(conversation.title.isEmpty ? "AI Coach" : conversation.title)
-                            .font(TTFont.workSans(14, weight: isActive ? .bold : .semibold))
+                            .font(TTFont.workSans(14, weight: isActive || isSelected ? .bold : .semibold))
                             .foregroundStyle(ink)
                             .lineLimit(1)
                         Text(conversation.updatedAt.formatted(date: .abbreviated, time: .shortened))
@@ -269,24 +358,84 @@ struct AICoachView: View {
             }
             .buttonStyle(.plain)
 
-            Button {
-                confirmDelete(conversation)
-            } label: {
-                Image(systemName: "trash")
-                    .font(TTFont.workSans(13, weight: .semibold))
-                    .foregroundStyle(Color.red.opacity(0.75))
-                    .frame(width: 36, height: 36)
-                    .background(Color.red.opacity(0.08))
-                    .clipShape(Circle())
+            if !isSelectingChats {
+                Button {
+                    confirmDelete(conversation)
+                } label: {
+                    TTIcon(icon: .trash1, filled: true, size: 13)
+                        .foregroundStyle(Color.red.opacity(0.75))
+                        .frame(width: 36, height: 36)
+                        .background(Color.red.opacity(0.08))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Delete chat")
+                .padding(.trailing, 8)
+            } else {
+                Color.clear.frame(width: 8)
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("Delete chat")
-            .padding(.trailing, 8)
         }
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(isActive ? orange.opacity(0.12) : Color.white.opacity(0.55))
+                .fill(
+                    isSelectingChats
+                        ? (isSelected ? orange.opacity(0.14) : Color.white.opacity(0.55))
+                        : (isActive ? orange.opacity(0.12) : Color.white.opacity(0.55))
+                )
         )
+        .onLongPressGesture {
+            if !isSelectingChats {
+                enterSelectionMode(preselect: conversation.id)
+            }
+        }
+    }
+
+    private func selectionGlyph(isSelected: Bool) -> some View {
+        ZStack {
+            Circle()
+                .fill(isSelected ? orange : Color.clear)
+            Circle()
+                .strokeBorder(isSelected ? orange : ink.opacity(0.22), lineWidth: 1.5)
+            if isSelected {
+                TTIcon(icon: .check, filled: true, size: 11)
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(width: 22, height: 22)
+        .accessibilityLabel(isSelected ? "Selected" : "Not selected")
+    }
+
+    private var bulkDeleteBar: some View {
+        VStack(spacing: 0) {
+            Divider().opacity(0.1)
+            HStack(spacing: 12) {
+                Text(selectedChatIds.isEmpty ? "Select chats" : "\(selectedChatIds.count) selected")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.7))
+
+                Spacer(minLength: 0)
+
+                Button {
+                    pendingBulkDelete = true
+                } label: {
+                    HStack(spacing: 6) {
+                        TTIcon(icon: .trash1, filled: true, size: 13)
+                        Text("Delete")
+                            .font(TTFont.workSans(14, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .frame(height: 40)
+                    .background(selectedChatIds.isEmpty ? Color.black.opacity(0.18) : Color.red.opacity(0.9))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(selectedChatIds.isEmpty)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+        }
+        .background(Color(white: 0.97))
     }
 
     private var drawerEdgeGesture: some Gesture {
@@ -361,13 +510,40 @@ struct AICoachView: View {
             .padding(.horizontal, 14)
             .padding(.bottom, 12)
 
-            Text("Your chats")
-                .font(TTFont.workSans(12, weight: .bold))
-                .foregroundStyle(muted)
-                .textCase(.uppercase)
-                .tracking(0.4)
-                .padding(.horizontal, 18)
-                .padding(.bottom, 6)
+            HStack(spacing: 8) {
+                Text("Your chats")
+                    .font(TTFont.workSans(12, weight: .bold))
+                    .foregroundStyle(muted)
+                    .textCase(.uppercase)
+                    .tracking(0.4)
+                Spacer(minLength: 0)
+                if !store.conversations.isEmpty {
+                    if isSelectingChats {
+                        Button(allChatsSelected ? "Deselect all" : "Select all") {
+                            toggleSelectAllChats()
+                        }
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(orange)
+                        .buttonStyle(.plain)
+
+                        Button("Cancel") {
+                            exitSelectionMode()
+                        }
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(ink.opacity(0.55))
+                        .buttonStyle(.plain)
+                    } else {
+                        Button("Select") {
+                            enterSelectionMode()
+                        }
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(orange)
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 18)
+            .padding(.bottom, 6)
 
             List {
                 if store.conversations.isEmpty {
@@ -382,23 +558,33 @@ struct AICoachView: View {
                         .listRowInsets(EdgeInsets(top: 3, leading: 10, bottom: 3, trailing: 10))
                         .listRowBackground(Color.clear)
                         .listRowSeparator(.hidden)
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                confirmDelete(conversation)
-                            } label: {
-                                Label("Delete", systemImage: "trash.fill")
+                        .swipeActions(edge: .trailing, allowsFullSwipe: !isSelectingChats) {
+                            if !isSelectingChats {
+                                Button(role: .destructive) {
+                                    confirmDelete(conversation)
+                                } label: {
+                                    Label("Delete", systemImage: "trash.fill")
+                                }
+                                .tint(Color.red.opacity(0.92))
                             }
-                            .tint(Color.red.opacity(0.92))
                         }
                         .contextMenu {
-                            Button(role: .destructive) {
-                                confirmDelete(conversation)
-                            } label: {
-                                Label("Delete chat", systemImage: "trash")
+                            if !isSelectingChats {
+                                Button {
+                                    enterSelectionMode(preselect: conversation.id)
+                                } label: {
+                                    Label("Select", systemImage: "checkmark.circle")
+                                }
+                                Button(role: .destructive) {
+                                    confirmDelete(conversation)
+                                } label: {
+                                    Label("Delete chat", systemImage: "trash")
+                                }
                             }
                         }
                 }
                 .onDelete { indexSet in
+                    guard !isSelectingChats else { return }
                     let ids = indexSet.compactMap { store.conversations.indices.contains($0) ? store.conversations[$0].id : nil }
                     for id in ids {
                         if let conversation = store.conversations.first(where: { $0.id == id }) {
@@ -411,21 +597,26 @@ struct AICoachView: View {
             .scrollContentBackground(.hidden)
             .environment(\.defaultMinListRowHeight, 52)
             .animation(reduceMotion ? .easeOut(duration: 0.18) : soft, value: store.conversations.map(\.id))
+            .animation(reduceMotion ? .easeOut(duration: 0.16) : soft, value: isSelectingChats)
 
             Spacer(minLength: 0)
 
-            Divider().opacity(0.1)
-            Button {
-                Task { await store.syncMemoryDebounced(force: true) }
-            } label: {
-                Label("Sync memory", systemImage: "arrow.triangle.2.circlepath")
-                    .font(TTFont.workSans(13, weight: .semibold))
-                    .foregroundStyle(ink.opacity(0.7))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
+            if isSelectingChats {
+                bulkDeleteBar
+            } else {
+                Divider().opacity(0.1)
+                Button {
+                    Task { await store.syncMemoryDebounced(force: true) }
+                } label: {
+                    Label("Sync memory", systemImage: "arrow.triangle.2.circlepath")
+                        .font(TTFont.workSans(13, weight: .semibold))
+                        .foregroundStyle(ink.opacity(0.7))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 14)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .frame(width: width)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -490,17 +681,26 @@ struct AICoachView: View {
             .accessibilityLabel("Open chat history")
 
             VStack(spacing: 1) {
-                Text(activeTitle)
-                    .font(TTFont.workSans(16, weight: .bold))
-                    .foregroundStyle(ink)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(activeTitle)
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(ink)
+                        .lineLimit(1)
+                    if appStore.aiEntitlement?.active == true {
+                        AIProBadge(
+                            style: .compact,
+                            label: appStore.aiEntitlement?.resolvedBadgeLabel,
+                            fullLabel: appStore.aiEntitlement?.resolvedFullLabel
+                        )
+                    }
+                }
                 HStack(spacing: 5) {
                     Circle()
                         .fill(store.status?.chatConfigured == true
                               ? Color(red: 0.2, green: 0.78, blue: 0.45)
                               : Color.orange)
                         .frame(width: 6, height: 6)
-                    Text(audience.headerSubtitle)
+                    Text(freeTeaseSubtitle)
                         .font(TTFont.workSans(11, weight: .medium))
                         .foregroundStyle(muted)
                         .lineLimit(1)
@@ -550,15 +750,19 @@ struct AICoachView: View {
                     }
 
                     ForEach(store.messages) { message in
+                        let unlockCTA = Self.isUnlockCTA(message: message, aiRequired: store.lastErrorIsAIRequired)
                         CoachMessageBubble(
                             message: message,
                             onRetry: {
-                                if message.modality == .image {
+                                if unlockCTA {
+                                    store.presentAIUnlock()
+                                } else if message.modality == .image {
                                     store.retryImage(messageId: message.id)
                                 } else if message.role == .user {
                                     store.retryText(messageId: message.id)
                                 }
                             },
+                            retryTitle: unlockCTA ? "Unlock" : "Retry",
                             onPlayAudio: {
                                 if let url = message.audioUrl?.trimmingCharacters(in: .whitespacesAndNewlines),
                                    !url.isEmpty {
@@ -732,14 +936,22 @@ struct AICoachView: View {
     }
 
     private func errorBanner(_ text: String) -> some View {
-        TTAlertBanner(
+        let unlock = store.lastErrorIsAIRequired
+        let rateLimited = store.rateLimitSecondsRemaining > 0
+        return TTAlertBanner(
             tone: .error,
             title: text,
-            subtitle: store.rateLimitSecondsRemaining > 0
-                ? "Auto-retry in \(store.rateLimitSecondsRemaining)s"
-                : nil,
-            actionTitle: store.rateLimitSecondsRemaining > 0 ? "Retry now" : "Retry",
-            onAction: { store.retryLastFailure() }
+            subtitle: unlock
+                ? "Subscribe to continue with AI Coach Pro"
+                : (rateLimited ? "Auto-retry in \(store.rateLimitSecondsRemaining)s" : nil),
+            actionTitle: unlock ? "Unlock" : (rateLimited ? "Retry now" : "Retry"),
+            onAction: {
+                if unlock {
+                    store.presentAIUnlock()
+                } else {
+                    store.retryLastFailure()
+                }
+            }
         )
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
@@ -801,5 +1013,11 @@ struct AICoachView: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
             enableListMotion = true
         }
+    }
+
+    private static func isUnlockCTA(message: CoachDisplayMessage, aiRequired: Bool) -> Bool {
+        guard aiRequired, message.role == .user else { return false }
+        if case .failed = message.status { return true }
+        return false
     }
 }

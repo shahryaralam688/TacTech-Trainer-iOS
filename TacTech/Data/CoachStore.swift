@@ -30,6 +30,8 @@ final class CoachStore {
     var recordingElapsed: TimeInterval = 0
     var partialAssistantText = ""
     var lastError: String?
+    /// True when last failure is 402 / `AI_REQUIRED` — Unlock CTA instead of Retry.
+    var lastErrorIsAIRequired = false
     var rateLimitSecondsRemaining: Int = 0
     var hapticTick = 0
 
@@ -196,10 +198,21 @@ final class CoachStore {
 
     /// Removes a thread locally + on server. If it was active, selects the next chat or clears.
     func deleteConversation(_ id: String) async {
-        let wasActive = activeConversationId == id
-        let snapshot = conversations
-        conversations.removeAll { $0.id == id }
-        CoachChatDiskCache.removeConversation(id: id)
+        await deleteConversations([id])
+    }
+
+    /// Bulk-remove threads locally, then best-effort delete each on the server.
+    func deleteConversations(_ ids: [String]) async {
+        let unique = Array(Set(ids))
+        guard !unique.isEmpty else { return }
+
+        let idSet = Set(unique)
+        let wasActive = activeConversationId.map(idSet.contains) ?? false
+
+        conversations.removeAll { idSet.contains($0.id) }
+        for id in unique {
+            CoachChatDiskCache.removeConversation(id: id)
+        }
         CoachChatDiskCache.saveConversations(conversations)
 
         if wasActive {
@@ -218,22 +231,23 @@ final class CoachStore {
             } else {
                 activeConversationId = nil
                 messages = []
-                // Active id cleared via scoped cache when list is empty.
             }
         }
 
-        do {
-            try await api.deleteConversation(id: id)
-            lastError = nil
-        } catch {
-            // Soft restore if server rejects (404 still OK — already gone).
-            if let appError = error as? AppError, case .notFound = appError {
-                lastError = nil
-                return
+        var failed = false
+        for id in unique {
+            do {
+                try await api.deleteConversation(id: id)
+            } catch {
+                if let appError = error as? AppError, case .notFound = appError {
+                    continue
+                }
+                failed = true
+                lastError = Self.userFacingError(error)
             }
-            conversations = snapshot
-            CoachChatDiskCache.saveConversations(snapshot)
-            lastError = Self.userFacingError(error)
+        }
+        if !failed {
+            lastError = nil
         }
     }
 
@@ -334,6 +348,12 @@ final class CoachStore {
                 let stream = await self.api.chatStream(message: text, conversationId: self.activeConversationId)
                 for try await event in stream {
                     if Task.isCancelled { break }
+                    if case let .error(code, detail) = event {
+                        if code == "AI_REQUIRED" {
+                            throw AppError.aiRequired(detail ?? "AI Coach Pro is required.")
+                        }
+                        throw AppError.api(detail ?? "AI stream error.")
+                    }
                     self.applyStreamEvent(event, localUserId: localUserId, localAssistantId: localAssistantId)
                 }
                 if let idx = self.messages.firstIndex(where: { $0.id == localAssistantId }),
@@ -350,6 +370,15 @@ final class CoachStore {
             } catch is CancellationError {
                 // superseded
             } catch {
+                if let app = error as? AppError, app.isAIRequired {
+                    // One banner + Unlock on the user row — drop empty assistant stub.
+                    self.messages.removeAll { $0.id == localAssistantId }
+                    if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
+                        self.messages[idx].status = .failed("AI Coach Pro required")
+                    }
+                    self.handleFailure(error, pending: .text(text))
+                    return
+                }
                 self.failAssistant(localAssistantId, error: error)
                 let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
@@ -401,7 +430,7 @@ final class CoachStore {
                 }
             }
             persistMessagesToDisk()
-        case .unknown:
+        case .error, .unknown:
             break
         }
     }
@@ -514,6 +543,17 @@ final class CoachStore {
             } catch is CancellationError {
                 // superseded
             } catch {
+                if let app = error as? AppError, app.isAIRequired {
+                    if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
+                        self.messages[idx].status = .failed("AI Coach Pro required")
+                        self.messages[idx].content = trimmed ?? "Photo"
+                    }
+                    self.handleFailure(
+                        error,
+                        pending: .image(jpeg: jpeg, caption: trimmed, preview: thumb)
+                    )
+                    return
+                }
                 let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
                     self.messages[idx].status = .failed(detail)
@@ -655,6 +695,14 @@ final class CoachStore {
                 }
             } catch is CancellationError {
             } catch {
+                if let app = error as? AppError, app.isAIRequired {
+                    if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
+                        self.messages[idx].status = .failed("AI Coach Pro required")
+                        self.messages[idx].content = "Voice message"
+                    }
+                    self.handleFailure(error, pending: .voice(data))
+                    return
+                }
                 let detail = Self.userFacingError(error)
                 if let idx = self.messages.firstIndex(where: { $0.id == localUserId }) {
                     self.messages[idx].status = .failed(detail)
@@ -730,6 +778,7 @@ final class CoachStore {
         }
         pendingRetry = nil
         lastError = nil
+        lastErrorIsAIRequired = false
         switch pending {
         case let .text(text):
             // Drop trailing failed turn bubbles before resending.
@@ -750,6 +799,18 @@ final class CoachStore {
     }
 
     private func handleFailure(_ error: Error, pending: CoachPendingRetry) {
+        if let appError = error as? AppError, appError.isAIRequired {
+            pendingRetry = pending
+            lastErrorIsAIRequired = true
+            lastError = appError.errorDescription ?? "AI Coach Pro is required to continue."
+            NotificationCenter.default.post(
+                name: .ttPresentAIPaywall,
+                object: nil,
+                userInfo: ["source": "coach"]
+            )
+            return
+        }
+        lastErrorIsAIRequired = false
         if let appError = error as? AppError, case let .rateLimited(detail, retryAfter) = appError {
             pendingRetry = pending
             let seconds = Int(max(5, min(retryAfter, 120)).rounded())
@@ -759,6 +820,14 @@ final class CoachStore {
         }
         pendingRetry = pending
         lastError = Self.userFacingError(error)
+    }
+
+    func presentAIUnlock() {
+        NotificationCenter.default.post(
+            name: .ttPresentAIPaywall,
+            object: nil,
+            userInfo: ["source": "coach"]
+        )
     }
 
     private func beginRateLimitCountdown(seconds: Int) {

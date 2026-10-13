@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { EXERCISES, getExercise } from './exercises.js';
 import { GUIDE_VIEWS, enrichGuide } from './guide-data.js';
@@ -47,6 +48,7 @@ const state = {
 let scene, renderer, labelRenderer, camera, controls, mixer, clock, model, skeleton;
 const exerciseClips = new Map();
 const fbxLoader = new FBXLoader();
+const gltfLoader = new GLTFLoader();
 const activeMarkers = [];
 const _boneWorld = new THREE.Vector3();
 const _box = new THREE.Box3();
@@ -160,8 +162,8 @@ async function initScene() {
 
 	els.loading.textContent = 'Loading character…';
 
-	model = await fbxLoader.loadAsync( 'models/character/X_Bot.fbx' );
-	model.scale.setScalar( 0.01 );
+	const gltf = await gltfLoader.loadAsync( 'models/gltf/v-bot_white_and_black_warzone_arena.glb' );
+	model = gltf.scene;
 	model.traverse( ( child ) => {
 
 		if ( child.isMesh ) {

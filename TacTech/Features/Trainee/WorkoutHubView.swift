@@ -397,10 +397,16 @@ struct ExerciseDetailView: View {
     let exercise: Exercise
     let prescription: WorkoutExercise
 
+    @State private var showFormStudio = false
+
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = TTColor.actionOrange
+
+    private var formStudioId: String? {
+        FormStudioExerciseMap.formStudioId(for: exercise)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -478,21 +484,7 @@ struct ExerciseDetailView: View {
                     .background(cardFill)
                     .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
 
-                    NavigationLink {
-                        LiveFormCorrectionView(initialExerciseId: exercise.id)
-                    } label: {
-                        HStack(spacing: 10) {
-                            TTIcon(icon: .camera1, filled: true, size: 16)
-                            Text("Open live form AI")
-                                .font(TTFont.workSans(15, weight: .bold))
-                        }
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 52)
-                        .background(orange)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                    .buttonStyle(.plain)
+                    formCoachActions
                 }
                 .padding(.horizontal, TTSpace.screen)
                 .padding(.top, 16)
@@ -502,6 +494,98 @@ struct ExerciseDetailView: View {
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
+        .fullScreenCover(isPresented: $showFormStudio) {
+            if let formStudioId {
+                FormStudioDemoView(exerciseName: exercise.name, formStudioId: formStudioId)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var formCoachActions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Form coaching")
+                .font(TTFont.workSans(15, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+
+            if FormStudioExerciseMap.hasDemo(for: exercise), formStudioId != nil {
+                Button {
+                    showFormStudio = true
+                } label: {
+                    HStack(spacing: 12) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(orange.opacity(0.12))
+                            Image(systemName: "figure.strengthtraining.traditional")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(orange)
+                        }
+                        .frame(width: 40, height: 40)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("3D Form Demo")
+                                .font(TTFont.workSans(15, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                            Text(
+                                FormStudioExerciseMap.reuseNote(for: exercise)
+                                    ?? "Watch a 3D coach demonstrate form"
+                            )
+                                .font(TTFont.caption(12))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .lineLimit(2)
+                        }
+                        Spacer(minLength: 8)
+                        TTIcon(icon: .chevronRight, size: 14)
+                            .foregroundStyle(TTColor.inkSubtle)
+                    }
+                    .padding(14)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open 3D form demonstration")
+            } else {
+                #if DEBUG
+                if FormStudioExerciseMap.mappedIdIgnoringBundle(for: exercise) != nil {
+                    // Scaffolded but FBX not in bundledClipFiles yet — hidden in Release.
+                    Text("3D demo — add Mixamo clip (DEBUG)")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
+                #endif
+            }
+
+            NavigationLink {
+                LiveFormCorrectionView(initialExerciseId: exercise.id)
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(orange.opacity(0.12))
+                        TTIcon(icon: .camera1, filled: true, size: 16)
+                            .foregroundStyle(orange)
+                    }
+                    .frame(width: 40, height: 40)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Live Form")
+                            .font(TTFont.workSans(15, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                        Text("Camera AI checks your form in real time")
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                    Spacer(minLength: 8)
+                    TTIcon(icon: .chevronRight, size: 14)
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
+                .padding(14)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Open live form AI")
+        }
     }
 }
 

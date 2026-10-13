@@ -1,5 +1,9 @@
 # Xcode
 build/
+# Form Studio ships Three.js under Resources/.../build/ — keep it tracked
+!TacTech/Resources/FormStudioWeb/build/
+!TacTech/Resources/FormStudioWeb/build/**
+
 DerivedData/
 *.xcuserstate
 *.xccheckout

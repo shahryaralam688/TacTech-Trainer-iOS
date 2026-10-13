@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Form Studio</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+		<link rel="stylesheet" href="ui.css">
+	</head>
+	<body data-screen="library">
+		<div id="container"></div>
+
+		<!-- Soft bokeh atmosphere behind glass (from reference) -->
+		<div class="atmosphere" aria-hidden="true">
+			<span class="blob blob-a"></span>
+			<span class="blob blob-b"></span>
+			<span class="blob blob-c"></span>
+		</div>
+
+		<header class="top-bar">
+			<div class="brand glass">
+				<span class="brand-mark" aria-hidden="true"></span>
+				<div class="brand-copy">
+					<strong>Form Studio</strong>
+					<small id="statusLabel">Loading…</small>
+				</div>
+			</div>
+			<div class="top-actions">
+				<span id="loadingBadge" class="loading-badge glass">Preparing…</span>
+				<button id="skeletonBtn" class="chip-btn glass" type="button" aria-pressed="false">Skeleton</button>
+			</div>
+		</header>
+
+		<!-- LIBRARY -->
+		<section id="libraryScreen" class="sheet glass">
+			<div class="sheet-head">
+				<p class="eyebrow">Workout library</p>
+				<h1>Choose exercise</h1>
+				<p class="lede">Pick a move, review form cues, then start the 3D demo.</p>
+			</div>
+			<div id="exerciseGrid" class="exercise-grid"></div>
+		</section>
+
+		<!-- INSTRUCTIONS -->
+		<section id="instructScreen" class="sheet glass instruct-sheet hidden">
+			<div class="instruct-top">
+				<button id="backToLibrary" class="text-btn" type="button">← Back</button>
+				<div class="instruct-title-block">
+					<p class="eyebrow" id="instructMeta">Meta</p>
+					<h1 id="instructTitle">Exercise</h1>
+				</div>
+			</div>
+
+			<div class="instruct-scroll">
+				<p id="instructSummary" class="summary"></p>
+
+				<div class="block glass-inset">
+					<div class="block-label">Body balance</div>
+					<ul id="balanceList" class="bullet-list"></ul>
+				</div>
+
+				<div class="block glass-inset">
+					<div class="block-label">Full process</div>
+					<ol id="stepsList" class="step-list"></ol>
+				</div>
+
+				<div class="block glass-inset warn">
+					<div class="block-label">Common mistakes</div>
+					<ul id="mistakesList" class="bullet-list"></ul>
+				</div>
+			</div>
+
+			<div class="sheet-foot">
+				<button id="startExerciseBtn" class="primary-btn" type="button">
+					<span>Start guided demo</span>
+					<small>Body positions · one by one</small>
+				</button>
+			</div>
+		</section>
+
+		<!-- COUNTDOWN -->
+		<div id="countdownOverlay" class="countdown hidden" aria-live="assertive">
+			<div class="countdown-card glass">
+				<p class="eyebrow">Get set</p>
+				<strong id="countdownNumber">3</strong>
+				<span>Find your start position</span>
+				<button id="cancelCountdownBtn" class="ghost-btn" type="button">Cancel</button>
+			</div>
+		</div>
+
+		<!-- VIDEO-STYLE GUIDE: body stays clear in center; captions live below -->
+		<aside id="guideDock" class="guide-dock hidden">
+			<div class="guide-caption glass">
+				<div class="guide-top">
+					<span class="guide-pill" id="guideFocus">Hands</span>
+					<span class="guide-count" id="guideCount">1 / 6</span>
+				</div>
+				<div class="guide-progress" id="guideProgress" aria-hidden="true"></div>
+				<h2 id="guideTitle">Title</h2>
+				<p id="guideDetail">Detail</p>
+				<ul id="guidePoints" class="guide-points"></ul>
+			</div>
+			<div class="guide-transport glass">
+				<button id="guideBackBtn" class="dock-btn" type="button">Back</button>
+				<button id="guidePlayBtn" class="dock-btn stop" type="button">Pause</button>
+				<button id="guideNextBtn" class="dock-btn" type="button">Next</button>
+				<button id="guideSkipBtn" class="dock-btn" type="button">Skip</button>
+				<button id="guideStopBtn" class="dock-btn" type="button">Stop</button>
+			</div>
+		</aside>
+
+		<!-- SESSION DOCK (full looping demo) -->
+		<aside id="sessionDock" class="session-dock hidden">
+			<div class="session-main glass">
+				<div class="session-meta">
+					<span class="live-dot" aria-hidden="true"></span>
+					<div class="session-copy">
+						<strong id="workoutTitle">Exercise</strong>
+						<small id="liveCue">Cue</small>
+					</div>
+				</div>
+
+				<div class="session-actions">
+					<button id="pauseBtn" class="dock-btn" type="button" aria-pressed="false">Pause</button>
+					<button id="stopWorkoutBtn" class="dock-btn stop" type="button">Stop</button>
+					<button id="settingsToggle" class="dock-btn" type="button" aria-expanded="false">Options</button>
+				</div>
+			</div>
+
+			<div id="workoutPanel" class="options-panel glass collapsed">
+				<label class="slider-row">
+					<span class="slider-label">
+						<span>Demo speed</span>
+						<strong id="speedValue">1.00×</strong>
+					</span>
+					<input id="speedSlider" type="range" min="0.4" max="1.4" step="0.01" value="1">
+				</label>
+				<div class="speed-presets">
+					<button type="button" class="preset" data-speed="0.6">Slow</button>
+					<button type="button" class="preset active" data-speed="1">Normal</button>
+					<button type="button" class="preset" data-speed="1.25">Fast</button>
+				</div>
+				<p class="panel-note">Stop ends instantly. Pause freezes the model. Options change playback speed. Character &amp; clips: Mixamo (Adobe).</p>
+			</div>
+		</aside>
+
+		<script type="importmap">
+			{
+				"imports": {
+					"three": "./build/three.module.js",
+					"three/addons/": "./jsm/"
+				}
+			}
+		</script>
+		<script type="module" src="app.js"></script>
+	</body>
+</html>

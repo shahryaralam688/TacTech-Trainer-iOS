@@ -641,17 +641,50 @@ actor APIClient {
 
     /// Trainee leaves their linked trainer (relationship ends; assigned plan cleared server-side).
     func unlinkTrainer() async throws {
-        try await sendVoid(path: "/trainee/unlink", method: .post, body: EmptyBody())
+        do {
+            try await sendVoid(path: "/trainee/unlink", method: .post, body: EmptyBody())
+        } catch {
+            #if DEBUG
+            Self.logRelationshipFailure(path: "POST /trainee/unlink", error: error)
+            #endif
+            throw error
+        }
     }
 
     /// Trainer removes a trainee from their roster (relationship ends; assigned plan cleared server-side).
     func removeTrainee(traineeId: String) async throws {
-        try await sendVoid(
-            path: "/trainer/trainees/\(traineeId)/remove",
-            method: .post,
-            body: EmptyBody()
-        )
+        do {
+            try await sendVoid(
+                path: "/trainer/trainees/\(traineeId)/remove",
+                method: .post,
+                body: EmptyBody()
+            )
+        } catch {
+            #if DEBUG
+            Self.logRelationshipFailure(path: "POST /trainer/trainees/\(traineeId)/remove", error: error)
+            #endif
+            throw error
+        }
     }
+
+    #if DEBUG
+    private static func logRelationshipFailure(path: String, error: Error) {
+        if let app = error as? AppError {
+            let kind: String
+            switch app {
+            case .notFound: kind = "404 notFound"
+            case .conflict: kind = "409 conflict"
+            case .unauthorized: kind = "401 unauthorized"
+            case .validation: kind = "400 validation"
+            case .api: kind = "api"
+            default: kind = "other"
+            }
+            print("[TacTech] \(path) failed — \(kind): \(app.errorDescription ?? String(describing: app))")
+        } else {
+            print("[TacTech] \(path) failed: \(error.localizedDescription)")
+        }
+    }
+    #endif
 
     // MARK: - Discovery / entitlements (Phase 1)
 

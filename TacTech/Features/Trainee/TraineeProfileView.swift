@@ -72,7 +72,7 @@ struct TraineeProfileView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 findCoachesCard
-                MyTrainerCard { toast = $0 }
+                MyTrainerCard(toast: $toast)
                 if !hasLinkedTrainer {
                     joinCard
                 }
@@ -157,10 +157,11 @@ struct TraineeProfileView: View {
 
 struct MyTrainerCard: View {
     @Environment(AppStore.self) private var store
-    var onToast: ((TTToastMessage) -> Void)?
+    @Binding var toast: TTToastMessage?
 
     @State private var leaveConfirm = false
     @State private var isLeaving = false
+    @State private var confirmName = "this trainer"
 
     private var linked: (trainee: TraineeProfile, trainer: TrainerProfile, user: User)? {
         guard let trainee = store.currentTrainee,
@@ -187,6 +188,7 @@ struct MyTrainerCard: View {
                 }
 
                 Button {
+                    confirmName = linked.user.name
                     leaveConfirm = true
                 } label: {
                     HStack(spacing: 8) {
@@ -222,24 +224,33 @@ struct MyTrainerCard: View {
             titleVisibility: .visible
         ) {
             Button("Leave trainer", role: .destructive) {
-                Task { await leaveTrainer() }
+                guard !isLeaving else { return }
+                Task { @MainActor in
+                    await leaveTrainer()
+                }
             }
+            .disabled(isLeaving)
             Button("Cancel", role: .cancel) {}
         } message: {
-            let name = linked?.user.name ?? "this trainer"
-            Text("Stop coaching with \(name)? Your assigned plan will be cleared. Chat history stays.")
+            Text("Stop coaching with \(confirmName)? Your assigned plan will be cleared. Chat history stays.")
         }
     }
 
     @MainActor
     private func leaveTrainer() async {
+        guard !isLeaving else { return }
         isLeaving = true
         defer { isLeaving = false }
         do {
             try await store.unlinkTrainer()
-            onToast?(TTToastMessage(text: "Trainer removed", style: .success))
+            toast = TTToastMessage(text: "Trainer removed", style: .success)
         } catch {
-            onToast?(TTToastMessage(text: error.localizedDescription, style: .error))
+            let detail = (error as? AppError)?.errorDescription
+                ?? error.localizedDescription
+            toast = TTToastMessage(
+                text: detail.isEmpty ? "Couldn't leave trainer" : detail,
+                style: .error
+            )
         }
     }
 }

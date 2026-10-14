@@ -122,8 +122,12 @@ struct TraineeDetailView: View {
             titleVisibility: .visible
         ) {
             Button("Remove from roster", role: .destructive) {
-                Task { await removeFromRoster() }
+                guard !isRemoving else { return }
+                Task { @MainActor in
+                    await removeFromRoster()
+                }
             }
+            .disabled(isRemoving)
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Remove \(displayName) from your roster? Their assigned plan will be cleared. Chat stays.")
@@ -477,7 +481,9 @@ struct TraineeDetailView: View {
         }
     }
 
+    @MainActor
     private func removeFromRoster() async {
+        guard !isRemoving else { return }
         isRemoving = true
         defer { isRemoving = false }
         do {
@@ -486,10 +492,14 @@ struct TraineeDetailView: View {
                 text: "\(displayName) removed from roster",
                 style: .success
             )
+            // Brief pause so the success toast is visible before dismiss.
+            try? await Task.sleep(for: .milliseconds(700))
             dismiss()
         } catch {
+            let detail = (error as? AppError)?.errorDescription
+                ?? error.localizedDescription
             feedbackToast = TTToastMessage(
-                text: error.localizedDescription,
+                text: detail.isEmpty ? "Couldn't remove trainee" : detail,
                 style: .error
             )
         }

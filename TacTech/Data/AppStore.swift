@@ -602,33 +602,80 @@ final class AppStore {
     }
 
     /// Trainee leaves the linked trainer. Clears local trainer link + assigned plan cache, then refreshes `/me`.
+    /// 404 “No trainer linked” is treated as success (stale UI) — local link cleared + refresh.
+    @MainActor
     func unlinkTrainer() async throws {
         guard currentTrainee != nil else { throw AppError.validation("Only trainees can leave a trainer.") }
-        try await api.unlinkTrainer()
+        do {
+            try await api.unlinkTrainer()
+        } catch let error as AppError where error.isNotFound {
+            #if DEBUG
+            print("[TacTech] unlink 404 — clearing stale local trainer link")
+            #endif
+            clearLocalTrainerLinkForCurrentTrainee()
+            try await refreshSession()
+            await reconcileTraineeTrainerLinkFromServer()
+            return
+        } catch {
+            throw error
+        }
         clearLocalTrainerLinkForCurrentTrainee()
         try await refreshSession()
+        await reconcileTraineeTrainerLinkFromServer()
     }
 
     /// Trainer removes a trainee from the roster. Updates local list; pull-to-refresh still loads server truth.
+    /// 404 (already removed) clears local roster entry and still reloads.
+    @MainActor
     func removeTrainee(traineeId: String) async throws {
         guard currentTrainer != nil else { throw AppError.validation("Only trainers can remove trainees.") }
-        try await api.removeTrainee(traineeId: traineeId)
+        do {
+            try await api.removeTrainee(traineeId: traineeId)
+        } catch let error as AppError where error.isNotFound {
+            #if DEBUG
+            print("[TacTech] remove trainee 404 — dropping stale roster entry \(traineeId)")
+            #endif
+            trainees.removeAll { $0.id == traineeId }
+            assignments.removeAll { $0.traineeId == traineeId }
+            await reloadTrainerRoster()
+            return
+        } catch {
+            throw error
+        }
         trainees.removeAll { $0.id == traineeId }
         assignments.removeAll { $0.traineeId == traineeId }
-        if let items = try? await api.trainerTrainees() {
-            if let trainerId = currentTrainer?.id {
-                trainees.removeAll { $0.trainerId == trainerId }
-            }
-            apply(traineeItems: items)
-        }
+        await reloadTrainerRoster()
     }
 
+    @MainActor
+    private func reloadTrainerRoster() async {
+        guard let items = try? await api.trainerTrainees() else { return }
+        if let trainerId = currentTrainer?.id {
+            trainees.removeAll { $0.trainerId == trainerId }
+        }
+        apply(traineeItems: items)
+    }
+
+    @MainActor
     private func clearLocalTrainerLinkForCurrentTrainee() {
         guard var trainee = currentTrainee else { return }
         let id = trainee.id
         trainee.trainerId = nil
         upsert(trainee)
         assignments.removeAll { $0.traineeId == id }
+    }
+
+    /// If `/trainee/trainer` says not linked, force-clear local `trainerId` so My Trainer empties immediately.
+    @MainActor
+    private func reconcileTraineeTrainerLinkFromServer() async {
+        guard currentTrainee != nil else { return }
+        do {
+            _ = try await api.traineeTrainer()
+        } catch let error as AppError where error.isNotFound {
+            clearLocalTrainerLinkForCurrentTrainee()
+        } catch {
+            // Keep local state on transient errors.
+        }
     }
 
     func saveWorkoutLog(_ log: WorkoutLog) async throws {
@@ -1616,18 +1663,26 @@ final class AppStore {
     }
 
     private func loadTraineeWorkspace() async throws {
-        if let trainerPayload = try? await api.traineeTrainer() {
+        do {
+            let trainerPayload = try await api.traineeTrainer()
             if let trainer = trainerPayload.profile { upsert(trainer) }
             if let user = trainerPayload.user {
                 upsert(user.asUser())
             } else if let name = trainerPayload.name, let userId = trainerPayload.userId ?? trainerPayload.profile?.userId {
                 upsert(User(id: userId, name: name, email: trainerPayload.email ?? "", password: "", role: .trainer, createdAt: .now))
             }
+        } catch let error as AppError where error.isNotFound {
+            // Server has no linked trainer — drop stale local link so My Trainer empties.
+            clearLocalTrainerLinkForCurrentTrainee()
+        } catch {
+            // Keep last-known trainer on transient network errors.
         }
         if let plan = try? await api.assignedPlan(), let trainee = currentTrainee {
             upsert(plan)
             assignments.removeAll { $0.traineeId == trainee.id }
             assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
+        } else if let trainee = currentTrainee, trainee.trainerId == nil {
+            assignments.removeAll { $0.traineeId == trainee.id }
         }
         if let logs = try? await api.traineeLogs(), let trainee = currentTrainee {
             replaceLogs(logs, traineeId: trainee.id)

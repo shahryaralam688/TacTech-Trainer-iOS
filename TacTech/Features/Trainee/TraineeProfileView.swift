@@ -93,22 +93,7 @@ struct TraineeProfileView: View {
         .refreshable {
             await store.refreshTraineeJoinState()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
-            let type = (note.userInfo?["type"] as? String) ?? ""
-            Task { @MainActor in
-                await store.handleJoinRequestRealtime(type: type)
-                let lower = type.lowercased()
-                if lower == "join_request_accepted" {
-                    let linkedName = store.currentTrainee
-                        .flatMap { store.trainer(for: $0) }
-                        .flatMap { store.user(forTrainer: $0)?.name }
-                        ?? "your trainer"
-                    toast = TTToastMessage(text: "You’re linked with \(linkedName)", style: .success)
-                } else if lower == "join_request_rejected" {
-                    toast = TTToastMessage(text: "Request declined", style: .error)
-                }
-            }
-        }
+        // Root owns join/accept sync + soft toasts (single coalesced pipeline).
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
             // Profile tab / sheet already here when opened from inbox.
             Task { await store.refreshTraineeJoinState() }
@@ -135,9 +120,26 @@ struct TraineeProfileView: View {
             MyTrainerCard(toast: $toast)
         } else if let pending {
             pendingCard(pending)
+        } else if store.isSyncingCoachLink {
+            // Hold layout during accept sync — never flash empty join form.
+            syncingCoachLinkCard
         } else {
             joinRequestCard
         }
+    }
+
+    private var syncingCoachLinkCard: some View {
+        HStack(spacing: 12) {
+            ProgressView()
+            Text("Updating trainer link…")
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+            Spacer(minLength: 0)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     private var findCoachesCard: some View {

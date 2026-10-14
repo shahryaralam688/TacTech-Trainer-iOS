@@ -132,7 +132,8 @@ struct TraineeRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfile)) { _ in
             mounted.insert(.profile)
             tab = .profile
-            Task { await store.handleJoinRequestRealtime(type: "join_request_accepted") }
+            // Inbox tap may arrive without a live socket event — same coalesced accept sync.
+            store.scheduleTraineeCoachLinkSync()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
             mounted.insert(.profile)

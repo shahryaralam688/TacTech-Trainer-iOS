@@ -32,8 +32,10 @@ final class AppStore {
     var pendingJoinRequest: JoinRequestDTO?
     /// Trainer: pending join requests for the Requests inbox.
     var trainerJoinRequests: [JoinRequestDTO] = []
-    /// Soft banner for peer leave/remove (shown from Root — works on any tab).
+    /// Soft banner for peer leave/remove / accept (shown from Root — works on any tab).
     var softToast: TTToastMessage?
+    /// True while coalescing accept/link sync — keeps pending UI sticky (no join-form flash).
+    var isSyncingCoachLink = false
     /// Live analytics keyed by traineeId (`GET …/analytics`).
     var traineeAnalyticsById: [String: TraineeAnalytics] = [:]
     /// Marketplace entitlements — Phase 1 cache only; do **not** gate AI chat on launch.
@@ -72,6 +74,9 @@ final class AppStore {
     private var serverOnboardingCompleted: Bool?
     /// Coalesce `relationship.changed` + `relationship_ended` double-delivery.
     private var relationshipReconcileTask: Task<Void, Never>?
+    /// Coalesce `join_request_accepted` + `relationship.changed(linked)` into one atomic sync.
+    private var traineeCoachLinkSyncTask: Task<Void, Never>?
+    private var traineeCoachLinkSyncGeneration = 0
 
     var currentUser: User? {
         users.first { $0.id == session?.userId }
@@ -374,7 +379,9 @@ final class AppStore {
             upsert(u)
         }
         if let trainer = me.trainer { upsert(trainer) }
-        if let trainee = me.trainee { upsert(trainee) }
+        if let trainee = me.trainee {
+            upsertTraineePreservingCoachLink(trainee)
+        }
     }
 
     func submitAssessment(_ draft: FitnessAssessment) async throws {
@@ -629,18 +636,32 @@ final class AppStore {
         guard session?.role == .trainee else { return }
         do {
             let state = try await api.traineeJoinState()
-            pendingJoinRequest = state.pendingRequest
-            if let link = state.activeLink {
-                applyActiveTrainerLink(link)
-            } else if state.pendingRequest == nil, currentTrainee?.trainerId != nil {
-                // No active link and no pending — keep trainerId unless /trainee/trainer also says none
-                // (reconcile happens via loadTraineeWorkspace / unlink).
-            }
+            applyTraineeJoinState(state)
         } catch {
             #if DEBUG
             print("[TacTech] refreshTraineeJoinState failed: \(error.localizedDescription)")
             #endif
         }
+    }
+
+    /// Atomic join-state apply — never clear pending until an active link is confirmed
+    /// (avoids pending → empty join form → My Trainer flicker on accept).
+    @MainActor
+    private func applyTraineeJoinState(_ state: TraineeJoinStateDTO) {
+        if let link = state.activeLink {
+            applyActiveTrainerLink(link)
+            pendingJoinRequest = nil
+            return
+        }
+        if let pending = state.pendingRequest, pending.isPending {
+            pendingJoinRequest = pending
+            return
+        }
+        // Server reports neither — during accept sync keep sticky pending / local link.
+        if isSyncingCoachLink, pendingJoinRequest?.isPending == true {
+            return
+        }
+        pendingJoinRequest = state.pendingRequest
     }
 
     func cancelJoinRequest(id: String) async throws {
@@ -686,14 +707,77 @@ final class AppStore {
             await NotificationStore.shared.refreshUnread()
         } else if session?.role == .trainee {
             if t == "join_request_accepted" {
-                await refreshTraineeJoinState()
-                try? await refreshSession()
-                await refreshAssignedPlanForCurrentTrainee()
+                // Coalesced light sync — never full refreshSession (wipes trainerId mid-accept).
+                scheduleTraineeCoachLinkSync()
             } else if t == "join_request_rejected" || t == "join_request_cancelled" {
                 pendingJoinRequest = nil
+                isSyncingCoachLink = false
                 await refreshTraineeJoinState()
+                if t == "join_request_rejected" {
+                    softToast = TTToastMessage(text: "Request declined", style: .error)
+                }
             }
         }
+    }
+
+    /// Single entry for accept / `relationship.changed(linked)` — debounced, idempotent, no UI flash.
+    @MainActor
+    func scheduleTraineeCoachLinkSync() {
+        guard session?.role == .trainee else { return }
+        isSyncingCoachLink = true
+        traineeCoachLinkSyncGeneration += 1
+        let generation = traineeCoachLinkSyncGeneration
+        traineeCoachLinkSyncTask?.cancel()
+        traineeCoachLinkSyncTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled, generation == self.traineeCoachLinkSyncGeneration else { return }
+            await self.performTraineeCoachLinkSync()
+            if generation == self.traineeCoachLinkSyncGeneration {
+                self.isSyncingCoachLink = false
+            }
+        }
+    }
+
+    @MainActor
+    private func performTraineeCoachLinkSync() async {
+        let alreadyLinked = hasResolvedCoachLink
+
+        var linked = false
+        for attempt in 0..<3 {
+            await refreshTraineeJoinState()
+            if hasResolvedCoachLink {
+                linked = true
+                break
+            }
+            // Eventual consistency window after Accept — retry briefly.
+            try? await Task.sleep(for: .milliseconds(450 + attempt * 250))
+            guard !Task.isCancelled else { return }
+        }
+
+        if linked {
+            // Enrich profile; never clear on 404 during accept (join-state is source of truth).
+            await enrichTraineeTrainerFromServer(allowClearOnNotFound: false)
+            await refreshAssignedPlanForCurrentTrainee()
+            // Toast only on pending → linked transition (not idempotent replays).
+            if !alreadyLinked {
+                let name = linkedTrainerDisplayName() ?? "your trainer"
+                softToast = TTToastMessage(text: "You’re linked with \(name)", style: .success)
+            }
+        } else {
+            // Final authoritative read without sticky hold.
+            await refreshTraineeJoinState()
+        }
+    }
+
+    private var hasResolvedCoachLink: Bool {
+        guard let trainee = currentTrainee else { return false }
+        return trainer(for: trainee) != nil
+    }
+
+    private func linkedTrainerDisplayName() -> String? {
+        guard let trainee = currentTrainee,
+              let trainer = trainer(for: trainee) else { return nil }
+        return user(forTrainer: trainer)?.name
     }
 
     /// Socket `relationship.changed` / inbox `relationship_ended` — live roster & My Trainer sync.
@@ -778,6 +862,7 @@ final class AppStore {
             if isUnlinked {
                 clearLocalTrainerLinkForCurrentTrainee()
                 pendingJoinRequest = nil
+                isSyncingCoachLink = false
                 try? await refreshSession()
                 await reconcileTraineeTrainerLinkFromServer()
                 await refreshTraineeJoinState()
@@ -786,10 +871,8 @@ final class AppStore {
                     softToast = TTToastMessage(text: "You’ve been removed from the roster", style: .info)
                 }
             } else if isLinked {
-                await refreshTraineeJoinState()
-                try? await refreshSession()
-                await reconcileTraineeTrainerLinkFromServer()
-                await refreshAssignedPlanForCurrentTrainee()
+                // Same coalesced path as join_request_accepted — no full session refresh.
+                scheduleTraineeCoachLinkSync()
             }
         case .none:
             break
@@ -836,6 +919,18 @@ final class AppStore {
                 createdAt: .now
             )
         )
+    }
+
+    /// Merge `/me` trainee without wiping a live coach link on eventual-consistency lag.
+    private func upsertTraineePreservingCoachLink(_ incoming: TraineeProfile) {
+        var merged = incoming
+        if merged.trainerId == nil,
+           let localTrainerId = currentTrainee?.trainerId,
+           !localTrainerId.isEmpty,
+           isSyncingCoachLink || pendingJoinRequest?.isPending == true || hasResolvedCoachLink {
+            merged.trainerId = localTrainerId
+        }
+        upsert(merged)
     }
 
     /// Trainee leaves the linked trainer. Clears local trainer link + assigned plan cache, then refreshes `/me`.
@@ -910,13 +1005,33 @@ final class AppStore {
     /// If `/trainee/trainer` says not linked, force-clear local `trainerId` so My Trainer empties immediately.
     @MainActor
     private func reconcileTraineeTrainerLinkFromServer() async {
+        await enrichTraineeTrainerFromServer(allowClearOnNotFound: true)
+    }
+
+    /// Fetch linked trainer profile. When `allowClearOnNotFound` is false (accept sync),
+    /// a brief 404 must not wipe a join-state active link.
+    @MainActor
+    private func enrichTraineeTrainerFromServer(allowClearOnNotFound: Bool) async {
         guard currentTrainee != nil else { return }
         do {
-            _ = try await api.traineeTrainer()
+            let trainerPayload = try await api.traineeTrainer()
+            if let trainer = trainerPayload.profile { upsert(trainer) }
+            if let user = trainerPayload.user {
+                upsert(user.asUser())
+            } else if let name = trainerPayload.name,
+                      let userId = trainerPayload.userId ?? trainerPayload.profile?.userId {
+                upsert(User(id: userId, name: name, email: trainerPayload.email ?? "", password: "", role: .trainer, createdAt: .now))
+            }
+            if let profile = trainerPayload.profile, var trainee = currentTrainee {
+                trainee.trainerId = profile.id
+                upsert(trainee)
+            }
         } catch let error as AppError where error.isNotFound {
-            clearLocalTrainerLinkForCurrentTrainee()
+            if allowClearOnNotFound, !isSyncingCoachLink {
+                clearLocalTrainerLinkForCurrentTrainee()
+            }
         } catch {
-            // Keep local state on transient errors.
+            // Keep last-known trainer on transient network errors.
         }
     }
 
@@ -1504,7 +1619,10 @@ final class AppStore {
                 throw AppError.unauthorized
             }
             if let trainer = me.trainer { upsert(trainer) }
-            if let trainee = me.trainee { upsert(trainee) }
+            if let trainee = me.trainee {
+                // `/me` can lag Accept — don't clobber a just-applied trainerId with nil.
+                upsertTraineePreservingCoachLink(trainee)
+            }
             applyServerGateFlags(
                 assessmentCompleted: me.assessmentCompleted,
                 onboardingCompleted: me.onboardingCompleted
@@ -1907,20 +2025,7 @@ final class AppStore {
     }
 
     private func loadTraineeWorkspace() async throws {
-        do {
-            let trainerPayload = try await api.traineeTrainer()
-            if let trainer = trainerPayload.profile { upsert(trainer) }
-            if let user = trainerPayload.user {
-                upsert(user.asUser())
-            } else if let name = trainerPayload.name, let userId = trainerPayload.userId ?? trainerPayload.profile?.userId {
-                upsert(User(id: userId, name: name, email: trainerPayload.email ?? "", password: "", role: .trainer, createdAt: .now))
-            }
-        } catch let error as AppError where error.isNotFound {
-            // Server has no linked trainer — drop stale local link so My Trainer empties.
-            clearLocalTrainerLinkForCurrentTrainee()
-        } catch {
-            // Keep last-known trainer on transient network errors.
-        }
+        await enrichTraineeTrainerFromServer(allowClearOnNotFound: !isSyncingCoachLink)
         if let plan = try? await api.assignedPlan(), let trainee = currentTrainee {
             upsert(plan)
             assignments.removeAll { $0.traineeId == trainee.id }

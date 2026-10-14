@@ -24,6 +24,12 @@
 5. Chat still opens after leave/remove. Join Accept still live-updates trainee.
 6. Airplane on peer → action → later reconnect/foreground → state corrects.
 
+## Accept UX (trainee — no flicker)
+1. Trainee has **Pending approval** card; stay on Profile or any tab.
+2. Trainer **Accept** → trainee goes **pending → My Trainer** in one step (no empty join form flash).
+3. One success toast with trainer name; no double refresh / tab jump required.
+4. Reject → pending clears → join form; “Request declined” toast.
+
 ## Must not change
 - Chat with that peer still openable after leave/remove.
 - Boost, AI paywall, Form Studio 3D, packages, notifications — untouched.

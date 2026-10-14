@@ -287,14 +287,19 @@ struct CoachReviewBody: Encodable {
 
 struct MyCoachReviewResponse: Codable, Equatable {
     var review: CoachReview?
+    /// Server source of truth — missing key fails closed (`false`).
+    var canReview: Bool
+    var reason: String?
 
     enum CodingKeys: String, CodingKey {
-        case review
+        case review, canReview, reason
     }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         review = try? c.decodeIfPresent(CoachReview.self, forKey: .review)
+        canReview = (try? c.decodeIfPresent(Bool.self, forKey: .canReview)) ?? false
+        reason = try? c.decodeIfPresent(String.self, forKey: .reason)
     }
 }
 

@@ -22,6 +22,8 @@ struct CoachDetailView: View {
     @State private var isLoadingReviews = false
     @State private var isLoadingMoreReviews = false
     @State private var myReview: CoachReview?
+    /// Server `/reviews/me.canReview` — fail closed until loaded.
+    @State private var canReview = false
     @State private var showReviewEditor = false
     @State private var showDeleteConfirm = false
     @State private var reportTarget: CoachReview?
@@ -53,10 +55,9 @@ struct CoachDetailView: View {
         return true
     }
 
+    /// Write/Edit/Delete only when server says this trainee is currently on the coach’s roster.
     private var canWriteReview: Bool {
-        guard isTrainee, let profile else { return false }
-        if let me = store.currentUser?.id, me == profile.userId { return false }
-        return true
+        isTrainee && canReview
     }
 
     private var canInquire: Bool {
@@ -99,10 +100,10 @@ struct CoachDetailView: View {
         .task {
             await load()
             await loadReviews(reset: true)
-            await loadPackages()
-            if canWriteReview {
-                await loadMyReview()
+            if isTrainee {
+                await loadMyReviewEligibility()
             }
+            await loadPackages()
         }
         .sheet(isPresented: $showMessageSheet) {
             contactMessageSheet
@@ -112,7 +113,10 @@ struct CoachDetailView: View {
             inquireSheet(for: pkg)
                 .ttModalSheetPresentation(detents: [.medium], dragIndicator: .visible)
         }
-        .sheet(isPresented: $showReviewEditor) {
+        .sheet(isPresented: Binding(
+            get: { showReviewEditor && canReview },
+            set: { showReviewEditor = $0 }
+        )) {
             CoachReviewEditorSheet(
                 existing: myReview,
                 isSaving: $isSavingReview,
@@ -401,6 +405,11 @@ struct CoachDetailView: View {
                 ) {
                     showReviewEditor = true
                 }
+            } else if isTrainee {
+                Text("Only this coach’s trainees can review.")
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkSubtle)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
 
             if isLoadingReviews && reviews.isEmpty {
@@ -457,7 +466,7 @@ struct CoachDetailView: View {
                     .foregroundStyle(TTColor.inkMuted)
             }
 
-            if review.isMine {
+            if review.isMine && canReview {
                 HStack(spacing: 16) {
                     Button("Edit") {
                         showReviewEditor = true
@@ -472,7 +481,7 @@ struct CoachDetailView: View {
                     .font(TTFont.heading(13))
                     .accessibilityLabel("Delete")
                 }
-            } else {
+            } else if !review.isMine {
                 Button {
                     reportPreset = reportPresets[0]
                     reportReason = ""
@@ -721,12 +730,14 @@ struct CoachDetailView: View {
     }
 
     @MainActor
-    private func loadMyReview() async {
+    private func loadMyReviewEligibility() async {
         do {
             let response = try await APIClient().myCoachReview(coachProfileId: coachProfileId)
             myReview = response.review
+            canReview = response.canReview
         } catch {
-            // Soft-fail — write CTA still available.
+            // Fail closed — never show Write without server permission.
+            canReview = false
         }
     }
 
@@ -821,6 +832,7 @@ struct CoachDetailView: View {
                 }
             }
             myReview = saved
+            canReview = true
             showReviewEditor = false
             toast = TTToastMessage(text: "Review saved", style: .success)
             await loadReviews(reset: true)
@@ -829,6 +841,16 @@ struct CoachDetailView: View {
                 ratingAvg = refreshed.ratingAvg
                 ratingCount = refreshed.ratingCount
             }
+        } catch let error as AppError where error.isForbidden {
+            canReview = false
+            showReviewEditor = false
+            toast = TTToastMessage(
+                text: error.errorDescription
+                    ?? "Only current trainees of this coach can leave a review.",
+                style: .error
+            )
+            await loadReviews(reset: true)
+            await loadMyReviewEligibility()
         } catch {
             toast = TTToastMessage(
                 text: "Couldn’t save review",
@@ -852,6 +874,15 @@ struct CoachDetailView: View {
                 ratingAvg = refreshed.ratingAvg
                 ratingCount = refreshed.ratingCount
             }
+        } catch let error as AppError where error.isForbidden {
+            canReview = false
+            toast = TTToastMessage(
+                text: error.errorDescription
+                    ?? "Only current trainees of this coach can leave a review.",
+                style: .error
+            )
+            await loadReviews(reset: true)
+            await loadMyReviewEligibility()
         } catch {
             toast = TTToastMessage(
                 text: "Couldn’t delete review",

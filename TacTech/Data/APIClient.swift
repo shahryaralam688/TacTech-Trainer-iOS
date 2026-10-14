@@ -1362,7 +1362,7 @@ actor APIClient {
             throw AppError.validation(detail ?? "Invalid request.")
         }
         if http.statusCode == 403 {
-            throw AppError.api(detail ?? "Not allowed.")
+            throw AppError.forbidden(detail ?? "Not allowed.")
         }
         if http.statusCode == 404 {
             throw AppError.notFound(detail ?? "Not found.")
@@ -1524,6 +1524,11 @@ extension JSONEncoder {
 extension AppError {
     var isNotFound: Bool {
         if case .notFound = self { return true }
+        return false
+    }
+
+    var isForbidden: Bool {
+        if case .forbidden = self { return true }
         return false
     }
 }

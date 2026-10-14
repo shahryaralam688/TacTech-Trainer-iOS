@@ -2580,6 +2580,8 @@ enum AppError: LocalizedError, Equatable {
     case api(String)
     case unauthorized
     case notFound(String)
+    /// HTTP 403 — not allowed (e.g. only current trainees may review).
+    case forbidden(String)
     /// Coach / upstream rate limit — `retryAfter` is suggested wait in seconds.
     case rateLimited(String, retryAfter: TimeInterval)
     /// HTTP 402 / `AI_REQUIRED` — present AI paywall (trainee + trainer).
@@ -2593,6 +2595,7 @@ enum AppError: LocalizedError, Equatable {
         switch self {
         case .invalidCredentials: "Email or password is incorrect."
         case .validation(let message), .api(let message), .notFound(let message),
+             .forbidden(let message),
              .aiRequired(let message), .conflict(let message), .providerError(let message): message
         case .rateLimited(let message, _): message
         case .unauthorized: "Please sign in again."

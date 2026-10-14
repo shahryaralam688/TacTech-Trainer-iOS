@@ -30,7 +30,7 @@ final class PushNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNot
         #endif
     }
 
-    // Foreground: prefer Socket; still ingest payload for inbox/dedupe without duplicate banners when possible.
+    // Foreground: prefer Socket; honor Notification Settings (push / category / sound).
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
@@ -38,14 +38,14 @@ final class PushNotificationDelegate: NSObject, UIApplicationDelegate, UNUserNot
     ) {
         let info = notification.request.content.userInfo
         Task { @MainActor in
-            let handled = NotificationStore.shared.handleUserInfo(info, fromUserTap: false)
-            // If Socket already delivered the same message/call, suppress banner.
-            if handled {
-                completionHandler([.badge])
-            } else {
-                completionHandler([.banner, .sound, .badge])
-            }
-            await NotificationStore.shared.refreshUnread()
+            let store = NotificationStore.shared
+            let handled = store.handleUserInfo(info, fromUserTap: false)
+            // If Socket already delivered the same message/call, suppress banner noise.
+            completionHandler(store.presentationOptions(
+                for: info,
+                suppressBannerBecauseDedupe: handled
+            ))
+            await store.refreshUnread()
         }
     }
 

@@ -15,7 +15,8 @@ struct NotificationSettingsView: View {
     @AppStorage("notifications.resources") private var resourcesEnabled = false
     @AppStorage("notifications.chatMessages") private var chatMessagesEnabled = true
     @AppStorage("notifications.chatCalls") private var chatCallsEnabled = true
-    @AppStorage("notifications.offersDevice") private var offersDevice = ""
+    /// Bool preference (not device name). Legacy String values read as `false`.
+    @AppStorage("notifications.offersDevice") private var offersDeviceEnabled = false
 
     @State private var draftPush = true
     @State private var draftAICoach = false
@@ -34,7 +35,6 @@ struct NotificationSettingsView: View {
     private let cardFill = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
     private let iconTile = Color.white
     private let ctaFill = Color(red: 18 / 255, green: 19 / 255, blue: 22 / 255)
-    private let orange = TTColor.actionOrange
 
     var body: some View {
         VStack(spacing: 0) {
@@ -224,9 +224,31 @@ struct NotificationSettingsView: View {
     }
 
     private func hydrateFromServer() async {
-        applyLocalDefaults()
+        // 1) Local AppStorage drafts immediately — no blank flash.
+        applyDrafts(from: currentAppStoragePreferences())
+        // 2) Server hydrate.
         await NotificationStore.shared.loadPreferences()
-        let prefs = NotificationStore.shared.preferences
+        // 3) Copy all 10 server fields into drafts + AppStorage mirror already done in store.
+        applyDrafts(from: NotificationStore.shared.preferences)
+        syncAppStorage(from: NotificationStore.shared.preferences)
+    }
+
+    private func currentAppStoragePreferences() -> NotificationPreferencesDTO {
+        NotificationPreferencesDTO(
+            push: pushEnabled,
+            aiCoach: aiCoachEnabled,
+            metrics: metricsEnabled,
+            vibrations: vibrationsEnabled,
+            sound: soundEnabled,
+            appUpdate: appUpdateEnabled,
+            resources: resourcesEnabled,
+            offersDevice: offersDeviceEnabled,
+            chatMessages: chatMessagesEnabled,
+            chatCalls: chatCallsEnabled
+        )
+    }
+
+    private func applyDrafts(from prefs: NotificationPreferencesDTO) {
         draftPush = prefs.push
         draftAICoach = prefs.aiCoach
         draftMetrics = prefs.metrics
@@ -237,21 +259,34 @@ struct NotificationSettingsView: View {
         draftChatMessages = prefs.chatMessages
         draftChatCalls = prefs.chatCalls
         draftOffersDevice = prefs.offersDevice
-        if offersDevice.isEmpty {
-            offersDevice = UIDevice.current.name
-        }
     }
 
-    private func applyLocalDefaults() {
-        draftPush = pushEnabled
-        draftAICoach = aiCoachEnabled
-        draftMetrics = metricsEnabled
-        draftVibrations = vibrationsEnabled
-        draftSound = soundEnabled
-        draftAppUpdate = appUpdateEnabled
-        draftResources = resourcesEnabled
-        draftChatMessages = chatMessagesEnabled
-        draftChatCalls = chatCallsEnabled
+    private func syncAppStorage(from prefs: NotificationPreferencesDTO) {
+        pushEnabled = prefs.push
+        aiCoachEnabled = prefs.aiCoach
+        metricsEnabled = prefs.metrics
+        vibrationsEnabled = prefs.vibrations
+        soundEnabled = prefs.sound
+        appUpdateEnabled = prefs.appUpdate
+        resourcesEnabled = prefs.resources
+        offersDeviceEnabled = prefs.offersDevice
+        chatMessagesEnabled = prefs.chatMessages
+        chatCallsEnabled = prefs.chatCalls
+    }
+
+    private func draftPreferences() -> NotificationPreferencesDTO {
+        NotificationPreferencesDTO(
+            push: draftPush,
+            aiCoach: draftAICoach,
+            metrics: draftMetrics,
+            vibrations: draftVibrations,
+            sound: draftSound,
+            appUpdate: draftAppUpdate,
+            resources: draftResources,
+            offersDevice: draftOffersDevice,
+            chatMessages: draftChatMessages,
+            chatCalls: draftChatCalls
+        )
     }
 
     private func save() async {
@@ -259,37 +294,37 @@ struct NotificationSettingsView: View {
         toast = nil
         defer { isSaving = false }
 
-        var prefs = NotificationPreferencesDTO()
-        prefs.push = draftPush
-        prefs.aiCoach = draftAICoach
-        prefs.metrics = draftMetrics
-        prefs.vibrations = draftVibrations
-        prefs.sound = draftSound
-        prefs.appUpdate = draftAppUpdate
-        prefs.resources = draftResources
-        prefs.offersDevice = draftOffersDevice
-        prefs.chatMessages = draftChatMessages
-        prefs.chatCalls = draftChatCalls
-
+        let prefs = draftPreferences()
         do {
             try await NotificationStore.shared.savePreferences(prefs)
-            pushEnabled = draftPush
-            aiCoachEnabled = draftAICoach
-            metricsEnabled = draftMetrics
-            vibrationsEnabled = draftVibrations
-            soundEnabled = draftSound
-            appUpdateEnabled = draftAppUpdate
-            resourcesEnabled = draftResources
-            chatMessagesEnabled = draftChatMessages
-            chatCallsEnabled = draftChatCalls
-            if draftPush {
+            syncAppStorage(from: NotificationStore.shared.preferences)
+            applyDrafts(from: NotificationStore.shared.preferences)
+
+            if NotificationStore.shared.preferences.push {
                 await NotificationStore.shared.requestAuthorizationAndRegister()
+                #if DEBUG
+                if !NotificationStore.isRemotePushRegistrationEnabled {
+                    toast = TTToastMessage(
+                        text: "Settings saved",
+                        style: .success,
+                        subtitle: "Push delivery needs Push capability (DEBUG)"
+                    )
+                    NotificationStore.shared.playNotificationHaptic(.success)
+                    return
+                }
+                #endif
+            } else {
+                await NotificationStore.shared.unregisterCurrentToken()
             }
+
             toast = TTToastMessage(text: "Settings saved", style: .success)
-            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            NotificationStore.shared.playNotificationHaptic(.success)
         } catch {
+            // Do not treat drafts as saved — reload from store (pre-failure server/local).
+            applyDrafts(from: NotificationStore.shared.preferences)
+            syncAppStorage(from: NotificationStore.shared.preferences)
             toast = TTToastMessage(
-                text: error.localizedDescription,
+                text: (error as? AppError)?.errorDescription ?? error.localizedDescription,
                 style: .error
             )
         }

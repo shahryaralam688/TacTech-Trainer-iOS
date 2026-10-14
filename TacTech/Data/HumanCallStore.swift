@@ -320,7 +320,8 @@ final class HumanCallStore {
         case .notificationCreated(let note):
             NotificationStore.shared.handleCreated(note)
             // Call push may arrive as inbox row while Socket call event is delayed.
-            if note.type == "chat_call" {
+            // Respect chatCalls (+ push for noisy path); foreground Socket ring is separate.
+            if note.type == "chat_call", NotificationStore.shared.preferences.chatCalls {
                 var info: [AnyHashable: Any] = ["type": "chat_call"]
                 for (k, v) in note.data { info[k] = v }
                 NotificationStore.shared.handleUserInfo(info, fromUserTap: false)
@@ -429,8 +430,10 @@ final class HumanCallStore {
     }
 
     /// Handle push / cold deep-link payloads: `{ type: chat_call, sessionId, threadId, ... }`.
+    /// Background ring requires `push` + `chatCalls`. Foreground Socket incoming is separate.
     func handlePushPayload(_ userInfo: [AnyHashable: Any]) {
         guard HumanCallFeatures.isEnabled else { return }
+        guard NotificationStore.shared.allowsBackgroundCallAlerts else { return }
         let type = (userInfo["type"] as? String)
             ?? ((userInfo["data"] as? [AnyHashable: Any])?["type"] as? String)
         guard type == "chat_call" else { return }

@@ -36,6 +36,7 @@ final class NotificationStore {
 
     private init() {
         deviceTokenHex = UserDefaults.standard.string(forKey: tokenDefaultsKey)
+        hydratePreferencesFromAppStorage()
     }
 
     // MARK: Lifecycle
@@ -74,7 +75,9 @@ final class NotificationStore {
             switch event {
             case .notificationCreated(let note):
                 self.handleCreated(note)
-                if note.type == "chat_call" {
+                // Noisy call alert from inbox row only when chatCalls is on.
+                // Foreground Socket `chat.call.incoming` ring is handled separately by HumanCallStore.
+                if note.type == "chat_call", self.preferences.chatCalls {
                     var info: [AnyHashable: Any] = ["type": "chat_call"]
                     for (k, v) in note.data { info[k] = v }
                     _ = self.handleUserInfo(info, fromUserTap: false)
@@ -165,14 +168,15 @@ final class NotificationStore {
         defer { isLoading = false }
         do {
             let page = try await api.listNotifications()
-            items = page.items
+            let kept = page.items.filter { Self.shouldKeepInInbox($0, preferences: preferences) }
+            items = kept
             nextCursor = page.nextCursor
             if let count = page.unreadCount {
                 unreadCount = count
             } else {
-                unreadCount = page.items.filter(\.isUnread).count
+                unreadCount = kept.filter(\.isUnread).count
             }
-            rememberDedupeKeys(from: page.items)
+            rememberDedupeKeys(from: kept)
             lastError = nil
             syncAppBadge()
         } catch {
@@ -325,6 +329,7 @@ final class NotificationStore {
 
     /// Socket `notification.created` — prepend + bump badge (dedupe by id).
     func handleCreated(_ note: AppNotificationDTO) {
+        guard Self.shouldKeepInInbox(note, preferences: preferences) else { return }
         if items.contains(where: { $0.id == note.id }) { return }
         if let mid = note.messageId, seenMessageIds.contains(mid) { return }
         if let sid = note.sessionId, seenSessionIds.contains(sid) {
@@ -344,7 +349,7 @@ final class NotificationStore {
             mirrorPreferencesToAppStorage()
             lastError = nil
         } catch {
-            // Keep local defaults.
+            // Keep AppStorage / last-known preferences.
         }
     }
 
@@ -353,17 +358,84 @@ final class NotificationStore {
         mirrorPreferencesToAppStorage()
     }
 
+    /// Haptic for notification UX — respects `vibrations` preference.
+    @MainActor
+    func playNotificationHaptic(_ type: UINotificationFeedbackGenerator.FeedbackType = .success) {
+        guard preferences.vibrations else { return }
+        UINotificationFeedbackGenerator().notificationOccurred(type)
+    }
+
+    /// Whether an OS / local banner should surface for this notification type.
+    /// Inbox history still updates via `handleCreated` (except offers when off).
+    func shouldPresentOSBanner(forType type: String?) -> Bool {
+        guard preferences.push else { return false }
+        guard let raw = type?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            return true
+        }
+        let t = raw.lowercased()
+        switch t {
+        case "chat":
+            return preferences.chatMessages
+        case "chat_call":
+            return preferences.chatCalls
+        case "ai_coach":
+            return preferences.aiCoach
+        case "metrics", "workout", "plan_assigned", "plan_unassigned", "plan_updated":
+            return preferences.metrics
+        case "app_update":
+            return preferences.appUpdate
+        case "resources":
+            return preferences.resources
+        case "offers":
+            return preferences.offersDevice
+        default:
+            // join_request*, relationship_ended — gated by master push only.
+            return true
+        }
+    }
+
+    /// Foreground APNs presentation — honors push / category / sound prefs.
+    func presentationOptions(
+        for userInfo: [AnyHashable: Any],
+        suppressBannerBecauseDedupe: Bool
+    ) -> UNNotificationPresentationOptions {
+        let flat = Self.flatten(userInfo)
+        let type = flat["type"] ?? (userInfo["type"] as? String)
+
+        if suppressBannerBecauseDedupe {
+            return preferences.push ? [.badge] : []
+        }
+        guard shouldPresentOSBanner(forType: type) else {
+            return preferences.push ? [.badge] : []
+        }
+        var opts: UNNotificationPresentationOptions = [.banner, .badge]
+        if preferences.sound {
+            opts.insert(.sound)
+        }
+        if #available(iOS 14.0, *) {
+            opts.insert(.list)
+        }
+        return opts
+    }
+
+    /// Background / noisy call alerts require both master push and chatCalls.
+    var allowsBackgroundCallAlerts: Bool {
+        preferences.push && preferences.chatCalls
+    }
+
     // MARK: Push token
 
     func handleDeviceToken(_ deviceToken: Data) {
         let hex = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         guard hex.count >= 8 else { return }
         deviceTokenHex = hex
+        guard preferences.push else { return }
         Task { await registerTokenWithBackend(hex) }
     }
 
     func registerTokenWithBackend(_ token: String) async {
         guard TokenStore.accessToken() != nil else { return }
+        guard preferences.push else { return }
         do {
             _ = try await api.registerPushToken(token: token)
         } catch {
@@ -374,15 +446,27 @@ final class NotificationStore {
     func unregisterCurrentToken() async {
         guard let token = deviceTokenHex else { return }
         try? await api.deletePushToken(token)
+        await MainActor.run {
+            UIApplication.shared.unregisterForRemoteNotifications()
+        }
     }
 
     func requestAuthorizationAndRegister() async {
         let center = UNUserNotificationCenter.current()
-        _ = try? await center.requestAuthorization(options: [.alert, .badge, .sound])
+        var options: UNAuthorizationOptions = [.alert, .badge]
+        if preferences.sound {
+            options.insert(.sound)
+        }
+        _ = try? await center.requestAuthorization(options: options)
 
         // Remote APNs only when Push capability / remote-notification background mode is present.
         // Foreground inbox still updates via socket keepalive (above).
-        guard Self.isRemotePushRegistrationEnabled else { return }
+        guard Self.isRemotePushRegistrationEnabled else {
+            #if DEBUG
+            print("[TacTech] Push prefs saved; APNs registration skipped (no Push capability / remote-notification).")
+            #endif
+            return
+        }
 
         await MainActor.run {
             UIApplication.shared.registerForRemoteNotifications()
@@ -391,7 +475,7 @@ final class NotificationStore {
 
     /// Safe default: off until Push entitlement / `remote-notification` background mode exists.
     /// Override for QA: `UserDefaults.standard.set(true, forKey: "tt.forceRemotePushRegistration")`.
-    private static var isRemotePushRegistrationEnabled: Bool {
+    static var isRemotePushRegistrationEnabled: Bool {
         #if DEBUG
         if UserDefaults.standard.bool(forKey: "tt.forceRemotePushRegistration") {
             return true
@@ -418,7 +502,11 @@ final class NotificationStore {
                 return true
             }
             if let sid = flat["sessionId"] { seenSessionIds.insert(sid) }
-            NotificationCenter.default.post(name: .ttIncomingCallPush, object: nil, userInfo: flat)
+            // Background / noisy call path requires chatCalls (+ push for OS banners).
+            // Foreground Socket ring is independent (HumanCallStore).
+            if fromUserTap || allowsBackgroundCallAlerts {
+                NotificationCenter.default.post(name: .ttIncomingCallPush, object: nil, userInfo: flat)
+            }
             return true
         }
 
@@ -515,13 +603,23 @@ final class NotificationStore {
 
     private func prependOrAppend(_ incoming: [AppNotificationDTO], prepend: Bool) {
         var seen = Set(items.map(\.id))
-        let fresh = incoming.filter { seen.insert($0.id).inserted }
+        let fresh = incoming
+            .filter { Self.shouldKeepInInbox($0, preferences: preferences) }
+            .filter { seen.insert($0.id).inserted }
         if prepend {
             items.insert(contentsOf: fresh, at: 0)
         } else {
             items.append(contentsOf: fresh)
         }
         rememberDedupeKeys(from: fresh)
+    }
+
+    /// Offers can be hidden entirely when `offersDevice` is off; other types stay in inbox history.
+    private static func shouldKeepInInbox(
+        _ note: AppNotificationDTO,
+        preferences: NotificationPreferencesDTO
+    ) -> Bool {
+        note.type.lowercased() != "offers" || preferences.offersDevice
     }
 
     private func rememberDedupeKeys(from list: [AppNotificationDTO]) {
@@ -544,8 +642,35 @@ final class NotificationStore {
         d.set(preferences.sound, forKey: "notifications.sound")
         d.set(preferences.appUpdate, forKey: "notifications.appUpdate")
         d.set(preferences.resources, forKey: "notifications.resources")
+        d.set(preferences.offersDevice, forKey: "notifications.offersDevice")
         d.set(preferences.chatMessages, forKey: "notifications.chatMessages")
         d.set(preferences.chatCalls, forKey: "notifications.chatCalls")
+    }
+
+    /// Cold start / pre-network — all 10 bools from AppStorage (defaults match DTO).
+    private func hydratePreferencesFromAppStorage() {
+        let d = UserDefaults.standard
+        let defaults = NotificationPreferencesDTO()
+        func bool(_ key: String, fallback: Bool) -> Bool {
+            if d.object(forKey: key) == nil { return fallback }
+            // Legacy `offersDevice` was sometimes a device-name String — treat non-bool as false.
+            if key == "notifications.offersDevice", d.object(forKey: key) is String {
+                return false
+            }
+            return d.bool(forKey: key)
+        }
+        preferences = NotificationPreferencesDTO(
+            push: bool("notifications.push", fallback: defaults.push),
+            aiCoach: bool("notifications.aiCoach", fallback: defaults.aiCoach),
+            metrics: bool("notifications.metrics", fallback: defaults.metrics),
+            vibrations: bool("notifications.vibrations", fallback: defaults.vibrations),
+            sound: bool("notifications.sound", fallback: defaults.sound),
+            appUpdate: bool("notifications.appUpdate", fallback: defaults.appUpdate),
+            resources: bool("notifications.resources", fallback: defaults.resources),
+            offersDevice: bool("notifications.offersDevice", fallback: defaults.offersDevice),
+            chatMessages: bool("notifications.chatMessages", fallback: defaults.chatMessages),
+            chatCalls: bool("notifications.chatCalls", fallback: defaults.chatCalls)
+        )
     }
 
     static func flatten(_ userInfo: [AnyHashable: Any]) -> [String: String] {

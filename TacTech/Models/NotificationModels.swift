@@ -94,6 +94,51 @@ struct NotificationPreferencesDTO: Codable, Equatable {
     var offersDevice: Bool = false
     var chatMessages: Bool = true
     var chatCalls: Bool = true
+
+    enum CodingKeys: String, CodingKey {
+        case push, aiCoach, metrics, vibrations, sound
+        case appUpdate, resources, offersDevice, chatMessages, chatCalls
+    }
+
+    init(
+        push: Bool = true,
+        aiCoach: Bool = false,
+        metrics: Bool = true,
+        vibrations: Bool = false,
+        sound: Bool = true,
+        appUpdate: Bool = true,
+        resources: Bool = false,
+        offersDevice: Bool = false,
+        chatMessages: Bool = true,
+        chatCalls: Bool = true
+    ) {
+        self.push = push
+        self.aiCoach = aiCoach
+        self.metrics = metrics
+        self.vibrations = vibrations
+        self.sound = sound
+        self.appUpdate = appUpdate
+        self.resources = resources
+        self.offersDevice = offersDevice
+        self.chatMessages = chatMessages
+        self.chatCalls = chatCalls
+    }
+
+    /// Missing keys use defaults (never drop a field / never fail-open).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let defaults = NotificationPreferencesDTO()
+        push = (try? c.decodeIfPresent(Bool.self, forKey: .push)) ?? defaults.push
+        aiCoach = (try? c.decodeIfPresent(Bool.self, forKey: .aiCoach)) ?? defaults.aiCoach
+        metrics = (try? c.decodeIfPresent(Bool.self, forKey: .metrics)) ?? defaults.metrics
+        vibrations = (try? c.decodeIfPresent(Bool.self, forKey: .vibrations)) ?? defaults.vibrations
+        sound = (try? c.decodeIfPresent(Bool.self, forKey: .sound)) ?? defaults.sound
+        appUpdate = (try? c.decodeIfPresent(Bool.self, forKey: .appUpdate)) ?? defaults.appUpdate
+        resources = (try? c.decodeIfPresent(Bool.self, forKey: .resources)) ?? defaults.resources
+        offersDevice = (try? c.decodeIfPresent(Bool.self, forKey: .offersDevice)) ?? defaults.offersDevice
+        chatMessages = (try? c.decodeIfPresent(Bool.self, forKey: .chatMessages)) ?? defaults.chatMessages
+        chatCalls = (try? c.decodeIfPresent(Bool.self, forKey: .chatCalls)) ?? defaults.chatCalls
+    }
 }
 
 struct PushTokenRegisterRequest: Encodable {

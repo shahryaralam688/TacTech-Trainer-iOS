@@ -82,7 +82,7 @@ struct TraineeProfileView: View {
                 myTrainerSection
             }
         }
-        .ttToast($toast, bottomInset: 28)
+        .ttToast($toast)
         .sheet(isPresented: $showFindCoaches) {
             FindCoachesView()
                 .ttModalSheetPresentation(dragIndicator: .hidden)

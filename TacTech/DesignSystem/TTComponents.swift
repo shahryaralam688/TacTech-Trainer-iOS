@@ -890,10 +890,13 @@ extension TTToastStyle {
 
 extension View {
     /// Shows a floating toast overlay. Pass `nil` to hide; auto-clears after `duration`.
+    ///
+    /// Automatically sits **above** the floating root tab bar via `ttRootTabBarClearance`
+    /// (Material snackbar / above-bottom-nav standard). `bottomInset` is extra gap above that chrome.
     func ttToast(
         _ message: Binding<TTToastMessage?>,
         duration: TimeInterval = 1.8,
-        bottomInset: CGFloat = 24
+        bottomInset: CGFloat = 16
     ) -> some View {
         modifier(TTToastModifier(message: message, duration: duration, bottomInset: bottomInset))
     }
@@ -905,6 +908,12 @@ private struct TTToastModifier: ViewModifier {
     let bottomInset: CGFloat
     @State private var dismissTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ttRootTabBarClearance) private var tabBarClearance
+
+    /// Gap above tab bar (or screen bottom when chrome is hidden).
+    private var resolvedBottomInset: CGFloat {
+        bottomInset + max(tabBarClearance, 0)
+    }
 
     func body(content: Content) -> some View {
         content
@@ -913,7 +922,7 @@ private struct TTToastModifier: ViewModifier {
                     TTToastBanner(message: message) {
                         dismissToast()
                     }
-                    .padding(.bottom, bottomInset)
+                    .padding(.bottom, resolvedBottomInset)
                     .transition(
                         reduceMotion
                             ? .opacity
@@ -996,7 +1005,7 @@ extension View {
     func ttAssignSuccessChrome(
         toast: Binding<TTToastMessage?>,
         celebrate: Binding<Bool>,
-        bottomInset: CGFloat = 28
+        bottomInset: CGFloat = 16
     ) -> some View {
         modifier(
             TTAssignSuccessChromeModifier(

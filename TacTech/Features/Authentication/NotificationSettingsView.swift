@@ -111,7 +111,8 @@ struct NotificationSettingsView: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .ttToast($toast, bottomInset: max(tabBarClearance, 16) + 16)
+        // Tab-bar clearance is applied inside `ttToast` via `ttRootTabBarClearance`.
+        .ttToast($toast, bottomInset: 16)
         .task { await hydrateFromServer() }
     }
 

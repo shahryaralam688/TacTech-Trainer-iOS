@@ -41,7 +41,7 @@ struct JoinRequestsView: View {
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
-        .ttToast($toast, bottomInset: 28)
+        .ttToast($toast)
         .task {
             await store.fetchTrainerJoinRequests()
         }

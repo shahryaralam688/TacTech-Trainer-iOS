@@ -7,10 +7,13 @@ struct TraineeProfileView: View {
     var showsBack: Bool = false
 
     @State private var invite = ""
+    @State private var joinMessage = ""
     @State private var message: String?
     @State private var showFindCoaches = false
     @State private var toast: TTToastMessage?
-    @State private var isLinking = false
+    @State private var isSendingRequest = false
+    @State private var cancelConfirm = false
+    @State private var isCancelling = false
 
     private var initials: String {
         let parts = (store.currentUser?.name ?? "A").split(separator: " ")
@@ -22,9 +25,13 @@ struct TraineeProfileView: View {
         return Int(store.dailyMacros(for: trainee.id, on: Date()).calories)
     }
 
-    private var hasLinkedTrainer: Bool {
+    private var hasActiveLink: Bool {
         guard let trainee = store.currentTrainee else { return false }
         return store.trainer(for: trainee) != nil
+    }
+
+    private var pending: JoinRequestDTO? {
+        store.pendingJoinRequest?.isPending == true ? store.pendingJoinRequest : nil
     }
 
     private var metrics: [TTProfileMetric] {
@@ -72,16 +79,64 @@ struct TraineeProfileView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 findCoachesCard
-                MyTrainerCard(toast: $toast)
-                if !hasLinkedTrainer {
-                    joinCard
-                }
+                myTrainerSection
             }
         }
         .ttToast($toast, bottomInset: 28)
         .sheet(isPresented: $showFindCoaches) {
             FindCoachesView()
                 .ttModalSheetPresentation(dragIndicator: .hidden)
+        }
+        .task {
+            await store.refreshTraineeJoinState()
+        }
+        .refreshable {
+            await store.refreshTraineeJoinState()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+            let type = (note.userInfo?["type"] as? String) ?? ""
+            Task { @MainActor in
+                await store.handleJoinRequestRealtime(type: type)
+                let lower = type.lowercased()
+                if lower == "join_request_accepted" {
+                    let linkedName = store.currentTrainee
+                        .flatMap { store.trainer(for: $0) }
+                        .flatMap { store.user(forTrainer: $0)?.name }
+                        ?? "your trainer"
+                    toast = TTToastMessage(text: "You’re linked with \(linkedName)", style: .success)
+                } else if lower == "join_request_rejected" {
+                    toast = TTToastMessage(text: "Request declined", style: .error)
+                }
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
+            // Profile tab / sheet already here when opened from inbox.
+            Task { await store.refreshTraineeJoinState() }
+        }
+        .confirmationDialog(
+            "Cancel this request?",
+            isPresented: $cancelConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Cancel request", role: .destructive) {
+                guard !isCancelling else { return }
+                Task { @MainActor in await cancelPending() }
+            }
+            .disabled(isCancelling)
+            Button("Keep waiting", role: .cancel) {}
+        } message: {
+            Text("You can send a new request with the same invite code later.")
+        }
+    }
+
+    @ViewBuilder
+    private var myTrainerSection: some View {
+        if hasActiveLink {
+            MyTrainerCard(toast: $toast)
+        } else if let pending {
+            pendingCard(pending)
+        } else {
+            joinRequestCard
         }
     }
 
@@ -116,41 +171,109 @@ struct TraineeProfileView: View {
         .buttonStyle(.plain)
     }
 
-    private var joinCard: some View {
+    private var joinRequestCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Join a trainer")
+            Text("Request to join a trainer")
                 .font(TTFont.heading(16))
             TTTextField(title: "Invite code", icon: "link", text: $invite)
+            TTTextField(title: "Message (optional)", icon: "text.bubble", text: $joinMessage)
             if let message {
                 Text(message)
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkMuted)
             }
-            TTButton(title: isLinking ? "Linking…" : "Link trainer", style: .secondary) {
-                Task { await linkTrainer() }
+            TTButton(title: isSendingRequest ? "Sending…" : "Send request", style: .secondary) {
+                Task { await sendRequest() }
             }
-            .disabled(isLinking || invite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(isSendingRequest || invite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(16)
         .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
+    private func pendingCard(_ request: JoinRequestDTO) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("My Trainer")
+                .font(TTFont.heading(16))
+            HStack(spacing: 12) {
+                TTAvatar(name: request.trainer?.name ?? "Trainer", size: 54)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(request.trainer?.name ?? "Trainer")
+                        .font(TTFont.heading(16))
+                    Text("Pending approval")
+                        .font(TTFont.caption(12))
+                        .fontWeight(.bold)
+                        .foregroundStyle(TTColor.actionOrange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(TTColor.actionOrange.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+                Spacer(minLength: 0)
+            }
+            if let note = request.message, !note.isEmpty {
+                Text(note)
+                    .font(TTFont.body(13))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+            Button {
+                cancelConfirm = true
+            } label: {
+                HStack(spacing: 8) {
+                    if isCancelling {
+                        ProgressView()
+                    } else {
+                        Text("Cancel request")
+                            .font(TTFont.workSans(14, weight: .bold))
+                    }
+                }
+                .foregroundStyle(TTColor.danger)
+                .frame(maxWidth: .infinity)
+                .frame(height: 42)
+                .background(TTColor.danger.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isCancelling)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
     @MainActor
-    private func linkTrainer() async {
+    private func sendRequest() async {
         let code = invite.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !code.isEmpty else { return }
-        isLinking = true
-        defer { isLinking = false }
+        isSendingRequest = true
+        defer { isSendingRequest = false }
         do {
-            try await store.linkTrainee(toInviteCode: code)
-            message = "Trainer linked."
+            _ = try await store.createJoinRequest(inviteCode: code, message: joinMessage)
+            message = nil
             invite = ""
-            toast = TTToastMessage(text: "Trainer linked", style: .success)
+            joinMessage = ""
+            toast = TTToastMessage(text: "Request sent — waiting for approval", style: .success)
         } catch {
-            // 409 conflict (already linked) surfaces server `detail`.
-            message = error.localizedDescription
-            toast = TTToastMessage(text: error.localizedDescription, style: .error)
+            let detail = (error as? AppError)?.errorDescription ?? error.localizedDescription
+            message = detail
+            toast = TTToastMessage(text: detail, style: .error)
+        }
+    }
+
+    @MainActor
+    private func cancelPending() async {
+        guard let id = pending?.id else { return }
+        guard !isCancelling else { return }
+        isCancelling = true
+        defer { isCancelling = false }
+        do {
+            try await store.cancelJoinRequest(id: id)
+            toast = TTToastMessage(text: "Request cancelled", style: .success)
+        } catch {
+            let detail = (error as? AppError)?.errorDescription ?? error.localizedDescription
+            toast = TTToastMessage(text: detail, style: .error)
         }
     }
 }
@@ -180,7 +303,7 @@ struct MyTrainerCard: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(linked.user.name)
                             .font(TTFont.heading(16))
-                        Text(linked.trainer.specialty)
+                        Text(linked.trainer.specialty.isEmpty ? "Linked coach" : linked.trainer.specialty)
                             .font(TTFont.body(13))
                             .foregroundStyle(TTColor.inkMuted)
                     }
@@ -209,7 +332,7 @@ struct MyTrainerCard: View {
                 .disabled(isLeaving)
                 .accessibilityLabel("Leave trainer")
             } else {
-                Text("No trainer linked yet. Use an invite code below.")
+                Text("No trainer linked yet.")
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
             }

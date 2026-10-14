@@ -268,7 +268,7 @@ struct RoleSelectionView: View {
                 .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(orange)
                 .padding(.top, 1)
-            Text("Suggestion: use invite code TACT-MAYA to join the demo trainer.")
+            Text("Suggestion: use invite code TACT-MAYA to request to join the demo trainer.")
                 .font(TTFont.workSans(13, weight: .medium))
                 .foregroundStyle(ink.opacity(0.72))
                 .fixedSize(horizontal: false, vertical: true)
@@ -282,7 +282,7 @@ struct RoleSelectionView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(orange.opacity(0.18), lineWidth: 1)
         )
-        .accessibilityLabel("Suggestion: use invite code TACT-MAYA to join the demo trainer.")
+        .accessibilityLabel("Suggestion: use invite code TACT-MAYA to request to join the demo trainer.")
     }
 
     // MARK: - Role cards
@@ -356,7 +356,7 @@ struct RoleSelectionView: View {
                     .scaleEffect(inviteFocused ? 1.015 : 1)
                     .animation(fieldSpring, value: inviteFocused)
 
-                    Text("Paste your trainer’s code here, or use TACT-MAYA for the demo.")
+                    Text("Paste your trainer’s code to request to join, or use TACT-MAYA for the demo.")
                         .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(muted)
                 }

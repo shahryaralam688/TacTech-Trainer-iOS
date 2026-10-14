@@ -36,6 +36,13 @@ struct MyTraineesView: View {
                                 inviteBanner(code: code)
                             }
 
+                            NavigationLink {
+                                JoinRequestsView()
+                            } label: {
+                                joinRequestsEntry
+                            }
+                            .buttonStyle(.plain)
+
                             TTSearchEntryPill(
                                 placeholder: TTSearchCopy.trainees.pillPlaceholder,
                                 query: displayQuery,
@@ -77,7 +84,66 @@ struct MyTraineesView: View {
                 namespace: searchNS,
                 onOutcome: handleSearchOutcome
             )
+            .task {
+                await store.fetchTrainerJoinRequests()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+                let type = (note.userInfo?["type"] as? String) ?? ""
+                Task { await store.handleJoinRequestRealtime(type: type) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttOpenJoinRequests)) { _ in
+                // Navigation is available from this tab; dashboard may also present sheet.
+            }
         }
+    }
+
+    private var pendingRequestCount: Int {
+        store.trainerJoinRequests.filter(\.isPending).count
+    }
+
+    private var joinRequestsEntry: some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(TTColor.actionOrange.opacity(0.12))
+                Image(systemName: "person.badge.clock.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+            }
+            .frame(width: 44, height: 44)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Requests")
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Text(
+                    pendingRequestCount == 0
+                        ? "No pending join requests"
+                        : "\(pendingRequestCount) waiting for approval"
+                )
+                .font(TTFont.caption(12))
+                .foregroundStyle(TTColor.inkMuted)
+            }
+
+            Spacer(minLength: 8)
+
+            if pendingRequestCount > 0 {
+                Text("\(pendingRequestCount)")
+                    .font(TTFont.caption(12))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(TTColor.actionOrange)
+                    .clipShape(Capsule())
+            }
+
+            TTIcon(icon: .chevronRight, size: 14)
+                .foregroundStyle(TTColor.inkSubtle)
+        }
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var allTrainees: [TraineeProfile] {

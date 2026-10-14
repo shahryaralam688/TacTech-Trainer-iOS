@@ -58,6 +58,12 @@ enum TTAlertTone: Equatable {
             return .warning
         case "chat", "message":
             return .info
+        case "join_request":
+            return .warning
+        case "join_request_accepted":
+            return .success
+        case "join_request_rejected", "join_request_cancelled":
+            return .error
         case "error", "failure", "permission":
             return .error
         case "success", "completed":

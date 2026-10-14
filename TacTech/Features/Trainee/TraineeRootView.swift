@@ -5,6 +5,7 @@ enum TraineeTab: Hashable {
 }
 
 struct TraineeRootView: View {
+    @Environment(AppStore.self) private var store
     @State private var tab: TraineeTab = .home
     @State private var mounted: Set<TraineeTab> = [.home]
     @State private var showAIChat = false
@@ -126,6 +127,20 @@ struct TraineeRootView: View {
             pendingChatThreadId = note.userInfo?["threadId"] as? String
             TTKeyboard.dismiss()
             showCoachChat = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfile)) { _ in
+            mounted.insert(.profile)
+            tab = .profile
+            Task { await store.handleJoinRequestRealtime(type: "join_request_accepted") }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
+            mounted.insert(.profile)
+            tab = .profile
+            Task { await store.handleJoinRequestRealtime(type: "join_request_rejected") }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+            let type = (note.userInfo?["type"] as? String) ?? ""
+            Task { await store.handleJoinRequestRealtime(type: type) }
         }
         .onChange(of: showCoachChat) { _, open in
             if !open { pendingChatThreadId = nil }

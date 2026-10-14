@@ -6,6 +6,7 @@ struct TrainerDashboardView: View {
     @State private var selectedDay = Date()
     @State private var showProfile = false
     @State private var showNotifications = false
+    @State private var showJoinRequests = false
     @State private var copiedInvite = false
     @State private var celebrateInvite = false
     @State private var celebrateClearQueue = false
@@ -37,16 +38,20 @@ struct TrainerDashboardView: View {
                                 .ttHomeCardMorph()
                             todayQueue
                                 .ttHomeAppear(index: 1)
+                            if store.trainerJoinRequests.contains(where: \.isPending) {
+                                joinRequestsCard
+                                    .ttHomeAppear(index: 2)
+                            }
                             coachingMetrics
-                                .ttHomeAppear(index: 2)
-                            discoveryInsightsStrip
                                 .ttHomeAppear(index: 3)
-                            rosterSpotlight
+                            discoveryInsightsStrip
                                 .ttHomeAppear(index: 4)
-                            coachShortcuts
+                            rosterSpotlight
                                 .ttHomeAppear(index: 5)
-                            recentForm
+                            coachShortcuts
                                 .ttHomeAppear(index: 6)
+                            recentForm
+                                .ttHomeAppear(index: 7)
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -70,7 +75,58 @@ struct TrainerDashboardView: View {
                 NotificationsInboxView()
                     .ttModalSheetPresentation()
             }
+            .sheet(isPresented: $showJoinRequests) {
+                JoinRequestsView()
+                    .ttModalSheetPresentation()
+            }
+            .task {
+                await store.fetchTrainerJoinRequests()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+                let type = (note.userInfo?["type"] as? String) ?? ""
+                Task { await store.handleJoinRequestRealtime(type: type) }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .ttOpenJoinRequests)) { _ in
+                showJoinRequests = true
+            }
         }
+    }
+
+    private var joinRequestsCard: some View {
+        let count = store.trainerJoinRequests.filter(\.isPending).count
+        return Button {
+            showJoinRequests = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.badge.clock.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(orange)
+                    .frame(width: 40, height: 40)
+                    .background(orange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Join requests")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(.black)
+                    Text("\(count) waiting for approval")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(Color(white: 0.45))
+                }
+                Spacer()
+                Text("\(count)")
+                    .font(TTFont.caption(12))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(orange)
+                    .clipShape(Capsule())
+            }
+            .padding(14)
+            .background(Color(white: 0.96))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
     }
 
     private var discoveryInsightsStrip: some View {

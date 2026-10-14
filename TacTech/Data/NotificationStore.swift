@@ -78,6 +78,13 @@ final class NotificationStore {
                     for (k, v) in note.data { info[k] = v }
                     _ = self.handleUserInfo(info, fromUserTap: false)
                 }
+                if note.type.lowercased().hasPrefix("join_request") {
+                    NotificationCenter.default.post(
+                        name: .ttJoinRequestRealtime,
+                        object: nil,
+                        userInfo: ["type": note.type]
+                    )
+                }
             }
         }
         realtime.connect()
@@ -366,7 +373,7 @@ final class NotificationStore {
 
     func openNotification(_ note: AppNotificationDTO) {
         Task { await markRead(note) }
-        switch note.type {
+        switch note.type.lowercased() {
         case "chat_call":
             var info: [AnyHashable: Any] = ["type": "chat_call"]
             for (k, v) in note.data { info[k] = v }
@@ -376,6 +383,12 @@ final class NotificationStore {
             var info: [AnyHashable: Any] = ["threadId": threadId]
             if let mid = note.messageId { info["messageId"] = mid }
             NotificationCenter.default.post(name: .ttOpenHumanChat, object: nil, userInfo: info)
+        case "join_request":
+            NotificationCenter.default.post(name: .ttOpenJoinRequests, object: nil)
+        case "join_request_accepted":
+            NotificationCenter.default.post(name: .ttOpenTraineeProfile, object: nil)
+        case "join_request_rejected":
+            NotificationCenter.default.post(name: .ttOpenTraineeProfileJoin, object: nil)
         default:
             break
         }
@@ -446,6 +459,14 @@ final class NotificationStore {
 extension Notification.Name {
     /// Open human chat for `threadId` (and optional `messageId`).
     static let ttOpenHumanChat = Notification.Name("ttOpenHumanChat")
+    /// Trainer: open Join Requests list.
+    static let ttOpenJoinRequests = Notification.Name("ttOpenJoinRequests")
+    /// Trainee: open Profile (My Trainer after accept).
+    static let ttOpenTraineeProfile = Notification.Name("ttOpenTraineeProfile")
+    /// Trainee: open Profile join card (after reject).
+    static let ttOpenTraineeProfileJoin = Notification.Name("ttOpenTraineeProfileJoin")
+    /// Socket / inbox: `join_request*` — refresh join lists / My Trainer.
+    static let ttJoinRequestRealtime = Notification.Name("ttJoinRequestRealtime")
     /// Boost checkout finished successfully (confirm + refresh done).
     static let ttBoostCheckoutSucceeded = Notification.Name("ttBoostCheckoutSucceeded")
     /// Boost checkout canceled by user / cancel deep link.

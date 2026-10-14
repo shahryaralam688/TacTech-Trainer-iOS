@@ -337,6 +337,54 @@ struct LinkTrainerBody: Encodable {
     var inviteCode: String
 }
 
+// MARK: - Join requests (invite → pending → accept/reject)
+
+struct JoinRequestTrainerSummary: Codable, Hashable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
+}
+
+struct JoinRequestTraineeSummary: Codable, Hashable {
+    let id: String
+    let name: String
+    let avatarUrl: String?
+    let email: String?
+}
+
+struct JoinRequestDTO: Codable, Identifiable, Hashable {
+    let id: String
+    let status: String // pending | accepted | rejected | cancelled
+    let inviteCode: String
+    let message: String?
+    let createdAt: String
+    let updatedAt: String?
+    let trainer: JoinRequestTrainerSummary?
+    let trainee: JoinRequestTraineeSummary?
+
+    var isPending: Bool { status.lowercased() == "pending" }
+}
+
+struct ActiveTrainerLinkDTO: Codable, Hashable {
+    let trainerId: String
+    let trainer: JoinRequestTrainerSummary
+    let linkedAt: String?
+}
+
+struct TraineeJoinStateDTO: Codable {
+    let activeLink: ActiveTrainerLinkDTO?
+    let pendingRequest: JoinRequestDTO?
+}
+
+struct CreateJoinRequestBody: Encodable {
+    let inviteCode: String
+    let message: String?
+}
+
+struct RejectJoinRequestBody: Encodable {
+    let reason: String?
+}
+
 struct AssignPlanBody: Encodable {
     var planId: String
     var traineeId: String
@@ -637,6 +685,36 @@ actor APIClient {
 
     func linkTrainer(inviteCode: String) async throws {
         try await sendVoid(path: "/trainee/link", method: .post, body: LinkTrainerBody(inviteCode: inviteCode))
+    }
+
+    /// Trainee creates a join request (pending until trainer accepts). Prefer over instant `/trainee/link`.
+    func createJoinRequest(_ body: CreateJoinRequestBody) async throws -> JoinRequestDTO {
+        try await send(path: "/trainee/join-requests", method: .post, body: body)
+    }
+
+    func traineeJoinState() async throws -> TraineeJoinStateDTO {
+        try await send(path: "/trainee/join-requests/mine", method: .get)
+    }
+
+    func cancelJoinRequest(id: String) async throws -> JoinRequestDTO {
+        try await send(path: "/trainee/join-requests/\(id)/cancel", method: .post, body: EmptyBody())
+    }
+
+    func trainerJoinRequests(status: String = "pending") async throws -> [JoinRequestDTO] {
+        let encoded = status.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? status
+        return try await sendArray("/trainer/join-requests?status=\(encoded)")
+    }
+
+    func acceptJoinRequest(id: String) async throws {
+        try await sendVoid(path: "/trainer/join-requests/\(id)/accept", method: .post, body: EmptyBody())
+    }
+
+    func rejectJoinRequest(id: String, reason: String? = nil) async throws {
+        try await sendVoid(
+            path: "/trainer/join-requests/\(id)/reject",
+            method: .post,
+            body: RejectJoinRequestBody(reason: reason)
+        )
     }
 
     /// Trainee leaves their linked trainer (relationship ends; assigned plan cleared server-side).

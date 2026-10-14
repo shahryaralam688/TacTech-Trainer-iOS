@@ -28,6 +28,10 @@ final class AppStore {
     var isBootstrappingSession = false
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
+    /// Trainee: pending join request (invite awaiting trainer approval).
+    var pendingJoinRequest: JoinRequestDTO?
+    /// Trainer: pending join requests for the Requests inbox.
+    var trainerJoinRequests: [JoinRequestDTO] = []
     /// Live analytics keyed by traineeId (`GET …/analytics`).
     var traineeAnalyticsById: [String: TraineeAnalytics] = [:]
     /// Marketplace entitlements — Phase 1 cache only; do **not** gate AI chat on launch.
@@ -595,10 +599,124 @@ final class AppStore {
         )
     }
 
+    /// Legacy instant link — prefer `createJoinRequest` for Profile join UX.
     func linkTrainee(toInviteCode code: String) async throws {
-        guard currentTrainee != nil else { throw AppError.validation("Only trainees can join a trainer.") }
-        try await api.linkTrainer(inviteCode: code)
-        try await refreshSession()
+        _ = try await createJoinRequest(inviteCode: code, message: nil)
+    }
+
+    /// Trainee sends a join request (pending until Accept).
+    @discardableResult
+    func createJoinRequest(inviteCode: String, message: String?) async throws -> JoinRequestDTO {
+        guard currentTrainee != nil else { throw AppError.validation("Only trainees can request to join a trainer.") }
+        let code = inviteCode.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { throw AppError.validation("Enter an invite code.") }
+        let trimmedMessage = message?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let body = CreateJoinRequestBody(
+            inviteCode: code,
+            message: (trimmedMessage?.isEmpty == false) ? trimmedMessage : nil
+        )
+        let created = try await api.createJoinRequest(body)
+        pendingJoinRequest = created
+        await refreshTraineeJoinState()
+        return pendingJoinRequest ?? created
+    }
+
+    func refreshTraineeJoinState() async {
+        guard session?.role == .trainee else { return }
+        do {
+            let state = try await api.traineeJoinState()
+            pendingJoinRequest = state.pendingRequest
+            if let link = state.activeLink {
+                applyActiveTrainerLink(link)
+            } else if state.pendingRequest == nil, currentTrainee?.trainerId != nil {
+                // No active link and no pending — keep trainerId unless /trainee/trainer also says none
+                // (reconcile happens via loadTraineeWorkspace / unlink).
+            }
+        } catch {
+            #if DEBUG
+            print("[TacTech] refreshTraineeJoinState failed: \(error.localizedDescription)")
+            #endif
+        }
+    }
+
+    func cancelJoinRequest(id: String) async throws {
+        let cancelled = try await api.cancelJoinRequest(id: id)
+        if cancelled.id == pendingJoinRequest?.id || cancelled.status.lowercased() == "cancelled" {
+            pendingJoinRequest = nil
+        }
+        await refreshTraineeJoinState()
+    }
+
+    func fetchTrainerJoinRequests() async {
+        guard session?.role == .trainer else { return }
+        do {
+            trainerJoinRequests = try await api.trainerJoinRequests(status: "pending")
+        } catch {
+            #if DEBUG
+            print("[TacTech] fetchTrainerJoinRequests failed: \(error.localizedDescription)")
+            #endif
+        }
+    }
+
+    func acceptJoinRequest(id: String) async throws {
+        try await api.acceptJoinRequest(id: id)
+        trainerJoinRequests.removeAll { $0.id == id }
+        await reloadTrainerRoster()
+        await fetchTrainerJoinRequests()
+        await NotificationStore.shared.refreshUnread()
+        await NotificationStore.shared.refreshInbox()
+    }
+
+    func rejectJoinRequest(id: String, reason: String? = nil) async throws {
+        try await api.rejectJoinRequest(id: id, reason: reason)
+        trainerJoinRequests.removeAll { $0.id == id }
+        await fetchTrainerJoinRequests()
+        await NotificationStore.shared.refreshUnread()
+    }
+
+    /// Socket / inbox: refresh join-related state for the current role.
+    func handleJoinRequestRealtime(type: String) async {
+        let t = type.lowercased()
+        if session?.role == .trainer, t == "join_request" {
+            await fetchTrainerJoinRequests()
+            await NotificationStore.shared.refreshUnread()
+        } else if session?.role == .trainee {
+            if t == "join_request_accepted" {
+                await refreshTraineeJoinState()
+                try? await refreshSession()
+                await refreshAssignedPlanForCurrentTrainee()
+            } else if t == "join_request_rejected" || t == "join_request_cancelled" {
+                pendingJoinRequest = nil
+                await refreshTraineeJoinState()
+            }
+        }
+    }
+
+    private func applyActiveTrainerLink(_ link: ActiveTrainerLinkDTO) {
+        guard var trainee = currentTrainee else { return }
+        trainee.trainerId = link.trainerId
+        upsert(trainee)
+        let summary = link.trainer
+        upsert(
+            TrainerProfile(
+                id: link.trainerId,
+                userId: summary.id,
+                inviteCode: "",
+                specialty: "",
+                yearsExperience: 0,
+                bio: ""
+            )
+        )
+        upsert(
+            User(
+                id: summary.id,
+                name: summary.name,
+                email: "",
+                password: "",
+                role: .trainer,
+                createdAt: .now
+            )
+        )
     }
 
     /// Trainee leaves the linked trainer. Clears local trainer link + assigned plan cache, then refreshes `/me`.
@@ -613,15 +731,19 @@ final class AppStore {
             print("[TacTech] unlink 404 — clearing stale local trainer link")
             #endif
             clearLocalTrainerLinkForCurrentTrainee()
+            pendingJoinRequest = nil
             try await refreshSession()
             await reconcileTraineeTrainerLinkFromServer()
+            await refreshTraineeJoinState()
             return
         } catch {
             throw error
         }
         clearLocalTrainerLinkForCurrentTrainee()
+        pendingJoinRequest = nil
         try await refreshSession()
         await reconcileTraineeTrainerLinkFromServer()
+        await refreshTraineeJoinState()
     }
 
     /// Trainer removes a trainee from the roster. Updates local list; pull-to-refresh still loads server truth.
@@ -645,6 +767,7 @@ final class AppStore {
         trainees.removeAll { $0.id == traineeId }
         assignments.removeAll { $0.traineeId == traineeId }
         await reloadTrainerRoster()
+        await fetchTrainerJoinRequests()
     }
 
     @MainActor
@@ -1275,8 +1398,10 @@ final class AppStore {
         exercises = try await api.exercises()
         if session?.role == .trainer {
             try await loadTrainerWorkspace()
+            await fetchTrainerJoinRequests()
         } else {
             try await loadTraineeWorkspace()
+            await refreshTraineeJoinState()
         }
         await refreshEntitlements()
         await refreshAIEntitlements()
@@ -1861,6 +1986,8 @@ final class AppStore {
     }
 
     private func clearLocalSession() {
+        pendingJoinRequest = nil
+        trainerJoinRequests = []
         Task { await AuthTokenRefresher.shared.cancelProactiveRefresh() }
         TokenStore.clear()
         session = nil

@@ -17,6 +17,7 @@ extension EnvironmentValues {
 }
 
 struct TrainerRootView: View {
+    @Environment(AppStore.self) private var store
     @State private var tab: TrainerTab = .dashboard
     @State private var mounted: Set<TrainerTab> = [.dashboard]
     @State private var showAIChat = false
@@ -25,6 +26,7 @@ struct TrainerRootView: View {
     @State private var showAssignSheet = false
     @State private var showAssignmentsList = false
     @State private var showTraineeChat = false
+    @State private var showJoinRequests = false
     @State private var pendingChatThreadId: String?
     @State private var rootTabBarVisible = true
     @Namespace private var aiChatNamespace
@@ -154,6 +156,19 @@ struct TrainerRootView: View {
             pendingChatThreadId = note.userInfo?["threadId"] as? String
             TTKeyboard.dismiss()
             showTraineeChat = true
+        }
+        .sheet(isPresented: $showJoinRequests) {
+            JoinRequestsView()
+                .ttModalSheetPresentation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenJoinRequests)) { _ in
+            selectTab(.trainees)
+            showJoinRequests = true
+            Task { await store.fetchTrainerJoinRequests() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+            let type = (note.userInfo?["type"] as? String) ?? ""
+            Task { await store.handleJoinRequestRealtime(type: type) }
         }
         .onChange(of: showTraineeChat) { _, open in
             if !open { pendingChatThreadId = nil }

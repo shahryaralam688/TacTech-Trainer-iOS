@@ -98,6 +98,13 @@ final class NotificationStore {
                             ?? note.data["traineeId"]
                     )
                 }
+                if type == "plan_assigned" || type == "plan_unassigned" || type == "plan_updated" {
+                    Self.postPlanAssignmentChanged(
+                        action: type,
+                        planId: note.data["planId"] ?? note.data["plan_id"],
+                        planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"]
+                    )
+                }
             case let .relationshipChanged(action, reason, trainerUserId, traineeUserId, traineeProfileId):
                 Self.postRelationshipChanged(
                     action: action,
@@ -105,6 +112,12 @@ final class NotificationStore {
                     trainerUserId: trainerUserId,
                     traineeUserId: traineeUserId,
                     traineeProfileId: traineeProfileId
+                )
+            case let .planAssignmentChanged(action, planId, planTitle, _, _, _):
+                Self.postPlanAssignmentChanged(
+                    action: action,
+                    planId: planId,
+                    planTitle: planTitle
                 )
             default:
                 break
@@ -126,6 +139,17 @@ final class NotificationStore {
         if let traineeUserId, !traineeUserId.isEmpty { info["traineeUserId"] = traineeUserId }
         if let traineeProfileId, !traineeProfileId.isEmpty { info["traineeProfileId"] = traineeProfileId }
         NotificationCenter.default.post(name: .ttRelationshipChanged, object: nil, userInfo: info)
+    }
+
+    static func postPlanAssignmentChanged(
+        action: String,
+        planId: String?,
+        planTitle: String?
+    ) {
+        var info: [AnyHashable: Any] = ["action": action]
+        if let planId, !planId.isEmpty { info["planId"] = planId }
+        if let planTitle, !planTitle.isEmpty { info["planTitle"] = planTitle }
+        NotificationCenter.default.post(name: .ttPlanAssignmentChanged, object: nil, userInfo: info)
     }
 
     // MARK: Inbox
@@ -420,6 +444,18 @@ final class NotificationStore {
             return true
         }
 
+        if type == "plan_assigned" || type == "plan_unassigned" || type == "plan_updated" {
+            if fromUserTap {
+                NotificationCenter.default.post(name: .ttOpenWorkoutHub, object: nil)
+            }
+            Self.postPlanAssignmentChanged(
+                action: type ?? "plan_updated",
+                planId: flat["planId"] ?? flat["plan_id"],
+                planTitle: flat["planTitle"] ?? flat["plan_title"] ?? flat["title"]
+            )
+            return true
+        }
+
         return false
     }
 
@@ -452,6 +488,13 @@ final class NotificationStore {
                 traineeProfileId: note.data["traineeProfileId"]
                     ?? note.data["trainee_profile_id"]
                     ?? note.data["traineeId"]
+            )
+        case "plan_assigned", "plan_unassigned", "plan_updated":
+            NotificationCenter.default.post(name: .ttOpenWorkoutHub, object: nil)
+            Self.postPlanAssignmentChanged(
+                action: note.type,
+                planId: note.data["planId"] ?? note.data["plan_id"],
+                planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"]
             )
         default:
             break
@@ -535,6 +578,10 @@ extension Notification.Name {
     static let ttRelationshipChanged = Notification.Name("ttRelationshipChanged")
     /// Tap: Trainer → My Trainees; Trainee → Profile.
     static let ttOpenRelationshipEnded = Notification.Name("ttOpenRelationshipEnded")
+    /// Socket `plan.assignment.changed` / inbox `plan_*` — live assigned-plan sync.
+    static let ttPlanAssignmentChanged = Notification.Name("ttPlanAssignmentChanged")
+    /// Trainee: open Workout tab / hub.
+    static let ttOpenWorkoutHub = Notification.Name("ttOpenWorkoutHub")
     /// Boost checkout finished successfully (confirm + refresh done).
     static let ttBoostCheckoutSucceeded = Notification.Name("ttBoostCheckoutSucceeded")
     /// Boost checkout canceled by user / cancel deep link.

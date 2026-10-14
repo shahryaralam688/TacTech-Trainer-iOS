@@ -158,6 +158,18 @@ struct TraineeRootView: View {
             mounted.insert(.profile)
             tab = .profile
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
+            // Root always refreshes — Home + Workout update even if Workout tab isn’t selected.
+            store.handlePlanAssignmentChanged(
+                action: (note.userInfo?["action"] as? String) ?? "",
+                planId: note.userInfo?["planId"] as? String,
+                planTitle: note.userInfo?["planTitle"] as? String
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenWorkoutHub)) { _ in
+            mounted.insert(.workout)
+            tab = .workout
+        }
         .onChange(of: store.softToast) { _, toast in
             guard let toast else { return }
             relationshipToast = toast

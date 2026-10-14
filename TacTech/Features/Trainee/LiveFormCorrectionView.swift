@@ -34,12 +34,29 @@ struct LiveFormCorrectionView: View {
         }
         .background(charcoal.ignoresSafeArea())
         .ttHideSystemNavigationBar()
+        .overlay(alignment: .top) {
+            if let notice = store.planChangeNotice {
+                Text(notice)
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.72))
+                    .clipShape(Capsule())
+                    .padding(.top, 58)
+                    .allowsHitTesting(false)
+            }
+        }
         .onAppear {
+            store.beginTraineeSessionUI()
             if let initialExerciseId { exerciseId = initialExerciseId }
             analyzer.exerciseId = exerciseId
             analyzer.start()
         }
-        .onDisappear { analyzer.stop() }
+        .onDisappear {
+            analyzer.stop()
+            store.endTraineeSessionUI()
+        }
     }
 
     // MARK: - Top chrome

@@ -32,10 +32,15 @@ final class AppStore {
     var pendingJoinRequest: JoinRequestDTO?
     /// Trainer: pending join requests for the Requests inbox.
     var trainerJoinRequests: [JoinRequestDTO] = []
-    /// Soft banner for peer leave/remove / accept (shown from Root — works on any tab).
+    /// Soft banner for peer leave/remove / accept / plan changes (shown from Root — any tab).
     var softToast: TTToastMessage?
+    /// Non-blocking chip while Live Form / exercise detail / Form Studio is open.
+    var planChangeNotice: String?
     /// True while coalescing accept/link sync — keeps pending UI sticky (no join-form flash).
     var isSyncingCoachLink = false
+    /// Depth of trainee “in-session” UI (Live Form, exercise detail, Form Studio).
+    private(set) var traineeSessionUIDepth = 0
+    var isTraineeSessionUIActive: Bool { traineeSessionUIDepth > 0 }
     /// Live analytics keyed by traineeId (`GET …/analytics`).
     var traineeAnalyticsById: [String: TraineeAnalytics] = [:]
     /// Marketplace entitlements — Phase 1 cache only; do **not** gate AI chat on launch.
@@ -77,6 +82,10 @@ final class AppStore {
     /// Coalesce `join_request_accepted` + `relationship.changed(linked)` into one atomic sync.
     private var traineeCoachLinkSyncTask: Task<Void, Never>?
     private var traineeCoachLinkSyncGeneration = 0
+    /// Coalesce `plan.assignment.changed` + `plan_*` inbox types.
+    private var planAssignmentSyncTask: Task<Void, Never>?
+    private var pendingPlanAssignmentAction: String?
+    private var pendingPlanAssignmentTitle: String?
 
     var currentUser: User? {
         users.first { $0.id == session?.userId }
@@ -806,7 +815,7 @@ final class AppStore {
         }
     }
 
-    /// Foreground / reconnect belt: refresh join + roster without polling.
+    /// Foreground / reconnect belt: refresh join + roster + assigned plan without polling.
     @MainActor
     func reconcileRelationshipOnForeground() async {
         guard session != nil else { return }
@@ -817,8 +826,97 @@ final class AppStore {
         case .trainee:
             await refreshTraineeJoinState()
             await reconcileTraineeTrainerLinkFromServer()
+            await refreshAssignedPlanForCurrentTrainee()
         case .none:
             break
+        }
+    }
+
+    // MARK: - Live assigned plan (trainee)
+
+    @MainActor
+    func beginTraineeSessionUI() {
+        traineeSessionUIDepth += 1
+    }
+
+    @MainActor
+    func endTraineeSessionUI() {
+        traineeSessionUIDepth = max(0, traineeSessionUIDepth - 1)
+        if traineeSessionUIDepth == 0 {
+            planChangeNotice = nil
+        }
+    }
+
+    /// Socket `plan.assignment.changed` / inbox `plan_*` — fetch full plan, calm UX.
+    @MainActor
+    func handlePlanAssignmentChanged(action: String, planId: String?, planTitle: String?) {
+        guard session?.role == .trainee else { return }
+        let actionNorm = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !actionNorm.isEmpty else { return }
+        // Keep latest action/title across domain + inbox double-delivery.
+        pendingPlanAssignmentAction = Self.normalizePlanAssignmentAction(actionNorm)
+        if let planTitle, !planTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            pendingPlanAssignmentTitle = planTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        _ = planId // fetch is authoritative; id only helps logging
+        planAssignmentSyncTask?.cancel()
+        planAssignmentSyncTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            let action = self.pendingPlanAssignmentAction ?? "updated"
+            let title = self.pendingPlanAssignmentTitle
+            self.pendingPlanAssignmentAction = nil
+            self.pendingPlanAssignmentTitle = nil
+            await self.applyPlanAssignmentChanged(action: action, planTitle: title)
+        }
+    }
+
+    private static func normalizePlanAssignmentAction(_ raw: String) -> String {
+        switch raw {
+        case "plan_assigned", "assign", "assigned", "created":
+            return "assigned"
+        case "plan_unassigned", "unassign", "unassigned", "removed":
+            return "unassigned"
+        case "plan_updated", "update", "updated", "patched":
+            return "updated"
+        default:
+            return raw
+        }
+    }
+
+    @MainActor
+    private func applyPlanAssignmentChanged(action: String, planTitle: String?) async {
+        await refreshAssignedPlanForCurrentTrainee()
+
+        let title = planTitle
+            ?? currentTrainee.flatMap { assignedPlan(for: $0)?.title }
+
+        if isTraineeSessionUIActive {
+            // Refresh store quietly; don't toast or kick out of Live Form / logging.
+            switch action {
+            case "assigned":
+                planChangeNotice = "New plan ready"
+            case "unassigned":
+                planChangeNotice = "Plan removed — applies next session"
+            default:
+                planChangeNotice = "Plan updated — applies next session"
+            }
+            return
+        }
+
+        switch action {
+        case "assigned":
+            if let title, !title.isEmpty {
+                softToast = TTToastMessage(text: "New plan: \(title)", style: .success)
+            } else {
+                softToast = TTToastMessage(text: "New workout plan assigned", style: .success)
+            }
+        case "unassigned":
+            softToast = TTToastMessage(text: "Your workout plan was removed", style: .info)
+        case "updated":
+            softToast = TTToastMessage(text: "Your plan was updated", style: .info)
+        default:
+            softToast = TTToastMessage(text: "Your plan was updated", style: .info)
         }
     }
 

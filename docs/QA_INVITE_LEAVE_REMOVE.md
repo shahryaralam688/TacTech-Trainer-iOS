@@ -30,6 +30,12 @@
 3. One success toast with trainer name; no double refresh / tab jump required.
 4. Reject → pending clears → join form; “Request declined” toast.
 
+## Live assigned plan (trainee — both apps open)
+1. Idle on Home/Workout → trainer Assign → plan appears ≤2s + soft toast (no force-quit / tab switch).
+2. Mid Live Form / exercise detail → assign → session stays open; chip “New plan ready”; hub shows new plan after dismiss.
+3. Unassign → plan clears live + info toast. Plan edit → title/exercises refresh after event.
+4. Airplane → assign → foreground later → plan appears via fetch.
+
 ## Must not change
 - Chat with that peer still openable after leave/remove.
 - Boost, AI paywall, Form Studio 3D, packages, notifications — untouched.

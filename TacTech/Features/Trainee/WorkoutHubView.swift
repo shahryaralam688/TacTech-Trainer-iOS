@@ -28,6 +28,9 @@ struct WorkoutHubView: View {
                         TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
                         VStack(alignment: .leading, spacing: 14) {
+                            if let notice = store.planChangeNotice {
+                                planChangeNoticeChip(notice)
+                            }
                             if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
                                 planOverviewCard(plan)
                                 TTHomeWeekDatePicker(selected: $selectedDay, accent: orange)
@@ -45,6 +48,9 @@ struct WorkoutHubView: View {
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
                 .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+                .refreshable {
+                    await store.refreshAssignedPlanForCurrentTrainee()
+                }
             }
             .background(charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
@@ -53,6 +59,32 @@ struct WorkoutHubView: View {
                 await store.refreshAssignedPlanForCurrentTrainee()
             }
         }
+    }
+
+    private func planChangeNoticeChip(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(orange)
+            Text(text)
+                .font(TTFont.workSans(13, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button {
+                store.planChangeNotice = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(TTColor.inkSubtle)
+                    .frame(width: 28, height: 28)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     // MARK: - Header
@@ -393,6 +425,7 @@ private struct HubExerciseItem: Identifiable {
 // MARK: - Exercise detail
 
 struct ExerciseDetailView: View {
+    @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let exercise: Exercise
     let prescription: WorkoutExercise
@@ -496,6 +529,21 @@ struct ExerciseDetailView: View {
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($formStudioToast, bottomInset: 28)
+        .overlay(alignment: .top) {
+            if let notice = store.planChangeNotice {
+                Text(notice)
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(orange.opacity(0.14))
+                    .clipShape(Capsule())
+                    .padding(.top, 8)
+                    .allowsHitTesting(false)
+            }
+        }
+        .onAppear { store.beginTraineeSessionUI() }
+        .onDisappear { store.endTraineeSessionUI() }
         .fullScreenCover(isPresented: $showFormStudio) {
             if let formStudioSession {
                 FormStudioDemoView(session: formStudioSession) { message in

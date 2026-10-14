@@ -21,6 +21,15 @@ final class ChatRealtimeClient {
             traineeUserId: String?,
             traineeProfileId: String?
         )
+        /// Domain: assigned plan assign / unassign / update. Prefer over inbox for live Workout sync.
+        case planAssignmentChanged(
+            action: String,
+            planId: String?,
+            planTitle: String?,
+            trainerUserId: String?,
+            traineeUserId: String?,
+            traineeProfileId: String?
+        )
     }
 
     var onEvent: ((Event) -> Void)?
@@ -280,6 +289,18 @@ final class ChatRealtimeClient {
                 onEvent?(.relationshipChanged(
                     action: action,
                     reason: Self.stringField(dict, "reason"),
+                    trainerUserId: Self.stringField(dict, "trainerUserId", "trainer_user_id"),
+                    traineeUserId: Self.stringField(dict, "traineeUserId", "trainee_user_id"),
+                    traineeProfileId: Self.stringField(dict, "traineeProfileId", "trainee_profile_id", "traineeId")
+                ))
+            }
+        case "plan.assignment.changed":
+            if let dict = Self.unwrapEventDict(body),
+               let action = Self.stringField(dict, "action"), !action.isEmpty {
+                onEvent?(.planAssignmentChanged(
+                    action: action,
+                    planId: Self.stringField(dict, "planId", "plan_id"),
+                    planTitle: Self.stringField(dict, "planTitle", "plan_title", "title"),
                     trainerUserId: Self.stringField(dict, "trainerUserId", "trainer_user_id"),
                     traineeUserId: Self.stringField(dict, "traineeUserId", "trainee_user_id"),
                     traineeProfileId: Self.stringField(dict, "traineeProfileId", "trainee_profile_id", "traineeId")

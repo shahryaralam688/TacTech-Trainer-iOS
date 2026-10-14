@@ -101,6 +101,7 @@
 		4D5E6F708192A3B4C5D6E7F8 /* FormStudioWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6F708192A3B4C5D6E7F809 /* FormStudioWebView.swift */; };
 		6F708192A3B4C5D6E7F8091A /* FormStudioDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708192A3B4C5D6E7F8091A2B /* FormStudioDemoView.swift */; };
 		8192A3B4C5D6E7F8091A2B3C /* FormStudioExerciseMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92A3B4C5D6E7F8091A2B3C4D /* FormStudioExerciseMap.swift */; };
+		C1A0CAC5E000000000000001 /* FormStudioClipCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A0CAC5E000000000000002 /* FormStudioClipCache.swift */; };
 		ABC6168C36D83CF5F09250C0 /* CoachMessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97F31457C9C15FC0721DA2D /* CoachMessageBubble.swift */; };
 		AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4123F573755A37466D4106C0 /* WelcomeOnboardingView.swift */; };
 		B38DBEA30370C9839249DB9A /* HumanCallView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3CFDC711456575E4EA577B3 /* HumanCallView.swift */; };
@@ -209,6 +210,7 @@
 		5E6F708192A3B4C5D6E7F809 /* FormStudioWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormStudioWebView.swift; sourceTree = "<group>"; };
 		708192A3B4C5D6E7F8091A2B /* FormStudioDemoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormStudioDemoView.swift; sourceTree = "<group>"; };
 		92A3B4C5D6E7F8091A2B3C4D /* FormStudioExerciseMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormStudioExerciseMap.swift; sourceTree = "<group>"; };
+		C1A0CAC5E000000000000002 /* FormStudioClipCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormStudioClipCache.swift; sourceTree = "<group>"; };
 		8EEBD26B4101613DFF1082C3 /* TraineeProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TraineeProfileView.swift; sourceTree = "<group>"; };
 		8F77F05F705FF81BBDD6B260 /* TTHomeDelight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeDelight.swift; sourceTree = "<group>"; };
 		B1456FDE2CBD4B0BAE038892 /* TTHomeWeekDatePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTHomeWeekDatePicker.swift; sourceTree = "<group>"; };
@@ -384,6 +386,7 @@
 				AB98DFFAF7409E08AD219253 /* FoodScannerView.swift */,
 				1EFEFDE36F2A50993C0F5C6C /* LiveFormCorrectionView.swift */,
 				708192A3B4C5D6E7F8091A2B /* FormStudioDemoView.swift */,
+				C1A0CAC5E000000000000002 /* FormStudioClipCache.swift */,
 				92A3B4C5D6E7F8091A2B3C4D /* FormStudioExerciseMap.swift */,
 				5E6F708192A3B4C5D6E7F809 /* FormStudioWebView.swift */,
 				DF57A4D3FB581A78CF08C1FF /* NutritionViews.swift */,
@@ -651,6 +654,7 @@
 				3C913970C8F4C0F6D759131F /* LanguageSettingsView.swift in Sources */,
 				5BD044D3EE9241167103F017 /* LiveFormCorrectionView.swift in Sources */,
 				6F708192A3B4C5D6E7F8091A /* FormStudioDemoView.swift in Sources */,
+				C1A0CAC5E000000000000001 /* FormStudioClipCache.swift in Sources */,
 				8192A3B4C5D6E7F8091A2B3C /* FormStudioExerciseMap.swift in Sources */,
 				4D5E6F708192A3B4C5D6E7F8 /* FormStudioWebView.swift in Sources */,
 				0F5F2812267D252F6BC9A4FE /* Models.swift in Sources */,

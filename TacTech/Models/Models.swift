@@ -90,6 +90,48 @@ struct TraineeProfile: Identifiable, Codable, Hashable {
     var location: String? = nil
 }
 
+struct Form3DGuideStep: Codable, Equatable, Hashable {
+    var focus: String?
+    var title: String?
+    var detail: String?
+    var t: Double?
+}
+
+struct Form3DInfo: Codable, Equatable, Hashable {
+    var enabled: Bool
+    var clipId: String?
+    var character: String?
+    var animationUrl: String?
+    var cues: [String]?
+    var guide: [Form3DGuideStep]?
+
+    init(
+        enabled: Bool = false,
+        clipId: String? = nil,
+        character: String? = nil,
+        animationUrl: String? = nil,
+        cues: [String]? = nil,
+        guide: [Form3DGuideStep]? = nil
+    ) {
+        self.enabled = enabled
+        self.clipId = clipId
+        self.character = character
+        self.animationUrl = animationUrl
+        self.cues = cues
+        self.guide = guide
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        clipId = try c.decodeIfPresent(String.self, forKey: .clipId)
+        character = try c.decodeIfPresent(String.self, forKey: .character)
+        animationUrl = try c.decodeIfPresent(String.self, forKey: .animationUrl)
+        cues = try c.decodeIfPresent([String].self, forKey: .cues)
+        guide = try c.decodeIfPresent([Form3DGuideStep].self, forKey: .guide)
+    }
+}
+
 struct Exercise: Identifiable, Codable, Hashable {
     var id: String
     var name: String
@@ -98,6 +140,8 @@ struct Exercise: Identifiable, Codable, Hashable {
     var difficulty: String
     var cues: [String]
     var icon: String
+    /// Backend Form Studio 3D metadata. Missing → treat as disabled; use local fallback map for legacy clips.
+    var form3d: Form3DInfo? = nil
 }
 
 enum Weekday: String, Codable, CaseIterable, Identifiable {

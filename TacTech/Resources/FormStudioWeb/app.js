@@ -2,8 +2,46 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { FBXLoader } from 'three/addons/loaders/FBXLoader.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
-import { EXERCISES, getExercise } from './exercises.js';
+import { EXERCISES, getExercise as getCatalogExercise } from './exercises.js';
 import { GUIDE_VIEWS, enrichGuide } from './guide-data.js';
+
+/** Runtime overrides from native (CDN clip URL, API guide/cues, synthetic catalog rows). */
+const runtimeOverrides = new Map();
+
+function getExercise( id ) {
+
+	if ( id === 'sit_ups' ) id = 'situps';
+	return runtimeOverrides.get( id ) || getCatalogExercise( id );
+
+}
+
+function defaultRuntimeGuide() {
+
+	return [
+		{
+			focus: 'Setup',
+			title: 'Start position',
+			detail: 'Watch the coach set up the movement.',
+			t: 0.08,
+			camera: { pos: [ -1.5, 1.4, 3.0 ], target: [ 0, 1.0, 0 ] }
+		},
+		{
+			focus: 'Mid',
+			title: 'Key position',
+			detail: 'Match this shape — control the path.',
+			t: 0.45,
+			camera: { pos: [ -1.6, 1.1, 2.8 ], target: [ 0, 0.8, 0 ] }
+		},
+		{
+			focus: 'Finish',
+			title: 'Finish tall',
+			detail: 'Complete the rep with control.',
+			t: 0.88,
+			camera: { pos: [ -1.5, 1.4, 3.1 ], target: [ 0, 1.05, 0 ] }
+		}
+	];
+
+}
 
 /**
  * Flow: library → instruct → countdown → on-body GUIDE → full workout loop
@@ -864,6 +902,12 @@ function seekGuideToTime( action, clip, targetNorm, viewKey ) {
 
 function currentGuideSteps( ex ) {
 
+	if ( ex?._preferApiGuide && Array.isArray( ex.guide ) && ex.guide.length ) {
+
+		return ex.guide;
+
+	}
+
 	return enrichGuide( ex ) || ex.guide || [];
 
 }
@@ -1045,7 +1089,7 @@ function crossFadeTo( nextAction, duration = 0.3 ) {
 function startCueRotation( ex ) {
 
 	clearInterval( state.cueTimer );
-	if ( ! ex ) return;
+	if ( ! ex?.cues?.length ) return;
 	state.cueTimer = setInterval( () => {
 
 		if ( state.paused ) return;
@@ -1083,7 +1127,7 @@ function startWorkout( ex ) {
 	els.pauseBtn.textContent = 'Pause';
 	els.pauseBtn.setAttribute( 'aria-pressed', 'false' );
 	els.workoutTitle.textContent = ex.name;
-	els.liveCue.textContent = ex.cues[ 0 ];
+	els.liveCue.textContent = ex.cues?.[ 0 ] || '';
 	state.cueIndex = 0;
 	els.statusLabel.textContent = `Live · ${ ex.name }`;
 
@@ -1195,6 +1239,7 @@ function hardStopSession( { go } ) {
 // ---------------------------------------------------------------------------
 
 let pendingExerciseId = null;
+let pendingExerciseOptions = null;
 let assetsReady = false;
 
 function readLaunchExerciseId() {
@@ -1215,13 +1260,27 @@ function readLaunchExerciseId() {
 pendingExerciseId = readLaunchExerciseId();
 if ( pendingExerciseId ) document.body.dataset.embedded = 'true';
 
-function consumePendingExercise() {
+async function consumePendingExercise() {
 
 	assetsReady = true;
 	const id = pendingExerciseId;
+	const opts = pendingExerciseOptions || {};
 	pendingExerciseId = null;
-	if ( id ) openExercise( id );
-	else if ( document.body.dataset.embedded !== 'true' ) {
+	pendingExerciseOptions = null;
+	if ( id ) {
+
+		try {
+
+			await openExercise( id, opts );
+
+		} catch ( err ) {
+
+			console.error( '[FormStudio] pending open failed', err );
+			els.statusLabel.textContent = 'Couldn’t load 3D demo';
+
+		}
+
+	} else if ( document.body.dataset.embedded !== 'true' ) {
 
 		els.statusLabel.textContent = 'Select a form';
 
@@ -1229,13 +1288,59 @@ function consumePendingExercise() {
 
 }
 
-function openExercise( id ) {
+/**
+ * Native / query bridge.
+ * @param {string} id clipId
+ * @param {{ animationUrl?: string, guide?: object[], cues?: string[], title?: string }} [options]
+ */
+async function openExercise( id, options = {} ) {
 
-	const ex = getExercise( id );
+	if ( id === 'sit_ups' ) id = 'situps';
+	options = options || {};
+
+	let ex = getExercise( id );
+	const hasApiGuide = Array.isArray( options.guide ) && options.guide.length > 0;
+	const hasApiCues = Array.isArray( options.cues ) && options.cues.length > 0;
+
 	if ( ! ex ) {
 
-		console.warn( '[FormStudio] Unknown exercise', id );
-		return false;
+		if ( ! options.animationUrl ) {
+
+			console.warn( '[FormStudio] Unknown exercise', id );
+			return false;
+
+		}
+
+		ex = {
+			id,
+			name: options.title || id,
+			tagline: 'Form demo',
+			level: '',
+			reps: '',
+			file: options.animationUrl,
+			muscles: [],
+			summary: options.title || 'Follow the 3D coach.',
+			balance: [],
+			steps: [],
+			cues: hasApiCues ? options.cues : [ 'Match the coach', 'Move with control' ],
+			mistakes: [],
+			guide: hasApiGuide ? options.guide : defaultRuntimeGuide(),
+			_preferApiGuide: true
+		};
+		runtimeOverrides.set( id, ex );
+
+	} else if ( options.title || hasApiGuide || hasApiCues || options.animationUrl ) {
+
+		const merged = {
+			...ex,
+			name: options.title || ex.name,
+			file: options.animationUrl || ex.file,
+			cues: hasApiCues ? options.cues : ex.cues,
+			guide: hasApiGuide ? options.guide : ex.guide,
+			_preferApiGuide: hasApiGuide
+		};
+		runtimeOverrides.set( id, merged );
+		ex = merged;
 
 	}
 
@@ -1243,7 +1348,36 @@ function openExercise( id ) {
 	if ( ! assetsReady ) {
 
 		pendingExerciseId = id;
+		pendingExerciseOptions = options;
 		return true;
+
+	}
+
+	if ( options.animationUrl ) {
+
+		try {
+
+			exerciseClips.set( id, await loadClip( options.animationUrl, id ) );
+
+		} catch ( err ) {
+
+			console.error( '[FormStudio] animationUrl load failed', id, err );
+			throw err;
+
+		}
+
+	} else if ( ! exerciseClips.has( id ) && ex.file ) {
+
+		try {
+
+			exerciseClips.set( id, await loadClip( ex.file, id ) );
+
+		} catch ( err ) {
+
+			console.error( '[FormStudio] bundled clip load failed', id, err );
+			throw err;
+
+		}
 
 	}
 

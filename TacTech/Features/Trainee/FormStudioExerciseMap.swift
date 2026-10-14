@@ -1,21 +1,26 @@
 import Foundation
 
-/// Maps TacTech `GET /exercises` → Form Studio Mixamo clip ids.
+/// Resolves TacTech `GET /exercises` → Form Studio 3D demo session.
 ///
-/// `hasDemo` is true only when the resolved clip’s `.fbx` is in `bundledClipFiles`
-/// (keep that set in sync with `Resources/FormStudioWeb/models/exercises/`).
-///
-/// Phase 2 — add more clips:
-/// 1. Mixamo: same **X Bot**, download FBX (see `models/exercises/MIXAMO_DROP_IN.md`)
-/// 2. Drop file with the exact filename into `models/exercises/`
-/// 3. Add the filename to `bundledClipFiles` below
-/// 4. Rebuild (folder reference already copies Web content)
+/// Prefer backend `form3d` when present. Legacy local map remains for offline/dev
+/// while the original bundled clips roll out on the API.
 enum FormStudioExerciseMap {
 
-    // MARK: - Bundled FBX inventory (filesystem truth for gating UI)
+    // MARK: - Session
+
+    struct DemoSession: Equatable {
+        let clipId: String
+        let exerciseName: String
+        /// Remote CDN URL (downloaded/cached before WebView open).
+        let remoteAnimationURL: URL?
+        let guide: [Form3DGuideStep]?
+        let cues: [String]?
+        let subtitle: String?
+    }
+
+    // MARK: - Bundled FBX inventory
 
     /// Filenames present under `FormStudioWeb/models/exercises/` that ship in the app.
-    /// Update whenever you drop a new Mixamo FBX and rebuild.
     static let bundledClipFiles: Set<String> = [
         "Air_Squat.fbx",
         "Breathing_Idle.fbx",
@@ -52,27 +57,19 @@ enum FormStudioExerciseMap {
         "chest_press": "Chest_Press.fbx"
     ]
 
-    /// Honest reuse: if dedicated clip missing, fall back to a bundled similar pattern.
     private static let reuseFallback: [String: String] = [
-        // Goblet / box squat → bodyweight squat pattern (bundled)
         "goblet_squat_reuse": "air_squat",
-        // Hip hinge drill may reuse RDL once that FBX is dropped
         "hip_hinge": "romanian_deadlift"
     ]
 
-    // MARK: - TacTech id → Form Studio id (source of truth for staging catalog)
+    // MARK: - Legacy TacTech id map (offline / until backend seeds form3d)
 
     private static let tactechIdMap: [String: FormStudioTarget] = [
-        // Exact / strong match (bundled today)
         "ex-pushup": .clip("push_up"),
         "ex-plank": .clip("plank"),
-
-        // Honest reuse of bundled air squat
         "ex-squat": .reuse("air_squat", note: "Bodyweight squat pattern — barbell path not shown"),
         "ex-ai-goblet-s": .reuse("air_squat", note: "Goblet load not shown — squat pattern demo"),
         "ex-ai-goblet-b": .reuse("air_squat", note: "Box squat pattern approximated with air squat"),
-
-        // P0 — need Mixamo FBX drop-in
         "ex-lunge": .clip("walking_lunge"),
         "ex-rdl": .clip("romanian_deadlift"),
         "ex-hiphinge": .clip("hip_hinge"),
@@ -84,13 +81,9 @@ enum FormStudioExerciseMap {
         "ex-ai-cat-cow": .clip("cat_cow"),
         "ex-ai-sit-to-s": .clip("sit_to_stand"),
         "ex-ai-world-s-": .clip("worlds_greatest_stretch"),
-
-        // P2 — need Mixamo FBX
         "ex-ai-seated-r": .clip("seated_row"),
         "ex-ai-seated-s": .clip("seated_shoulder_press"),
         "ex-ai-chest-pr": .clip("chest_press"),
-
-        // No honest 3D clip (cardio / flow)
         "ex-hiit": .none,
         "ex-ai-zone-2-b": .none,
         "ex-ai-easy-wal": .none,
@@ -109,7 +102,6 @@ enum FormStudioExerciseMap {
         let tokens: [String]
     }
 
-    /// Name-token fallback when API id is unknown / renamed.
     private static let nameRules: [NameRule] = [
         NameRule(formStudioId: "push_up", tokens: ["push up", "pushup", "push-up"]),
         NameRule(formStudioId: "plank", tokens: ["plank"]),
@@ -133,26 +125,70 @@ enum FormStudioExerciseMap {
         NameRule(formStudioId: "burpee", tokens: ["burpee"])
     ]
 
-    // MARK: - Public API
+    // MARK: - Public API (backend-aware)
 
-    /// Form Studio id to open, only if a bundled (or reusable bundled) FBX exists.
+    /// Whether Exercise Detail should show “3D Form Demo”.
+    static func canShow3DDemo(for exercise: Exercise) -> Bool {
+        demoSession(for: exercise) != nil
+    }
+
+    /// Resolved session for opening Form Studio. `nil` → hide button.
+    static func demoSession(for exercise: Exercise) -> DemoSession? {
+        if let form3d = exercise.form3d {
+            if !form3d.enabled { return nil }
+
+            // Prefer API clipId; else legacy map; else stable id from exercise for CDN-only rows.
+            let clipId = normalizeClipId(form3d.clipId)
+                ?? legacyClipId(for: exercise)
+                ?? normalizeClipId(exercise.id)
+            guard let clipId else { return nil }
+
+            let remote = nonEmpty(form3d.animationUrl).flatMap { URL(string: $0) }
+            let bundled = hasBundledClip(for: clipId)
+            // CDN-only exercises need no local hardcode — URL alone is enough.
+            guard remote != nil || bundled else { return nil }
+
+            let apiGuide = form3d.guide.flatMap { $0.isEmpty ? nil : $0 }
+            let apiCues = form3d.cues.flatMap { $0.isEmpty ? nil : $0 }
+
+            return DemoSession(
+                clipId: clipId,
+                exerciseName: exercise.name,
+                remoteAnimationURL: remote,
+                guide: apiGuide,
+                cues: apiCues,
+                subtitle: nil
+            )
+        }
+
+        // Missing form3d → legacy offline/dev fallback (bundled clips only).
+        guard let clipId = formStudioId(for: exercise) else { return nil }
+        return DemoSession(
+            clipId: clipId,
+            exerciseName: exercise.name,
+            remoteAnimationURL: nil,
+            guide: nil,
+            cues: nil,
+            subtitle: reuseNote(for: exercise)
+        )
+    }
+
+    /// Legacy helper: Form Studio id only when a bundled (or reusable) FBX exists.
     static func formStudioId(for exercise: Exercise) -> String? {
         guard let resolved = resolve(id: exercise.id, name: exercise.name) else { return nil }
         guard hasBundledClip(for: resolved) else { return nil }
-        // `resolve` already remaps hip_hinge → romanian_deadlift when that FBX is the only one present.
         return resolved == "sit_ups" ? "situps" : resolved
     }
 
     static func hasDemo(for exercise: Exercise) -> Bool {
-        formStudioId(for: exercise) != nil
+        canShow3DDemo(for: exercise)
     }
 
     static func hasBundledClip(for formStudioId: String) -> Bool {
-        let id = formStudioId == "sit_ups" ? "situps" : formStudioId
+        let id = normalizeClipId(formStudioId) ?? formStudioId
         if let file = clipFileByFormStudioId[id], bundledClipFiles.contains(file) {
             return true
         }
-        // Dedicated hip_hinge missing → reuse Romanian_Deadlift.fbx when present
         if id == "hip_hinge",
            let fallback = reuseFallback[id],
            let file = clipFileByFormStudioId[fallback],
@@ -162,12 +198,10 @@ enum FormStudioExerciseMap {
         return false
     }
 
-    /// Resolved Form Studio id even if FBX is missing (for DEBUG / docs). Prefer `formStudioId(for:)`.
     static func mappedIdIgnoringBundle(for exercise: Exercise) -> String? {
         resolve(id: exercise.id, name: exercise.name)
     }
 
-    /// Optional UI subtitle when demo reuses a similar clip.
     static func reuseNote(for exercise: Exercise) -> String? {
         guard let target = tactechIdMap[exercise.id.lowercased()] else { return nil }
         if case let .reuse(_, note) = target { return note }
@@ -176,6 +210,10 @@ enum FormStudioExerciseMap {
 
     // MARK: - Resolve
 
+    private static func legacyClipId(for exercise: Exercise) -> String? {
+        resolve(id: exercise.id, name: exercise.name).map { $0 == "sit_ups" ? "situps" : $0 }
+    }
+
     private static func resolve(id: String?, name: String?) -> String? {
         if let raw = id?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
             let key = raw.lowercased()
@@ -183,9 +221,7 @@ enum FormStudioExerciseMap {
                 switch target {
                 case .none:
                     return nil
-                case .clip(let fsId):
-                    return effectiveId(fsId)
-                case .reuse(let fsId, _):
+                case .clip(let fsId), .reuse(let fsId, _):
                     return effectiveId(fsId)
                 }
             }
@@ -194,15 +230,10 @@ enum FormStudioExerciseMap {
         let haystack = normalize([id, name].compactMap { $0 }.joined(separator: " "))
         guard !haystack.isEmpty else { return nil }
 
-        // Skip known no-3D cardio / flow by name
-        let skipTokens = ["bike", "walk", "hiking", "zone 2", "sun breath", "sprint"]
-        if skipTokens.contains(where: { haystack.contains($0) }) {
-            // Allow "sit to stand" etc. — only skip if purely cardio phrases
-            if haystack.contains("bike") || haystack.contains("hiking")
-                || haystack.contains("zone 2") || haystack.contains("sun breath")
-                || haystack.contains("easy walk") {
-                return nil
-            }
+        if haystack.contains("bike") || haystack.contains("hiking")
+            || haystack.contains("zone 2") || haystack.contains("sun breath")
+            || haystack.contains("easy walk") {
+            return nil
         }
 
         let ordered = nameRules.sorted {
@@ -219,9 +250,8 @@ enum FormStudioExerciseMap {
         return nil
     }
 
-    /// Prefer dedicated clip; for hip_hinge use RDL file id when only that FBX exists.
     private static func effectiveId(_ formStudioId: String) -> String {
-        let id = formStudioId == "sit_ups" ? "situps" : formStudioId
+        let id = normalizeClipId(formStudioId) ?? formStudioId
         if let file = clipFileByFormStudioId[id], bundledClipFiles.contains(file) {
             return id
         }
@@ -232,6 +262,18 @@ enum FormStudioExerciseMap {
             return fallback
         }
         return id
+    }
+
+    private static func normalizeClipId(_ value: String?) -> String? {
+        guard var id = nonEmpty(value)?.lowercased() else { return nil }
+        if id == "sit_ups" { id = "situps" }
+        return id
+    }
+
+    private static func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func normalize(_ value: String) -> String {

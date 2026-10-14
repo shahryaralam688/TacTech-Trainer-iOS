@@ -4,10 +4,24 @@ import WebKit
 /// WKWebView shell for bundled Form Studio (`Resources/FormStudioWeb` via `appcontent://`).
 struct FormStudioWebView: UIViewRepresentable {
     var formStudioExerciseId: String
+    /// Optional `appcontent://cache/…` or `https://…` clip URL for FBXLoader.
+    var animationURL: String?
+    var guideJSON: String?
+    var cuesJSON: String?
+    var title: String?
     var onClose: (() -> Void)?
+    var onLoadError: ((String) -> Void)?
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(formStudioExerciseId: formStudioExerciseId, onClose: onClose)
+        Coordinator(
+            formStudioExerciseId: formStudioExerciseId,
+            animationURL: animationURL,
+            guideJSON: guideJSON,
+            cuesJSON: cuesJSON,
+            title: title,
+            onClose: onClose,
+            onLoadError: onLoadError
+        )
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -21,7 +35,10 @@ struct FormStudioWebView: UIViewRepresentable {
         let userContent = config.userContentController
         userContent.add(context.coordinator, name: "formStudio")
 
-        let handler = FormStudioLocalSchemeHandler(rootDirectory: Self.webRoot)
+        let handler = FormStudioLocalSchemeHandler(
+            rootDirectory: Self.webRoot,
+            cacheDirectory: FormStudioClipCache.directory
+        )
         config.setURLSchemeHandler(handler, forURLScheme: FormStudioLocalSchemeHandler.scheme)
         context.coordinator.schemeHandler = handler
 
@@ -56,7 +73,12 @@ struct FormStudioWebView: UIViewRepresentable {
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
         context.coordinator.formStudioExerciseId = formStudioExerciseId
+        context.coordinator.animationURL = animationURL
+        context.coordinator.guideJSON = guideJSON
+        context.coordinator.cuesJSON = cuesJSON
+        context.coordinator.title = title
         context.coordinator.onClose = onClose
+        context.coordinator.onLoadError = onLoadError
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
@@ -68,7 +90,6 @@ struct FormStudioWebView: UIViewRepresentable {
            FileManager.default.fileExists(atPath: url.path) {
             return url
         }
-        // Folder reference may flatten into the bundle root as FormStudioWeb/
         if let url = Bundle.main.url(forResource: "index", withExtension: "html", subdirectory: "FormStudioWeb")?
             .deletingLastPathComponent() {
             return url
@@ -78,27 +99,84 @@ struct FormStudioWebView: UIViewRepresentable {
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         var formStudioExerciseId: String
+        var animationURL: String?
+        var guideJSON: String?
+        var cuesJSON: String?
+        var title: String?
         var onClose: (() -> Void)?
+        var onLoadError: ((String) -> Void)?
         var schemeHandler: FormStudioLocalSchemeHandler?
         weak var webView: WKWebView?
         private var didBridgeOpen = false
 
-        init(formStudioExerciseId: String, onClose: (() -> Void)?) {
+        init(
+            formStudioExerciseId: String,
+            animationURL: String?,
+            guideJSON: String?,
+            cuesJSON: String?,
+            title: String?,
+            onClose: (() -> Void)?,
+            onLoadError: ((String) -> Void)?
+        ) {
             self.formStudioExerciseId = formStudioExerciseId
+            self.animationURL = animationURL
+            self.guideJSON = guideJSON
+            self.cuesJSON = cuesJSON
+            self.title = title
             self.onClose = onClose
+            self.onLoadError = onLoadError
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            // Query param usually opens via JS; evaluateJavaScript as a reliable second path.
             guard !didBridgeOpen else { return }
             didBridgeOpen = true
+            bridgeOpen(on: webView)
+        }
+
+        private func bridgeOpen(on webView: WKWebView) {
             let id = formStudioExerciseId
                 .replacingOccurrences(of: "\\", with: "\\\\")
                 .replacingOccurrences(of: "'", with: "\\'")
+
+            var opts: [String: Any] = [:]
+            if let animationURL, !animationURL.isEmpty {
+                opts["animationUrl"] = animationURL
+            }
+            if let title, !title.isEmpty {
+                opts["title"] = title
+            }
+            if let guideJSON, let data = guideJSON.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                opts["guide"] = obj
+            }
+            if let cuesJSON, let data = cuesJSON.data(using: .utf8),
+               let obj = try? JSONSerialization.jsonObject(with: data) {
+                opts["cues"] = obj
+            }
+
+            let optsLiteral: String
+            if opts.isEmpty {
+                optsLiteral = "{}"
+            } else if let data = try? JSONSerialization.data(withJSONObject: opts),
+                      let s = String(data: data, encoding: .utf8) {
+                optsLiteral = s
+            } else {
+                optsLiteral = "{}"
+            }
+
             let js = """
-            (function(){
-              if (window.FormStudio && typeof window.FormStudio.openExercise === 'function') {
-                window.FormStudio.openExercise('\(id)');
+            (async function(){
+              try {
+                if (window.FormStudio && typeof window.FormStudio.openExercise === 'function') {
+                  await window.FormStudio.openExercise('\(id)', \(optsLiteral));
+                }
+              } catch (err) {
+                try {
+                  window.webkit.messageHandlers.formStudio.postMessage({
+                    type: 'error',
+                    message: String(err && err.message ? err.message : err)
+                  });
+                } catch (_) {}
               }
             })();
             """
@@ -108,10 +186,17 @@ struct FormStudioWebView: UIViewRepresentable {
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.name == "formStudio" else { return }
             if let body = message.body as? [String: Any],
-               let type = body["type"] as? String,
-               type == "close" {
-                DispatchQueue.main.async { [onClose] in onClose?() }
-                return
+               let type = body["type"] as? String {
+                if type == "close" {
+                    DispatchQueue.main.async { [onClose] in onClose?() }
+                    return
+                }
+                if type == "error" {
+                    let detail = (body["message"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let text = (detail?.isEmpty == false) ? detail! : "Couldn't load 3D demo"
+                    DispatchQueue.main.async { [onLoadError] in onLoadError?(text) }
+                    return
+                }
             }
             if let type = message.body as? String, type == "close" {
                 DispatchQueue.main.async { [onClose] in onClose?() }
@@ -122,16 +207,19 @@ struct FormStudioWebView: UIViewRepresentable {
 
 final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
     static let scheme = "appcontent"
+    static let cacheHost = "cache"
 
     private let rootDirectory: URL
+    private let cacheDirectory: URL?
     private let queue = DispatchQueue(label: "FormStudioLocalSchemeHandler")
 
-    init(rootDirectory: URL) {
+    init(rootDirectory: URL, cacheDirectory: URL? = nil) {
         self.rootDirectory = rootDirectory.standardizedFileURL
+        self.cacheDirectory = cacheDirectory?.standardizedFileURL
     }
 
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-        queue.async { [rootDirectory] in
+        queue.async { [rootDirectory, cacheDirectory] in
             guard let requestURL = urlSchemeTask.request.url else {
                 urlSchemeTask.didFailWithError(URLError(.badURL))
                 return
@@ -145,8 +233,19 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
                 relativePath = "index.html"
             }
 
-            let fileURL = rootDirectory.appendingPathComponent(relativePath).standardizedFileURL
-            guard fileURL.path.hasPrefix(rootDirectory.path) else {
+            let base: URL
+            if requestURL.host == Self.cacheHost {
+                guard let cacheDirectory else {
+                    urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+                    return
+                }
+                base = cacheDirectory
+            } else {
+                base = rootDirectory
+            }
+
+            let fileURL = base.appendingPathComponent(relativePath).standardizedFileURL
+            guard fileURL.path.hasPrefix(base.path) else {
                 urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile))
                 return
             }

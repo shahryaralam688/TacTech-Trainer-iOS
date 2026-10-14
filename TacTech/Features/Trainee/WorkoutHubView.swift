@@ -398,14 +398,15 @@ struct ExerciseDetailView: View {
     let prescription: WorkoutExercise
 
     @State private var showFormStudio = false
+    @State private var formStudioToast: TTToastMessage?
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = TTColor.actionOrange
 
-    private var formStudioId: String? {
-        FormStudioExerciseMap.formStudioId(for: exercise)
+    private var formStudioSession: FormStudioExerciseMap.DemoSession? {
+        FormStudioExerciseMap.demoSession(for: exercise)
     }
 
     var body: some View {
@@ -494,9 +495,16 @@ struct ExerciseDetailView: View {
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
+        .ttToast($formStudioToast, bottomInset: 28)
         .fullScreenCover(isPresented: $showFormStudio) {
-            if let formStudioId {
-                FormStudioDemoView(exerciseName: exercise.name, formStudioId: formStudioId)
+            if let formStudioSession {
+                FormStudioDemoView(session: formStudioSession) { message in
+                    showFormStudio = false
+                    formStudioToast = TTToastMessage(
+                        text: message.isEmpty ? "Couldn't load 3D demo" : message,
+                        style: .error
+                    )
+                }
             }
         }
     }
@@ -508,7 +516,7 @@ struct ExerciseDetailView: View {
                 .font(TTFont.workSans(15, weight: .bold))
                 .foregroundStyle(TTColor.ink)
 
-            if FormStudioExerciseMap.hasDemo(for: exercise), formStudioId != nil {
+            if let formStudioSession {
                 Button {
                     showFormStudio = true
                 } label: {
@@ -527,7 +535,7 @@ struct ExerciseDetailView: View {
                                 .font(TTFont.workSans(15, weight: .bold))
                                 .foregroundStyle(TTColor.ink)
                             Text(
-                                FormStudioExerciseMap.reuseNote(for: exercise)
+                                formStudioSession.subtitle
                                     ?? "Watch a 3D coach demonstrate form"
                             )
                                 .font(TTFont.caption(12))
@@ -546,9 +554,12 @@ struct ExerciseDetailView: View {
                 .accessibilityLabel("Open 3D form demonstration")
             } else {
                 #if DEBUG
-                if FormStudioExerciseMap.mappedIdIgnoringBundle(for: exercise) != nil {
-                    // Scaffolded but FBX not in bundledClipFiles yet — hidden in Release.
-                    Text("3D demo — add Mixamo clip (DEBUG)")
+                if exercise.form3d?.enabled == true {
+                    Text("3D demo enabled but no animationUrl / bundled clip (DEBUG)")
+                        .font(TTFont.caption(11))
+                        .foregroundStyle(TTColor.inkSubtle)
+                } else if FormStudioExerciseMap.mappedIdIgnoringBundle(for: exercise) != nil {
+                    Text("3D demo — awaiting backend form3d or Mixamo clip (DEBUG)")
                         .font(TTFont.caption(11))
                         .foregroundStyle(TTColor.inkSubtle)
                 }

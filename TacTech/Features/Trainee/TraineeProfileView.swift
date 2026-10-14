@@ -9,6 +9,8 @@ struct TraineeProfileView: View {
     @State private var invite = ""
     @State private var message: String?
     @State private var showFindCoaches = false
+    @State private var toast: TTToastMessage?
+    @State private var isLinking = false
 
     private var initials: String {
         let parts = (store.currentUser?.name ?? "A").split(separator: " ")
@@ -18,6 +20,11 @@ struct TraineeProfileView: View {
     private var todayIntake: Int {
         guard let trainee = store.currentTrainee else { return 0 }
         return Int(store.dailyMacros(for: trainee.id, on: Date()).calories)
+    }
+
+    private var hasLinkedTrainer: Bool {
+        guard let trainee = store.currentTrainee else { return false }
+        return store.trainer(for: trainee) != nil
     }
 
     private var metrics: [TTProfileMetric] {
@@ -65,10 +72,13 @@ struct TraineeProfileView: View {
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 findCoachesCard
-                MyTrainerCard()
-                joinCard
+                MyTrainerCard { toast = $0 }
+                if !hasLinkedTrainer {
+                    joinCard
+                }
             }
         }
+        .ttToast($toast, bottomInset: 28)
         .sheet(isPresented: $showFindCoaches) {
             FindCoachesView()
                 .ttModalSheetPresentation(dragIndicator: .hidden)
@@ -116,41 +126,86 @@ struct TraineeProfileView: View {
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkMuted)
             }
-            TTButton(title: "Link trainer", style: .secondary) {
-                Task {
-                    do {
-                        try await store.linkTrainee(toInviteCode: invite)
-                        message = "Trainer linked."
-                    } catch {
-                        message = error.localizedDescription
-                    }
-                }
+            TTButton(title: isLinking ? "Linking…" : "Link trainer", style: .secondary) {
+                Task { await linkTrainer() }
             }
+            .disabled(isLinking || invite.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
         .padding(16)
         .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
+
+    @MainActor
+    private func linkTrainer() async {
+        let code = invite.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { return }
+        isLinking = true
+        defer { isLinking = false }
+        do {
+            try await store.linkTrainee(toInviteCode: code)
+            message = "Trainer linked."
+            invite = ""
+            toast = TTToastMessage(text: "Trainer linked", style: .success)
+        } catch {
+            // 409 conflict (already linked) surfaces server `detail`.
+            message = error.localizedDescription
+            toast = TTToastMessage(text: error.localizedDescription, style: .error)
+        }
+    }
 }
 
 struct MyTrainerCard: View {
     @Environment(AppStore.self) private var store
+    var onToast: ((TTToastMessage) -> Void)?
+
+    @State private var leaveConfirm = false
+    @State private var isLeaving = false
+
+    private var linked: (trainee: TraineeProfile, trainer: TrainerProfile, user: User)? {
+        guard let trainee = store.currentTrainee,
+              let trainer = store.trainer(for: trainee),
+              let user = store.user(forTrainer: trainer) else { return nil }
+        return (trainee, trainer, user)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("My Trainer")
                 .font(TTFont.heading(16))
-            if let trainee = store.currentTrainee, let trainer = store.trainer(for: trainee), let user = store.user(forTrainer: trainer) {
+            if let linked {
                 HStack(spacing: 12) {
-                    TTAvatar(name: user.name, size: 54)
+                    TTAvatar(name: linked.user.name, size: 54)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(user.name)
+                        Text(linked.user.name)
                             .font(TTFont.heading(16))
-                        Text(trainer.specialty)
+                        Text(linked.trainer.specialty)
                             .font(TTFont.body(13))
                             .foregroundStyle(TTColor.inkMuted)
                     }
+                    Spacer(minLength: 0)
                 }
+
+                Button {
+                    leaveConfirm = true
+                } label: {
+                    HStack(spacing: 8) {
+                        if isLeaving {
+                            ProgressView()
+                        } else {
+                            Text("Leave trainer")
+                                .font(TTFont.workSans(14, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(TTColor.danger)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 42)
+                    .background(TTColor.danger.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .disabled(isLeaving)
+                .accessibilityLabel("Leave trainer")
             } else {
                 Text("No trainer linked yet. Use an invite code below.")
                     .font(TTFont.body(14))
@@ -161,6 +216,31 @@ struct MyTrainerCard: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .confirmationDialog(
+            "Leave this trainer?",
+            isPresented: $leaveConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Leave trainer", role: .destructive) {
+                Task { await leaveTrainer() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            let name = linked?.user.name ?? "this trainer"
+            Text("Stop coaching with \(name)? Your assigned plan will be cleared. Chat history stays.")
+        }
+    }
+
+    @MainActor
+    private func leaveTrainer() async {
+        isLeaving = true
+        defer { isLeaving = false }
+        do {
+            try await store.unlinkTrainer()
+            onToast?(TTToastMessage(text: "Trainer removed", style: .success))
+        } catch {
+            onToast?(TTToastMessage(text: error.localizedDescription, style: .error))
+        }
     }
 }
 

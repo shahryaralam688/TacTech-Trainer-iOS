@@ -14,6 +14,8 @@ struct TraineeDetailView: View {
     @State private var feedbackToast: TTToastMessage?
     @State private var unassignConfirm = false
     @State private var isUnassigning = false
+    @State private var removeConfirm = false
+    @State private var isRemoving = false
     @State private var performanceTab: TraineeDetailPerformanceTab = .history
     @State private var isRefreshingPerformance = false
     @State private var performanceError: String?
@@ -52,6 +54,8 @@ struct TraineeDetailView: View {
                         profileCard
                         sectionLabel("Assigned plan")
                         assignCard
+                        sectionLabel("Roster")
+                        removeFromRosterCard
 
                         performancePicker
 
@@ -112,6 +116,51 @@ struct TraineeDetailView: View {
         } message: {
             Text("\(displayName) will no longer see this plan as their assigned program.")
         }
+        .confirmationDialog(
+            "Remove from roster?",
+            isPresented: $removeConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Remove from roster", role: .destructive) {
+                Task { await removeFromRoster() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Remove \(displayName) from your roster? Their assigned plan will be cleared. Chat stays.")
+        }
+    }
+
+    private var removeFromRosterCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Ends the coaching relationship. This is different from Unassign, which only removes the plan.")
+                .font(TTFont.body(13))
+                .foregroundStyle(TTColor.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                removeConfirm = true
+            } label: {
+                HStack(spacing: 8) {
+                    if isRemoving {
+                        ProgressView()
+                    } else {
+                        Text("Remove from roster")
+                            .font(TTFont.workSans(14, weight: .bold))
+                    }
+                }
+                .foregroundStyle(TTColor.danger)
+                .frame(maxWidth: .infinity)
+                .frame(height: 44)
+                .background(TTColor.danger.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isRemoving)
+            .accessibilityLabel("Remove trainee from roster")
+        }
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private var performancePicker: some View {
@@ -424,6 +473,24 @@ struct TraineeDetailView: View {
                 text: "Couldn’t unassign",
                 style: .error,
                 subtitle: error.localizedDescription
+            )
+        }
+    }
+
+    private func removeFromRoster() async {
+        isRemoving = true
+        defer { isRemoving = false }
+        do {
+            try await store.removeTrainee(traineeId: trainee.id)
+            feedbackToast = TTToastMessage(
+                text: "\(displayName) removed from roster",
+                style: .success
+            )
+            dismiss()
+        } catch {
+            feedbackToast = TTToastMessage(
+                text: error.localizedDescription,
+                style: .error
             )
         }
     }

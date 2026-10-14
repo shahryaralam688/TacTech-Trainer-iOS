@@ -601,6 +601,36 @@ final class AppStore {
         try await refreshSession()
     }
 
+    /// Trainee leaves the linked trainer. Clears local trainer link + assigned plan cache, then refreshes `/me`.
+    func unlinkTrainer() async throws {
+        guard currentTrainee != nil else { throw AppError.validation("Only trainees can leave a trainer.") }
+        try await api.unlinkTrainer()
+        clearLocalTrainerLinkForCurrentTrainee()
+        try await refreshSession()
+    }
+
+    /// Trainer removes a trainee from the roster. Updates local list; pull-to-refresh still loads server truth.
+    func removeTrainee(traineeId: String) async throws {
+        guard currentTrainer != nil else { throw AppError.validation("Only trainers can remove trainees.") }
+        try await api.removeTrainee(traineeId: traineeId)
+        trainees.removeAll { $0.id == traineeId }
+        assignments.removeAll { $0.traineeId == traineeId }
+        if let items = try? await api.trainerTrainees() {
+            if let trainerId = currentTrainer?.id {
+                trainees.removeAll { $0.trainerId == trainerId }
+            }
+            apply(traineeItems: items)
+        }
+    }
+
+    private func clearLocalTrainerLinkForCurrentTrainee() {
+        guard var trainee = currentTrainee else { return }
+        let id = trainee.id
+        trainee.trainerId = nil
+        upsert(trainee)
+        assignments.removeAll { $0.traineeId == id }
+    }
+
     func saveWorkoutLog(_ log: WorkoutLog) async throws {
         let created = try await api.createWorkoutLog(
             WorkoutLogBody(
@@ -1553,8 +1583,12 @@ final class AppStore {
         plans = try await api.trainerPlans()
         loadExerciseTemplates()
         let items = try await api.trainerTrainees()
+        if let trainerId = currentTrainer?.id {
+            // Replace roster from server so removed trainees disappear on refresh.
+            trainees.removeAll { $0.trainerId == trainerId }
+        }
         apply(traineeItems: items)
-        for trainee in trainees {
+        for trainee in trainees where trainee.trainerId == currentTrainer?.id {
             await loadTrainerDetail(traineeId: trainee.id)
         }
     }

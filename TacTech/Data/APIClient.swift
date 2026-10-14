@@ -639,6 +639,20 @@ actor APIClient {
         try await sendVoid(path: "/trainee/link", method: .post, body: LinkTrainerBody(inviteCode: inviteCode))
     }
 
+    /// Trainee leaves their linked trainer (relationship ends; assigned plan cleared server-side).
+    func unlinkTrainer() async throws {
+        try await sendVoid(path: "/trainee/unlink", method: .post, body: EmptyBody())
+    }
+
+    /// Trainer removes a trainee from their roster (relationship ends; assigned plan cleared server-side).
+    func removeTrainee(traineeId: String) async throws {
+        try await sendVoid(
+            path: "/trainer/trainees/\(traineeId)/remove",
+            method: .post,
+            body: EmptyBody()
+        )
+    }
+
     // MARK: - Discovery / entitlements (Phase 1)
 
     func entitlements() async throws -> EntitlementsDTO {

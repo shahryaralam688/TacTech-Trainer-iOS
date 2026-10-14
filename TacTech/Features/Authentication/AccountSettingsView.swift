@@ -22,7 +22,7 @@ struct AccountSettingsView: View {
 
     @AppStorage("settings.darkMode") private var darkMode = false
     @AppStorage("settings.biometric") private var biometricEnabled = false
-    @AppStorage("settings.language") private var language = "English (EN)"
+    @AppStorage(LocalizationController.languageLabelKey) private var language = "English"
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
     @State private var isRestoringPurchases = false
     @State private var toast: TTToastMessage?
@@ -97,7 +97,12 @@ struct AccountSettingsView: View {
                 route: .coachContact
             )
             restorePurchasesRow
-            valueRow("Language", icon: "flag", value: language, route: .language)
+            valueRow(
+                String(localized: "settings.language"),
+                icon: "flag",
+                value: language,
+                route: .language
+            )
             toggleRow("Dark Mode", icon: "moon", isOn: $darkMode)
             valueRow("Linked Devices", icon: "applewatch", value: "Apple Watch", route: .linkedDevices)
         }

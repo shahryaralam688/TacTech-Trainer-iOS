@@ -89,6 +89,16 @@ actor NotificationAPI {
         try await send(path: "/me/preferences/notifications", method: .put, body: prefs)
     }
 
+    // MARK: Language preference
+
+    func getLanguagePreference() async throws -> LanguagePreferenceDTO {
+        try await send(path: "/me/preferences/language", method: .get, body: Optional<EmptyBody>.none)
+    }
+
+    func putLanguagePreference(_ prefs: LanguagePreferenceDTO) async throws -> LanguagePreferenceDTO {
+        try await send(path: "/me/preferences/language", method: .put, body: prefs)
+    }
+
     // MARK: Push tokens
 
     @discardableResult

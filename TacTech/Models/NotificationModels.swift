@@ -141,6 +141,26 @@ struct NotificationPreferencesDTO: Codable, Equatable {
     }
 }
 
+struct LanguagePreferenceDTO: Codable, Equatable {
+    var languageCode: String
+    var bilingual: Bool = false
+
+    enum CodingKeys: String, CodingKey {
+        case languageCode, bilingual
+    }
+
+    init(languageCode: String, bilingual: Bool = false) {
+        self.languageCode = languageCode
+        self.bilingual = bilingual
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        languageCode = (try? c.decodeIfPresent(String.self, forKey: .languageCode)) ?? "en"
+        bilingual = (try? c.decodeIfPresent(Bool.self, forKey: .bilingual)) ?? false
+    }
+}
+
 struct PushTokenRegisterRequest: Encodable {
     var token: String
     var platform: String = "ios"

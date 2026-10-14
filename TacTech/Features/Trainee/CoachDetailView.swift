@@ -387,7 +387,7 @@ struct CoachDetailView: View {
     private var reviewsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("Reviews")
+                Text(String(localized: "reviews.title"))
                     .font(TTFont.heading(15))
                 Spacer()
                 CoachRatingBadge(
@@ -399,14 +399,16 @@ struct CoachDetailView: View {
 
             if canWriteReview {
                 TTButton(
-                    title: myReview == nil ? "Write a review" : "Edit your review",
+                    title: myReview == nil
+                        ? String(localized: "trainee.write_review")
+                        : String(localized: "trainee.edit_review"),
                     style: .secondary,
                     isLoading: isSavingReview || isDeletingReview
                 ) {
                     showReviewEditor = true
                 }
             } else if isTrainee {
-                Text("Only this coach’s trainees can review.")
+                Text(String(localized: "trainee.reviews_locked"))
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkSubtle)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -417,7 +419,7 @@ struct CoachDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             } else if reviews.isEmpty {
-                Text("No reviews yet")
+                Text(String(localized: "trainee.no_reviews"))
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)

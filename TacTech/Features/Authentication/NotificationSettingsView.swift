@@ -5,6 +5,7 @@ import UIKit
 struct NotificationSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.ttRootTabBarClearance) private var tabBarClearance
+    @Environment(\.locale) private var locale
 
     @AppStorage("notifications.push") private var pushEnabled = true
     @AppStorage("notifications.aiCoach") private var aiCoachEnabled = false
@@ -42,61 +43,61 @@ struct NotificationSettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
-                    section("General") {
+                    section(String(localized: "notif.general", locale: locale)) {
                         iconToggleRow(
                             icon: .bell1,
-                            title: "Push Notifications",
+                            title: String(localized: "notif.push", locale: locale),
                             isOn: $draftPush
                         )
                         iconToggleRow(
                             icon: .chat,
-                            title: "Chat Messages",
+                            title: String(localized: "notif.chat_messages", locale: locale),
                             isOn: $draftChatMessages
                         )
                         iconToggleRow(
                             icon: .video,
-                            title: "Video Calls",
+                            title: String(localized: "notif.video_calls", locale: locale),
                             isOn: $draftChatCalls
                         )
                         iconToggleRow(
                             icon: .robotFace1,
-                            title: "AI Coach Notification",
+                            title: String(localized: "notif.ai_coach", locale: locale),
                             isOn: $draftAICoach
                         )
                         iconToggleRow(
                             icon: .chartBar3,
-                            title: "Metrics Notification",
+                            title: String(localized: "notif.metrics", locale: locale),
                             isOn: $draftMetrics
                         )
                     }
 
-                    section("Sound") {
+                    section(String(localized: "notif.sound", locale: locale)) {
                         subtitleToggleRow(
-                            title: "Vibrations",
-                            subtitle: "When Vibrate Notifications are on, your phone will vibrate.",
+                            title: String(localized: "notif.vibrations", locale: locale),
+                            subtitle: String(localized: "notif.vibrations_sub", locale: locale),
                             isOn: $draftVibrations
                         )
                         subtitleToggleRow(
-                            title: "Sound",
-                            subtitle: "When Sound Notifications are on, your phone will always check for sounds.",
+                            title: String(localized: "notif.sound_toggle", locale: locale),
+                            subtitle: String(localized: "notif.sound_sub", locale: locale),
                             isOn: $draftSound
                         )
                     }
 
-                    section("Misc") {
+                    section(String(localized: "notif.misc", locale: locale)) {
                         iconToggleRow(
                             icon: .currencyUsd,
-                            title: "Offers",
+                            title: String(localized: "notif.offers", locale: locale),
                             isOn: $draftOffersDevice
                         )
                         iconToggleRow(
                             icon: .cloudDownload1,
-                            title: "App Update",
+                            title: String(localized: "notif.app_update", locale: locale),
                             isOn: $draftAppUpdate
                         )
                         subtitleToggleRow(
-                            title: "Resources",
-                            subtitle: "Enable resource notification when there's a new resources.",
+                            title: String(localized: "notif.resources", locale: locale),
+                            subtitle: String(localized: "notif.resources_sub", locale: locale),
                             isOn: $draftResources
                         )
                     }
@@ -120,7 +121,7 @@ struct NotificationSettingsView: View {
 
     private var header: some View {
         TTModalSheetHeader(
-            title: "Notification Settings",
+            title: String(localized: "notif.title", locale: locale),
             background: canvas
         )
     }
@@ -208,7 +209,7 @@ struct NotificationSettingsView: View {
                     ProgressView()
                         .tint(.white)
                 } else {
-                    Text("Save Settings")
+                    Text(String(localized: "notif.save", locale: locale))
                         .font(TTFont.workSans(16, weight: .semibold))
                     TTIcon(icon: .check, filled: true, size: 14)
                 }
@@ -305,7 +306,7 @@ struct NotificationSettingsView: View {
                 #if DEBUG
                 if !NotificationStore.isRemotePushRegistrationEnabled {
                     toast = TTToastMessage(
-                        text: "Settings saved",
+                        text: String(localized: "common.settings_saved", locale: locale),
                         style: .success,
                         subtitle: "Push delivery needs Push capability (DEBUG)"
                     )
@@ -317,7 +318,10 @@ struct NotificationSettingsView: View {
                 await NotificationStore.shared.unregisterCurrentToken()
             }
 
-            toast = TTToastMessage(text: "Settings saved", style: .success)
+            toast = TTToastMessage(
+                text: String(localized: "common.settings_saved", locale: locale),
+                style: .success
+            )
             NotificationStore.shared.playNotificationHaptic(.success)
         } catch {
             // Do not treat drafts as saved — reload from store (pre-failure server/local).

@@ -33,12 +33,15 @@ struct TrainerRootView: View {
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
-    private let tabs: [TTTabBarItem<TrainerTab>] = [
-        TTTabBarItem(.dashboard, icon: .house1, label: "Home"),
-        TTTabBarItem(.plans, icon: .barbellDiagonal, label: "Plans"),
-        TTTabBarItem(.trainees, icon: .usersTwo, label: "Trainees"),
-        TTTabBarItem(.profile, icon: .user, label: "Profile")
-    ]
+    private var tabs: [TTTabBarItem<TrainerTab>] {
+        let locale = LocalizationController.shared.locale
+        return [
+            TTTabBarItem(.dashboard, icon: .house1, label: String(localized: "tab.home", locale: locale)),
+            TTTabBarItem(.plans, icon: .barbellDiagonal, label: String(localized: "tab.plans", locale: locale)),
+            TTTabBarItem(.trainees, icon: .usersTwo, label: String(localized: "tab.trainees", locale: locale)),
+            TTTabBarItem(.profile, icon: .user, label: String(localized: "tab.profile", locale: locale))
+        ]
+    }
 
     var body: some View {
         ZStack {

@@ -275,9 +275,10 @@ struct TTHomeProfileHeader: View {
     }
 
     private var formattedDate: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy"
-        return formatter.string(from: date)
+        date.formatted(
+            Date.FormatStyle(date: .abbreviated, time: .omitted)
+                .locale(LocalizationController.shared.locale)
+        )
     }
 }
 

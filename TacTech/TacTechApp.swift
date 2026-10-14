@@ -10,6 +10,7 @@ struct TacTechApp: App {
         WindowGroup {
             AppRootView()
                 .environment(store)
+                .ttAppLocalization()
                 .tint(TTColor.accent)
                 .onOpenURL { url in
                     Task { await store.handleOpenURL(url) }

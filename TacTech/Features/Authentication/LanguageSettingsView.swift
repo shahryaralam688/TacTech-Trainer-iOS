@@ -1,49 +1,35 @@
 import SwiftUI
+import UIKit
 
-/// Sandow Language settings — light canvas, shared `TTBackButton`, Sandow flag icons.
+/// In-app language picker — 6 BCP-47 locales, immediate apply + RTL for Arabic.
 struct LanguageSettingsView: View {
+    @Environment(LocalizationController.self) private var localization
     @Environment(\.dismiss) private var dismiss
 
-    @AppStorage("settings.language") private var languageLabel = "Japanese (JP)"
-    @AppStorage("settings.languageCode") private var languageCode = "jp"
-    @AppStorage("settings.bilingual") private var bilingualEnabled = true
-
-    @State private var selected = "jp"
-    @State private var bilingual = true
+    @State private var toast: TTToastMessage?
 
     private let canvas = Color(red: 248 / 255, green: 249 / 255, blue: 250 / 255)
     private let cardFill = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
     private let orange = TTColor.actionOrange
 
-    private let languages: [(id: String, title: String)] = [
-        ("jp", "Japanese (JP)"),
-        ("us", "American (US)"),
-        ("uk", "English (UK)"),
-        ("it", "Italian (IT)"),
-        ("ar", "Arabic (AR)"),
-        ("cn", "Chinese (CN)"),
-        ("ru", "Russian (RU)")
-    ]
+    private var languages: [AppLanguage] { AppLanguage.settingsOrder }
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            TTModalSheetHeader(
+                title: String(localized: "language.title", locale: localization.locale),
+                background: canvas
+            )
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 22) {
-                    section("Selected Language") {
-                        if let current = languages.first(where: { $0.id == selected }) {
-                            selectedLanguageCard(current.title)
-                        }
+                    section(String(localized: "language.selected", locale: localization.locale)) {
+                        selectedLanguageCard(localization.language)
                     }
 
-                    section("Bilingual Feature") {
-                        bilingualRow
-                    }
-
-                    section("All Languages") {
-                        ForEach(languages.filter { $0.id != selected }, id: \.id) { lang in
-                            languageRow(lang.title) {
+                    section(String(localized: "language.all", locale: localization.locale)) {
+                        ForEach(languages.filter { $0 != localization.language }) { lang in
+                            languageRow(lang) {
                                 select(lang)
                             }
                         }
@@ -56,13 +42,7 @@ struct LanguageSettingsView: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
-        .onAppear(perform: hydrate)
-    }
-
-    // MARK: - Header
-
-    private var header: some View {
-        TTModalSheetHeader(title: "Language", background: canvas)
+        .ttToast($toast, bottomInset: 28)
     }
 
     // MARK: - Sections
@@ -88,14 +68,17 @@ struct LanguageSettingsView: View {
         }
     }
 
-    // MARK: - Rows
-
-    private func selectedLanguageCard(_ title: String) -> some View {
+    private func selectedLanguageCard(_ lang: AppLanguage) -> some View {
         HStack(spacing: 12) {
             iconTile(tint: orange)
-            Text(title)
-                .font(TTFont.workSans(15, weight: .bold))
-                .foregroundStyle(.white)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(lang.displayNameNative)
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(.white)
+                Text(lang.displayNameEnglish)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(.white.opacity(0.85))
+            }
             Spacer(minLength: 8)
             ZStack {
                 Circle()
@@ -110,34 +93,23 @@ struct LanguageSettingsView: View {
         .background(orange)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: orange.opacity(0.25), radius: 10, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(lang.displayNameNative), \(lang.displayNameEnglish)")
+        .accessibilityAddTraits(.isSelected)
     }
 
-    private var bilingualRow: some View {
-        HStack(spacing: 12) {
-            iconTile(tint: TTColor.ink)
-            Text("Enable Bilingual?")
-                .font(TTFont.workSans(15, weight: .semibold))
-                .foregroundStyle(TTColor.ink)
-            Spacer(minLength: 8)
-            LiquidToggle(isOn: $bilingual)
-                .onChange(of: bilingual) { _, value in
-                    bilingualEnabled = value
-                }
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .shadow(color: .black.opacity(0.03), radius: 6, y: 2)
-    }
-
-    private func languageRow(_ title: String, action: @escaping () -> Void) -> some View {
+    private func languageRow(_ lang: AppLanguage, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 12) {
                 iconTile(tint: TTColor.ink)
-                Text(title)
-                    .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(TTColor.ink)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(lang.displayNameNative)
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                    Text(lang.displayNameEnglish)
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
                 Spacer(minLength: 8)
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .strokeBorder(Color(white: 0.78), lineWidth: 1.5)
@@ -150,6 +122,7 @@ struct LanguageSettingsView: View {
             .shadow(color: .black.opacity(0.03), radius: 6, y: 2)
         }
         .buttonStyle(TTSearchPressStyle(scale: 0.99))
+        .accessibilityLabel("\(lang.displayNameNative), \(lang.displayNameEnglish)")
     }
 
     private func iconTile(tint: Color) -> some View {
@@ -163,42 +136,20 @@ struct LanguageSettingsView: View {
         .shadow(color: .black.opacity(0.04), radius: 4, y: 1)
     }
 
-    // MARK: - Data
-
-    private func select(_ lang: (id: String, title: String)) {
+    private func select(_ lang: AppLanguage) {
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        withAnimation(.easeOut(duration: 0.2)) {
-            selected = lang.id
-        }
-        languageCode = lang.id
-        languageLabel = lang.title
-    }
-
-    private func hydrate() {
-        if let byCode = languages.first(where: { $0.id == languageCode }) {
-            selected = byCode.id
-            languageLabel = byCode.title
-        } else if let byLabel = languages.first(where: { $0.title == languageLabel }) {
-            selected = byLabel.id
-            languageCode = byLabel.id
-        } else if let legacy = languages.first(where: {
-            languageLabel.localizedCaseInsensitiveContains("english") && ($0.id == "uk" || $0.id == "us")
-        }) {
-            // Older default was "English (EN)"
-            selected = legacy.id
-            languageCode = legacy.id
-            languageLabel = legacy.title
-        } else {
-            selected = "jp"
-            languageCode = "jp"
-            languageLabel = "Japanese (JP)"
-        }
-        bilingual = bilingualEnabled
+        localization.setLanguage(lang, syncRemote: true)
+        toast = TTToastMessage(
+            text: String(localized: "common.language_updated", locale: localization.locale),
+            style: .success
+        )
+        NotificationStore.shared.playNotificationHaptic(.success)
     }
 }
 
 #Preview("Language Settings") {
     NavigationStack {
         LanguageSettingsView()
+            .environment(LocalizationController.shared)
     }
 }

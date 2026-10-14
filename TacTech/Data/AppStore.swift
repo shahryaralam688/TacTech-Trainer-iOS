@@ -128,6 +128,7 @@ final class AppStore {
             refreshAssessmentFlag()
             scheduleCoachMemorySync()
             await AuthTokenRefresher.shared.scheduleProactiveRefresh()
+            await LocalizationController.shared.pullFromServer()
         } catch {
             clearLocalSession()
         }
@@ -144,6 +145,7 @@ final class AppStore {
         try await refreshSession()
         refreshAssessmentFlag()
         scheduleCoachMemorySync()
+        await LocalizationController.shared.pullFromServer()
     }
 
     func signup(name: String, email: String, password: String, role: UserRole, inviteCode: String?) async throws {
@@ -166,6 +168,7 @@ final class AppStore {
         try await refreshSession()
         refreshAssessmentFlag()
         scheduleCoachMemorySync()
+        await LocalizationController.shared.pullFromServer()
     }
 
     /// Debounced RAG memory sync for AI Coach (login, assessment, plan changes).
@@ -724,7 +727,10 @@ final class AppStore {
                 isSyncingCoachLink = false
                 await refreshTraineeJoinState()
                 if t == "join_request_rejected" {
-                    softToast = TTToastMessage(text: "Request declined", style: .error)
+                    softToast = TTToastMessage(
+                        text: LocalizationController.shared.localized("join.request_declined"),
+                        style: .error
+                    )
                 }
             }
         }
@@ -771,7 +777,11 @@ final class AppStore {
             // Toast only on pending → linked transition (not idempotent replays).
             if !alreadyLinked {
                 let name = linkedTrainerDisplayName() ?? "your trainer"
-                softToast = TTToastMessage(text: "You’re linked with \(name)", style: .success)
+                let template = LocalizationController.shared.localized("join.linked_with")
+                softToast = TTToastMessage(
+                    text: String(format: template, name),
+                    style: .success
+                )
             }
         } else {
             // Final authoritative read without sticky hold.
@@ -933,19 +943,20 @@ final class AppStore {
             return
         }
 
+        let loc = LocalizationController.shared
         switch action {
         case "assigned":
             if let title, !title.isEmpty {
-                softToast = TTToastMessage(text: "New plan: \(title)", style: .success)
+                softToast = TTToastMessage(text: "\(loc.localized("workout.your_plan")): \(title)", style: .success)
             } else {
-                softToast = TTToastMessage(text: "New workout plan assigned", style: .success)
+                softToast = TTToastMessage(text: loc.localized("plan.new_assigned"), style: .success)
             }
         case "unassigned":
-            softToast = TTToastMessage(text: "Your workout plan was removed", style: .info)
+            softToast = TTToastMessage(text: loc.localized("plan.removed"), style: .info)
         case "updated":
-            softToast = TTToastMessage(text: "Your plan was updated", style: .info)
+            softToast = TTToastMessage(text: loc.localized("plan.updated"), style: .info)
         default:
-            softToast = TTToastMessage(text: "Your plan was updated", style: .info)
+            softToast = TTToastMessage(text: loc.localized("plan.updated"), style: .info)
         }
     }
 
@@ -995,7 +1006,10 @@ final class AppStore {
                 await refreshTraineeJoinState()
                 await refreshAssignedPlanForCurrentTrainee()
                 if reason == "trainer_removed" {
-                    softToast = TTToastMessage(text: "You’ve been removed from the roster", style: .info)
+                    softToast = TTToastMessage(
+                        text: LocalizationController.shared.localized("relationship.removed_roster"),
+                        style: .info
+                    )
                 }
             } else if isLinked {
                 // Same coalesced path as join_request_accepted — no full session refresh.

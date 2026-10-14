@@ -102,7 +102,10 @@ final class NotificationStore {
                     Self.postPlanAssignmentChanged(
                         action: type,
                         planId: note.data["planId"] ?? note.data["plan_id"],
-                        planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"]
+                        planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"],
+                        traineeProfileId: note.data["traineeProfileId"]
+                            ?? note.data["trainee_profile_id"]
+                            ?? note.data["traineeId"]
                     )
                 }
             case let .relationshipChanged(action, reason, trainerUserId, traineeUserId, traineeProfileId):
@@ -113,11 +116,12 @@ final class NotificationStore {
                     traineeUserId: traineeUserId,
                     traineeProfileId: traineeProfileId
                 )
-            case let .planAssignmentChanged(action, planId, planTitle, _, _, _):
+            case let .planAssignmentChanged(action, planId, planTitle, _, _, traineeProfileId):
                 Self.postPlanAssignmentChanged(
                     action: action,
                     planId: planId,
-                    planTitle: planTitle
+                    planTitle: planTitle,
+                    traineeProfileId: traineeProfileId
                 )
             default:
                 break
@@ -144,11 +148,13 @@ final class NotificationStore {
     static func postPlanAssignmentChanged(
         action: String,
         planId: String?,
-        planTitle: String?
+        planTitle: String?,
+        traineeProfileId: String? = nil
     ) {
         var info: [AnyHashable: Any] = ["action": action]
         if let planId, !planId.isEmpty { info["planId"] = planId }
         if let planTitle, !planTitle.isEmpty { info["planTitle"] = planTitle }
+        if let traineeProfileId, !traineeProfileId.isEmpty { info["traineeProfileId"] = traineeProfileId }
         NotificationCenter.default.post(name: .ttPlanAssignmentChanged, object: nil, userInfo: info)
     }
 
@@ -451,7 +457,8 @@ final class NotificationStore {
             Self.postPlanAssignmentChanged(
                 action: type ?? "plan_updated",
                 planId: flat["planId"] ?? flat["plan_id"],
-                planTitle: flat["planTitle"] ?? flat["plan_title"] ?? flat["title"]
+                planTitle: flat["planTitle"] ?? flat["plan_title"] ?? flat["title"],
+                traineeProfileId: flat["traineeProfileId"] ?? flat["trainee_profile_id"] ?? flat["traineeId"]
             )
             return true
         }
@@ -494,7 +501,10 @@ final class NotificationStore {
             Self.postPlanAssignmentChanged(
                 action: note.type,
                 planId: note.data["planId"] ?? note.data["plan_id"],
-                planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"]
+                planTitle: note.data["planTitle"] ?? note.data["plan_title"] ?? note.data["title"],
+                traineeProfileId: note.data["traineeProfileId"]
+                    ?? note.data["trainee_profile_id"]
+                    ?? note.data["traineeId"]
             )
         default:
             break

@@ -184,6 +184,15 @@ struct TrainerRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
             selectTab(.trainees)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
+            // Trainer 2nd device: soft refresh plans/roster (actor device already updated via REST).
+            store.handlePlanAssignmentChanged(
+                action: (note.userInfo?["action"] as? String) ?? "",
+                planId: note.userInfo?["planId"] as? String,
+                planTitle: note.userInfo?["planTitle"] as? String,
+                traineeProfileId: note.userInfo?["traineeProfileId"] as? String
+            )
+        }
         .onChange(of: store.softToast) { _, toast in
             guard let toast else { return }
             relationshipToast = toast

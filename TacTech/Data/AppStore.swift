@@ -86,6 +86,7 @@ final class AppStore {
     private var planAssignmentSyncTask: Task<Void, Never>?
     private var pendingPlanAssignmentAction: String?
     private var pendingPlanAssignmentTitle: String?
+    private var pendingPlanAssignmentTraineeProfileId: String?
 
     var currentUser: User? {
         users.first { $0.id == session?.userId }
@@ -847,27 +848,55 @@ final class AppStore {
         }
     }
 
-    /// Socket `plan.assignment.changed` / inbox `plan_*` — fetch full plan, calm UX.
+    /// Socket `plan.assignment.changed` / inbox `plan_*`.
+    /// Trainee: refetch `GET /trainee/assigned-plan`. Trainer (2nd device): soft plans/roster refresh.
     @MainActor
-    func handlePlanAssignmentChanged(action: String, planId: String?, planTitle: String?) {
-        guard session?.role == .trainee else { return }
+    func handlePlanAssignmentChanged(
+        action: String,
+        planId: String?,
+        planTitle: String?,
+        traineeProfileId: String? = nil
+    ) {
+        guard session?.role == .trainee || session?.role == .trainer else { return }
         let actionNorm = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !actionNorm.isEmpty else { return }
-        // Keep latest action/title across domain + inbox double-delivery.
+        // Keep latest fields across domain + inbox double-delivery.
         pendingPlanAssignmentAction = Self.normalizePlanAssignmentAction(actionNorm)
         if let planTitle, !planTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             pendingPlanAssignmentTitle = planTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        _ = planId // fetch is authoritative; id only helps logging
+        if let traineeProfileId, !traineeProfileId.isEmpty {
+            pendingPlanAssignmentTraineeProfileId = traineeProfileId
+        }
+        _ = planId // trainee fetch is authoritative for plan body
         planAssignmentSyncTask?.cancel()
         planAssignmentSyncTask = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             let action = self.pendingPlanAssignmentAction ?? "updated"
             let title = self.pendingPlanAssignmentTitle
+            let profileId = self.pendingPlanAssignmentTraineeProfileId
             self.pendingPlanAssignmentAction = nil
             self.pendingPlanAssignmentTitle = nil
-            await self.applyPlanAssignmentChanged(action: action, planTitle: title)
+            self.pendingPlanAssignmentTraineeProfileId = nil
+            if self.session?.role == .trainee {
+                await self.applyPlanAssignmentChanged(action: action, planTitle: title)
+            } else if self.session?.role == .trainer {
+                await self.applyTrainerPlanAssignmentChanged(traineeProfileId: profileId)
+            }
+        }
+    }
+
+    /// Optional multi-device polish — actor device already updated local state after REST.
+    @MainActor
+    private func applyTrainerPlanAssignmentChanged(traineeProfileId: String?) async {
+        if let plans = try? await api.trainerPlans() {
+            self.plans = plans
+        }
+        if let traineeProfileId, !traineeProfileId.isEmpty {
+            await loadTrainerDetail(traineeId: traineeProfileId)
+        } else {
+            await reloadTrainerRoster()
         }
     }
 

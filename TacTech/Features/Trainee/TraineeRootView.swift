@@ -163,7 +163,8 @@ struct TraineeRootView: View {
             store.handlePlanAssignmentChanged(
                 action: (note.userInfo?["action"] as? String) ?? "",
                 planId: note.userInfo?["planId"] as? String,
-                planTitle: note.userInfo?["planTitle"] as? String
+                planTitle: note.userInfo?["planTitle"] as? String,
+                traineeProfileId: note.userInfo?["traineeProfileId"] as? String
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenWorkoutHub)) { _ in

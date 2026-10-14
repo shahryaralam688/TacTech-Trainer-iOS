@@ -13,6 +13,14 @@ final class ChatRealtimeClient {
         case callIncoming(threadId: String, sessionId: String, fromUserId: String, fromName: String?, signalingPath: String?)
         case callEnded(threadId: String, sessionId: String, reason: String?)
         case notificationCreated(AppNotificationDTO)
+        /// Domain: coaching link created/removed. Prefer over inbox for live roster sync.
+        case relationshipChanged(
+            action: String,
+            reason: String?,
+            trainerUserId: String?,
+            traineeUserId: String?,
+            traineeProfileId: String?
+        )
     }
 
     var onEvent: ((Event) -> Void)?
@@ -266,9 +274,48 @@ final class ChatRealtimeClient {
                let dto = try? decoder.decode(AppNotificationDTO.self, from: msgData) {
                 onEvent?(.notificationCreated(dto))
             }
+        case "relationship.changed":
+            if let dict = Self.unwrapEventDict(body),
+               let action = Self.stringField(dict, "action"), !action.isEmpty {
+                onEvent?(.relationshipChanged(
+                    action: action,
+                    reason: Self.stringField(dict, "reason"),
+                    trainerUserId: Self.stringField(dict, "trainerUserId", "trainer_user_id"),
+                    traineeUserId: Self.stringField(dict, "traineeUserId", "trainee_user_id"),
+                    traineeProfileId: Self.stringField(dict, "traineeProfileId", "trainee_profile_id", "traineeId")
+                ))
+            }
         default:
             break
         }
+    }
+
+    /// Tolerate `{ …fields }` or `{ data: { …fields } }` / nested wrappers.
+    private static func unwrapEventDict(_ body: Any?) -> [String: Any]? {
+        guard let dict = body as? [String: Any] else { return nil }
+        if let nested = dict["data"] as? [String: Any] {
+            var merged = dict
+            for (k, v) in nested { merged[k] = v }
+            return merged
+        }
+        if let nested = dict["payload"] as? [String: Any] {
+            var merged = dict
+            for (k, v) in nested { merged[k] = v }
+            return merged
+        }
+        return dict
+    }
+
+    private static func stringField(_ dict: [String: Any], _ keys: String...) -> String? {
+        for key in keys {
+            if let s = dict[key] as? String {
+                let trimmed = s.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty { return trimmed }
+            } else if let n = dict[key] as? NSNumber {
+                return n.stringValue
+            }
+        }
+        return nil
     }
 
     private func schedulePing() {

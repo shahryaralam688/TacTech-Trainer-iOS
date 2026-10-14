@@ -32,6 +32,8 @@ final class AppStore {
     var pendingJoinRequest: JoinRequestDTO?
     /// Trainer: pending join requests for the Requests inbox.
     var trainerJoinRequests: [JoinRequestDTO] = []
+    /// Soft banner for peer leave/remove (shown from Root — works on any tab).
+    var softToast: TTToastMessage?
     /// Live analytics keyed by traineeId (`GET …/analytics`).
     var traineeAnalyticsById: [String: TraineeAnalytics] = [:]
     /// Marketplace entitlements — Phase 1 cache only; do **not** gate AI chat on launch.
@@ -68,6 +70,8 @@ final class AppStore {
     /// Last values from `GET /me` or login/signup — nil means backend omitted the field.
     private var serverAssessmentCompleted: Bool?
     private var serverOnboardingCompleted: Bool?
+    /// Coalesce `relationship.changed` + `relationship_ended` double-delivery.
+    private var relationshipReconcileTask: Task<Void, Never>?
 
     var currentUser: User? {
         users.first { $0.id == session?.userId }
@@ -690,6 +694,121 @@ final class AppStore {
                 await refreshTraineeJoinState()
             }
         }
+    }
+
+    /// Socket `relationship.changed` / inbox `relationship_ended` — live roster & My Trainer sync.
+    /// Debounced so domain event + notification do not double-refresh.
+    @MainActor
+    func handleRelationshipChanged(
+        action: String,
+        reason: String?,
+        trainerUserId: String?,
+        traineeUserId: String?,
+        traineeProfileId: String?
+    ) {
+        let actionNorm = action.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !actionNorm.isEmpty else { return }
+        relationshipReconcileTask?.cancel()
+        relationshipReconcileTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await self.applyRelationshipChanged(
+                action: actionNorm,
+                reason: reason?.lowercased(),
+                trainerUserId: trainerUserId,
+                traineeUserId: traineeUserId,
+                traineeProfileId: traineeProfileId
+            )
+        }
+    }
+
+    /// Foreground / reconnect belt: refresh join + roster without polling.
+    @MainActor
+    func reconcileRelationshipOnForeground() async {
+        guard session != nil else { return }
+        switch session?.role {
+        case .trainer:
+            await reloadTrainerRoster()
+            await fetchTrainerJoinRequests()
+        case .trainee:
+            await refreshTraineeJoinState()
+            await reconcileTraineeTrainerLinkFromServer()
+        case .none:
+            break
+        }
+    }
+
+    @MainActor
+    private func applyRelationshipChanged(
+        action: String,
+        reason: String?,
+        trainerUserId: String?,
+        traineeUserId: String?,
+        traineeProfileId: String?
+    ) async {
+        let isLinked = action == "linked" || action == "link" || action == "accepted"
+        let isUnlinked = action == "unlinked" || action == "unlink" || action == "ended" || action == "removed"
+
+        switch session?.role {
+        case .trainer:
+            if isUnlinked {
+                let leftName = traineeDisplayName(
+                    profileId: traineeProfileId,
+                    userId: traineeUserId
+                )
+                if let profileId = traineeProfileId, !profileId.isEmpty {
+                    trainees.removeAll { $0.id == profileId }
+                    assignments.removeAll { $0.traineeId == profileId }
+                }
+                if let userId = traineeUserId, !userId.isEmpty {
+                    let ids = trainees.filter { $0.userId == userId }.map(\.id)
+                    trainees.removeAll { $0.userId == userId }
+                    assignments.removeAll { ids.contains($0.traineeId) }
+                }
+                await reloadTrainerRoster()
+                await fetchTrainerJoinRequests()
+                if reason == "trainee_left", let leftName, !leftName.isEmpty {
+                    softToast = TTToastMessage(text: "\(leftName) left your roster", style: .info)
+                }
+            } else if isLinked {
+                await reloadTrainerRoster()
+                await fetchTrainerJoinRequests()
+            }
+        case .trainee:
+            if isUnlinked {
+                clearLocalTrainerLinkForCurrentTrainee()
+                pendingJoinRequest = nil
+                try? await refreshSession()
+                await reconcileTraineeTrainerLinkFromServer()
+                await refreshTraineeJoinState()
+                await refreshAssignedPlanForCurrentTrainee()
+                if reason == "trainer_removed" {
+                    softToast = TTToastMessage(text: "You’ve been removed from the roster", style: .info)
+                }
+            } else if isLinked {
+                await refreshTraineeJoinState()
+                try? await refreshSession()
+                await reconcileTraineeTrainerLinkFromServer()
+                await refreshAssignedPlanForCurrentTrainee()
+            }
+        case .none:
+            break
+        }
+    }
+
+    private func traineeDisplayName(profileId: String?, userId: String?) -> String? {
+        if let profileId, !profileId.isEmpty,
+           let trainee = trainees.first(where: { $0.id == profileId }) {
+            return user(forTrainee: trainee)?.name
+        }
+        if let userId, !userId.isEmpty,
+           let trainee = trainees.first(where: { $0.userId == userId }) {
+            return user(forTrainee: trainee)?.name
+        }
+        if let userId, !userId.isEmpty {
+            return users.first(where: { $0.id == userId })?.name
+        }
+        return nil
     }
 
     private func applyActiveTrainerLink(_ link: ActiveTrainerLinkDTO) {

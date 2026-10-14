@@ -71,23 +71,61 @@ final class NotificationStore {
     private func startRealtimeKeepalive() {
         realtime.onEvent = { [weak self] event in
             guard let self else { return }
-            if case .notificationCreated(let note) = event {
+            switch event {
+            case .notificationCreated(let note):
                 self.handleCreated(note)
                 if note.type == "chat_call" {
                     var info: [AnyHashable: Any] = ["type": "chat_call"]
                     for (k, v) in note.data { info[k] = v }
                     _ = self.handleUserInfo(info, fromUserTap: false)
                 }
-                if note.type.lowercased().hasPrefix("join_request") {
+                let type = note.type.lowercased()
+                if type.hasPrefix("join_request") {
                     NotificationCenter.default.post(
                         name: .ttJoinRequestRealtime,
                         object: nil,
                         userInfo: ["type": note.type]
                     )
                 }
+                if type == "relationship_ended" {
+                    Self.postRelationshipChanged(
+                        action: "unlinked",
+                        reason: note.data["reason"],
+                        trainerUserId: note.data["trainerUserId"] ?? note.data["trainer_user_id"],
+                        traineeUserId: note.data["traineeUserId"] ?? note.data["trainee_user_id"],
+                        traineeProfileId: note.data["traineeProfileId"]
+                            ?? note.data["trainee_profile_id"]
+                            ?? note.data["traineeId"]
+                    )
+                }
+            case let .relationshipChanged(action, reason, trainerUserId, traineeUserId, traineeProfileId):
+                Self.postRelationshipChanged(
+                    action: action,
+                    reason: reason,
+                    trainerUserId: trainerUserId,
+                    traineeUserId: traineeUserId,
+                    traineeProfileId: traineeProfileId
+                )
+            default:
+                break
             }
         }
         realtime.connect()
+    }
+
+    static func postRelationshipChanged(
+        action: String,
+        reason: String?,
+        trainerUserId: String?,
+        traineeUserId: String?,
+        traineeProfileId: String?
+    ) {
+        var info: [AnyHashable: Any] = ["action": action]
+        if let reason, !reason.isEmpty { info["reason"] = reason }
+        if let trainerUserId, !trainerUserId.isEmpty { info["trainerUserId"] = trainerUserId }
+        if let traineeUserId, !traineeUserId.isEmpty { info["traineeUserId"] = traineeUserId }
+        if let traineeProfileId, !traineeProfileId.isEmpty { info["traineeProfileId"] = traineeProfileId }
+        NotificationCenter.default.post(name: .ttRelationshipChanged, object: nil, userInfo: info)
     }
 
     // MARK: Inbox
@@ -368,6 +406,20 @@ final class NotificationStore {
             return true
         }
 
+        if type == "relationship_ended" {
+            if fromUserTap {
+                NotificationCenter.default.post(name: .ttOpenRelationshipEnded, object: nil)
+            }
+            Self.postRelationshipChanged(
+                action: "unlinked",
+                reason: flat["reason"],
+                trainerUserId: flat["trainerUserId"] ?? flat["trainer_user_id"],
+                traineeUserId: flat["traineeUserId"] ?? flat["trainee_user_id"],
+                traineeProfileId: flat["traineeProfileId"] ?? flat["trainee_profile_id"] ?? flat["traineeId"]
+            )
+            return true
+        }
+
         return false
     }
 
@@ -389,6 +441,18 @@ final class NotificationStore {
             NotificationCenter.default.post(name: .ttOpenTraineeProfile, object: nil)
         case "join_request_rejected":
             NotificationCenter.default.post(name: .ttOpenTraineeProfileJoin, object: nil)
+        case "relationship_ended":
+            // Trainer → My Trainees; Trainee → Profile join card (Roots filter by role).
+            NotificationCenter.default.post(name: .ttOpenRelationshipEnded, object: nil)
+            Self.postRelationshipChanged(
+                action: "unlinked",
+                reason: note.data["reason"],
+                trainerUserId: note.data["trainerUserId"] ?? note.data["trainer_user_id"],
+                traineeUserId: note.data["traineeUserId"] ?? note.data["trainee_user_id"],
+                traineeProfileId: note.data["traineeProfileId"]
+                    ?? note.data["trainee_profile_id"]
+                    ?? note.data["traineeId"]
+            )
         default:
             break
         }
@@ -467,6 +531,10 @@ extension Notification.Name {
     static let ttOpenTraineeProfileJoin = Notification.Name("ttOpenTraineeProfileJoin")
     /// Socket / inbox: `join_request*` — refresh join lists / My Trainer.
     static let ttJoinRequestRealtime = Notification.Name("ttJoinRequestRealtime")
+    /// Socket `relationship.changed` / inbox `relationship_ended` — roster & My Trainer sync.
+    static let ttRelationshipChanged = Notification.Name("ttRelationshipChanged")
+    /// Tap: Trainer → My Trainees; Trainee → Profile.
+    static let ttOpenRelationshipEnded = Notification.Name("ttOpenRelationshipEnded")
     /// Boost checkout finished successfully (confirm + refresh done).
     static let ttBoostCheckoutSucceeded = Notification.Name("ttBoostCheckoutSucceeded")
     /// Boost checkout canceled by user / cancel deep link.

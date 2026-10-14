@@ -13,6 +13,7 @@ struct TraineeRootView: View {
     @State private var showCoachChat = false
     @State private var pendingChatThreadId: String?
     @State private var rootTabBarVisible = true
+    @State private var relationshipToast: TTToastMessage?
     @Namespace private var aiChatNamespace
     @Namespace private var liquidFABNamespace
 
@@ -142,6 +143,26 @@ struct TraineeRootView: View {
             let type = (note.userInfo?["type"] as? String) ?? ""
             Task { await store.handleJoinRequestRealtime(type: type) }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttRelationshipChanged)) { note in
+            // Root always reconciles — no need to be on Profile tab.
+            store.handleRelationshipChanged(
+                action: (note.userInfo?["action"] as? String) ?? "",
+                reason: note.userInfo?["reason"] as? String,
+                trainerUserId: note.userInfo?["trainerUserId"] as? String,
+                traineeUserId: note.userInfo?["traineeUserId"] as? String,
+                traineeProfileId: note.userInfo?["traineeProfileId"] as? String
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
+            mounted.insert(.profile)
+            tab = .profile
+        }
+        .onChange(of: store.softToast) { _, toast in
+            guard let toast else { return }
+            relationshipToast = toast
+            store.softToast = nil
+        }
+        .ttToast($relationshipToast)
         .onChange(of: showCoachChat) { _, open in
             if !open { pendingChatThreadId = nil }
         }

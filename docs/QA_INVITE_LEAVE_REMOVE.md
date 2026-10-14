@@ -16,6 +16,14 @@
 - Leave when already unlinked (**404**) → clear stale UI + toast “Trainer removed” (treated as success).
 - DEBUG: failed unlink/remove prints HTTP kind + `detail` to console.
 
+## Live sync (two sims, both foreground — no force-quit)
+1. Linked pair; both on home/dashboard.
+2. **Trainee Leave** → trainer roster loses them live; optional “{name} left your roster”.
+3. Re-link via Accept; then **Trainer Remove** → trainee My Trainer clears live; optional “You’ve been removed…”.
+4. **Unassign plan** → neither side loses relationship; no `relationship_ended`.
+5. Chat still opens after leave/remove. Join Accept still live-updates trainee.
+6. Airplane on peer → action → later reconnect/foreground → state corrects.
+
 ## Must not change
 - Chat with that peer still openable after leave/remove.
 - Boost, AI paywall, Form Studio 3D, packages, notifications — untouched.

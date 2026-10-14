@@ -97,6 +97,12 @@ struct TraineeDetailView: View {
         .onAppear {
             selectedPlanId = store.assignedPlan(for: trainee)?.id ?? store.plans.first?.id ?? ""
         }
+        .onChange(of: store.trainees.map(\.id)) { _, ids in
+            // Peer leave / remote remove — detail is stale; pop without force-quit.
+            if !ids.contains(trainee.id) {
+                dismiss()
+            }
+        }
         .task(id: trainee.id) {
             await reloadPerformance(forceErrorSurface: false)
         }

@@ -20,6 +20,8 @@ struct TacTechApp: App {
                         HumanCallStore.shared.startMonitoring()
                         NotificationStore.shared.start()
                         NotificationCenter.default.post(name: .ttRefreshIncomingCalls, object: nil)
+                        // Belt + suspenders after brief socket drops (no polling).
+                        Task { await store.reconcileRelationshipOnForeground() }
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: .ttIncomingCallPush)) { note in

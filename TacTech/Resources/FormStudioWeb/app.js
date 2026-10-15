@@ -93,16 +93,29 @@ const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
 
-/** Soft studio wash matching AssessmentExperience photo (~#F5F5F5). */
+/** Default soft studio wash (AssessmentExperience). Override via `?bg=RRGGBB` / options.previewBg. */
 const PREVIEW_STUDIO = 0xF5F5F5;
+let previewBgColor = PREVIEW_STUDIO;
 
-function applyPreviewStudioLook() {
+function parsePreviewBgHex( value ) {
 
+	if ( typeof value !== 'string' ) return null;
+	const hex = value.replace( /^#/, '' ).trim();
+	if ( ! /^[0-9a-fA-F]{6}$/.test( hex ) ) return null;
+	return Number.parseInt( hex, 16 );
+
+}
+
+function applyPreviewStudioLook( hexOverride ) {
+
+	const parsed = parsePreviewBgHex( hexOverride );
+	if ( parsed != null ) previewBgColor = parsed;
 	if ( ! scene ) return;
-	scene.background = new THREE.Color( PREVIEW_STUDIO );
+
+	scene.background = new THREE.Color( previewBgColor );
 	if ( scene.fog ) {
 
-		scene.fog.color.setHex( PREVIEW_STUDIO );
+		scene.fog.color.setHex( previewBgColor );
 		scene.fog.near = 14;
 		scene.fog.far = 42;
 
@@ -110,14 +123,15 @@ function applyPreviewStudioLook() {
 
 	if ( groundMesh?.material ) {
 
-		groundMesh.material.color.setHex( PREVIEW_STUDIO );
+		groundMesh.material.color.setHex( previewBgColor );
 		groundMesh.material.roughness = 1;
 		groundMesh.material.metalness = 0;
 
 	}
 
 	if ( accentRing ) accentRing.visible = false;
-	document.body.style.background = '#F5F5F5';
+	const css = `#${ previewBgColor.toString( 16 ).padStart( 6, '0' ) }`;
+	document.body.style.background = css;
 
 }
 
@@ -193,6 +207,13 @@ if ( readLaunchMode() === 'preview' ) {
 
 	document.body.dataset.preview = 'true';
 	document.body.dataset.embedded = 'true';
+	try {
+
+		const params = new URLSearchParams( window.location.search || '' );
+		const fromQuery = parsePreviewBgHex( params.get( 'bg' ) );
+		if ( fromQuery != null ) previewBgColor = fromQuery;
+
+	} catch ( _ ) { /* ignore */ }
 
 }
 
@@ -213,7 +234,7 @@ async function initScene() {
 
 	scene = new THREE.Scene();
 	const isPreview = document.body.dataset.preview === 'true';
-	const pageColor = isPreview ? PREVIEW_STUDIO : 0xF2F3F6;
+	const pageColor = isPreview ? previewBgColor : 0xF2F3F6;
 	scene.background = new THREE.Color( pageColor );
 	scene.fog = new THREE.Fog( pageColor, isPreview ? 14 : 18, isPreview ? 42 : 48 );
 
@@ -238,7 +259,7 @@ async function initScene() {
 	groundMesh = new THREE.Mesh(
 		new THREE.CircleGeometry( 8, 64 ),
 		new THREE.MeshStandardMaterial( {
-			color: isPreview ? PREVIEW_STUDIO : 0xe8eaef,
+			color: isPreview ? previewBgColor : 0xe8eaef,
 			roughness: isPreview ? 1 : 0.95,
 			metalness: 0.02
 		} )
@@ -1497,7 +1518,7 @@ async function openExercise( id, options = {} ) {
 
 	if ( preview ) {
 
-		applyPreviewStudioLook();
+		applyPreviewStudioLook( options.previewBg );
 		if ( controls ) controls.enabled = false;
 		state.selectedId = id;
 		syncSelectedCards( id );

@@ -17,8 +17,18 @@ struct FormStudioWebView: UIViewRepresentable {
     var cuesJSON: String?
     var title: String?
     var presentation: Presentation = .session
+    /// Optional `RRGGBB` wash for `.preview` (default AssessmentExperience `#F5F5F5`).
+    var previewBackgroundHex: String? = nil
     var onClose: (() -> Void)?
     var onLoadError: ((String) -> Void)?
+
+    private var resolvedPreviewHex: String {
+        let raw = (previewBackgroundHex ?? "F5F5F5")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "#", with: "")
+            .uppercased()
+        return raw.count == 6 ? raw : "F5F5F5"
+    }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(
@@ -28,6 +38,7 @@ struct FormStudioWebView: UIViewRepresentable {
             cuesJSON: cuesJSON,
             title: title,
             presentation: presentation,
+            previewBackgroundHex: resolvedPreviewHex,
             onClose: onClose,
             onLoadError: onLoadError
         )
@@ -54,10 +65,11 @@ struct FormStudioWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
-        // Preview uses AssessmentExperience studio wash (#F5F5F5).
-        webView.backgroundColor = presentation == .preview
-            ? UIColor(red: 245 / 255, green: 245 / 255, blue: 245 / 255, alpha: 1)
-            : UIColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1)
+        if presentation == .preview {
+            webView.backgroundColor = UIColor(ttHex: resolvedPreviewHex) ?? UIColor(white: 0.96, alpha: 1)
+        } else {
+            webView.backgroundColor = UIColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1)
+        }
         webView.scrollView.backgroundColor = webView.backgroundColor
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
@@ -75,10 +87,14 @@ struct FormStudioWebView: UIViewRepresentable {
         components.scheme = FormStudioLocalSchemeHandler.scheme
         components.host = "local"
         components.path = "/index.html"
-        components.queryItems = [
+        var queryItems = [
             URLQueryItem(name: "exercise", value: formStudioExerciseId),
             URLQueryItem(name: "mode", value: presentation == .preview ? "preview" : "session")
         ]
+        if presentation == .preview {
+            queryItems.append(URLQueryItem(name: "bg", value: resolvedPreviewHex))
+        }
+        components.queryItems = queryItems
         let url = components.url ?? URL(string: "\(FormStudioLocalSchemeHandler.scheme)://local/index.html")!
         webView.load(URLRequest(url: url))
         context.coordinator.webView = webView
@@ -92,6 +108,7 @@ struct FormStudioWebView: UIViewRepresentable {
         context.coordinator.cuesJSON = cuesJSON
         context.coordinator.title = title
         context.coordinator.presentation = presentation
+        context.coordinator.previewBackgroundHex = resolvedPreviewHex
         context.coordinator.onClose = onClose
         context.coordinator.onLoadError = onLoadError
     }
@@ -119,6 +136,7 @@ struct FormStudioWebView: UIViewRepresentable {
         var cuesJSON: String?
         var title: String?
         var presentation: Presentation
+        var previewBackgroundHex: String
         var onClose: (() -> Void)?
         var onLoadError: ((String) -> Void)?
         var schemeHandler: FormStudioLocalSchemeHandler?
@@ -132,6 +150,7 @@ struct FormStudioWebView: UIViewRepresentable {
             cuesJSON: String?,
             title: String?,
             presentation: Presentation,
+            previewBackgroundHex: String,
             onClose: (() -> Void)?,
             onLoadError: ((String) -> Void)?
         ) {
@@ -141,6 +160,7 @@ struct FormStudioWebView: UIViewRepresentable {
             self.cuesJSON = cuesJSON
             self.title = title
             self.presentation = presentation
+            self.previewBackgroundHex = previewBackgroundHex
             self.onClose = onClose
             self.onLoadError = onLoadError
         }
@@ -159,6 +179,7 @@ struct FormStudioWebView: UIViewRepresentable {
             var opts: [String: Any] = [:]
             if presentation == .preview {
                 opts["preview"] = true
+                opts["previewBg"] = previewBackgroundHex
             }
             if let animationURL, !animationURL.isEmpty {
                 opts["animationUrl"] = animationURL
@@ -310,5 +331,18 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
         case "woff2": return "font/woff2"
         default: return "application/octet-stream"
         }
+    }
+}
+
+private extension UIColor {
+    /// Parse `RRGGBB` / `#RRGGBB` for Form Studio preview washes.
+    convenience init?(ttHex: String) {
+        var hex = ttHex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return nil }
+        let r = CGFloat((value >> 16) & 0xFF) / 255
+        let g = CGFloat((value >> 8) & 0xFF) / 255
+        let b = CGFloat(value & 0xFF) / 255
+        self.init(red: r, green: g, blue: b, alpha: 1)
     }
 }

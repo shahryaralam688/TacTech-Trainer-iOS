@@ -83,6 +83,8 @@ const state = {
 };
 
 let scene, renderer, labelRenderer, camera, controls, mixer, clock, model, skeleton;
+let groundMesh = null;
+let accentRing = null;
 const exerciseClips = new Map();
 const fbxLoader = new FBXLoader();
 const activeMarkers = [];
@@ -90,6 +92,34 @@ const _boneWorld = new THREE.Vector3();
 const _box = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
+
+/** Soft studio wash matching AssessmentExperience photo (~#F5F5F5). */
+const PREVIEW_STUDIO = 0xF5F5F5;
+
+function applyPreviewStudioLook() {
+
+	if ( ! scene ) return;
+	scene.background = new THREE.Color( PREVIEW_STUDIO );
+	if ( scene.fog ) {
+
+		scene.fog.color.setHex( PREVIEW_STUDIO );
+		scene.fog.near = 14;
+		scene.fog.far = 42;
+
+	}
+
+	if ( groundMesh?.material ) {
+
+		groundMesh.material.color.setHex( PREVIEW_STUDIO );
+		groundMesh.material.roughness = 1;
+		groundMesh.material.metalness = 0;
+
+	}
+
+	if ( accentRing ) accentRing.visible = false;
+	document.body.style.background = '#F5F5F5';
+
+}
 
 const els = {
 	libraryScreen: document.getElementById( 'libraryScreen' ),
@@ -182,36 +212,51 @@ async function initScene() {
 	const container = document.getElementById( 'container' );
 
 	scene = new THREE.Scene();
-	const pageColor = document.body.dataset.preview === 'true' ? 0xFFFFFF : 0xF2F3F6;
+	const isPreview = document.body.dataset.preview === 'true';
+	const pageColor = isPreview ? PREVIEW_STUDIO : 0xF2F3F6;
 	scene.background = new THREE.Color( pageColor );
-	scene.fog = new THREE.Fog( pageColor, 18, 48 );
+	scene.fog = new THREE.Fog( pageColor, isPreview ? 14 : 18, isPreview ? 42 : 48 );
 
-	scene.add( new THREE.HemisphereLight( 0xffffff, 0xd8dce4, 1.55 ) );
-	const key = new THREE.DirectionalLight( 0xffffff, 2.1 );
+	scene.add( new THREE.HemisphereLight( 0xffffff, isPreview ? 0xf0f0f0 : 0xd8dce4, isPreview ? 1.7 : 1.55 ) );
+	const key = new THREE.DirectionalLight( 0xffffff, isPreview ? 2.35 : 2.1 );
 	key.position.set( 3.2, 9, 6 );
 	key.castShadow = true;
 	key.shadow.mapSize.set( 1024, 1024 );
+	if ( isPreview ) {
+
+		key.shadow.radius = 4;
+		key.shadow.bias = - 0.0002;
+
+	}
+
 	scene.add( key );
-	scene.add( new THREE.DirectionalLight( 0xb9d4f0, 0.55 ).translateX( - 4 ).translateY( 3 ).translateZ( - 2 ) );
-	const rim = new THREE.DirectionalLight( 0xf38002, 0.28 );
+	scene.add( new THREE.DirectionalLight( isPreview ? 0xffffff : 0xb9d4f0, isPreview ? 0.45 : 0.55 ).translateX( - 4 ).translateY( 3 ).translateZ( - 2 ) );
+	const rim = new THREE.DirectionalLight( isPreview ? 0xffffff : 0xf38002, isPreview ? 0.18 : 0.28 );
 	rim.position.set( 0, 2, - 4 );
 	scene.add( rim );
 
-	const ground = new THREE.Mesh(
+	groundMesh = new THREE.Mesh(
 		new THREE.CircleGeometry( 8, 64 ),
-		new THREE.MeshStandardMaterial( { color: 0xe8eaef, roughness: 0.95, metalness: 0.02 } )
+		new THREE.MeshStandardMaterial( {
+			color: isPreview ? PREVIEW_STUDIO : 0xe8eaef,
+			roughness: isPreview ? 1 : 0.95,
+			metalness: 0.02
+		} )
 	);
-	ground.rotation.x = - Math.PI / 2;
-	ground.receiveShadow = true;
-	scene.add( ground );
+	groundMesh.rotation.x = - Math.PI / 2;
+	groundMesh.receiveShadow = true;
+	scene.add( groundMesh );
 
-	const ring = new THREE.Mesh(
+	accentRing = new THREE.Mesh(
 		new THREE.RingGeometry( 1.15, 1.22, 64 ),
 		new THREE.MeshBasicMaterial( { color: 0xF38002, transparent: true, opacity: 0.35 } )
 	);
-	ring.rotation.x = - Math.PI / 2;
-	ring.position.y = 0.012;
-	scene.add( ring );
+	accentRing.rotation.x = - Math.PI / 2;
+	accentRing.position.y = 0.012;
+	accentRing.visible = ! isPreview;
+	scene.add( accentRing );
+
+	if ( isPreview ) applyPreviewStudioLook();
 
 	renderer = new THREE.WebGLRenderer( { antialias: true } );
 	renderer.setPixelRatio( Math.min( window.devicePixelRatio, 2 ) );
@@ -1452,13 +1497,7 @@ async function openExercise( id, options = {} ) {
 
 	if ( preview ) {
 
-		if ( scene ) {
-
-			scene.background = new THREE.Color( 0xFFFFFF );
-			if ( scene.fog ) scene.fog.color.setHex( 0xFFFFFF );
-
-		}
-
+		applyPreviewStudioLook();
 		if ( controls ) controls.enabled = false;
 		state.selectedId = id;
 		syncSelectedCards( id );

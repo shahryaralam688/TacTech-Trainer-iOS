@@ -30,13 +30,15 @@ enum FormStudioExerciseMap {
         "Plank.fbx",
         "Push_Up.fbx",
         "Sit_To_Stand.fbx",
-        "Situps.fbx"
+        "Situps.fbx",
+        "Warming_Up.fbx"
     ]
 
     /// Form Studio id → relative FBX filename (must match `exercises.js` `file` basename).
     static let clipFileByFormStudioId: [String: String] = [
         "push_up": "Push_Up.fbx",
         "air_squat": "Air_Squat.fbx",
+        "warming_up": "Warming_Up.fbx",
         "jumping_jacks": "Jumping_Jacks.fbx",
         "plank": "Plank.fbx",
         "situps": "Situps.fbx",
@@ -122,6 +124,7 @@ enum FormStudioExerciseMap {
         NameRule(formStudioId: "air_squat", tokens: ["goblet squat", "goblet box", "barbell squat", "air squat", "squat"]),
         NameRule(formStudioId: "situps", tokens: ["sit up", "situp", "sit-up", "crunch"]),
         NameRule(formStudioId: "jumping_jacks", tokens: ["jumping jack"]),
+        NameRule(formStudioId: "warming_up", tokens: ["warming up", "warm up", "warmup"]),
         NameRule(formStudioId: "burpee", tokens: ["burpee"])
     ]
 

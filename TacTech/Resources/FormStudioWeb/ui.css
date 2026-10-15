@@ -63,9 +63,10 @@ html, body {
 	user-select: none;
 }
 
-/* Ambient assessment preview — looping 3D only, no Form Studio chrome */
+/* Ambient assessment preview — looping 3D only, no Form Studio chrome.
+   Studio wash matches AssessmentExperience photo backdrop. */
 body[data-preview="true"] {
-	background: #FFFFFF;
+	background: #F5F5F5;
 }
 
 body[data-preview="true"] .top-bar,

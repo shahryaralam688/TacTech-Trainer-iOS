@@ -512,13 +512,16 @@ struct ExperienceStep: View {
     }
 }
 
-/// Inline Form Studio warm-up (Jumping Jacks) — replaces the static experience image.
+/// Inline Form Studio warm-up (`Warming_Up.fbx`) — same soft studio wash as AssessmentExperience.
 private struct AssessmentWarmupPreview: View {
+    /// Matches AssessmentExperience photo backdrop (~studio off-white).
+    private static let studioWash = Color(red: 245 / 255, green: 245 / 255, blue: 245 / 255)
+
     @State private var loadFailed = false
 
     var body: some View {
         ZStack {
-            AssessmentColor.white
+            Self.studioWash
 
             if loadFailed {
                 Image("AssessmentExperience")
@@ -526,7 +529,7 @@ private struct AssessmentWarmupPreview: View {
                     .scaledToFit()
             } else {
                 FormStudioWebView(
-                    formStudioExerciseId: "jumping_jacks",
+                    formStudioExerciseId: "warming_up",
                     presentation: .preview,
                     onLoadError: { _ in
                         loadFailed = true

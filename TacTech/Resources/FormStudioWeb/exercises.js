@@ -160,6 +160,61 @@ export const EXERCISES = [
 		]
 	},
 	{
+		id: 'warming_up',
+		name: 'Warming Up',
+		tagline: 'Light mobility warm-up',
+		level: 'Beginner',
+		reps: '30–60 sec',
+		file: 'models/exercises/Warming_Up.fbx',
+		muscles: [ 'Full body', 'Shoulders', 'Hips', 'Core' ],
+		summary: 'A gentle warm-up sequence to wake up joints and raise heart rate before training.',
+		balance: [
+			'Keep movements controlled — no bouncing into end range.',
+			'Stand tall with soft knees.',
+			'Breathe steadily through each rep.'
+		],
+		steps: [
+			'Stand tall with feet under hips.',
+			'Follow the coach through the warm-up pattern.',
+			'Keep the tempo smooth and continuous.',
+			'Finish feeling loose and ready to train.'
+		],
+		cues: [
+			'Stay tall',
+			'Soft knees',
+			'Smooth tempo',
+			'Easy breathing'
+		],
+		mistakes: [
+			'Rushing through the range',
+			'Holding the breath',
+			'Locking joints hard'
+		],
+		guide: [
+			{
+				focus: 'Setup',
+				title: 'Ready stance',
+				detail: 'Feet under hips, arms relaxed, soft knees.',
+				t: 0.08,
+				camera: { pos: [ -1.5, 1.4, 3.0 ], target: [ 0, 1.0, 0 ] }
+			},
+			{
+				focus: 'Flow',
+				title: 'Move with the coach',
+				detail: 'Match the warm-up pattern — controlled, continuous motion.',
+				t: 0.45,
+				camera: { pos: [ -1.6, 1.2, 2.9 ], target: [ 0, 0.95, 0 ] }
+			},
+			{
+				focus: 'Finish',
+				title: 'Stay loose',
+				detail: 'Keep breathing easy and finish tall.',
+				t: 0.88,
+				camera: { pos: [ -1.5, 1.4, 3.1 ], target: [ 0, 1.05, 0 ] }
+			}
+		]
+	},
+	{
 		id: 'jumping_jacks',
 		name: 'Jumping Jacks',
 		tagline: 'Cardio warm-up & coordination',

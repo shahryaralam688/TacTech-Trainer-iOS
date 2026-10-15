@@ -54,8 +54,9 @@ struct FormStudioWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
+        // Preview uses AssessmentExperience studio wash (#F5F5F5).
         webView.backgroundColor = presentation == .preview
-            ? .white
+            ? UIColor(red: 245 / 255, green: 245 / 255, blue: 245 / 255, alpha: 1)
             : UIColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1)
         webView.scrollView.backgroundColor = webView.backgroundColor
         webView.scrollView.isScrollEnabled = false

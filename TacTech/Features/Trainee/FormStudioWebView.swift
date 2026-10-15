@@ -3,12 +3,20 @@ import WebKit
 
 /// WKWebView shell for bundled Form Studio (`Resources/FormStudioWeb` via `appcontent://`).
 struct FormStudioWebView: UIViewRepresentable {
+    enum Presentation: Equatable {
+        /// Full Form Studio chrome (instructions → guide → loop).
+        case session
+        /// Chrome-free looping clip for inline assessment / ambient use.
+        case preview
+    }
+
     var formStudioExerciseId: String
     /// Optional `appcontent://cache/…` or `https://…` clip URL for FBXLoader.
     var animationURL: String?
     var guideJSON: String?
     var cuesJSON: String?
     var title: String?
+    var presentation: Presentation = .session
     var onClose: (() -> Void)?
     var onLoadError: ((String) -> Void)?
 
@@ -19,6 +27,7 @@ struct FormStudioWebView: UIViewRepresentable {
             guideJSON: guideJSON,
             cuesJSON: cuesJSON,
             title: title,
+            presentation: presentation,
             onClose: onClose,
             onLoadError: onLoadError
         )
@@ -45,12 +54,16 @@ struct FormStudioWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
-        webView.backgroundColor = UIColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1)
+        webView.backgroundColor = presentation == .preview
+            ? .white
+            : UIColor(red: 0.95, green: 0.95, blue: 0.965, alpha: 1)
+        webView.scrollView.backgroundColor = webView.backgroundColor
         webView.scrollView.isScrollEnabled = false
         webView.scrollView.bounces = false
         webView.scrollView.delaysContentTouches = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.allowsBackForwardNavigationGestures = false
+        webView.isUserInteractionEnabled = presentation != .preview
         #if DEBUG
         if #available(iOS 16.4, *) {
             webView.isInspectable = true
@@ -63,7 +76,7 @@ struct FormStudioWebView: UIViewRepresentable {
         components.path = "/index.html"
         components.queryItems = [
             URLQueryItem(name: "exercise", value: formStudioExerciseId),
-            URLQueryItem(name: "mode", value: "session")
+            URLQueryItem(name: "mode", value: presentation == .preview ? "preview" : "session")
         ]
         let url = components.url ?? URL(string: "\(FormStudioLocalSchemeHandler.scheme)://local/index.html")!
         webView.load(URLRequest(url: url))
@@ -77,6 +90,7 @@ struct FormStudioWebView: UIViewRepresentable {
         context.coordinator.guideJSON = guideJSON
         context.coordinator.cuesJSON = cuesJSON
         context.coordinator.title = title
+        context.coordinator.presentation = presentation
         context.coordinator.onClose = onClose
         context.coordinator.onLoadError = onLoadError
     }
@@ -103,6 +117,7 @@ struct FormStudioWebView: UIViewRepresentable {
         var guideJSON: String?
         var cuesJSON: String?
         var title: String?
+        var presentation: Presentation
         var onClose: (() -> Void)?
         var onLoadError: ((String) -> Void)?
         var schemeHandler: FormStudioLocalSchemeHandler?
@@ -115,6 +130,7 @@ struct FormStudioWebView: UIViewRepresentable {
             guideJSON: String?,
             cuesJSON: String?,
             title: String?,
+            presentation: Presentation,
             onClose: (() -> Void)?,
             onLoadError: ((String) -> Void)?
         ) {
@@ -123,6 +139,7 @@ struct FormStudioWebView: UIViewRepresentable {
             self.guideJSON = guideJSON
             self.cuesJSON = cuesJSON
             self.title = title
+            self.presentation = presentation
             self.onClose = onClose
             self.onLoadError = onLoadError
         }
@@ -139,6 +156,9 @@ struct FormStudioWebView: UIViewRepresentable {
                 .replacingOccurrences(of: "'", with: "\\'")
 
             var opts: [String: Any] = [:]
+            if presentation == .preview {
+                opts["preview"] = true
+            }
             if let animationURL, !animationURL.isEmpty {
                 opts["animationUrl"] = animationURL
             }

@@ -119,6 +119,59 @@ const els = {
 	guidePlayBtn: document.getElementById( 'guidePlayBtn' )
 };
 
+// ---------------------------------------------------------------------------
+// TacTech native bridge launch params (must run before initScene).
+// ---------------------------------------------------------------------------
+
+let pendingExerciseId = null;
+let pendingExerciseOptions = null;
+let assetsReady = false;
+
+function readLaunchExerciseId() {
+
+	try {
+
+		const params = new URLSearchParams( window.location.search || '' );
+		return params.get( 'exercise' );
+
+	} catch ( _ ) {
+
+		return null;
+
+	}
+
+}
+
+function readLaunchMode() {
+
+	try {
+
+		const params = new URLSearchParams( window.location.search || '' );
+		return params.get( 'mode' );
+
+	} catch ( _ ) {
+
+		return null;
+
+	}
+
+}
+
+pendingExerciseId = readLaunchExerciseId();
+if ( pendingExerciseId ) document.body.dataset.embedded = 'true';
+if ( readLaunchMode() === 'preview' ) {
+
+	document.body.dataset.preview = 'true';
+	document.body.dataset.embedded = 'true';
+
+}
+
+function isPreviewMode( options = {} ) {
+
+	return document.body.dataset.preview === 'true' || options.preview === true;
+
+}
+
 initScene();
 buildLibrary();
 wireChrome();
@@ -129,8 +182,9 @@ async function initScene() {
 	const container = document.getElementById( 'container' );
 
 	scene = new THREE.Scene();
-	scene.background = new THREE.Color( 0xF2F3F6 );
-	scene.fog = new THREE.Fog( 0xF2F3F6, 18, 48 );
+	const pageColor = document.body.dataset.preview === 'true' ? 0xFFFFFF : 0xF2F3F6;
+	scene.background = new THREE.Color( pageColor );
+	scene.fog = new THREE.Fog( pageColor, 18, 48 );
 
 	scene.add( new THREE.HemisphereLight( 0xffffff, 0xd8dce4, 1.55 ) );
 	const key = new THREE.DirectionalLight( 0xffffff, 2.1 );
@@ -180,6 +234,11 @@ async function initScene() {
 	controls.maxDistance = 8;
 	controls.maxPolarAngle = Math.PI * 0.49;
 	controls.minPolarAngle = 0.15;
+	if ( document.body.dataset.preview === 'true' ) {
+
+		controls.enabled = false;
+
+	}
 	controls.addEventListener( 'start', () => {
 
 		state.userOrbiting = true;
@@ -515,6 +574,28 @@ async function preloadClips() {
 			console.warn( 'Idle load failed', file, err );
 
 		}
+
+	}
+
+	// Assessment / ambient preview: only load the one clip we will loop.
+	if ( document.body.dataset.preview === 'true' && pendingExerciseId ) {
+
+		const ex = getExercise( pendingExerciseId );
+		if ( ex?.file ) {
+
+			try {
+
+				exerciseClips.set( ex.id, await loadClip( ex.file, ex.id ) );
+
+			} catch ( err ) {
+
+				console.error( 'Failed to load preview clip', ex.id, err );
+
+			}
+
+		}
+
+		return;
 
 	}
 
@@ -1238,28 +1319,6 @@ function hardStopSession( { go } ) {
 // guide-data.js, then FormStudioExerciseMap on iOS.
 // ---------------------------------------------------------------------------
 
-let pendingExerciseId = null;
-let pendingExerciseOptions = null;
-let assetsReady = false;
-
-function readLaunchExerciseId() {
-
-	try {
-
-		const params = new URLSearchParams( window.location.search || '' );
-		return params.get( 'exercise' );
-
-	} catch ( _ ) {
-
-		return null;
-
-	}
-
-}
-
-pendingExerciseId = readLaunchExerciseId();
-if ( pendingExerciseId ) document.body.dataset.embedded = 'true';
-
 async function consumePendingExercise() {
 
 	assetsReady = true;
@@ -1277,6 +1336,14 @@ async function consumePendingExercise() {
 
 			console.error( '[FormStudio] pending open failed', err );
 			els.statusLabel.textContent = 'Couldn’t load 3D demo';
+			try {
+
+				window.webkit?.messageHandlers?.formStudio?.postMessage( {
+					type: 'error',
+					message: String( err && err.message ? err.message : err )
+				} );
+
+			} catch ( _ ) { /* native optional */ }
 
 		}
 
@@ -1291,7 +1358,7 @@ async function consumePendingExercise() {
 /**
  * Native / query bridge.
  * @param {string} id clipId
- * @param {{ animationUrl?: string, guide?: object[], cues?: string[], title?: string }} [options]
+ * @param {{ animationUrl?: string, guide?: object[], cues?: string[], title?: string, preview?: boolean }} [options]
  */
 async function openExercise( id, options = {} ) {
 
@@ -1301,6 +1368,7 @@ async function openExercise( id, options = {} ) {
 	let ex = getExercise( id );
 	const hasApiGuide = Array.isArray( options.guide ) && options.guide.length > 0;
 	const hasApiCues = Array.isArray( options.cues ) && options.cues.length > 0;
+	const preview = isPreviewMode( options );
 
 	if ( ! ex ) {
 
@@ -1345,6 +1413,7 @@ async function openExercise( id, options = {} ) {
 	}
 
 	document.body.dataset.embedded = 'true';
+	if ( preview ) document.body.dataset.preview = 'true';
 	if ( ! assetsReady ) {
 
 		pendingExerciseId = id;
@@ -1378,6 +1447,23 @@ async function openExercise( id, options = {} ) {
 			throw err;
 
 		}
+
+	}
+
+	if ( preview ) {
+
+		if ( scene ) {
+
+			scene.background = new THREE.Color( 0xFFFFFF );
+			if ( scene.fog ) scene.fog.color.setHex( 0xFFFFFF );
+
+		}
+
+		if ( controls ) controls.enabled = false;
+		state.selectedId = id;
+		syncSelectedCards( id );
+		startWorkout( ex );
+		return true;
 
 	}
 

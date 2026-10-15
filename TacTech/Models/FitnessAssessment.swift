@@ -35,14 +35,14 @@ enum AssessmentCatalog {
         "Arthritis", "Back Pain", "Asthma", "Obesity", "Knee Pain", "Muscle Pain", "None"
     ]
 
-    static let commonLimitations = ["Knee Pain", "Muscle Pain"]
+    static let commonLimitations = ["None", "Knee Pain", "Muscle Pain"]
 
     static let diets = [
         "Plant Based", "Carbo Diet", "Specialized", "Traditional"
     ]
 
     static let exercises = [
-        "Jogging", "Walking", "Hiking", "Skating", "Biking", "Weightlift", "Cardio", "Yoga", "Other"
+        "None", "Jogging", "Walking", "Hiking", "Skating", "Biking", "Weightlift", "Cardio", "Yoga", "Other"
     ]
 
     static let commonSupplements = [

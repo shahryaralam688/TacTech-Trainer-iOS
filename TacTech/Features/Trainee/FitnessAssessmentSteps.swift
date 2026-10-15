@@ -456,11 +456,10 @@ struct ExperienceStep: View {
 
             Spacer(minLength: 12)
 
-            Image("AssessmentExperience")
-                .resizable()
-                .scaledToFit()
+            AssessmentWarmupPreview()
                 .frame(maxWidth: 340)
                 .frame(maxHeight: 360)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, TTSpace.screen)
 
             Spacer(minLength: 12)
@@ -510,6 +509,34 @@ struct ExperienceStep: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+/// Inline Form Studio warm-up (Jumping Jacks) — replaces the static experience image.
+private struct AssessmentWarmupPreview: View {
+    @State private var loadFailed = false
+
+    var body: some View {
+        ZStack {
+            AssessmentColor.white
+
+            if loadFailed {
+                Image("AssessmentExperience")
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                FormStudioWebView(
+                    formStudioExerciseId: "jumping_jacks",
+                    presentation: .preview,
+                    onLoadError: { _ in
+                        loadFailed = true
+                    }
+                )
+                .allowsHitTesting(false)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .accessibilityLabel("3D coach warming up")
     }
 }
 
@@ -913,25 +940,34 @@ struct LimitationsStep: View {
 
     private func mostCommonChip(_ title: String) -> some View {
         let selected = draft.limitations.contains(title)
+        let isNone = title.caseInsensitiveCompare("None") == .orderedSame
         return Button {
             toggle(title)
         } label: {
             HStack(spacing: 6) {
                 Text(title)
                     .font(TTFont.workSans(13, weight: .semibold))
-                TTIcon(icon: .closeX, size: 11)
+                if !isNone {
+                    TTIcon(icon: .closeX, size: 11)
+                }
             }
-            .foregroundStyle(AssessmentColor.blue)
+            .foregroundStyle(selected && isNone ? AssessmentColor.white : AssessmentColor.blue)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(AssessmentColor.blueSoft)
+            .background(selected && isNone ? AssessmentColor.blue : AssessmentColor.blueSoft)
             .clipShape(Capsule())
-            .opacity(selected ? 0.55 : 1)
+            .opacity(selected && !isNone ? 0.55 : 1)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(isNone ? "No physical limitations" : title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func toggle(_ title: String) {
+        if title.caseInsensitiveCompare("None") == .orderedSame {
+            selectNone()
+            return
+        }
         if draft.limitations.contains(title) {
             draft.limitations.removeAll { $0 == title }
         } else {
@@ -939,12 +975,27 @@ struct LimitationsStep: View {
         }
     }
 
+    /// Explicit “no issues” answer — unlocks Continue without typing.
+    private func selectNone() {
+        isFieldFocused = false
+        draftText = ""
+        if draft.limitations == ["None"] {
+            draft.limitations = []
+        } else {
+            draft.limitations = ["None"]
+        }
+    }
+
     private func add(_ title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        if trimmed.caseInsensitiveCompare("None") == .orderedSame {
+            selectNone()
+            return
+        }
         guard draft.limitations.count < maxTags else { return }
         guard !draft.limitations.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
-        draft.limitations.removeAll { $0 == "None" }
+        draft.limitations.removeAll { $0.caseInsensitiveCompare("None") == .orderedSame }
         draft.limitations.append(trimmed)
     }
 
@@ -1330,9 +1381,319 @@ struct DaySliderLayout {
 
 struct ExercisePrefStep: View {
     @Binding var draft: FitnessAssessment
+
+    private let lanes: [(title: String, vibe: String, icon: SandowIcon)] = [
+        ("Jogging", "Road rhythm", .personRunning),
+        ("Walking", "Easy miles", .personWalking),
+        ("Hiking", "Trail days", .personHiking),
+        ("Skating", "Balance & flow", .rollerSkating),
+        ("Biking", "Spin & power", .bicycle),
+        ("Weightlift", "Strength focus", .barbellHorizontal),
+        ("Cardio", "Heart work", .heartEcg),
+        ("Yoga", "Mobility calm", .leaf),
+        ("Other", "Something else", .sparkle1)
+    ]
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
+
+    private var selectedCount: Int {
+        draft.exercisePreferences.filter { $0.caseInsensitiveCompare("None") != .orderedSame }.count
+    }
+
+    private var hasNone: Bool {
+        draft.exercisePreferences.contains { $0.caseInsensitiveCompare("None") == .orderedSame }
+    }
+
     var body: some View {
-        AssessmentQuestion("Do you have a specific Exercise Preference?", image: "OnboardingWorkouts") {
-            AssessmentChipGrid(items: AssessmentCatalog.exercises, selected: $draft.exercisePreferences)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                ExercisePrefHero()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Build your training mix")
+                        .font(TTFont.workSans(28, weight: .bold))
+                        .foregroundStyle(AssessmentColor.ink)
+                    Text("Tap the lanes you actually enjoy — pick one or stack a few.")
+                        .font(TTFont.workSans(15, weight: .medium))
+                        .foregroundStyle(AssessmentColor.slate)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                selectionStatusPill
+
+                openToAnythingCard
+
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(Array(lanes.enumerated()), id: \.element.title) { index, lane in
+                        ExerciseLaneCard(
+                            title: lane.title,
+                            vibe: lane.vibe,
+                            icon: lane.icon,
+                            selected: draft.exercisePreferences.contains(lane.title),
+                            index: index
+                        ) {
+                            toggleLane(lane.title)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 12)
+            .padding(.bottom, 20)
+        }
+        .scrollIndicators(.hidden)
+        .sensoryFeedback(.selection, trigger: draft.exercisePreferences.count)
+    }
+
+    private var selectionStatusPill: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(hasNone || selectedCount > 0 ? AssessmentColor.orange : AssessmentColor.coolGrey)
+                .frame(width: 8, height: 8)
+                .scaleEffect(hasNone || selectedCount > 0 ? 1.15 : 1)
+                .animation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: selectedCount)
+
+            Text(statusCopy)
+                .font(TTFont.workSans(13, weight: .semibold))
+                .foregroundStyle(AssessmentColor.charcoal)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.2), value: draft.exercisePreferences)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(AssessmentColor.surface)
+        .clipShape(Capsule())
+    }
+
+    private var statusCopy: String {
+        if hasNone { return "Open to anything — coach can mix it up" }
+        if selectedCount == 0 { return "No lanes selected yet" }
+        if selectedCount == 1 { return "1 training lane locked in" }
+        return "\(selectedCount) training lanes locked in"
+    }
+
+    private var openToAnythingCard: some View {
+        Button {
+            selectNone()
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    Circle()
+                        .fill(hasNone ? AssessmentColor.white.opacity(0.22) : AssessmentColor.peach)
+                        .frame(width: 44, height: 44)
+                    TTIcon(icon: .sparkle2, filled: hasNone, size: 22)
+                        .foregroundStyle(hasNone ? AssessmentColor.white : AssessmentColor.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Open to anything")
+                        .font(TTFont.workSans(16, weight: .bold))
+                    Text("No preference — surprise me")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(hasNone ? AssessmentColor.white.opacity(0.9) : AssessmentColor.slate)
+                }
+
+                Spacer(minLength: 8)
+
+                Image(systemName: hasNone ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(hasNone ? AssessmentColor.white : AssessmentColor.coolGrey)
+            }
+            .foregroundStyle(hasNone ? AssessmentColor.white : AssessmentColor.ink)
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(hasNone ? AssessmentColor.orange : AssessmentColor.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(
+                        hasNone ? AssessmentColor.orangeBorder : Color.clear,
+                        lineWidth: hasNone ? 2 : 0
+                    )
+            )
+            .shadow(
+                color: hasNone ? AssessmentColor.orange.opacity(0.22) : .clear,
+                radius: hasNone ? 14 : 0,
+                y: hasNone ? 4 : 0
+            )
+            .scaleEffect(hasNone ? 1.015 : 1)
+        }
+        .buttonStyle(AssessmentCardPressStyle())
+        .animation(.spring(response: 0.42, dampingFraction: 0.84), value: hasNone)
+        .accessibilityLabel("Open to anything, no exercise preference")
+        .accessibilityAddTraits(hasNone ? .isSelected : [])
+    }
+
+    private func toggleLane(_ title: String) {
+        if draft.exercisePreferences.contains(title) {
+            draft.exercisePreferences.removeAll { $0 == title }
+        } else {
+            draft.exercisePreferences.removeAll { $0.caseInsensitiveCompare("None") == .orderedSame }
+            draft.exercisePreferences.append(title)
+        }
+    }
+
+    private func selectNone() {
+        if hasNone {
+            draft.exercisePreferences = []
+        } else {
+            draft.exercisePreferences = ["None"]
+        }
+    }
+}
+
+/// Soft radar / signal hero — system-design energy without a static photo.
+private struct ExercisePrefHero: View {
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: false)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AssessmentColor.orange.opacity(0.95),
+                                Color(red: 255 / 255, green: 150 / 255, blue: 70 / 255),
+                                AssessmentColor.peach
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                // Soft signal rings
+                ForEach(0..<3, id: \.self) { ring in
+                    Circle()
+                        .strokeBorder(AssessmentColor.white.opacity(0.18 - Double(ring) * 0.04), lineWidth: 1.5)
+                        .frame(width: 70 + CGFloat(ring) * 48, height: 70 + CGFloat(ring) * 48)
+                        .scaleEffect(1 + 0.04 * sin(t * 1.4 + Double(ring)))
+                }
+
+                // Floating lane icons
+                ForEach(Array(heroIcons.enumerated()), id: \.offset) { index, icon in
+                    let angle = (Double(index) / Double(heroIcons.count)) * .pi * 2 + t * 0.35
+                    let radius: CGFloat = 62 + 6 * sin(t * 1.1 + Double(index))
+                    TTIcon(icon: icon, filled: true, size: 20)
+                        .foregroundStyle(AssessmentColor.white.opacity(0.92))
+                        .padding(10)
+                        .background(AssessmentColor.white.opacity(0.18), in: Circle())
+                        .offset(x: cos(angle) * radius, y: sin(angle) * radius * 0.72)
+                }
+
+                VStack(spacing: 4) {
+                    TTIcon(icon: .gridFour, filled: true, size: 26)
+                        .foregroundStyle(AssessmentColor.white)
+                    Text("TRAINING LANES")
+                        .font(TTFont.workSans(11, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundStyle(AssessmentColor.white.opacity(0.92))
+                }
+            }
+            .frame(height: 148)
+            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .shadow(color: AssessmentColor.orange.opacity(0.2), radius: 16, y: 8)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var heroIcons: [SandowIcon] {
+        [.personRunning, .bicycle, .barbellHorizontal, .leaf, .heartEcg, .personHiking]
+    }
+}
+
+private struct ExerciseLaneCard: View {
+    let title: String
+    let vibe: String
+    let icon: SandowIcon
+    let selected: Bool
+    var index: Int = 0
+    var action: () -> Void
+
+    @State private var appeared = false
+    @State private var pulse = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    ZStack {
+                        Circle()
+                            .fill(selected ? AssessmentColor.white.opacity(0.22) : AssessmentColor.white)
+                            .frame(width: 40, height: 40)
+                        TTIcon(icon: icon, filled: selected, size: 20)
+                            .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.orange)
+                            .scaleEffect(selected && pulse ? 1.12 : 1)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "plus.circle")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.coolGrey)
+                        .symbolEffect(.bounce, value: selected)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(selected ? AssessmentColor.white : AssessmentColor.ink)
+                    Text(vibe)
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(selected ? AssessmentColor.white.opacity(0.88) : AssessmentColor.slate)
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, minHeight: 118, alignment: .topLeading)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(selected ? AssessmentColor.orange : AssessmentColor.surface)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(
+                        selected ? AssessmentColor.orangeBorder : Color.clear,
+                        lineWidth: selected ? 2 : 0
+                    )
+            )
+            .shadow(
+                color: selected ? AssessmentColor.orange.opacity(pulse ? 0.32 : 0.16) : .clear,
+                radius: selected ? (pulse ? 16 : 10) : 0,
+                y: selected ? 4 : 0
+            )
+            .scaleEffect(appeared ? (selected ? 1.02 : 1) : 0.92)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 14)
+        }
+        .buttonStyle(AssessmentCardPressStyle())
+        .animation(.spring(response: 0.45, dampingFraction: 0.84), value: selected)
+        .onAppear {
+            withAnimation(
+                .spring(response: 0.55, dampingFraction: 0.84)
+                .delay(Double(index) * 0.045)
+            ) {
+                appeared = true
+            }
+            if selected { startPulse() }
+        }
+        .onChange(of: selected) { _, isOn in
+            if isOn {
+                startPulse()
+            } else {
+                withAnimation(.easeOut(duration: 0.25)) { pulse = false }
+            }
+        }
+        .accessibilityLabel("\(title), \(vibe)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func startPulse() {
+        pulse = false
+        withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+            pulse = true
         }
     }
 }
@@ -1359,43 +1720,165 @@ struct SupplementPickStep: View {
     @State private var seeAll = false
     @FocusState private var searchFocused: Bool
 
+    private let maxTags = 15
+
     var body: some View {
         AssessmentQuestion("Specify Supplement") {
-            Text("Please specify your supplement.")
-                .font(TTFont.body(15))
-                .foregroundStyle(TTColor.inkMuted)
-            TextField("Search supplements...", text: $query)
-                .focused($searchFocused)
-                .tint(AssessmentColor.orange)
-                .padding(12)
-                .ttInputChrome(
-                    focused: searchFocused,
-                    cornerRadius: 12,
-                    idleFill: TTColor.surfaceAlt
-                )
-            Text(seeAll ? "All Supplements" : "Most Common")
-                .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.inkMuted)
+            Text("Pick from the list, or type any supplement and tap Add.")
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+
+            if !draft.supplements.isEmpty {
+                FlowLayout(spacing: 8) {
+                    ForEach(draft.supplements, id: \.self) { item in
+                        selectedSupplementTag(item)
+                    }
+                }
+            }
+
+            HStack(spacing: 10) {
+                TextField("Type or search a supplement…", text: $query)
+                    .font(TTFont.workSans(15, weight: .medium))
+                    .foregroundStyle(AssessmentColor.ink)
+                    .focused($searchFocused)
+                    .tint(AssessmentColor.orange)
+                    .submitLabel(.done)
+                    .onSubmit(addFromQuery)
+
+                Button(action: addFromQuery) {
+                    Text("Add")
+                        .font(TTFont.workSans(14, weight: .bold))
+                        .foregroundStyle(canAddFromQuery ? AssessmentColor.white : AssessmentColor.slate)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(canAddFromQuery ? AssessmentColor.orange : AssessmentColor.surface)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(!canAddFromQuery)
+            }
+            .padding(12)
+            .ttInputChrome(
+                focused: searchFocused,
+                cornerRadius: 16,
+                idleFill: TTColor.surfaceAlt
+            )
+
+            if showsCustomAddHint {
+                Button(action: addFromQuery) {
+                    HStack(spacing: 8) {
+                        TTIcon(icon: .sparkle1, size: 16)
+                        Text("Add “\(trimmedQuery)”")
+                            .font(TTFont.workSans(14, weight: .semibold))
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(AssessmentColor.orange)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(AssessmentColor.peach)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack {
+                Text(seeAll ? "All Supplements" : "Most Common")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(AssessmentColor.slate)
+                Spacer()
+                Text("\(draft.supplements.count)/\(maxTags)")
+                    .font(TTFont.workSans(12, weight: .medium))
+                    .foregroundStyle(AssessmentColor.slate)
+                    .monospacedDigit()
+            }
+
             AssessmentChipGrid(items: filtered, selected: $draft.supplements)
+
             Button(seeAll ? "Most Common" : "See All Supplements") {
                 seeAll.toggle()
             }
-            .font(TTFont.caption(13))
+            .font(TTFont.workSans(13, weight: .semibold))
             .foregroundStyle(TTColor.brand)
+
             Button("Prefer to skip, thanks!") {
                 draft.takesSupplements = false
                 draft.supplements = []
+                query = ""
             }
-            .font(TTFont.caption(13))
-            .foregroundStyle(TTColor.inkMuted)
+            .font(TTFont.workSans(13, weight: .medium))
+            .foregroundStyle(AssessmentColor.slate)
         }
+        .sensoryFeedback(.selection, trigger: draft.supplements.count)
+    }
+
+    private var trimmedQuery: String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canAddFromQuery: Bool {
+        guard !trimmedQuery.isEmpty else { return false }
+        guard draft.supplements.count < maxTags else { return false }
+        return !draft.supplements.contains {
+            $0.caseInsensitiveCompare(trimmedQuery) == .orderedSame
+        }
+    }
+
+    /// Show when typed name isn’t already an exact catalog pick (or isn’t selected yet).
+    private var showsCustomAddHint: Bool {
+        guard canAddFromQuery else { return false }
+        let exactCatalogHit = AssessmentCatalog.allSupplements.contains {
+            $0.caseInsensitiveCompare(trimmedQuery) == .orderedSame
+        }
+        // Always offer Add for novel names; for catalog hits the chip grid is enough unless filtered empty.
+        return !exactCatalogHit || filtered.isEmpty
     }
 
     private var filtered: [String] {
         let source = seeAll ? AssessmentCatalog.allSupplements : AssessmentCatalog.commonSupplements
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return source }
-        return source.filter { $0.localizedCaseInsensitiveContains(trimmed) }
+        guard !trimmedQuery.isEmpty else { return source }
+        return source.filter { $0.localizedCaseInsensitiveContains(trimmedQuery) }
+    }
+
+    private func selectedSupplementTag(_ title: String) -> some View {
+        Button {
+            draft.supplements.removeAll { $0 == title }
+        } label: {
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(TTFont.workSans(13, weight: .semibold))
+                TTIcon(icon: .closeX, size: 11)
+            }
+            .foregroundStyle(AssessmentColor.orange)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(AssessmentColor.peach)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Remove \(title)")
+    }
+
+    private func addFromQuery() {
+        let trimmed = trimmedQuery
+        guard !trimmed.isEmpty else { return }
+        guard draft.supplements.count < maxTags else { return }
+
+        let canonical = AssessmentCatalog.allSupplements.first {
+            $0.caseInsensitiveCompare(trimmed) == .orderedSame
+        } ?? trimmed
+
+        guard !draft.supplements.contains(where: {
+            $0.caseInsensitiveCompare(canonical) == .orderedSame
+        }) else {
+            query = ""
+            searchFocused = false
+            return
+        }
+
+        draft.supplements.removeAll { $0.caseInsensitiveCompare("None") == .orderedSame }
+        draft.supplements.append(canonical)
+        query = ""
+        searchFocused = false
     }
 }
 

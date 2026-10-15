@@ -1105,11 +1105,15 @@ actor APIClient {
         try await send(path: "/coach/ai/capabilities", method: .get)
     }
 
-    func generateAIProgram(horizonDays: Int = 7, notes: String? = nil) async throws -> WorkoutPlan {
+    func generateAIProgram(
+        horizonDays: Int = 7,
+        notes: String? = nil,
+        assessment: AssessmentBody? = nil
+    ) async throws -> WorkoutPlan {
         try await send(
             path: "/coach/programs/generate",
             method: .post,
-            body: AIGenerateProgramBody(horizonDays: horizonDays, notes: notes)
+            body: AIGenerateProgramBody(horizonDays: horizonDays, notes: notes, assessment: assessment)
         )
     }
 

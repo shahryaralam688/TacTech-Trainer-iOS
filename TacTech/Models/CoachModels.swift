@@ -279,4 +279,6 @@ struct AICapabilitiesDTO: Codable, Hashable {
 struct AIGenerateProgramBody: Encodable {
     var horizonDays: Int
     var notes: String?
+    /// Optional snapshot so generate personalizes even if server assessment cache is stale.
+    var assessment: AssessmentBody?
 }

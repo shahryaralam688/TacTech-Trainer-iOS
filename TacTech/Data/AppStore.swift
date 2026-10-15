@@ -1849,6 +1849,7 @@ final class AppStore {
     }
 
     /// Solo trainee: `POST /coach/programs/generate` → upsert assigned plan.
+    /// Syncs fitness assessment first so the week matches goals / limits / days.
     /// Returns the plan on success. Throws `aiRequired` / `conflict` / others for UI handling.
     @discardableResult
     func generateAIProgram(horizonDays: Int = 7, notes: String? = nil) async throws -> WorkoutPlan {
@@ -1858,7 +1859,48 @@ final class AppStore {
         if trainee.trainerId != nil {
             throw AppError.conflict("You already have a trainer. Use their assigned plan.")
         }
-        var plan = try await api.generateAIProgram(horizonDays: horizonDays, notes: notes)
+
+        let assessment = loadSavedFitnessAssessment()
+        if assessment == nil && !assessmentCompleted {
+            throw AppError.validation("Complete your fitness assessment before generating a week.")
+        }
+
+        // Push latest local assessment so backend generate can load it.
+        let assessmentBody = assessment.map(AssessmentBody.init)
+        if let assessment, let assessmentBody {
+            do {
+                try await api.submitAssessment(assessmentBody)
+                persistAssessment(assessment)
+                if var t = currentTrainee {
+                    t.goal = assessment.goal
+                    t.weightKg = assessment.weightKg
+                    t.dailyCalorieTarget = assessment.calorieGoal
+                    upsert(t)
+                }
+                markAssessmentCompleted()
+                scheduleCoachMemorySync(force: true)
+            } catch {
+                // Still send assessment on generate body / notes if sync POST fails.
+            }
+        }
+
+        let contextNotes = assessment.map(Self.assessmentGenerateNotes)
+        let mergedNotes = [notes, contextNotes]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " | ")
+        let resolvedHorizon: Int = {
+            if let days = assessment?.daysPerWeek, days > 0 {
+                return max(horizonDays, min(7, days))
+            }
+            return horizonDays
+        }()
+
+        var plan = try await api.generateAIProgram(
+            horizonDays: resolvedHorizon,
+            notes: mergedNotes.isEmpty ? nil : mergedNotes,
+            assessment: assessmentBody
+        )
         if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             plan.source = "ai"
         }
@@ -1869,6 +1911,41 @@ final class AppStore {
         )
         planChangeNotice = "AI week ready"
         return plan
+    }
+
+    func loadSavedFitnessAssessment() -> FitnessAssessment? {
+        guard let userId = session?.userId,
+              let data = UserDefaults.standard.data(forKey: "assessment.payload.\(userId)"),
+              let draft = try? JSONDecoder().decode(FitnessAssessment.self, from: data)
+        else { return nil }
+        return draft
+    }
+
+    /// Compact assessment context for generate `notes` (backend + LLM).
+    private static func assessmentGenerateNotes(_ a: FitnessAssessment) -> String {
+        var parts: [String] = ["Use my fitness assessment"]
+        if !a.goal.isEmpty { parts.append("goal \(a.goal)") }
+        if !a.gender.isEmpty { parts.append("gender \(a.gender)") }
+        parts.append("age \(a.age)")
+        parts.append("weight \(a.weightKg.cleanKg) kg")
+        parts.append("fitness level \(a.fitnessLevel)/5")
+        parts.append("\(a.daysPerWeek) days/week")
+        if let exp = a.hasExperience {
+            parts.append(exp ? "has training experience" : "beginner / little experience")
+        }
+        if !a.limitations.isEmpty {
+            parts.append("limitations: \(a.limitations.joined(separator: ", "))")
+        }
+        if !a.exercisePreferences.isEmpty {
+            parts.append("prefers: \(a.exercisePreferences.joined(separator: ", "))")
+        }
+        if !a.diet.isEmpty { parts.append("diet \(a.diet)") }
+        parts.append("calorie target \(a.calorieGoal)")
+        if !a.sleepQuality.isEmpty { parts.append("sleep \(a.sleepQuality)") }
+        if !a.concerns.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            parts.append("concerns: \(a.concerns)")
+        }
+        return parts.joined(separator: "; ")
     }
 
     /// Trainee may Edit/Delete only AI-sourced plans while solo (no linked trainer).

@@ -396,7 +396,7 @@ struct TraineeDashboardView: View {
                     Spacer(minLength: 0)
                 }
 
-                Text("No trainer linked — build a 7-day plan from your assessment. Free includes a limited generate; Advanced unlocks more.")
+                Text("No trainer linked — we sync your fitness assessment (goals, limits, days/week), then build your week. Free includes a limited generate; Advanced unlocks more.")
                     .font(TTFont.workSans(13, weight: .medium))
                     .foregroundStyle(Color(white: 0.4))
                     .fixedSize(horizontal: false, vertical: true)

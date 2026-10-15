@@ -315,7 +315,8 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(String.self, forKey: .id)
-        trainerId = try c.decode(String.self, forKey: .trainerId)
+        // Solo AI plans may omit / null trainerId — keep decode resilient.
+        trainerId = try c.decodeIfPresent(String.self, forKey: .trainerId) ?? ""
         title = try c.decode(String.self, forKey: .title)
         focus = try c.decode(String.self, forKey: .focus)
         durationMinutes = try c.decode(Int.self, forKey: .durationMinutes)

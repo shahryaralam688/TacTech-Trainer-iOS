@@ -2218,8 +2218,8 @@ final class AppStore {
             upsert(plan)
             assignments.removeAll { $0.traineeId == trainee.id }
             assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
-        } else if let trainee = currentTrainee, trainee.trainerId == nil {
-            assignments.removeAll { $0.traineeId == trainee.id }
+        } else if let trainee = currentTrainee {
+            clearOrRetainLocalPlanAssignment(for: trainee)
         }
         if let logs = try? await api.traineeLogs(), let trainee = currentTrainee {
             replaceLogs(logs, traineeId: trainee.id)
@@ -2244,11 +2244,29 @@ final class AppStore {
                 assignments.removeAll { $0.traineeId == trainee.id }
                 assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
             } else {
-                assignments.removeAll { $0.traineeId == trainee.id }
+                // Solo AI generate assigns locally; `/trainee/assigned-plan` may still be empty.
+                // Do not wipe a cached solo plan on refresh / Workout Hub open.
+                clearOrRetainLocalPlanAssignment(for: trainee)
             }
         } catch {
             // Keep local assignment on transient network errors.
         }
+    }
+
+    /// When server has no assigned plan: clear for linked trainees; keep solo AI plan if still cached.
+    private func clearOrRetainLocalPlanAssignment(for trainee: TraineeProfile) {
+        if trainee.trainerId != nil {
+            assignments.removeAll { $0.traineeId == trainee.id }
+            return
+        }
+        let latest = assignments
+            .filter { $0.traineeId == trainee.id }
+            .sorted { $0.assignedAt > $1.assignedAt }
+            .first
+        if let latest, plans.contains(where: { $0.id == latest.planId }) {
+            return
+        }
+        assignments.removeAll { $0.traineeId == trainee.id }
     }
 
     private func apply(auth response: AuthResponse) {

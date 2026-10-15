@@ -1,12 +1,22 @@
 import SwiftUI
 import Charts
 
+/// Neutral system console — no lavender Canvas / brand purple wash.
+private enum ProgressPalette {
+    /// Cool gray page (`#F2F3F6`) — matches Form Studio default page, not Canvas purple.
+    static let page = Color(red: 242 / 255, green: 243 / 255, blue: 246 / 255)
+    static let pageHex = "F2F3F6"
+    static let panel = Color.white
+    static let line = Color(red: 225 / 255, green: 227 / 255, blue: 232 / 255)
+    static let ink = Color(red: 17 / 255, green: 18 / 255, blue: 20 / 255)
+    static let muted = Color(red: 103 / 255, green: 108 / 255, blue: 117 / 255)
+    static let accent = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255) // orange
+    static let accentSoft = Color(red: 255 / 255, green: 240 / 255, blue: 224 / 255)
+}
+
 struct TraineeProgressView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
-
-    /// Asset Canvas ≈ #F9EBFF — Form Studio wash matches the sheet.
-    private let canvasHex = "F9EBFF"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +35,7 @@ struct TraineeProgressView: View {
                 .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
             }
         }
-        .ttScreenBackground()
+        .background(ProgressPalette.page.ignoresSafeArea())
         .ttHideSystemNavigationBar()
     }
 
@@ -50,7 +60,7 @@ struct TraineeProgressView: View {
                     value: "\(logs.count)",
                     meta: "Completed",
                     icon: .sparkle1,
-                    accent: TTColor.calorie
+                    accent: ProgressPalette.accent
                 )
                 ProgressSignalCard(
                     code: "02",
@@ -58,7 +68,7 @@ struct TraineeProgressView: View {
                     value: bestForm.map(String.init) ?? "—",
                     meta: "AI score",
                     icon: .heartEcg,
-                    accent: TTColor.energy
+                    accent: Color(red: 234 / 255, green: 88 / 255, blue: 12 / 255)
                 )
             }
 
@@ -73,8 +83,7 @@ struct TraineeProgressView: View {
                     ProgressHistoryRow(
                         title: store.plans.first { $0.id == log.planId }?.title ?? "Workout",
                         subtitle: log.completedAt.formatted(date: .abbreviated, time: .omitted),
-                        trailing: "\(log.durationMinutes) min",
-                        accent: TTColor.brand
+                        trailing: "\(log.durationMinutes) min"
                     )
                 }
             }
@@ -84,8 +93,7 @@ struct TraineeProgressView: View {
                     ProgressHistoryRow(
                         title: store.exercise(id: report.exerciseId)?.name ?? "Exercise",
                         subtitle: report.cues.isEmpty ? "AI form check" : report.cues.joined(separator: " · "),
-                        trailing: "\(report.score)",
-                        accent: TTColor.energy
+                        trailing: "\(report.score)"
                     )
                 }
             }
@@ -97,10 +105,10 @@ struct TraineeProgressView: View {
             Text("SIGNAL OFFLINE")
                 .font(TTFont.workSans(12, weight: .bold))
                 .tracking(1.4)
-                .foregroundStyle(TTColor.inkMuted)
+                .foregroundStyle(ProgressPalette.muted)
             Text("Sign in as a trainee to track progress.")
                 .font(TTFont.workSans(15, weight: .medium))
-                .foregroundStyle(TTColor.ink)
+                .foregroundStyle(ProgressPalette.ink)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -110,32 +118,29 @@ struct TraineeProgressView: View {
     private func telemetryStrip(sessions: Int, bestForm: Int?, minutes: Int) -> some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(TTColor.brand)
+                .fill(ProgressPalette.accent)
                 .frame(width: 8, height: 8)
-                .shadow(color: TTColor.brand.opacity(0.45), radius: 4)
 
             Text("TELEMETRY · LIVE")
                 .font(TTFont.workSans(11, weight: .bold))
                 .tracking(1.1)
-                .foregroundStyle(TTColor.ink)
+                .foregroundStyle(ProgressPalette.ink)
 
             Spacer(minLength: 0)
 
             Text("\(sessions) SES · \(minutes) MIN · FORM \(bestForm.map(String.init) ?? "—")")
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(TTColor.inkMuted)
+                .foregroundStyle(ProgressPalette.muted)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(0.72))
-        )
+        .background(ProgressPalette.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(TTColor.line.opacity(0.7), lineWidth: 1)
+                .strokeBorder(ProgressPalette.line, lineWidth: 1)
         )
     }
 
@@ -145,19 +150,19 @@ struct TraineeProgressView: View {
                 Text("COACH STAGE")
                     .font(TTFont.workSans(11, weight: .bold))
                     .tracking(1.2)
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
                 Spacer()
                 Text("WARMING UP")
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(TTColor.brand)
+                    .foregroundStyle(ProgressPalette.accent)
             }
 
             ZStack {
-                TTColor.canvas
+                ProgressPalette.page
                 FormStudioWebView(
                     formStudioExerciseId: "warming_up",
                     presentation: .preview,
-                    previewBackgroundHex: canvasHex
+                    previewBackgroundHex: ProgressPalette.pageHex
                 )
                 .allowsHitTesting(false)
             }
@@ -165,12 +170,12 @@ struct TraineeProgressView: View {
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .strokeBorder(TTColor.line.opacity(0.85), lineWidth: 1)
+                    .strokeBorder(ProgressPalette.line, lineWidth: 1)
             )
             .overlay(alignment: .topLeading) {
                 Text("3D · MIXAMO")
                     .font(.system(size: 9, weight: .bold, design: .monospaced))
-                    .foregroundStyle(TTColor.ink.opacity(0.45))
+                    .foregroundStyle(ProgressPalette.muted.opacity(0.7))
                     .padding(10)
             }
         }
@@ -182,11 +187,11 @@ struct TraineeProgressView: View {
                 Text("SESSION LOAD")
                     .font(TTFont.workSans(11, weight: .bold))
                     .tracking(1.2)
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
                 Spacer()
                 Text("MIN / DAY")
                     .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
             }
 
             Chart {
@@ -195,7 +200,7 @@ struct TraineeProgressView: View {
                         x: .value("Date", log.completedAt),
                         y: .value("Minutes", log.durationMinutes)
                     )
-                    .foregroundStyle(TTColor.brand)
+                    .foregroundStyle(ProgressPalette.accent)
                     .interpolationMethod(.catmullRom)
 
                     AreaMark(
@@ -204,7 +209,7 @@ struct TraineeProgressView: View {
                     )
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [TTColor.brand.opacity(0.28), TTColor.brand.opacity(0.02)],
+                            colors: [ProgressPalette.accent.opacity(0.22), ProgressPalette.accent.opacity(0.02)],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -215,36 +220,34 @@ struct TraineeProgressView: View {
                         x: .value("Date", log.completedAt),
                         y: .value("Minutes", log.durationMinutes)
                     )
-                    .foregroundStyle(TTColor.brand)
+                    .foregroundStyle(ProgressPalette.accent)
                 }
             }
             .frame(height: 168)
             .chartXAxis {
                 AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                        .foregroundStyle(TTColor.line)
+                        .foregroundStyle(ProgressPalette.line)
                     AxisValueLabel()
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(TTColor.inkMuted)
+                        .foregroundStyle(ProgressPalette.muted)
                 }
             }
             .chartYAxis {
                 AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { _ in
                     AxisGridLine(stroke: StrokeStyle(lineWidth: 0.5, dash: [3, 4]))
-                        .foregroundStyle(TTColor.line)
+                        .foregroundStyle(ProgressPalette.line)
                     AxisValueLabel()
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
-                        .foregroundStyle(TTColor.inkMuted)
+                        .foregroundStyle(ProgressPalette.muted)
                 }
             }
             .padding(14)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.white.opacity(0.78))
-            )
+            .background(ProgressPalette.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .strokeBorder(TTColor.line.opacity(0.8), lineWidth: 1)
+                    .strokeBorder(ProgressPalette.line, lineWidth: 1)
             )
         }
     }
@@ -260,25 +263,25 @@ struct TraineeProgressView: View {
             HStack(spacing: 8) {
                 Text(code)
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(TTColor.brand)
+                    .foregroundStyle(ProgressPalette.accent)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(TTColor.brand.opacity(0.12), in: Capsule())
+                    .background(ProgressPalette.accentSoft, in: Capsule())
                 Text(title)
                     .font(TTFont.workSans(16, weight: .bold))
-                    .foregroundStyle(TTColor.ink)
+                    .foregroundStyle(ProgressPalette.ink)
                 Spacer()
             }
 
             if isEmpty {
                 Text(empty)
                     .font(TTFont.workSans(13, weight: .medium))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(14)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .strokeBorder(TTColor.line.opacity(0.8), style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
+                            .strokeBorder(ProgressPalette.line, style: StrokeStyle(lineWidth: 1, dash: [5, 4]))
                     )
             } else {
                 content()
@@ -304,7 +307,7 @@ private struct ProgressSignalCard: View {
             HStack {
                 Text(code)
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
                 Spacer()
                 Circle()
                     .fill(accent)
@@ -315,9 +318,10 @@ private struct ProgressSignalCard: View {
             .padding(.horizontal, 14)
             .padding(.top, 12)
             .padding(.bottom, 8)
+            .background(ProgressPalette.panel)
 
             ZStack {
-                accent.opacity(0.10)
+                Color(white: 0.96)
                 TTIcon(icon: icon, filled: true, size: 28)
                     .foregroundStyle(accent)
                     .scaleEffect(pulse ? 1.06 : 1)
@@ -340,12 +344,12 @@ private struct ProgressSignalCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(14)
-            .background(TTColor.ink)
+            .background(ProgressPalette.ink)
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(TTColor.line.opacity(0.5), lineWidth: 1)
+                .strokeBorder(ProgressPalette.line, lineWidth: 1)
         )
         .onAppear {
             withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
@@ -359,22 +363,21 @@ private struct ProgressHistoryRow: View {
     let title: String
     let subtitle: String
     let trailing: String
-    let accent: Color
 
     var body: some View {
         HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
-                .fill(accent)
+                .fill(ProgressPalette.accent)
                 .frame(width: 3, height: 36)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
                     .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(TTColor.ink)
+                    .foregroundStyle(ProgressPalette.ink)
                     .lineLimit(1)
                 Text(subtitle)
                     .font(TTFont.workSans(12, weight: .medium))
-                    .foregroundStyle(TTColor.inkMuted)
+                    .foregroundStyle(ProgressPalette.muted)
                     .lineLimit(2)
             }
 
@@ -382,17 +385,15 @@ private struct ProgressHistoryRow: View {
 
             Text(trailing)
                 .font(.system(size: 13, weight: .bold, design: .monospaced))
-                .foregroundStyle(accent)
+                .foregroundStyle(ProgressPalette.accent)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.78))
-        )
+        .background(ProgressPalette.panel)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(TTColor.line.opacity(0.75), lineWidth: 1)
+                .strokeBorder(ProgressPalette.line, lineWidth: 1)
         )
     }
 }

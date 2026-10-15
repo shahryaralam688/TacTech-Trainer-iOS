@@ -1113,6 +1113,16 @@ actor APIClient {
         )
     }
 
+    /// Trainee-owned AI plan only — `PATCH /trainee/ai-plans/{id}` (403 `PLAN_LOCKED` if trainer plan).
+    func updateTraineeAIPlan(id: String, _ body: PlanBody) async throws -> WorkoutPlan? {
+        try await sendOptional(path: "/trainee/ai-plans/\(id)", method: .patch, body: body)
+    }
+
+    /// Trainee-owned AI plan only — `DELETE /trainee/ai-plans/{id}` clears assignment server-side.
+    func deleteTraineeAIPlan(id: String) async throws {
+        try await sendVoid(path: "/trainee/ai-plans/\(id)", method: .delete, body: EmptyBody())
+    }
+
     // MARK: - AI billing (Phase 3)
 
     func myAI() async throws -> MeAIResponse {
@@ -1384,6 +1394,11 @@ actor APIClient {
             throw AppError.validation(detail ?? "Invalid request.")
         }
         if http.statusCode == 403 {
+            if code == "PLAN_LOCKED" {
+                throw AppError.forbidden(
+                    detail ?? "This plan was assigned by your trainer and can’t be edited."
+                )
+            }
             throw AppError.forbidden(detail ?? "Not allowed.")
         }
         if http.statusCode == 404 {

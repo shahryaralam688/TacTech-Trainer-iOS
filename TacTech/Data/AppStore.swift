@@ -1858,7 +1858,10 @@ final class AppStore {
         if trainee.trainerId != nil {
             throw AppError.conflict("You already have a trainer. Use their assigned plan.")
         }
-        let plan = try await api.generateAIProgram(horizonDays: horizonDays, notes: notes)
+        var plan = try await api.generateAIProgram(horizonDays: horizonDays, notes: notes)
+        if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            plan.source = "ai"
+        }
         upsert(plan)
         assignments.removeAll { $0.traineeId == trainee.id }
         assignments.append(
@@ -1866,6 +1869,49 @@ final class AppStore {
         )
         planChangeNotice = "AI week ready"
         return plan
+    }
+
+    /// Trainee may Edit/Delete only AI-sourced plans while solo (no linked trainer).
+    func traineeCanEditDeleteAIPlan(_ plan: WorkoutPlan) -> Bool {
+        session?.role == .trainee
+            && !hasLinkedTrainer
+            && plan.isAISource
+    }
+
+    /// `PATCH /trainee/ai-plans/{id}` — never hits trainer plan routes.
+    func updateAIPlan(_ draft: WorkoutPlan) async throws {
+        guard session?.role == .trainee else {
+            throw AppError.validation("Only trainees can edit AI plans.")
+        }
+        guard traineeCanEditDeleteAIPlan(draft) else {
+            throw AppError.forbidden("This plan was assigned by your trainer and can’t be edited.")
+        }
+        var payload = draft
+        payload.source = "ai"
+        let updated = try await api.updateTraineeAIPlan(id: draft.id, PlanBody(plan: payload))
+        if var updated {
+            if updated.days.isEmpty { updated.days = draft.days }
+            if updated.notes == nil { updated.notes = draft.notes }
+            if (updated.source ?? "").isEmpty { updated.source = "ai" }
+            upsert(updated)
+        } else {
+            upsert(payload)
+        }
+        planChangeNotice = "Plan updated"
+    }
+
+    /// `DELETE /trainee/ai-plans/{id}` → clear local assignment so Generate card returns.
+    func deleteAIPlan(id: String) async throws {
+        guard session?.role == .trainee, let trainee = currentTrainee else {
+            throw AppError.validation("Only trainees can delete AI plans.")
+        }
+        if let plan = plans.first(where: { $0.id == id }), !traineeCanEditDeleteAIPlan(plan) {
+            throw AppError.forbidden("This plan was assigned by your trainer and can’t be deleted.")
+        }
+        try await api.deleteTraineeAIPlan(id: id)
+        plans.removeAll { $0.id == id }
+        assignments.removeAll { $0.traineeId == trainee.id && $0.planId == id }
+        planChangeNotice = "AI plan removed"
     }
 
     var hasLinkedTrainer: Bool {
@@ -1876,6 +1922,7 @@ final class AppStore {
         session?.role == .trainee
             && !hasLinkedTrainer
             && aiCapabilities.structuredPlanJson
+            && currentTrainee.flatMap({ assignedPlan(for: $0) }) == nil
     }
 
     /// Presents AI paywall for trainee and trainer. Returns true if presented / already showing.
@@ -2214,7 +2261,10 @@ final class AppStore {
 
     private func loadTraineeWorkspace() async throws {
         await enrichTraineeTrainerFromServer(allowClearOnNotFound: !isSyncingCoachLink)
-        if let plan = try? await api.assignedPlan(), let trainee = currentTrainee {
+        if var plan = try? await api.assignedPlan(), let trainee = currentTrainee {
+            if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                plan.source = plan.resolvedSource
+            }
             upsert(plan)
             assignments.removeAll { $0.traineeId == trainee.id }
             assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
@@ -2239,7 +2289,10 @@ final class AppStore {
     func refreshAssignedPlanForCurrentTrainee() async {
         guard session?.role == .trainee, let trainee = currentTrainee else { return }
         do {
-            if let plan = try await api.assignedPlan() {
+            if var plan = try await api.assignedPlan() {
+                if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    plan.source = plan.resolvedSource
+                }
                 upsert(plan)
                 assignments.removeAll { $0.traineeId == trainee.id }
                 assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))

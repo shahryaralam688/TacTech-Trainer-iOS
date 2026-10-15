@@ -66,6 +66,14 @@ struct CreatePlanView: View {
 
     private var isEditing: Bool { editingPlan != nil }
 
+    /// Trainee editing an AI-sourced plan — saves via `/trainee/ai-plans/{id}`, not trainer routes.
+    private var savesAsTraineeAIPlan: Bool {
+        guard let plan = editingPlan else { return false }
+        return store.session?.role == .trainee
+            && plan.isAISource
+            && store.traineeCanEditDeleteAIPlan(plan)
+    }
+
     private var stepMotion: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.88)
     }
@@ -487,12 +495,36 @@ struct CreatePlanView: View {
     }
 
     private func save() async {
-        guard let trainer = store.currentTrainer else { return }
         isSaving = true
         error = nil
         defer { isSaving = false }
         let planDays = selectedDays.compactMap { sessions[$0]?.asPlanDay() }
         let flat = planDays.flatMap(\.exercises)
+
+        if savesAsTraineeAIPlan, let existing = editingPlan {
+            let draft = WorkoutPlan(
+                id: existing.id,
+                trainerId: existing.trainerId,
+                title: title,
+                focus: focus,
+                durationMinutes: planDays.map(\.durationMinutes).max() ?? 45,
+                level: level,
+                daysPerWeek: planDays.count,
+                exercises: flat,
+                notes: notes.isEmpty ? nil : notes,
+                days: planDays,
+                source: "ai"
+            )
+            do {
+                try await store.updateAIPlan(draft)
+                dismiss()
+            } catch {
+                self.error = error.localizedDescription
+            }
+            return
+        }
+
+        guard let trainer = store.currentTrainer else { return }
         let draft = WorkoutPlan(
             id: editingPlan?.id ?? UUID().uuidString,
             trainerId: trainer.id,
@@ -503,7 +535,8 @@ struct CreatePlanView: View {
             daysPerWeek: planDays.count,
             exercises: flat,
             notes: notes.isEmpty ? nil : notes,
-            days: planDays
+            days: planDays,
+            source: "trainer"
         )
         do {
             if isEditing {

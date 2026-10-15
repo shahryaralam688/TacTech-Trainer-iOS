@@ -1,7 +1,10 @@
 # TacTech — AI Gateway + Freemium (ONE COPY-PASTE DOC)
 
-**Use:** pehle BACKEND section → phir iOS section  
-**Har implementing AI** ko END pe Verification Report bhar ke deni hai.  
+**Use:**  
+- AI Gateway freemium: **PART A** (Backend) → **PART B** (iOS)  
+- Plan edit/delete lock (sirf AI plans): **PART E** (Backend) → **PART F** (iOS)  
+
+**Har implementing AI** ko us PART ke END pe Verification Report bhar ke deni hai.  
 **Product owner** report Composer/reviewer ko bhejega taake andaza lage kaam ho gaya ya nahi.
 
 Path: `docs/PROMPT_AI_GATEWAY_FREEMIUM.md` — isi file ko update / copy-paste karo.
@@ -291,6 +294,7 @@ Do not remove Boost, human chat, trainer assign, Form Studio, or join flows.
 1. Copy **PART A** only into Backend AI → get Backend Verification Report.
 2. Copy **PART B** only into iOS AI → get iOS Verification Report.
 3. Paste both reports back to Composer/reviewer and ask: “andaza lagaao kaam ho gaya ya nahi.”
+4. **Plan edit/delete lock:** Copy **PART E** (Backend) then **PART F** (iOS). Same report → review flow.
 
 ---
 
@@ -299,3 +303,168 @@ Do not remove Boost, human chat, trainer assign, Form Studio, or join flows.
 | Date | Change |
 |------|--------|
 | 2026-10-15 | Initial one-box doc — AI Gateway + freemium + stubs + dual verification reports. Saved as `docs/PROMPT_AI_GATEWAY_FREEMIUM.md`. |
+| 2026-10-16 | PART E/F — Only AI-generated plans may be edited/deleted by trainee; trainer plans locked (`source` field). |
+
+---
+
+# PART E — BACKEND PROMPT (AI plan edit/delete only)
+
+You are a senior FastAPI engineer on **TacTech**.
+
+## Product rule (international)
+
+| Plan type | Who may PATCH/DELETE | Who may unassign |
+|-----------|----------------------|------------------|
+| **AI solo** (`source=ai`) | Owning **trainee** | Owning trainee (clear assignment) |
+| **Trainer plan** (`source=trainer`) | Owning **trainer** only | **Trainer** unassign only |
+| Trainee on trainer plan | **Read-only** — 403 on edit/delete | No |
+
+Core coaching: trainee must **not** rewrite a human coach’s program.
+
+## Mission
+
+1. Persist plan origin: `source: "ai" | "trainer"` (required on create).
+2. `POST /coach/programs/generate` → save with `source: "ai"`, `trainerId` null/empty, owner = trainee user/profile.
+3. Trainer `POST /trainer/plans` → `source: "trainer"`.
+4. Enforce on:
+   - `PATCH /trainer/plans/{id}` / trainee edit route if any
+   - `DELETE /trainer/plans/{id}` or trainee delete-AI route
+5. `GET /trainee/assigned-plan` must return `source` so iOS can hide Edit/Delete.
+
+**Auth:** Bearer JWT · **JSON:** camelCase  
+**Errors:** `{ "detail": "…", "code": "…" }`
+
+| HTTP | code | when |
+|------|------|------|
+| 403 | `PLAN_LOCKED` | Trainee tries edit/delete trainer plan |
+| 403 | `FORBIDDEN` | Wrong owner |
+| 404 | `NOT_FOUND` | Missing plan |
+
+### Suggested trainee AI routes (additive OK)
+
+- `PATCH /trainee/ai-plans/{id}` — only if `source=ai` and owner
+- `DELETE /trainee/ai-plans/{id}` — only if `source=ai` and owner; clear assignment
+
+Or reuse plan PATCH/DELETE with role checks — document which.
+
+### Assigned-plan payload (add field)
+
+```json
+{
+  "id": "…",
+  "source": "ai",
+  "trainerId": null,
+  "title": "…",
+  "days": []
+}
+```
+
+Trainer-assigned: `"source": "trainer"`, `trainerId` set.
+
+### Migration
+
+Existing plans: if created via generate / no trainerId → `ai`; else `trainer`.
+
+### Do not break
+
+Assign/unassign trainer flows, generate, chat, boost, join-requests.
+
+---
+
+## MANDATORY OUTPUT — Backend Verification Report
+
+```
+## Plan source lock — Backend Verification Report
+
+### A) Source field
+- source on plans? (YES/NO)
+- generate sets source=ai? (YES/NO)
+- trainer create sets source=trainer? (YES/NO)
+- GET assigned-plan includes source? (YES/NO)
+
+### B) Enforcement
+- trainee PATCH trainer plan → 403 PLAN_LOCKED? (YES/NO)
+- trainee DELETE ai plan → 200? (YES/NO)
+- trainer PATCH own plan still works? (YES/NO)
+
+### C) Routes used
+- Trainee AI edit: ___
+- Trainee AI delete: ___
+
+### D) Files touched
+- ___
+
+### E) Gaps
+- ___
+```
+
+---
+
+# PART F — iOS PROMPT (AI plan edit/delete only)
+
+You are a senior SwiftUI engineer on **TacTech Trainer iOS**.
+
+## Rule
+
+- If assigned plan `source == "ai"` (or equivalent): show **Edit** / **Delete** / regenerate for trainee.
+- If `source == "trainer"` OR trainee has linked trainer with that plan: **no** edit/delete — read-only; copy: “Assigned by your trainer”.
+- Trainer app: keep existing edit/delete for **their** plans only.
+
+## Model
+
+Extend `WorkoutPlan` with optional:
+
+```swift
+var source: String? // "ai" | "trainer"
+```
+
+Decode safely; if missing: treat as `trainer` if `trainerId` non-empty, else `ai`.
+
+## API
+
+- Prefer `PATCH /trainee/ai-plans/{id}` and `DELETE /trainee/ai-plans/{id}` if backend ships them.
+- Else document fallback paths backend returns.
+- Map 403 `PLAN_LOCKED` → toast with server `detail`.
+
+## UX
+
+- Workout hub / plan detail: Edit & Delete only when `plan.source == "ai"` (and not locked by active trainer assignment of a trainer plan).
+- Delete confirm → delete AI plan API → clear local assignment → show **Generate my week** card again.
+- Edit → existing plan editor or lightweight editor calling PATCH AI plan.
+- Trainer-assigned plan: hide Edit/Delete; optional label “Assigned by your trainer”.
+
+## Do not
+
+- Let trainee PATCH/DELETE trainer plans
+- Remove trainer CreatePlan / delete on trainer side
+- Break Boost, join, Form Studio, AI chat, generate flow
+
+---
+
+## MANDATORY OUTPUT — iOS Verification Report
+
+```
+## Plan source lock — iOS Verification Report
+
+### A) Model
+- source decoded? (YES/NO)
+- missing source fallback rule: ___
+
+### B) UX
+- AI plan shows Edit/Delete? (YES/NO)
+- Trainer plan hides Edit/Delete? (YES/NO)
+- Delete AI → generate card returns? (YES/NO)
+- 403 PLAN_LOCKED toast? (YES/NO)
+
+### C) Features preserved
+- Trainer plan CRUD? (YES/NO)
+- Generate my week? (YES/NO)
+- Boost / join? (YES/NO)
+
+### D) Files touched
+- ___
+
+### E) Gaps
+- ___
+```
+

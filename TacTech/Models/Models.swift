@@ -279,6 +279,8 @@ struct PlanDay: Identifiable, Codable, Hashable {
 struct WorkoutPlan: Identifiable, Codable, Hashable {
     var id: String
     var trainerId: String
+    /// `"ai"` | `"trainer"` — who owns edit/delete. Missing → inferred from `trainerId`.
+    var source: String?
     var title: String
     var focus: String
     var durationMinutes: Int
@@ -298,10 +300,12 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         daysPerWeek: Int,
         exercises: [WorkoutExercise],
         notes: String? = nil,
-        days: [PlanDay] = []
+        days: [PlanDay] = [],
+        source: String? = nil
     ) {
         self.id = id
         self.trainerId = trainerId
+        self.source = source
         self.title = title
         self.focus = focus
         self.durationMinutes = durationMinutes
@@ -317,6 +321,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         id = try c.decode(String.self, forKey: .id)
         // Solo AI plans may omit / null trainerId — keep decode resilient.
         trainerId = try c.decodeIfPresent(String.self, forKey: .trainerId) ?? ""
+        source = try c.decodeIfPresent(String.self, forKey: .source)
         title = try c.decode(String.self, forKey: .title)
         focus = try c.decode(String.self, forKey: .focus)
         durationMinutes = try c.decode(Int.self, forKey: .durationMinutes)
@@ -326,6 +331,17 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         notes = try c.decodeIfPresent(String.self, forKey: .notes)
         days = try c.decodeIfPresent([PlanDay].self, forKey: .days) ?? []
     }
+
+    /// Normalized origin for UX locks: `"ai"` or `"trainer"`.
+    var resolvedSource: String {
+        if let source {
+            let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if trimmed == "ai" || trimmed == "trainer" { return trimmed }
+        }
+        return trainerId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "ai" : "trainer"
+    }
+
+    var isAISource: Bool { resolvedSource == "ai" }
 
     var scheduledDays: [PlanDay] {
         days.sorted { $0.weekday.sortIndex < $1.weekday.sortIndex }

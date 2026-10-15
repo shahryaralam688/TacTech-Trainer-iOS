@@ -11,6 +11,12 @@ struct WorkoutHubView: View {
 
     @State private var selectedDay = Date()
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    @State private var showEditAIPlan = false
+    @State private var showDeleteAIConfirm = false
+    @State private var isMutatingAIPlan = false
+    @State private var isRegeneratingAIWeek = false
+    @State private var hubToast: TTToastMessage?
+    @State private var editingPlan: WorkoutPlan?
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -55,8 +61,27 @@ struct WorkoutHubView: View {
             .background(charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .ttSyncRootTabBarWithNavigationDepth()
+            .ttToast($hubToast, bottomInset: 28)
             .task {
                 await store.refreshAssignedPlanForCurrentTrainee()
+            }
+            .sheet(isPresented: $showEditAIPlan) {
+                if let editingPlan {
+                    CreatePlanView(editingPlan: editingPlan)
+                        .ttModalSheetPresentation()
+                }
+            }
+            .confirmationDialog(
+                "Delete this AI plan?",
+                isPresented: $showDeleteAIConfirm,
+                titleVisibility: .visible
+            ) {
+                Button("Delete plan", role: .destructive) {
+                    Task { await deleteAIPlan() }
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("This removes your AI week. You can generate a new one anytime.")
             }
         }
     }
@@ -165,12 +190,23 @@ struct WorkoutHubView: View {
     // MARK: - Plan / session
 
     private func planOverviewCard(_ plan: WorkoutPlan) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("YOUR PLAN")
-                .font(TTFont.caption(11))
-                .fontWeight(.bold)
-                .tracking(0.8)
-                .foregroundStyle(orange)
+        let canMutateAI = store.traineeCanEditDeleteAIPlan(plan)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("YOUR PLAN")
+                    .font(TTFont.caption(11))
+                    .fontWeight(.bold)
+                    .tracking(0.8)
+                    .foregroundStyle(orange)
+                Spacer(minLength: 8)
+                if !canMutateAI {
+                    Text("Assigned by your trainer")
+                        .font(TTFont.caption(11))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+            }
 
             Text(plan.title)
                 .font(TTFont.workSans(20, weight: .bold))
@@ -190,11 +226,104 @@ struct WorkoutHubView: View {
                     .font(TTFont.body(13))
                     .foregroundStyle(TTColor.inkMuted)
             }
+
+            if canMutateAI {
+                aiPlanActions(plan)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+    }
+
+    private func aiPlanActions(_ plan: WorkoutPlan) -> some View {
+        HStack(spacing: 8) {
+            Button {
+                editingPlan = plan
+                showEditAIPlan = true
+            } label: {
+                Text("Edit")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+
+            Button {
+                Task { await regenerateAIWeek() }
+            } label: {
+                HStack(spacing: 6) {
+                    if isRegeneratingAIWeek {
+                        ProgressView().controlSize(.small)
+                    }
+                    Text(isRegeneratingAIWeek ? "…" : "Regenerate")
+                        .font(TTFont.workSans(13, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 40)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+
+            Button {
+                editingPlan = plan
+                showDeleteAIConfirm = true
+            } label: {
+                Text("Delete")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(Color(red: 0.75, green: 0.15, blue: 0.15))
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 40)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+        }
+        .padding(.top, 4)
+    }
+
+    @MainActor
+    private func deleteAIPlan() async {
+        guard let plan = editingPlan ?? store.currentTrainee.flatMap({ store.assignedPlan(for: $0) }) else { return }
+        isMutatingAIPlan = true
+        defer { isMutatingAIPlan = false }
+        do {
+            try await store.deleteAIPlan(id: plan.id)
+            editingPlan = nil
+            hubToast = TTToastMessage(text: "AI plan removed", style: .success)
+        } catch let error as AppError where error.isForbidden {
+            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
+        } catch let error as AppError where error.isAIRequired {
+            _ = store.presentAIPaywallIfNeeded(for: error)
+        } catch {
+            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
+        }
+    }
+
+    @MainActor
+    private func regenerateAIWeek() async {
+        guard !isRegeneratingAIWeek else { return }
+        isRegeneratingAIWeek = true
+        defer { isRegeneratingAIWeek = false }
+        do {
+            _ = try await store.generateAIProgram(horizonDays: 7)
+            hubToast = TTToastMessage(text: "AI week ready", style: .success)
+        } catch let error as AppError where error.isAIRequired {
+            _ = store.presentAIPaywallIfNeeded(for: error)
+        } catch let error as AppError where error.isForbidden {
+            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
+        } catch {
+            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
+        }
     }
 
     private func session(in plan: WorkoutPlan) -> PlanDay? {
@@ -408,10 +537,14 @@ struct WorkoutHubView: View {
             Text("No workout assigned")
                 .font(TTFont.workSans(17, weight: .bold))
                 .foregroundStyle(TTColor.ink)
-            Text("Your trainer will attach a plan with days, times, and weights.")
-                .font(TTFont.body(14))
-                .foregroundStyle(TTColor.inkMuted)
-                .multilineTextAlignment(.center)
+            Text(
+                store.canShowSoloAIGenerate
+                    ? "Generate my week from Home to build an AI plan, or link a trainer."
+                    : "Your trainer will attach a plan with days, times, and weights."
+            )
+            .font(TTFont.body(14))
+            .foregroundStyle(TTColor.inkMuted)
+            .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(28)

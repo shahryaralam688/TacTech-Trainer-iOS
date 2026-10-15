@@ -389,6 +389,7 @@ struct AssessmentAgeWheel: View {
 
     private func numberRow(_ value: Int) -> some View {
         let isSelected = value == selection
+        let motionOff = reduceMotion
         return Text("\(value)")
             .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
             .foregroundStyle(isSelected ? AssessmentColor.orange : AssessmentColor.slate)
@@ -397,12 +398,12 @@ struct AssessmentAgeWheel: View {
             .frame(height: rowHeight)
             .opacity(isSelected ? 1 : 0.55)
             .scaleEffect(isSelected ? 1.0 : 0.88)
-            .animation(reduceMotion ? nil : .snappy(duration: 0.2), value: isSelected)
-            .scrollTransition(.animated(reduceMotion ? .default : .snappy(duration: 0.2))) { content, phase in
+            .animation(motionOff ? nil : .snappy(duration: 0.2), value: isSelected)
+            .scrollTransition(.animated(motionOff ? .default : .snappy(duration: 0.2))) { content, phase in
                 content
                     .scaleEffect(phase.isIdentity ? 1.08 : 0.72)
                     .opacity(phase.isIdentity ? 1 : 0.28)
-                    .blur(radius: reduceMotion ? 0 : (phase.isIdentity ? 0 : 0.4))
+                    .blur(radius: motionOff ? 0 : (phase.isIdentity ? 0 : 0.4))
             }
             .accessibilityLabel("\(value)")
             .accessibilityAddTraits(isSelected ? .isSelected : [])
@@ -516,7 +517,7 @@ struct FitnessLevelStep: View {
     @Binding var draft: FitnessAssessment
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(spacing: 0) {
             Text("How would you rate your\nfitness level?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
@@ -531,26 +532,30 @@ struct FitnessLevelStep: View {
                     .font(TTFont.workSans(14, weight: .medium))
             }
             .foregroundStyle(AssessmentColor.slate)
-            .padding(.top, 18)
-            .padding(.horizontal, 24)
+            .padding(.top, 14)
 
             ZStack(alignment: .bottomTrailing) {
                 FitnessArcSlider(value: $draft.fitnessLevel, range: 1...5)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(.leading, 4)
+                    .padding(.trailing, 108)
+                    .padding(.vertical, 8)
 
-                VStack(alignment: .trailing, spacing: 6) {
+                VStack(alignment: .trailing, spacing: 4) {
                     Text("\(draft.fitnessLevel)")
-                        .font(TTFont.workSans(92, weight: .bold))
+                        .font(TTFont.workSans(88, weight: .bold))
+                        .monospacedDigit()
                         .foregroundStyle(AssessmentColor.ink)
                         .contentTransition(.numericText())
                         .animation(.snappy(duration: 0.18), value: draft.fitnessLevel)
                     Text(label)
-                        .font(TTFont.workSans(16, weight: .semibold))
+                        .font(TTFont.workSans(15, weight: .semibold))
                         .foregroundStyle(AssessmentColor.charcoal)
+                        .multilineTextAlignment(.trailing)
                         .animation(.snappy(duration: 0.18), value: draft.fitnessLevel)
                 }
-                .padding(.trailing, 28)
-                .padding(.bottom, 36)
+                .padding(.trailing, 20)
+                .padding(.bottom, 28)
                 .allowsHitTesting(false)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -570,16 +575,17 @@ struct FitnessLevelStep: View {
     }
 }
 
-/// Curved fitness-level slider. Handle travels along an arc; value snaps to ticks.
+/// Left-side fitness dial (1…5). Handle travels bottom → top along a single shared path.
 struct FitnessArcSlider: View {
     @Binding var value: Int
     var range: ClosedRange<Int>
 
-    private let trackWidth: CGFloat = 12
-    private let handleSize: CGFloat = 56
-    /// CG degrees (0 = right, positive clockwise). Arc runs bottom-left → top on the left side (CCW).
-    private let startDeg: Double = 205
-    private let endDeg: Double = 75
+    private let trackWidth: CGFloat = 14
+    private let handleSize: CGFloat = 52
+    /// UIKit degrees (0° = right, 90° = down, 180° = left, 270° = up).
+    /// Bottom-left → top-left so low values sit low and high values sit high.
+    private let startDeg: Double = 125
+    private let endDeg: Double = 235
 
     @State private var liveProgress: CGFloat?
     @GestureState private var isDragging = false
@@ -592,16 +598,22 @@ struct FitnessArcSlider: View {
 
     var body: some View {
         GeometryReader { geo in
-            let layout = layout(in: geo.size)
+            let layout = Self.makeLayout(
+                in: geo.size,
+                handleSize: handleSize,
+                startDeg: startDeg,
+                endDeg: endDeg
+            )
             ZStack {
+                // Sampled from the same point() used by handle/ticks/drag — never Path.addArc.
                 arcPath(layout: layout)
                     .stroke(
-                        AssessmentColor.ink,
+                        AssessmentColor.ink.opacity(0.92),
                         style: StrokeStyle(lineWidth: trackWidth, lineCap: .round)
                     )
 
                 arcPath(layout: layout)
-                    .trim(from: 0, to: max(0.002, progress))
+                    .trim(from: 0, to: max(0.001, progress))
                     .stroke(
                         AssessmentColor.orange,
                         style: StrokeStyle(lineWidth: trackWidth, lineCap: .round)
@@ -610,10 +622,10 @@ struct FitnessArcSlider: View {
                 ForEach(0...stepCount, id: \.self) { step in
                     let p = CGFloat(step) / CGFloat(max(stepCount, 1))
                     let pt = layout.point(at: p)
-                    let ang = layout.radialAngle(at: p)
+                    let ang = layout.tangentAngle(at: p)
                     Capsule()
                         .fill(AssessmentColor.ink)
-                        .frame(width: 2.5, height: 18)
+                        .frame(width: 3, height: 16)
                         .rotationEffect(.radians(ang))
                         .position(pt)
                 }
@@ -624,21 +636,32 @@ struct FitnessArcSlider: View {
             }
             .contentShape(Rectangle())
             .gesture(dragGesture(layout: layout))
-            .padding(.leading, 4)
-            .padding(.trailing, 8)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Fitness level")
+            .accessibilityValue("\(value) of \(range.upperBound), \(accessibilityLabel(for: value))")
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    value = min(value + 1, range.upperBound)
+                case .decrement:
+                    value = max(value - 1, range.lowerBound)
+                @unknown default:
+                    break
+                }
+            }
         }
     }
 
     private var handle: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .fill(AssessmentColor.orange)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
                         .stroke(AssessmentColor.white, lineWidth: 3)
                 )
                 .shadow(color: AssessmentColor.orange.opacity(0.35), radius: 10, y: 2)
-            TTIcon(icon: .arrowRotateClockwise1, size: 22)
+            TTIcon(icon: .arrowRotateClockwise1, size: 20)
                 .foregroundStyle(AssessmentColor.white)
         }
         .frame(width: handleSize, height: handleSize)
@@ -647,7 +670,7 @@ struct FitnessArcSlider: View {
     }
 
     private func dragGesture(layout: ArcLayout) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: 0, coordinateSpace: .local)
             .updating($isDragging) { _, state, _ in
                 state = true
             }
@@ -680,21 +703,73 @@ struct FitnessArcSlider: View {
         return min(max(raw, range.lowerBound), range.upperBound)
     }
 
-    private func layout(in size: CGSize) -> ArcLayout {
-        let radius = min(size.width, size.height) * 0.95
-        let center = CGPoint(x: size.width * 0.82, y: size.height * 0.70)
-        return ArcLayout(center: center, radius: radius, startDeg: startDeg, endDeg: endDeg)
+    private func accessibilityLabel(for value: Int) -> String {
+        switch value {
+        case 1: "Just starting"
+        case 2: "Getting active"
+        case 3: "Somewhat Athletic"
+        case 4: "Athletic"
+        default: "Highly Athletic"
+        }
+    }
+
+    /// Center on the right so the dial faces left; radius shrinks until track + handle fit.
+    private static func makeLayout(
+        in size: CGSize,
+        handleSize: CGFloat,
+        startDeg: Double,
+        endDeg: Double
+    ) -> ArcLayout {
+        let pad = handleSize * 0.55 + 6
+        guard size.width > 80, size.height > 80 else {
+            return ArcLayout(
+                center: CGPoint(x: size.width * 0.85, y: size.height * 0.5),
+                radius: 36,
+                startDeg: startDeg,
+                endDeg: endDeg
+            )
+        }
+
+        var radius = min(size.height * 0.46, size.width * 0.88)
+        var center = CGPoint(x: size.width - pad, y: size.height * 0.50)
+
+        for _ in 0..<16 {
+            let layout = ArcLayout(center: center, radius: radius, startDeg: startDeg, endDeg: endDeg)
+            var minX = CGFloat.greatestFiniteMagnitude
+            var maxX = -CGFloat.greatestFiniteMagnitude
+            var minY = CGFloat.greatestFiniteMagnitude
+            var maxY = -CGFloat.greatestFiniteMagnitude
+            for i in 0...24 {
+                let pt = layout.point(at: CGFloat(i) / 24)
+                minX = min(minX, pt.x); maxX = max(maxX, pt.x)
+                minY = min(minY, pt.y); maxY = max(maxY, pt.y)
+            }
+            let ok =
+                minX >= pad
+                && maxX <= size.width - 2
+                && minY >= pad
+                && maxY <= size.height - pad
+            if ok { return layout }
+            radius *= 0.93
+            // Keep center near the right edge so the arc stays left-facing.
+            center.x = size.width - pad
+        }
+
+        return ArcLayout(center: center, radius: max(radius, 40), startDeg: startDeg, endDeg: endDeg)
     }
 
     private func arcPath(layout: ArcLayout) -> Path {
         Path { path in
-            path.addArc(
-                center: layout.center,
-                radius: layout.radius,
-                startAngle: .degrees(layout.startDeg),
-                endAngle: .degrees(layout.endDeg),
-                clockwise: false
-            )
+            let samples = 72
+            for i in 0...samples {
+                let p = CGFloat(i) / CGFloat(samples)
+                let pt = layout.point(at: p)
+                if i == 0 {
+                    path.move(to: pt)
+                } else {
+                    path.addLine(to: pt)
+                }
+            }
         }
     }
 }
@@ -702,7 +777,7 @@ struct FitnessArcSlider: View {
 private struct ArcLayout {
     var center: CGPoint
     var radius: CGFloat
-    /// CG degrees: 0 = right, positive clockwise (y grows down).
+    /// Degrees in UIKit space: 0 = right, 90 = down, 180 = left, 270 = up.
     var startDeg: Double
     var endDeg: Double
 
@@ -711,34 +786,30 @@ private struct ArcLayout {
         let deg = startDeg + (endDeg - startDeg) * t
         let rad = deg * .pi / 180
         return CGPoint(
-            x: center.x + radius * CGFloat(cos(rad)),
-            y: center.y + radius * CGFloat(sin(rad))
+            x: center.x + radius * CGFloat(Foundation.cos(rad)),
+            y: center.y + radius * CGFloat(Foundation.sin(rad))
         )
     }
 
-    func radialAngle(at progress: CGFloat) -> CGFloat {
+    /// Tick mark orientation — tangent to the arc.
+    func tangentAngle(at progress: CGFloat) -> CGFloat {
         let deg = startDeg + (endDeg - startDeg) * Double(min(max(progress, 0), 1))
-        return CGFloat(deg * .pi / 180)
+        return CGFloat((deg + 90) * .pi / 180)
     }
 
     func progress(for location: CGPoint) -> CGFloat {
-        let dx = location.x - center.x
-        let dy = location.y - center.y
+        let dx = Double(location.x - center.x)
+        let dy = Double(location.y - center.y)
         var deg = atan2(dy, dx) * 180 / .pi
         if deg < 0 { deg += 360 }
 
-        let sweep = ccwDelta(from: startDeg, to: endDeg)
-        guard sweep > 0 else { return 0 }
-        let delta = ccwDelta(from: startDeg, to: deg)
-        return CGFloat(min(max(delta / sweep, 0), 1))
-    }
-
-    /// Counter-clockwise travel in CG angle space (decreasing degrees).
-    private func ccwDelta(from start: Double, to end: Double) -> Double {
-        var d = start - end
-        while d < 0 { d += 360 }
-        while d >= 360 { d -= 360 }
-        return d
+        let lo = min(startDeg, endDeg)
+        let hi = max(startDeg, endDeg)
+        let clamped = min(max(deg, lo), hi)
+        let span = endDeg - startDeg
+        guard abs(span) > 0.001 else { return 0 }
+        let t = (clamped - startDeg) / span
+        return CGFloat(min(max(t, 0), 1))
     }
 }
 

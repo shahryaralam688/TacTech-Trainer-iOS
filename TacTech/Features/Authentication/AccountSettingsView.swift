@@ -26,6 +26,7 @@ struct AccountSettingsView: View {
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
     @State private var isRestoringPurchases = false
     @State private var toast: TTToastMessage?
+    @State private var showAIFreemiumInfo = false
 
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
@@ -62,12 +63,17 @@ struct AccountSettingsView: View {
         .ttToast($toast, bottomInset: 28)
         .task {
             await store.refreshAIEntitlements()
+            await store.refreshAICapabilities()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttAIEntitlementDidChange)) { _ in
             Task { await store.refreshAIEntitlements() }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
             Task { await store.refreshAIEntitlements() }
+        }
+        .sheet(isPresented: $showAIFreemiumInfo) {
+            AIFreemiumInfoSheet()
+                .ttModalSheetPresentation()
         }
         .navigationDestination(for: AccountSettingsRoute.self) { route in
             destination(for: route)
@@ -128,6 +134,15 @@ struct AccountSettingsView: View {
     private var aiCoachProSection: some View {
         settingsGroup(title: "Subscriptions") {
             aiCoachProRow
+            Button {
+                showAIFreemiumInfo = true
+            } label: {
+                settingsRowLabel(title: "Free vs Advanced", icon: "info.circle") {
+                    TTChevronForward()
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Free versus Advanced AI info")
         }
     }
 

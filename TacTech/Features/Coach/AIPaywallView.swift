@@ -289,6 +289,131 @@ struct AIPaywallView: View {
     }
 }
 
+// MARK: - Free vs Advanced (copy-only info)
+
+struct AIFreemiumInfoSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("What’s free vs Advanced")
+                        .font(TTFont.workSans(24, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+
+                    Text("Core coaching stays available. AI usage has soft limits — unlock Advanced when you want more.")
+                        .font(TTFont.workSans(15, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+
+                    freemiumRow(
+                        title: "Free",
+                        points: [
+                            "Limited AI chat messages per day",
+                            "One AI week generate when you have no trainer",
+                            "Human trainer link, plans, and chat stay open"
+                        ]
+                    )
+
+                    freemiumRow(
+                        title: "Advanced / Pro",
+                        points: [
+                            "Higher AI chat quota",
+                            "Regenerate AI weeks when solo",
+                            "Pose & food AI when those capabilities go live"
+                        ]
+                    )
+
+                    Text("Boost (trainer discovery) is a separate product and is not required for AI chat.")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+                .padding(22)
+            }
+            .background(Color.white.ignoresSafeArea())
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { dismiss() }
+                        .font(TTFont.workSans(16, weight: .semibold))
+                }
+            }
+        }
+    }
+
+    private func freemiumRow(title: String, points: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(TTFont.workSans(17, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            ForEach(points, id: \.self) { point in
+                HStack(alignment: .top, spacing: 10) {
+                    Circle()
+                        .fill(TTColor.actionOrange)
+                        .frame(width: 6, height: 6)
+                        .padding(.top, 6)
+                    Text(point)
+                        .font(TTFont.workSans(14, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(white: 0.96))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+}
+
+/// Soft gate when `visionPose` / `visionFood` is false or API returns `AI_CAPABILITY_UNAVAILABLE`.
+struct AIComingSoonView: View {
+    var title: String
+    var detail: String
+    var onClose: (() -> Void)?
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 18) {
+            Spacer(minLength: 24)
+            Image(systemName: "sparkles")
+                .font(.system(size: 36, weight: .semibold))
+                .foregroundStyle(TTColor.actionOrange)
+            Text(title)
+                .font(TTFont.workSans(22, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text("Advanced · Coming soon")
+                .font(TTFont.workSans(13, weight: .bold))
+                .foregroundStyle(TTColor.actionOrange)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(TTColor.actionOrange.opacity(0.12), in: Capsule())
+            Text(detail)
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+            Spacer()
+            Button {
+                if let onClose { onClose() } else { dismiss() }
+            } label: {
+                Text("Got it")
+                    .font(TTFont.workSans(16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 22)
+            .padding(.bottom, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.ignoresSafeArea())
+    }
+}
+
 #Preview("AI Paywall") {
     AIPaywallView()
         .ttPreviewTrainee()

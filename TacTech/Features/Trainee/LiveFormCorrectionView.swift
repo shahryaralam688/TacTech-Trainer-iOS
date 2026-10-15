@@ -15,6 +15,24 @@ struct LiveFormCorrectionView: View {
     private let orange = TTColor.actionOrange
 
     var body: some View {
+        Group {
+            if store.aiCapabilities.visionPose {
+                liveFormBody
+            } else {
+                AIComingSoonView(
+                    title: "Live form AI",
+                    detail: "Pose coaching isn’t live on this build yet. Core workouts and AI chat still work — Advanced vision lands when the capability turns on."
+                ) {
+                    dismiss()
+                }
+            }
+        }
+        .task {
+            await store.refreshAICapabilities()
+        }
+    }
+
+    private var liveFormBody: some View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 CameraPreview(session: analyzer.session)

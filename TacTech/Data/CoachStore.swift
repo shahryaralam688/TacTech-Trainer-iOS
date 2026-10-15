@@ -349,8 +349,11 @@ final class CoachStore {
                 for try await event in stream {
                     if Task.isCancelled { break }
                     if case let .error(code, detail) = event {
-                        if code == "AI_REQUIRED" {
+                        if code == "AI_REQUIRED" || code == "AI_QUOTA_EXCEEDED" {
                             throw AppError.aiRequired(detail ?? "AI Coach Pro is required.")
+                        }
+                        if code == "AI_CAPABILITY_UNAVAILABLE" || code == "AI_PROVIDER_NOT_CONFIGURED" {
+                            throw AppError.aiUnavailable(detail ?? "This AI feature is coming soon.")
                         }
                         throw AppError.api(detail ?? "AI stream error.")
                     }

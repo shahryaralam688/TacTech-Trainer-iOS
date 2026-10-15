@@ -47,6 +47,10 @@ final class AppStore {
     var entitlements: EntitlementsDTO?
     /// AI Coach Pro status (`GET /me/ai`).
     var aiEntitlement: MeAIResponse?
+    /// Cached `GET /coach/ai/capabilities` — which AI surfaces are live.
+    var aiCapabilities: AICapabilitiesDTO = .fallback
+    /// Soft banner for solo generate / HAS_TRAINER (cleared by UI).
+    var aiSoftNotice: String?
     /// Trainer Boost status (`GET /me/boost`). Nil for trainees / before first load.
     var myBoost: MeBoostDTO?
     /// Live Sandow Score chart (`GET /me/sandow-score` or local compose fallback).
@@ -267,7 +271,7 @@ final class AppStore {
             if let previewImage {
                 Task { await TTRemoteImageCache.shared.store(previewImage, for: url) }
                 if let userId = session?.userId {
-                    _ = TTAvatarCatalog.saveCustomImage(previewImage, for: userId)
+            _ = TTAvatarCatalog.saveCustomImage(previewImage, for: userId)
                 }
             }
         }
@@ -349,7 +353,7 @@ final class AppStore {
             if previousURL != trimmedURL {
                 Task { _ = await TTRemoteImageCache.shared.image(for: trimmedURL) }
             }
-            if let userId = session?.userId {
+        if let userId = session?.userId {
                 // Drop broken `custom` token — URL is source of truth after reinstall.
                 UserDefaults.standard.removeObject(forKey: TTAvatarCatalog.storageKey(userId: userId))
             }
@@ -1087,7 +1091,7 @@ final class AppStore {
             #endif
             clearLocalTrainerLinkForCurrentTrainee()
             pendingJoinRequest = nil
-            try await refreshSession()
+        try await refreshSession()
             await reconcileTraineeTrainerLinkFromServer()
             await refreshTraineeJoinState()
             return
@@ -1783,6 +1787,7 @@ final class AppStore {
         }
         await refreshEntitlements()
         await refreshAIEntitlements()
+        await refreshAICapabilities()
         // Avatar source of truth — required so home/profile work after reinstall.
         _ = try? await fetchMeProfile()
         if session?.role == .trainer {
@@ -1829,6 +1834,48 @@ final class AppStore {
         } catch {
             // Keep last known.
         }
+    }
+
+    /// Loads `GET /coach/ai/capabilities` into `aiCapabilities`. Silent on failure.
+    func refreshAICapabilities() async {
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        do {
+            aiCapabilities = try await api.aiCapabilities()
+        } catch let error as AppError where error == .unauthorized {
+            // Keep fallback.
+        } catch {
+            // Keep last known / fallback.
+        }
+    }
+
+    /// Solo trainee: `POST /coach/programs/generate` → upsert assigned plan.
+    /// Returns the plan on success. Throws `aiRequired` / `conflict` / others for UI handling.
+    @discardableResult
+    func generateAIProgram(horizonDays: Int = 7, notes: String? = nil) async throws -> WorkoutPlan {
+        guard session?.role == .trainee, let trainee = currentTrainee else {
+            throw AppError.validation("Only trainees can generate an AI week.")
+        }
+        if trainee.trainerId != nil {
+            throw AppError.conflict("You already have a trainer. Use their assigned plan.")
+        }
+        let plan = try await api.generateAIProgram(horizonDays: horizonDays, notes: notes)
+        upsert(plan)
+        assignments.removeAll { $0.traineeId == trainee.id }
+        assignments.append(
+            PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now)
+        )
+        planChangeNotice = "AI week ready"
+        return plan
+    }
+
+    var hasLinkedTrainer: Bool {
+        currentTrainee?.trainerId != nil
+    }
+
+    var canShowSoloAIGenerate: Bool {
+        session?.role == .trainee
+            && !hasLinkedTrainer
+            && aiCapabilities.structuredPlanJson
     }
 
     /// Presents AI paywall for trainee and trainer. Returns true if presented / already showing.
@@ -2373,6 +2420,8 @@ final class AppStore {
         exerciseTemplates = []
         entitlements = nil
         aiEntitlement = nil
+        aiCapabilities = .fallback
+        aiSoftNotice = nil
         myBoost = nil
         clearPendingBoost()
         showAIPaywall = false
@@ -2598,19 +2647,22 @@ enum AppError: LocalizedError, Equatable {
     case forbidden(String)
     /// Coach / upstream rate limit — `retryAfter` is suggested wait in seconds.
     case rateLimited(String, retryAfter: TimeInterval)
-    /// HTTP 402 / `AI_REQUIRED` — present AI paywall (trainee + trainer).
+    /// HTTP 402 / `AI_REQUIRED` / `AI_QUOTA_EXCEEDED` — present AI paywall (trainee + trainer).
     case aiRequired(String)
-    /// HTTP 409 — Apple subscription linked to another account.
+    /// HTTP 409 — Apple subscription linked to another account / `HAS_TRAINER`.
     case conflict(String)
     /// HTTP 502 / `PROVIDER_ERROR` — JazzCash / Easypaisa / Stripe upstream.
     case providerError(String)
+    /// HTTP 501/503 / `AI_CAPABILITY_UNAVAILABLE` — Coming soon placeholder.
+    case aiUnavailable(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidCredentials: "Email or password is incorrect."
         case .validation(let message), .api(let message), .notFound(let message),
              .forbidden(let message),
-             .aiRequired(let message), .conflict(let message), .providerError(let message): message
+             .aiRequired(let message), .conflict(let message), .providerError(let message),
+             .aiUnavailable(let message): message
         case .rateLimited(let message, _): message
         case .unauthorized: "Please sign in again."
         }
@@ -2628,6 +2680,11 @@ enum AppError: LocalizedError, Equatable {
 
     var isConflict: Bool {
         if case .conflict = self { return true }
+        return false
+    }
+
+    var isAIUnavailable: Bool {
+        if case .aiUnavailable = self { return true }
         return false
     }
 

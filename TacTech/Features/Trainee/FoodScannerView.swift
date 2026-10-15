@@ -21,6 +21,24 @@ struct FoodScannerView: View {
     private let orange = TTColor.actionOrange
 
     var body: some View {
+        Group {
+            if store.aiCapabilities.visionFood {
+                scannerBody
+            } else {
+                AIComingSoonView(
+                    title: "Food Scanner AI",
+                    detail: "Cloud food vision isn’t configured yet. Advanced · Coming soon — nutrition logging still works without it."
+                ) {
+                    dismiss()
+                }
+            }
+        }
+        .task {
+            await store.refreshAICapabilities()
+        }
+    }
+
+    private var scannerBody: some View {
         VStack(spacing: 0) {
             TTDarkPageHeader(title: "Food Scanner") {
                 dismiss()

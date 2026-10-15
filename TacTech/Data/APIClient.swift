@@ -1099,6 +1099,20 @@ actor APIClient {
         return try await send(path: "/me/sandow-score?period=\(value)", method: .get)
     }
 
+    // MARK: - AI Gateway / freemium
+
+    func aiCapabilities() async throws -> AICapabilitiesDTO {
+        try await send(path: "/coach/ai/capabilities", method: .get)
+    }
+
+    func generateAIProgram(horizonDays: Int = 7, notes: String? = nil) async throws -> WorkoutPlan {
+        try await send(
+            path: "/coach/programs/generate",
+            method: .post,
+            body: AIGenerateProgramBody(horizonDays: horizonDays, notes: notes)
+        )
+    }
+
     // MARK: - AI billing (Phase 3)
 
     func myAI() async throws -> MeAIResponse {
@@ -1346,13 +1360,21 @@ actor APIClient {
         }
         let detail = Self.detail(from: data)
         let code = Self.code(from: data)
-        if http.statusCode == 402 || code == "AI_REQUIRED" {
+        if http.statusCode == 402 || code == "AI_REQUIRED" || code == "AI_QUOTA_EXCEEDED" {
             throw AppError.aiRequired(detail ?? "AI Coach Pro is required.")
         }
-        if http.statusCode == 409 || code == "CONFLICT" {
+        if http.statusCode == 501 || http.statusCode == 503 || code == "AI_CAPABILITY_UNAVAILABLE" {
+            throw AppError.aiUnavailable(detail ?? "This AI feature is coming soon.")
+        }
+        if code == "AI_PROVIDER_NOT_CONFIGURED" {
+            throw AppError.aiUnavailable(detail ?? "AI is not configured yet. Coming soon.")
+        }
+        if http.statusCode == 409 || code == "CONFLICT" || code == "HAS_TRAINER" {
             throw AppError.conflict(
                 detail
-                    ?? "This Apple subscription is already linked to another TacTech account. Sign in with that account or contact support."
+                    ?? (code == "HAS_TRAINER"
+                        ? "You already have a trainer. Use their assigned plan."
+                        : "This Apple subscription is already linked to another TacTech account. Sign in with that account or contact support.")
             )
         }
         if http.statusCode == 502 || code == "PROVIDER_ERROR" {

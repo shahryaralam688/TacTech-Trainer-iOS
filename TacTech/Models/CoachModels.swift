@@ -202,3 +202,81 @@ enum CoachImageCaptionChip: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 }
+
+// MARK: - AI Gateway capabilities (`GET /coach/ai/capabilities`)
+
+struct AICapabilitiesDTO: Codable, Hashable {
+    var textChat: Bool
+    var structuredPlanJson: Bool
+    var weeklySummary: Bool
+    var visionPose: Bool
+    var visionFood: Bool
+    var textProvider: String?
+    var visionPoseProvider: String?
+    var visionFoodProvider: String?
+    var freeChatDailyLimit: Int?
+    var freePlanGenerations: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case textChat, structuredPlanJson, weeklySummary, visionPose, visionFood
+        case textProvider, visionPoseProvider, visionFoodProvider
+        case freeChatDailyLimit, freePlanGenerations
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        textChat = try c.decodeIfPresent(Bool.self, forKey: .textChat) ?? true
+        structuredPlanJson = try c.decodeIfPresent(Bool.self, forKey: .structuredPlanJson) ?? false
+        weeklySummary = try c.decodeIfPresent(Bool.self, forKey: .weeklySummary) ?? false
+        visionPose = try c.decodeIfPresent(Bool.self, forKey: .visionPose) ?? false
+        visionFood = try c.decodeIfPresent(Bool.self, forKey: .visionFood) ?? false
+        textProvider = try c.decodeIfPresent(String.self, forKey: .textProvider)
+        visionPoseProvider = try c.decodeIfPresent(String.self, forKey: .visionPoseProvider)
+        visionFoodProvider = try c.decodeIfPresent(String.self, forKey: .visionFoodProvider)
+        freeChatDailyLimit = try c.decodeIfPresent(Int.self, forKey: .freeChatDailyLimit)
+        freePlanGenerations = try c.decodeIfPresent(Int.self, forKey: .freePlanGenerations)
+    }
+
+    /// Offline / pre-fetch defaults — text on, vision off (safe for stubs).
+    static let fallback = AICapabilitiesDTO(
+        textChat: true,
+        structuredPlanJson: true,
+        weeklySummary: false,
+        visionPose: false,
+        visionFood: false,
+        textProvider: nil,
+        visionPoseProvider: "stub",
+        visionFoodProvider: "stub",
+        freeChatDailyLimit: 10,
+        freePlanGenerations: 1
+    )
+
+    init(
+        textChat: Bool,
+        structuredPlanJson: Bool,
+        weeklySummary: Bool,
+        visionPose: Bool,
+        visionFood: Bool,
+        textProvider: String?,
+        visionPoseProvider: String?,
+        visionFoodProvider: String?,
+        freeChatDailyLimit: Int?,
+        freePlanGenerations: Int?
+    ) {
+        self.textChat = textChat
+        self.structuredPlanJson = structuredPlanJson
+        self.weeklySummary = weeklySummary
+        self.visionPose = visionPose
+        self.visionFood = visionFood
+        self.textProvider = textProvider
+        self.visionPoseProvider = visionPoseProvider
+        self.visionFoodProvider = visionFoodProvider
+        self.freeChatDailyLimit = freeChatDailyLimit
+        self.freePlanGenerations = freePlanGenerations
+    }
+}
+
+struct AIGenerateProgramBody: Encodable {
+    var horizonDays: Int
+    var notes: String?
+}

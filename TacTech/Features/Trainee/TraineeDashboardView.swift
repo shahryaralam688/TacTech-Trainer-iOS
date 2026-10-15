@@ -11,6 +11,8 @@ struct TraineeDashboardView: View {
     @State private var showNotifications = false
     @State private var showFindCoaches = false
     @State private var celebrateStart = false
+    @State private var isGeneratingAIWeek = false
+    @State private var generateNotice: String?
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var activitySegmentNS
 
@@ -37,16 +39,20 @@ struct TraineeDashboardView: View {
                             // Execution first → snapshot → support
                             todayWorkoutSection
                                 .ttHomeAppear(index: 0)
+                            if store.canShowSoloAIGenerate {
+                                soloAIGenerateCard
+                                    .ttHomeAppear(index: 1)
+                            }
                             fitnessMetrics
-                                .ttHomeAppear(index: 1)
-                            dietSection
                                 .ttHomeAppear(index: 2)
-                            activitiesSection
+                            dietSection
                                 .ttHomeAppear(index: 3)
-                            coachSection
+                            activitiesSection
                                 .ttHomeAppear(index: 4)
-                            formInsightsSection
+                            coachSection
                                 .ttHomeAppear(index: 5)
+                            formInsightsSection
+                                .ttHomeAppear(index: 6)
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -65,6 +71,22 @@ struct TraineeDashboardView: View {
             .task(id: selectedDay) {
                 if let trainee = store.currentTrainee {
                     await store.refreshDay(for: trainee.id, on: selectedDay)
+                }
+            }
+            .task {
+                await store.refreshAICapabilities()
+            }
+            .overlay(alignment: .top) {
+                if let generateNotice {
+                    Text(generateNotice)
+                        .font(TTFont.workSans(13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color.black.opacity(0.82))
+                        .clipShape(Capsule())
+                        .padding(.top, 12)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
             .sheet(isPresented: $showProfile) {
@@ -351,6 +373,92 @@ struct TraineeDashboardView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(TTHomeCardPressStyle())
+            }
+        }
+    }
+
+    // MARK: - Solo AI generate (no trainer)
+
+    private var soloAIGenerateCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            sectionHeader("Train with AI") {
+                EmptyView()
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(orange)
+                    Text("Generate my week")
+                        .font(TTFont.workSans(17, weight: .bold))
+                        .foregroundStyle(.black)
+                    Spacer(minLength: 0)
+                }
+
+                Text("No trainer linked — build a 7-day plan from your assessment. Free includes a limited generate; Advanced unlocks more.")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(Color(white: 0.4))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Button {
+                    TTHomeHaptics.medium()
+                    Task { await generateAIWeek() }
+                } label: {
+                    HStack(spacing: 10) {
+                        if isGeneratingAIWeek {
+                            ProgressView().tint(.white)
+                        } else {
+                            Image(systemName: "wand.and.stars")
+                                .font(TTFont.workSans(14, weight: .semibold))
+                        }
+                        Text(isGeneratingAIWeek ? "Generating…" : "Generate my week")
+                            .font(TTFont.textLG(.semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 52)
+                    .background(isGeneratingAIWeek ? Color.black.opacity(0.45) : Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(TTHomeCardPressStyle())
+                .disabled(isGeneratingAIWeek)
+            }
+            .padding(16)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .ttHomeCardMorph()
+        }
+    }
+
+    @MainActor
+    private func generateAIWeek() async {
+        guard !isGeneratingAIWeek else { return }
+        isGeneratingAIWeek = true
+        defer { isGeneratingAIWeek = false }
+        do {
+            _ = try await store.generateAIProgram(horizonDays: 7)
+            flashGenerateNotice("AI week ready — open Workouts")
+            showWorkouts = true
+        } catch let error as AppError where error.isAIRequired {
+            _ = store.presentAIPaywallIfNeeded(for: error)
+        } catch let error as AppError where error.isConflict {
+            flashGenerateNotice(error.localizedDescription)
+        } catch {
+            flashGenerateNotice(error.localizedDescription)
+        }
+    }
+
+    private func flashGenerateNotice(_ text: String) {
+        withAnimation(.snappy(duration: 0.25)) {
+            generateNotice = text
+        }
+        Task {
+            try? await Task.sleep(nanoseconds: 2_800_000_000)
+            await MainActor.run {
+                withAnimation(.easeOut(duration: 0.2)) {
+                    generateNotice = nil
+                }
             }
         }
     }

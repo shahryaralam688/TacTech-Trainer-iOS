@@ -376,16 +376,25 @@ actor CoachAPI {
             TokenStore.clear()
             throw AppError.unauthorized
         }
-        if status == 402 || code == "AI_REQUIRED" {
+        if status == 402 || code == "AI_REQUIRED" || code == "AI_QUOTA_EXCEEDED" {
             throw AppError.aiRequired(
                 detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
                     ?? "AI Coach Pro is required."
             )
         }
-        if status == 409 || code == "CONFLICT" {
+        if status == 501 || status == 503 || code == "AI_CAPABILITY_UNAVAILABLE"
+            || code == "AI_PROVIDER_NOT_CONFIGURED" {
+            throw AppError.aiUnavailable(
+                detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
+                    ?? "This AI feature is coming soon."
+            )
+        }
+        if status == 409 || code == "CONFLICT" || code == "HAS_TRAINER" {
             throw AppError.conflict(
                 detail?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty
-                    ?? "This Apple subscription is already linked to another TacTech account. Sign in with that account or contact support."
+                    ?? (code == "HAS_TRAINER"
+                        ? "You already have a trainer. Use their assigned plan."
+                        : "This Apple subscription is already linked to another TacTech account. Sign in with that account or contact support.")
             )
         }
         if status == 502 || code == "PROVIDER_ERROR" {

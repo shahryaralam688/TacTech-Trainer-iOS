@@ -380,7 +380,11 @@ struct WorkoutHubView: View {
                     Text("Live form correction")
                         .font(TTFont.workSans(15, weight: .bold))
                         .foregroundStyle(TTColor.ink)
-                    Text("Use the camera for real-time cues")
+                    Text(
+                        store.aiCapabilities.visionPose
+                            ? "Use the camera for real-time cues"
+                            : "Advanced · Coming soon"
+                    )
                         .font(TTFont.workSans(12, weight: .medium))
                         .foregroundStyle(TTColor.inkMuted)
                 }

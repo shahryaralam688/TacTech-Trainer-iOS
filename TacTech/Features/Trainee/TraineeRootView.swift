@@ -118,6 +118,11 @@ struct TraineeRootView: View {
                 namespace: aiChatNamespace
             )
         }
+        .onChange(of: showAIChat) { _, visible in
+            if !visible {
+                Task { await store.refreshAfterAIChat() }
+            }
+        }
         .fullScreenCover(isPresented: $showCoachChat) {
             HumanPeerChatView(audience: .trainee, preferredThreadId: pendingChatThreadId)
         }

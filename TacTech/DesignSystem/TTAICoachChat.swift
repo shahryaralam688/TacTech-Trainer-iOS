@@ -18,9 +18,9 @@ enum TTAIChatAudience {
     var suggestions: [String] {
         switch self {
         case .trainer:
-            ["Draft a 4-day plan", "Check trainee progress", "Write form cues"]
+            ["List all my trainees", "Create a beginner strength plan", "Show pending join requests", "How is my trainee doing?"]
         case .trainee:
-            ["What’s my next workout?", "Form tips for squats", "Meal ideas today"]
+            ["What’s my workout today?", "Am I on track this week?", "Give me form tips", "Nutrition ideas for my goal"]
         }
     }
 

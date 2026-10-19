@@ -135,6 +135,11 @@ struct TrainerRootView: View {
                 namespace: aiChatNamespace
             )
         }
+        .onChange(of: showAIChat) { _, visible in
+            if !visible {
+                Task { await store.refreshAfterAIChat() }
+            }
+        }
         .onChange(of: tab) { _, newTab in
             mounted.insert(newTab)
         }

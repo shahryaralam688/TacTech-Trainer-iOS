@@ -1848,6 +1848,17 @@ final class AppStore {
         }
     }
 
+    func refreshAfterAIChat() async {
+        if session?.role == .trainer {
+            plans = (try? await api.trainerPlans()) ?? plans
+            let items = (try? await api.trainerTrainees()) ?? []
+            if !items.isEmpty { apply(traineeItems: items) }
+            await fetchTrainerJoinRequests()
+        } else if session?.role == .trainee {
+            await refreshAssignedPlanForCurrentTrainee()
+        }
+    }
+
     /// Solo trainee: `POST /coach/programs/generate` → upsert assigned plan.
     /// Syncs fitness assessment first so the week matches goals / limits / days.
     /// Returns the plan on success. Throws `aiRequired` / `conflict` / others for UI handling.

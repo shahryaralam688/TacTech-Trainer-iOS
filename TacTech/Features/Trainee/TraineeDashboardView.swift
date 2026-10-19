@@ -11,8 +11,8 @@ struct TraineeDashboardView: View {
     @State private var showNotifications = false
     @State private var showFindCoaches = false
     @State private var celebrateStart = false
-    @State private var isGeneratingAIWeek = false
     @State private var generateNotice: String?
+    @State private var showAssessmentReview = false
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var activitySegmentNS
 
@@ -35,24 +35,41 @@ struct TraineeDashboardView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         TTHomeScrollCollapseProbe(model: scrollCollapse, space: "traineeHome")
 
-                        VStack(alignment: .leading, spacing: 24) {
-                            // Execution first → snapshot → support
-                            todayWorkoutSection
+                        VStack(alignment: .leading, spacing: 0) {
+
+                            // ── Zone 1: Today ───────────────────────────────
+                            traineZoneLabel("Today")
                                 .ttHomeAppear(index: 0)
-                            if store.canShowSoloAIGenerate {
-                                soloAIGenerateCard
+                            VStack(alignment: .leading, spacing: 14) {
+                                todayWorkoutSection
                                     .ttHomeAppear(index: 1)
+                                if store.canShowSoloAIGenerate {
+                                    soloAIGenerateCard
+                                        .ttHomeAppear(index: 2)
+                                }
                             }
-                            fitnessMetrics
-                                .ttHomeAppear(index: 2)
-                            dietSection
+
+                            // ── Zone 2: Progress ────────────────────────────
+                            traineZoneLabel("Progress")
                                 .ttHomeAppear(index: 3)
-                            activitiesSection
-                                .ttHomeAppear(index: 4)
-                            coachSection
-                                .ttHomeAppear(index: 5)
-                            formInsightsSection
+                            VStack(alignment: .leading, spacing: 14) {
+                                fitnessMetrics
+                                    .ttHomeAppear(index: 4)
+                                activitiesSection
+                                    .ttHomeAppear(index: 5)
+                            }
+
+                            // ── Zone 3: Health & Support ────────────────────
+                            traineZoneLabel("Health & Support")
                                 .ttHomeAppear(index: 6)
+                            VStack(alignment: .leading, spacing: 14) {
+                                dietSection
+                                    .ttHomeAppear(index: 7)
+                                coachSection
+                                    .ttHomeAppear(index: 8)
+                                formInsightsSection
+                                    .ttHomeAppear(index: 9)
+                            }
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -112,6 +129,13 @@ struct TraineeDashboardView: View {
             .sheet(isPresented: $showFindCoaches) {
                 FindCoachesView()
                     .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showAssessmentReview) {
+                AssessmentReviewSheet(assessment: store.loadSavedFitnessAssessment()) {
+                    flashGenerateNotice("AI week ready — open Workouts")
+                    showWorkouts = true
+                }
+                .ttModalSheetPresentation()
             }
         }
     }
@@ -355,7 +379,9 @@ struct TraineeDashboardView: View {
                     celebrateStart = true
                 })
                 .ttHomeWin(celebrate: $celebrateStart, tint: orange)
-            } else {
+            } else if !store.canShowSoloAIGenerate {
+                // Only show "Link a trainer" when AI generate is also not available
+                // — avoids two competing CTAs on the same screen
                 Button {
                     TTHomeHaptics.medium()
                     showProfile = true
@@ -366,10 +392,10 @@ struct TraineeDashboardView: View {
                         Text("Link a trainer to get workouts")
                             .font(TTFont.textLG(.semibold))
                     }
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color(white: 0.35))
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(Color.black)
+                    .background(Color(white: 0.93))
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(TTHomeCardPressStyle())
@@ -396,56 +422,33 @@ struct TraineeDashboardView: View {
                     Spacer(minLength: 0)
                 }
 
-                Text("No trainer linked — we sync your fitness assessment (goals, limits, days/week), then build your week. Free includes a limited generate; Advanced unlocks more.")
+                Text("We'll use your fitness assessment to build a personalised week of training.")
                     .font(TTFont.workSans(13, weight: .medium))
                     .foregroundStyle(Color(white: 0.4))
                     .fixedSize(horizontal: false, vertical: true)
 
                 Button {
                     TTHomeHaptics.medium()
-                    Task { await generateAIWeek() }
+                    showAssessmentReview = true
                 } label: {
                     HStack(spacing: 10) {
-                        if isGeneratingAIWeek {
-                            ProgressView().tint(.white)
-                        } else {
-                            Image(systemName: "wand.and.stars")
-                                .font(TTFont.workSans(14, weight: .semibold))
-                        }
-                        Text(isGeneratingAIWeek ? "Generating…" : "Generate my week")
+                        Image(systemName: "wand.and.stars")
+                            .font(TTFont.workSans(14, weight: .semibold))
+                        Text("Generate my week")
                             .font(TTFont.textLG(.semibold))
                     }
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 52)
-                    .background(isGeneratingAIWeek ? Color.black.opacity(0.45) : Color.black)
+                    .background(Color.black)
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .buttonStyle(TTHomeCardPressStyle())
-                .disabled(isGeneratingAIWeek)
             }
             .padding(16)
             .background(Color.white)
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .ttHomeCardMorph()
-        }
-    }
-
-    @MainActor
-    private func generateAIWeek() async {
-        guard !isGeneratingAIWeek else { return }
-        isGeneratingAIWeek = true
-        defer { isGeneratingAIWeek = false }
-        do {
-            _ = try await store.generateAIProgram(horizonDays: 7)
-            flashGenerateNotice("AI week ready — open Workouts")
-            showWorkouts = true
-        } catch let error as AppError where error.isAIRequired {
-            _ = store.presentAIPaywallIfNeeded(for: error)
-        } catch let error as AppError where error.isConflict {
-            flashGenerateNotice(error.localizedDescription)
-        } catch {
-            flashGenerateNotice(error.localizedDescription)
         }
     }
 
@@ -812,6 +815,17 @@ struct TraineeDashboardView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Zone label
+
+    private func traineZoneLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(TTFont.workSans(10, weight: .bold))
+            .foregroundStyle(Color(white: 0.55))
+            .kerning(1.2)
+            .padding(.top, 28)
+            .padding(.bottom, 10)
     }
 
     // MARK: - Shared chrome

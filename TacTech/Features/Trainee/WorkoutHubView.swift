@@ -14,9 +14,9 @@ struct WorkoutHubView: View {
     @State private var showEditAIPlan = false
     @State private var showDeleteAIConfirm = false
     @State private var isMutatingAIPlan = false
-    @State private var isRegeneratingAIWeek = false
     @State private var hubToast: TTToastMessage?
     @State private var editingPlan: WorkoutPlan?
+    @State private var showAssessmentReview = false
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -82,6 +82,12 @@ struct WorkoutHubView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("This removes your AI week. You can generate a new one anytime.")
+            }
+            .sheet(isPresented: $showAssessmentReview) {
+                AssessmentReviewSheet(assessment: store.loadSavedFitnessAssessment()) {
+                    hubToast = TTToastMessage(text: "AI week ready", style: .success)
+                }
+                .ttModalSheetPresentation()
             }
         }
     }
@@ -200,7 +206,12 @@ struct WorkoutHubView: View {
                     .tracking(0.8)
                     .foregroundStyle(orange)
                 Spacer(minLength: 8)
-                if !canMutateAI {
+                if canMutateAI {
+                    Text("AI Generated Plan")
+                        .font(TTFont.caption(11))
+                        .fontWeight(.semibold)
+                        .foregroundStyle(orange)
+                } else {
                     Text("Assigned by your trainer")
                         .font(TTFont.caption(11))
                         .fontWeight(.semibold)
@@ -252,18 +263,13 @@ struct WorkoutHubView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+            .disabled(isMutatingAIPlan)
 
             Button {
-                Task { await regenerateAIWeek() }
+                showAssessmentReview = true
             } label: {
-                HStack(spacing: 6) {
-                    if isRegeneratingAIWeek {
-                        ProgressView().controlSize(.small)
-                    }
-                    Text(isRegeneratingAIWeek ? "…" : "Regenerate")
-                        .font(TTFont.workSans(13, weight: .semibold))
-                }
+                Text("Regenerate")
+                    .font(TTFont.workSans(13, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 40)
@@ -271,7 +277,7 @@ struct WorkoutHubView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+            .disabled(isMutatingAIPlan)
 
             Button {
                 editingPlan = plan
@@ -286,7 +292,7 @@ struct WorkoutHubView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(.plain)
-            .disabled(isMutatingAIPlan || isRegeneratingAIWeek)
+            .disabled(isMutatingAIPlan)
         }
         .padding(.top, 4)
     }
@@ -309,22 +315,7 @@ struct WorkoutHubView: View {
         }
     }
 
-    @MainActor
-    private func regenerateAIWeek() async {
-        guard !isRegeneratingAIWeek else { return }
-        isRegeneratingAIWeek = true
-        defer { isRegeneratingAIWeek = false }
-        do {
-            _ = try await store.generateAIProgram(horizonDays: 7)
-            hubToast = TTToastMessage(text: "AI week ready", style: .success)
-        } catch let error as AppError where error.isAIRequired {
-            _ = store.presentAIPaywallIfNeeded(for: error)
-        } catch let error as AppError where error.isForbidden {
-            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
-        } catch {
-            hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
-        }
-    }
+
 
     private func session(in plan: WorkoutPlan) -> PlanDay? {
         plan.session(on: selectedDay)

@@ -102,6 +102,7 @@
 		A64A35551AA30A0252359CB2 /* TTAICoachChat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C4A1306623DFE3EB22C21CA /* TTAICoachChat.swift */; };
 		A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */; };
 		A91E3EB59F00434A76249C00 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8A101DCE55DB6C66F1AA2D5E /* Assets.xcassets */; };
+		B3C4D5E6F708192A3B4C5D6E /* WorkoutOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4D5E6F708192A3B4C5D6E7F /* WorkoutOverviewView.swift */; };
 		2B3C4D5E6F708192A3B4C5D6 /* FormStudioWeb in Resources */ = {isa = PBXBuildFile; fileRef = 3C4D5E6F708192A3B4C5D6E7 /* FormStudioWeb */; };
 		4D5E6F708192A3B4C5D6E7F8 /* FormStudioWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6F708192A3B4C5D6E7F809 /* FormStudioWebView.swift */; };
 		6F708192A3B4C5D6E7F8091A /* FormStudioDemoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 708192A3B4C5D6E7F8091A2B /* FormStudioDemoView.swift */; };
@@ -188,6 +189,7 @@
 		5AF0347D57808A216A1EE6F0 /* PushNotificationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushNotificationDelegate.swift; sourceTree = "<group>"; };
 		5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutHubView.swift; sourceTree = "<group>"; };
 		63AB0B842647A4A0E564DBE0 /* TTAvatarPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTAvatarPicker.swift; sourceTree = "<group>"; };
+		C4D5E6F708192A3B4C5D6E7F /* WorkoutOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutOverviewView.swift; sourceTree = "<group>"; };
 		64AE96CE9682FE6E0A9BD1D8 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		658862059D48AE92E7BE11F8 /* TTLiquidFABMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TTLiquidFABMenu.swift; sourceTree = "<group>"; };
 		6780CED8C5B7AB3A92150696 /* WorkoutPlansView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutPlansView.swift; sourceTree = "<group>"; };
@@ -408,6 +410,7 @@
 				B7ABE0278CC2F0399812AA79 /* TraineeProgressView.swift */,
 				FAB504E59D690C37C99EA1A0 /* TraineeRootView.swift */,
 				5B5066205273C6A2CD1ADF69 /* WorkoutHubView.swift */,
+				C4D5E6F708192A3B4C5D6E7F /* WorkoutOverviewView.swift */,
 			);
 			path = Trainee;
 			sourceTree = "<group>";
@@ -741,6 +744,7 @@
 				8F4F59A305E0DA54F828F119 /* TrainerRootView.swift in Sources */,
 				AEDB2E47383408507BA84D35 /* WelcomeOnboardingView.swift in Sources */,
 				A80C79B0D99AEE1DD4BE7E0E /* WorkoutHubView.swift in Sources */,
+				B3C4D5E6F708192A3B4C5D6E /* WorkoutOverviewView.swift in Sources */,
 				867C150D896D8BE9DA0E1AC6 /* WorkoutPlansView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

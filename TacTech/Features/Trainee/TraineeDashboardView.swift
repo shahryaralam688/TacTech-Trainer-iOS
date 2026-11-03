@@ -8,6 +8,7 @@ struct TraineeDashboardView: View {
     @State private var showProgress = false
     @State private var showNutrition = false
     @State private var showWorkouts = false
+    @State private var showWorkoutOverview = false
     @State private var showNotifications = false
     @State private var showFindCoaches = false
     @State private var celebrateStart = false
@@ -144,6 +145,12 @@ struct TraineeDashboardView: View {
             .sheet(isPresented: $showWorkouts) {
                 WorkoutHubView(showsCloseChrome: true)
                     .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showWorkoutOverview) {
+                if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                    WorkoutOverviewView(plan: plan)
+                        .ttModalSheetPresentation(dragIndicator: .hidden)
+                }
             }
             .sheet(isPresented: $showNotifications) {
                 NotificationsInboxView()
@@ -467,13 +474,13 @@ struct TraineeDashboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
             .ttHomeCardMorph()
 
-            if let plan {
+            if plan != nil {
                 if hasCompletedTodayWorkout {
                     // Primary: view — secondary ghost: go again
                     VStack(spacing: 10) {
                         Button {
                             TTHomeHaptics.light()
-                            showWorkouts = true
+                            showWorkoutOverview = true
                         } label: {
                             Text("View today’s workout")
                                 .font(TTFont.workSans(15, weight: .semibold))
@@ -488,7 +495,7 @@ struct TraineeDashboardView: View {
                         Button {
                             TTHomeHaptics.medium()
                             celebrateStart = true
-                            showWorkouts = true
+                            showWorkoutOverview = true
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "arrow.clockwise")
@@ -510,7 +517,11 @@ struct TraineeDashboardView: View {
                         } else {
                             TTHomeHaptics.medium()
                             celebrateStart = true
-                            showWorkouts = true
+                            if session != nil {
+                                showWorkoutOverview = true
+                            } else {
+                                showWorkoutOverview = true
+                            }
                         }
                     } label: {
                         HStack(spacing: 10) {

@@ -5,6 +5,8 @@ import SwiftUI
 struct TTHomeWeekDatePicker: View {
     @Binding var selected: Date
     var accent: Color = TTColor.actionOrange
+    /// Day keys (yyyy-M-d) that have a workout session — used to render indicator dots.
+    var sessionDayKeys: Set<String> = []
 
     @State private var isExpanded = false
     @State private var visibleMonth: Date = Date()
@@ -92,11 +94,17 @@ struct TTHomeWeekDatePicker: View {
                 }
             }
             .overlay(alignment: .bottom) {
-                if isToday && !on {
-                    Circle()
-                        .fill(accent.opacity(0.55))
-                        .frame(width: 4, height: 4)
-                        .padding(.bottom, 6)
+                let hasSession = sessionDayKeys.contains(dayKey(day))
+                if !on, isToday || hasSession {
+                    HStack(spacing: 3) {
+                        if isToday {
+                            Circle().fill(accent.opacity(0.6)).frame(width: 4, height: 4)
+                        }
+                        if hasSession && !isToday {
+                            Circle().fill(accent.opacity(0.5)).frame(width: 4, height: 4)
+                        }
+                    }
+                    .padding(.bottom, 6)
                 }
             }
         }

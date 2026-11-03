@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 4 · Trainer Plans + Create Plan</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:860px;line-height:1.5;}
+.rules{max-width:860px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#F5F4F7;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.lhdr{padding:54px 20px 6px;display:flex;align-items:flex-start;justify-content:space-between;}
+.lhdr .big{font-size:28px;font-weight:500;}
+.lhdr .meta{font-size:13px;color:#6B6B70;margin-top:2px;}
+.plus{width:40px;height:40px;border:none;border-radius:14px;background:#1C1C1E;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.body{flex:1;overflow:hidden;padding:12px 16px 0;}
+.sect{font-size:12px;font-weight:500;letter-spacing:0.08em;color:#6B6B70;margin-top:18px;}
+.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:10px;}
+.searchpill{display:flex;align-items:center;gap:8px;background:#fff;border-radius:100px;padding:12px 16px;color:#6B6B70;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);}
+.metachip{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#6B6B70;}
+.tabwrap{position:absolute;left:0;right:0;bottom:0;height:96px;}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:66px;background:#fff;border-radius:28px;box-shadow:0 8px 24px rgba(41,7,79,0.14);display:flex;align-items:center;padding:0 14px;}
+.ts{flex:1;display:flex;justify-content:space-around;}
+.ti{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:500;}
+.fab{position:absolute;left:50%;transform:translateX(-50%);bottom:48px;width:58px;height:58px;border:none;border-radius:100px;background:#8621EB;box-shadow:0 8px 20px rgba(134,33,235,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;} .anno .warn{color:#B3450A;font-weight:500;} .anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.skel{background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);border-radius:8px;}
+/* wizard */
+.wz{background:#fff;}
+.wzhdr{padding:52px 18px 0;display:flex;align-items:center;gap:12px;}
+.wzback{width:34px;height:34px;border:none;border-radius:100px;background:#F0F0F3;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.track{height:4px;background:rgba(0,0,0,0.06);border-radius:100px;margin:14px 18px 8px;}
+.track>div{height:100%;background:#C2410C;border-radius:100px;}
+.field{border:1px solid #E6E6EA;border-radius:12px;padding:12px 14px;font-size:15px;margin-top:8px;background:#fff;}
+.flab{font-size:11px;font-weight:500;color:#6B6B70;letter-spacing:0.04em;margin-top:14px;}
+.seg{display:flex;gap:8px;margin-top:8px;}
+.seg button{flex:1;height:42px;border:none;border-radius:12px;background:#fff;border:1px solid #E6E6EA;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}
+.seg button.on{background:#C2410C;color:#fff;border-color:#C2410C;}
+.daygrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+.daygrid button{padding:14px 0;border:1px solid rgba(0,0,0,0.06);border-radius:14px;background:#fff;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;}
+.daygrid button.on{background:#C2410C;color:#fff;border-color:#C2410C;}
+.tip{display:flex;gap:8px;align-items:center;font-size:12px;color:#6B6B70;margin-top:12px;}
+.wzfoot{padding:10px 18px 14px;box-shadow:0 -4px 12px rgba(0,0,0,0.06);}
+.wzprimary{width:100%;height:56px;border:none;border-radius:18px;background:#1C1C1E;color:#fff;font-family:inherit;font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;}
+.wzprimary.dis{background:#B8B8BE;}
+.wzlater{width:100%;height:44px;border:none;background:none;color:#6B6B70;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 4 · Trainer Plans + Create Plan — 11 states</h1>
+  <p class="sub"><code>WorkoutPlansView</code> + <code>CreatePlanView</code> + <code>ExerciseTemplatePickerView</code> + <code>WorkoutPlanDetailView</code>. Verified against source; snippets cited per frame. R1–R5 carried.</p>
+  <div class="rules"><b>Source-driven corrections already applied:</b> (1) the wizard primary button is <b><code>Color.black</code></b>, not orange — <code>background(canAdvance ? Color.black : Color(white:0.72))</code> (CreatePlanView:249); progress track is orange. (2) <b>"Continue later" does NOT save a draft</b> — it opens a confirm that <i>discards</i> (:152-165); shown truthfully (State 7) + tracked W-4.</div>
+  <div class="row">
+
+    <!-- 1 · PLANS EMPTY -->
+    <div class="fw">
+      <div class="flabel">1 · Plans list — empty</div>
+      <div class="phone">
+        <div class="lhdr"><div><div class="big">Workout Plans</div><div class="meta">0 programs</div></div><button class="plus" aria-label="Create plan"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="searchpill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search plans</div>
+          <div class="card" style="text-align:center;padding:30px 20px;margin-top:14px;">
+            <div aria-hidden="true" style="width:56px;height:56px;border-radius:100px;background:rgba(194,65,12,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#C2410C" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="font-size:17px;font-weight:500;margin-top:14px;">No plans yet</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">Tap + to build a detailed weekly plan for your athletes.</div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#8621EB" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>trainerListHeader(title:"Workout Plans", subtitle:"\(filtered.count) programs", trailingIcon:.plus)</code> → sets <code>showCreate=true</code> (WorkoutPlansView:22-29). <code>emptyCard(icon:.clipboard, title: plans.isEmpty ? "No plans yet" : "No matches", message:"Tap + to build a detailed weekly plan for your athletes.")</code> (:44-51, 218). Search pill → overlay (:36-42).</div>
+    </div>
+
+    <!-- 2 · PLANS POPULATED -->
+    <div class="fw">
+      <div class="flabel">2 · Plans list — populated</div>
+      <div class="phone">
+        <div class="lhdr"><div><div class="big">Workout Plans</div><div class="meta">3 programs</div></div><button class="plus" aria-label="Create plan"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="searchpill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search plans</div>
+          <!-- planCard ×2 -->
+          <div class="card">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div style="width:48px;height:48px;border-radius:14px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#C2410C" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+              <div style="flex:1;"><div style="font-size:17px;font-weight:500;">4-Day Hypertrophy</div><div style="font-size:13px;color:#6B6B70;margin-top:2px;">Posterior chain &amp; arms</div></div>
+              <span style="font-size:11px;font-weight:500;color:#C2410C;background:rgba(194,65,12,0.12);border-radius:100px;padding:5px 10px;">Intermediate</span>
+            </div>
+            <div style="font-size:12px;color:#C2410C;margin-top:10px;">Mon · Tue · Thu · Fri</div>
+            <div style="display:flex;gap:14px;margin-top:10px;align-items:center;">
+              <span class="metachip">⏱ 55 min</span><span class="metachip">📅 4 days</span><span class="metachip">🏋 18 moves</span>
+              <span style="flex:1;"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <div class="card">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div style="width:48px;height:48px;border-radius:14px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#C2410C" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+              <div style="flex:1;"><div style="font-size:17px;font-weight:500;">Beginner Full Body</div><div style="font-size:13px;color:#6B6B70;margin-top:2px;">General strength</div></div>
+              <span style="font-size:11px;font-weight:500;color:#C2410C;background:rgba(194,65,12,0.12);border-radius:100px;padding:5px 10px;">Beginner</span>
+            </div>
+            <div style="font-size:12px;color:#C2410C;margin-top:10px;">Mon · Wed · Fri</div>
+            <div style="display:flex;gap:14px;margin-top:10px;align-items:center;">
+              <span class="metachip">⏱ 40 min</span><span class="metachip">📅 3 days</span><span class="metachip">🏋 12 moves</span>
+              <span style="flex:1;"></span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#8621EB" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>planCard</code> (WorkoutPlansView:238+): barbell tile (orange), <code>plan.title</code>, <code>plan.focus</code>, <code>plan.level</code> pill (orange), <code>plan.scheduleLine</code> (orange), meta chips <code>"\(plan.durationMinutes) min"</code>, <code>"\(scheduledDays.count) days"</code> (or <code>"\(daysPerWeek)× / week"</code>), <code>"\(allExercises.count) moves"</code>, chevron. <b>Days chip verified:</b> real ternary <code>scheduledDays.isEmpty ? "\(daysPerWeek)× / week" : "\(scheduledDays.count) days"</code> (Models:371, WorkoutPlansView:189-193) — these plans have scheduled days, so <b>"4 days"</b> is the correct branch (not ambiguous). Each row NavigationLink → WorkoutPlanDetailView. <span class="warn">Meta icons shown as emoji for fidelity; build uses SandowIcons (.alarm/.calendar1/.kettlebell) + accessibilityLabels (R4).</span></div>
+    </div>
+
+    <!-- 3 · WIZARD STEP 1 BASICS -->
+    <div class="fw">
+      <div class="flabel">3 · Create plan — Step 1 Basics</div>
+      <div class="phone wz">
+        <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">New Plan</div><div style="font-size:12px;color:#6B6B70;">Step 1 of 3 · Program basics</div></div><span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">1/3</span></div>
+        <div class="track"><div style="width:33%;"></div></div>
+        <div class="body" style="padding-top:4px;">
+          <div style="font-size:13px;color:#6B6B70;line-height:1.4;">Name the plan and set level. You can refine focus and notes — or skip them for now.</div>
+          <div class="card" style="margin-top:12px;">
+            <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#C2410C;">PROGRAM</div>
+            <div class="field" style="color:#1C1C1E;">4-day strength block</div>
+            <div class="field" style="color:#9A9AA0;">Focus (optional) — Hypertrophy · posterior chain</div>
+            <div class="flab">LEVEL</div>
+            <div class="seg"><button>Beginner</button><button class="on">Intermediate</button><button>Advanced</button></div>
+            <div class="field" style="color:#9A9AA0;height:64px;">Coach notes (optional) — deload rules…</div>
+          </div>
+        </div>
+        <div class="wzfoot"><button class="wzprimary">Continue <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="wzlater">Continue later</button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>CreatePlanStep.basics</code> title "Program basics", instruction verbatim (:19-21). <code>basicsStep</code> (:279): "PROGRAM" label, <code>sandowField("Plan title", prompt:"e.g. 4-day strength block")</code> (required), <code>"Focus (optional)"</code>, <b>LEVEL</b> segmented (selected = orange fill, :302), <code>"Coach notes (optional)"</code>. Footer primary <b>black</b> "Continue" (:249), secondary "Continue later" (:257). Pill "1/3" (:178). Progress track orange 33%.</div>
+    </div>
+
+    <!-- 4 · WIZARD STEP 2 DAYS -->
+    <div class="fw">
+      <div class="flabel">4 · Create plan — Step 2 Training days</div>
+      <div class="phone wz">
+        <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">New Plan</div><div style="font-size:12px;color:#6B6B70;">Step 2 of 3 · Training days</div></div><span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">2/3</span></div>
+        <div class="track"><div style="width:66%;"></div></div>
+        <div class="body" style="padding-top:4px;">
+          <div style="font-size:13px;color:#6B6B70;line-height:1.4;">Tap every day this program runs. You'll add exercises on the next step.</div>
+          <div class="card" style="margin-top:12px;">
+            <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#6B6B70;">THIS WEEK'S DAYS</div>
+            <div class="daygrid"><button class="on">Mon</button><button class="on">Tue</button><button>Wed</button><button class="on">Thu</button><button class="on">Fri</button><button>Sat</button><button>Sun</button></div>
+            <div style="font-size:12px;font-weight:500;color:#C2410C;margin-top:12px;">4 days selected</div>
+          </div>
+        </div>
+        <div class="wzfoot"><button class="wzprimary">Continue <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="wzlater">Continue later</button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>daysStep</code> (:325): "THIS WEEK'S DAYS", 4-col <code>LazyVGrid</code> of <code>Weekday.short</code> (selected = orange, :340), footer "\(count) day(s) selected" orange, else tip "Select at least one training day." <code>canAdvance</code> needs ≥1 day. Progress 66%.</div>
+    </div>
+
+    <!-- 4b · WIZARD DISABLED/INVALID -->
+    <div class="fw">
+      <div class="flabel">4b · Step 2 — no days (disabled, canAdvance=false)</div>
+      <div class="phone wz">
+        <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">New Plan</div><div style="font-size:12px;color:#6B6B70;">Step 2 of 3 · Training days</div></div><span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">2/3</span></div>
+        <div class="track"><div style="width:66%;"></div></div>
+        <div class="body" style="padding-top:4px;">
+          <div style="font-size:13px;color:#6B6B70;line-height:1.4;">Tap every day this program runs. You'll add exercises on the next step.</div>
+          <div class="card" style="margin-top:12px;">
+            <div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#6B6B70;">THIS WEEK'S DAYS</div>
+            <div class="daygrid"><button>Mon</button><button>Tue</button><button>Wed</button><button>Thu</button><button>Fri</button><button>Sat</button><button>Sun</button></div>
+            <div class="tip" style="color:#B3450A;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#B3450A" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#B3450A" stroke-width="1.7" stroke-linecap="round"/></svg> Select at least one training day.</div>
+          </div>
+        </div>
+        <div class="wzfoot"><button class="wzprimary dis" disabled aria-disabled="true">Continue <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="wzlater">Continue later</button></div>
+      </div>
+      <div class="anno"><b>Source:</b> disabled/invalid state. <code>canAdvance</code> for <code>.days</code> requires ≥1 selected day (CreatePlanView:87-96); when none, <code>daysStep</code> shows tip <b>"Select at least one training day."</b> (:353) and the footer primary is <code>.disabled(!canAdvance)</code> with background <code>Color(white:0.72)</code> (:249) — rendered here as the greyed <code>.wzprimary.dis</code> (<code>aria-disabled</code>). Same pattern applies to Step 1 with an empty title (tip "Add a plan title to continue.", :320).</div>
+    </div>
+
+    <!-- 5 · WIZARD STEP 3 SESSIONS -->
+    <div class="fw">
+      <div class="flabel">5 · Create plan — Step 3 Build sessions</div>
+      <div class="phone wz">
+        <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">New Plan</div><div style="font-size:12px;color:#6B6B70;">Step 3 of 3 · Build sessions</div></div><span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">3/3</span></div>
+        <div class="track"><div style="width:100%;"></div></div>
+        <div class="body" style="padding-top:4px;overflow:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:11px;font-weight:500;letter-spacing:0.06em;color:#6B6B70;">SESSIONS</div><button style="border:none;background:none;color:#C2410C;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;">Tips</button></div>
+          <!-- expanded day -->
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div style="font-size:16px;font-weight:500;">Monday</div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 9l6 6 6-6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="border-top:1px solid #F0F0F3;margin-top:12px;padding-top:12px;display:flex;align-items:center;gap:10px;"><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Barbell Row</div><div style="font-size:12px;color:#6B6B70;">4 sets · 8 reps · 60 kg</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="padding-top:10px;display:flex;align-items:center;gap:10px;"><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Lat Pulldown</div><div style="font-size:12px;color:#6B6B70;">3 sets · 12 reps · 45 kg</div></div><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <button style="width:100%;height:42px;border:1px dashed #C2410C;border-radius:12px;background:rgba(194,65,12,0.05);color:#C2410C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:12px;">+ Add exercise</button>
+          </div>
+          <!-- collapsed day -->
+          <div class="card" style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:16px;font-weight:500;">Tuesday</div><div style="font-size:12px;color:#6B6B70;">No exercises yet</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+        <div class="wzfoot"><button class="wzprimary">Save plan <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4 10-10" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button class="wzlater">Continue later</button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>sessionsStep</code> (:365): "SESSIONS" + "Tips" toggle (:371). Per selected day a <code>SessionEditor</code>; "Add" opens <code>ExerciseLibrarySheet</code> → picker (State 6). Tip "Only days with exercises are saved" (<code>canSave</code> :98). Primary becomes <b>"Save plan"</b> (new) / "Save changes" (editing) with check icon (:234, 249). Instruction "Open a day, tap Add, and prescribe exercises…" (:24). Progress 100%.</div>
+    </div>
+
+    <!-- 6 · TEMPLATE PICKER -->
+    <div class="fw">
+      <div class="flabel">6 · Exercise template picker (sheet)</div>
+      <div class="phone wz">
+        <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">Templates</div><div style="font-size:12px;color:#6B6B70;">Barbell Row</div></div></div>
+        <div class="body" style="padding-top:12px;overflow:auto;">
+          <div class="card" style="display:flex;align-items:center;gap:14px;background:#1C1C1E;">
+            <div style="width:46px;height:46px;border-radius:12px;background:rgba(255,255,255,0.1);display:flex;align-items:center;justify-content:center;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#E8742A" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+            <div><div style="font-size:17px;font-weight:500;color:#fff;">Barbell Row</div><div style="font-size:12px;color:rgba(255,255,255,0.72);">Back · Barbell</div></div>
+          </div>
+          <div class="sect" style="margin-top:14px;">PREVIOUS TEMPLATES</div>
+          <div class="card">
+            <div style="display:flex;align-items:center;justify-content:space-between;"><div><div style="font-size:15px;font-weight:500;">Heavy Row 4×8</div><div style="font-size:12px;color:#6B6B70;margin-top:2px;">4 sets · 8 reps · 60 kg · 90s rest</div></div></div>
+            <div style="display:flex;gap:10px;margin-top:12px;"><button style="flex:1;height:40px;border:1px solid #E6E6EA;border-radius:12px;background:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Customize</button><button style="flex:1;height:40px;border:none;border-radius:12px;background:#C2410C;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Use</button></div>
+          </div>
+          <div class="sect">STARTER</div>
+          <div class="card">
+            <div><div style="font-size:15px;font-weight:500;">Starter 3×10</div><div style="font-size:12px;color:#6B6B70;margin-top:2px;">3 sets · 10 reps · 40 kg</div></div>
+            <div style="display:flex;gap:10px;margin-top:12px;"><button style="flex:1;height:40px;border:1px solid #E6E6EA;border-radius:12px;background:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Customize</button><button style="flex:1;height:40px;border:none;border-radius:12px;background:#C2410C;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Use</button></div>
+          </div>
+          <div class="card" style="display:flex;align-items:center;gap:10px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M7 12h10M10 17h4" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg><span style="flex:1;font-size:15px;font-weight:500;">Customize new template</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>ExerciseTemplatePickerView</code> — <code>TTModalSheetHeader(title:"Templates", subtitle: exercise.name)</code> (:28). hero card; <b>"Previous templates"</b> from <code>store.templates(forExerciseId:)</code> (:18), each <code>templateCard</code> with <b>Customize</b> (white) + <b>Use</b> (orange) → <code>commit(…,persist:true)</code> → <code>onSelect</code> (:144-206); optional <b>"Starter"</b> (:48); <b>"Customize new template"</b> row (:53-72). Empty previous → <code>emptyTemplates</code>.</div>
+    </div>
+
+    <!-- 7 · CONTINUE LATER CONFIRM -->
+    <div class="fw">
+      <div class="flabel">7 · “Continue later” confirm (discards) ⚠️</div>
+      <div class="phone wz" style="position:relative;">
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.3);"></div>
+        <div style="filter:blur(0.5px);opacity:0.5;">
+          <div class="wzhdr"><button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round"/></svg></button><div style="flex:1;"><div style="font-size:19px;font-weight:500;">New Plan</div><div style="font-size:12px;color:#6B6B70;">Step 1 of 3 · Program basics</div></div></div>
+          <div class="track"><div style="width:33%;"></div></div>
+        </div>
+        <div style="position:absolute;left:0;right:0;bottom:0;background:#fff;border-top-left-radius:20px;border-top-right-radius:20px;padding:18px 18px 28px;text-align:center;">
+          <div style="font-size:18px;font-weight:500;">Continue later?</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">This plan isn't saved yet. You can start again anytime from Plans.</div>
+          <button style="width:100%;height:50px;border:none;border-radius:14px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:18px;">Continue later</button>
+          <button style="width:100%;height:50px;border:none;border-radius:14px;background:#F0F0F3;color:#1C1C1E;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:10px;">Keep editing</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source (faithful):</b> <code>confirmationDialog("Continue later?")</code> (CreatePlanView:152): message <b>"This plan isn't saved yet. You can start again anytime from Plans."</b> (new) / "Unsaved edits will be discarded." (editing); buttons <b>"Continue later"</b> (destructive → <code>dismiss()</code>) + "Keep editing" (cancel). <span class="warn">⚠️ W-4:</span> the label "Continue later" implies a saved draft, but <b>no draft is persisted — it discards</b>. Mockup shows the real discard copy; naming flagged in IMPLEMENTATION-NOTES (W-4).</div>
+    </div>
+
+    <!-- 8 · PLAN DETAIL -->
+    <div class="fw">
+      <div class="flabel">8 · Plan detail — modify / delete / assign / unassign</div>
+      <div class="phone" style="background:#F5F4F7;">
+        <div style="padding:52px 16px 12px;display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid #EDEDF0;">
+          <button class="wzback" aria-label="Back"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div style="flex:1;"><div style="font-size:19px;font-weight:500;">4-Day Hypertrophy</div><div style="font-size:12px;color:#6B6B70;">Intermediate · Mon · Tue · Thu · Fri</div></div>
+        </div>
+        <div class="body" style="padding-top:12px;overflow:auto;">
+          <div style="display:flex;gap:10px;">
+            <button style="flex:1;height:44px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Modify</button>
+            <button style="flex:1;height:44px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Delete</button>
+          </div>
+          <div class="sect">ASSIGNED &amp; STATUS</div>
+          <div class="card">
+            <div style="display:flex;align-items:center;"><span style="font-size:13px;font-weight:500;color:#1C1C1E;">2 athletes</span><span style="flex:1;"></span><span style="font-size:11px;color:#6B6B70;">14-day adherence</span></div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:12px;border-top:1px solid #F0F0F3;padding-top:12px;"><div class="av" style="width:36px;height:36px;border-radius:100px;background:#9338FA;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:500;">M</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Mia Torres</div><div style="font-size:12px;color:#6B6B70;">78% follow · Last Oct 12</div></div><button style="border:none;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;border-radius:100px;padding:7px 14px;cursor:pointer;">Unassign</button></div>
+          </div>
+          <div class="sect">ASSIGN</div>
+          <div class="card">
+            <div style="font-size:14px;color:#6B6B70;">No trainee is on this plan yet. Assign someone below to track follow-through.</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #E0E0E6;border-radius:12px;padding:12px 14px;margin-top:12px;"><span style="font-size:15px;font-weight:500;">Ravi Sharma</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10l5 5 5-5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <button style="width:100%;height:46px;border:none;border-radius:14px;background:#C2410C;color:#fff;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:12px;">Assign to trainee</button>
+          </div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>WorkoutPlanDetailView</code> — <b>Modify</b> (:130) + <b>Delete</b> (:149) → <code>confirmationDialog("Delete this plan?")</code> "Delete plan" destructive, msg "This removes the plan and clears active assignments. Workout history stays." (:90-100). "Assigned &amp; status" header is <b>two separate texts in an HStack+Spacer</b> — left <code>Text("\(assignedAthletes.count) athlete\(count==1 ? "" : "s")")</code> (bold) and right <code>Text("14-day adherence")</code> (subtle), <b>not</b> joined with "·" (mockup corrected from the earlier "2 athletes · 14-day adherence" paraphrase). Per athlete <code>"\(adherence)% follow"</code> + "Last \(date)"/"No workouts logged" + <b>Unassign</b> → <code>confirmationDialog("Unassign trainee?")</code> "They will no longer see this plan…" (:102-118, 284). "Assign" section → <code>store.assign</code> (:597) or "No trainees on your roster yet." (:315).</div>
+    </div>
+
+    <!-- 9 · LOADING -->
+    <div class="fw">
+      <div class="flabel">9 · Plans list — loading</div>
+      <div class="phone">
+        <div class="lhdr"><div><div class="big">Workout Plans</div><div class="meta">&nbsp;</div></div><button class="plus" aria-label="Create plan"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="searchpill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search plans</div>
+          <div class="skel" style="width:100%;height:120px;margin-top:14px;border-radius:16px;"></div>
+          <div class="skel" style="width:100%;height:120px;margin-top:10px;border-radius:16px;"></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#8621EB" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> plans read from <code>store.plans</code> filtered by trainer id (:97-99); render immediately when present. Skeleton only on first load with nothing cached (consistent with Groups 1–3). No blocking spinner.</div>
+    </div>
+
+    <!-- 10 · ERROR -->
+    <div class="fw">
+      <div class="flabel">10 · Plans list — error</div>
+      <div class="phone">
+        <div class="lhdr"><div><div class="big">Workout Plans</div><div class="meta">3 programs</div></div><button class="plus" aria-label="Create plan"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="searchpill"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search plans</div>
+          <div style="margin-top:14px;background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#C2263C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;color:#8A1C30;">Couldn't refresh your plans. Check your connection.</div>
+            <button style="border:1px solid #C2263C;border-radius:12px;background:#fff;color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;">Retry</button>
+          </div>
+          <div class="card" style="opacity:0.55;margin-top:14px;"><div style="font-size:17px;font-weight:500;">4-Day Hypertrophy</div><div style="font-size:12px;color:#6B6B70;margin-top:4px;">Showing last saved plans</div></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#8621EB" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> plan fetch failure → inline banner + Retry; last-known plans stay (dimmed). No blocking modal. Tone <code>TTColor.danger</code>; consistent with prior groups.</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

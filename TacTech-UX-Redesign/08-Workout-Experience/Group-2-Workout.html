@@ -1,0 +1,300 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 2 · Workout Hub + Active Workout</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:860px;line-height:1.5;}
+.rules{max-width:860px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#F7F7F8;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.lhdr{padding:54px 20px 6px;}
+.lhdr .big{font-size:28px;font-weight:500;}
+.lhdr .meta{font-size:13px;color:#6B6B70;margin-top:2px;}
+.body{flex:1;overflow:hidden;padding:12px 16px 0;}
+.sect{font-size:12px;font-weight:500;letter-spacing:0.08em;color:#6B6B70;margin-top:18px;}
+.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:10px;}
+.badge{font-size:10px;font-weight:500;padding:4px 7px;border-radius:100px;}
+.b-ai{color:#C2410C;background:rgba(194,65,12,0.12);}
+.b-tr{color:#6B6B70;background:#ECECEF;}
+.week{display:flex;gap:6px;margin-top:12px;}
+.d{flex:1;text-align:center;padding:8px 0;border-radius:12px;background:#fff;font-size:13px;color:#6B6B70;border:1px solid #ECECEF;}
+.d .n{font-size:11px;color:#9A9AA0;}
+.d.on{background:#29074F;color:#fff;border-color:#29074F;}
+.d.on .n{color:rgba(255,255,255,0.7);}
+.d.dot{position:relative;}
+.d.dot::after{content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:100px;background:#C2410C;}
+.bo{width:100%;height:54px;border:none;border-radius:18px;background:#C2410C;color:#fff;font-family:inherit;font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;}
+.exrow{display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid #F0F0F3;}
+.exn{width:26px;height:26px;border-radius:100px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;}
+.tabwrap{position:absolute;left:0;right:0;bottom:0;height:96px;}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:66px;background:#fff;border-radius:28px;box-shadow:0 8px 24px rgba(41,7,79,0.14);display:flex;align-items:center;padding:0 14px;}
+.ts{flex:1;display:flex;justify-content:space-around;}
+.ti{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:500;}
+.fab{position:absolute;left:50%;transform:translateX(-50%);bottom:48px;width:58px;height:58px;border:none;border-radius:100px;background:#8621EB;box-shadow:0 8px 20px rgba(134,33,235,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;} .anno .warn{color:#B3450A;font-weight:500;} .anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.skel{background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);border-radius:8px;}
+/* guided dark */
+.guided{background:#1C1C1E;}
+.gtop{display:flex;align-items:center;justify-content:space-between;padding:52px 18px 0;}
+.gx{width:34px;height:34px;border-radius:100px;background:rgba(255,255,255,0.1);border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.gtimer{color:#fff;font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 2 · Workout Hub + Active Workout — 10 states</h1>
+  <p class="sub"><code>WorkoutHubView</code> + <code>ActiveWorkoutView</code> / <code>GuidedWorkoutFlow</code>. Verified against source; every claim cites a snippet in its annotation. Carries R1–R5 (Dynamic Type tracked, contrast ≥4.5 text / ≥3 icons, color-never-alone, RTL, no invented data).</p>
+  <div class="rules"><b>Palette note:</b> workout accent = <code>TTColor.actionOrange</code>; mockup uses an AA-safe shade <b>#C2410C</b> for orange <i>text & button fills with white text</i> (bright orange fails white-text contrast). Guided flow is a <code>fullScreenCover</code> on charcoal <code>TTColor</code> (source: <code>GuidedWorkoutFlow</code> body uses charcoal). Hub is a light tab root; guided/active screens have no tab bar.</div>
+  <div class="row">
+
+    <!-- 1 · EMPTY (no plan) -->
+    <div class="fw">
+      <div class="flabel">1 · Empty — no plan</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div><div class="meta">No active plan</div></div>
+        <div class="body">
+          <div class="card" style="text-align:center;padding:30px 20px;margin-top:20px;">
+            <div aria-hidden="true" style="width:56px;height:56px;border-radius:100px;background:rgba(194,65,12,0.1);display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#C2410C" stroke-width="1.9" stroke-linecap="round"/></svg></div>
+            <div style="font-size:17px;font-weight:500;margin-top:14px;">No workout assigned</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">Generate my week from Home to build an AI plan, or link a trainer.</div>
+            <button class="bo" style="margin-top:18px;background:#8621EB;">Go to Home</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>emptyCard</code> (WorkoutHubView:626) — barbell icon (orange), "No workout assigned", copy branches on <code>store.canShowSoloAIGenerate</code>: <i>"Generate my week from Home to build an AI plan, or link a trainer."</i> (shown) vs <i>"Your trainer will attach a plan…"</i> (linked, no plan). Generation itself lives on Home, so CTA routes Home (no generate button here — faithful to source).</div>
+    </div>
+
+    <!-- 2 · AI PLAN, FULL CONTROLS -->
+    <div class="fw">
+      <div class="flabel">2 · AI plan — full controls</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div></div>
+        <div class="body">
+          <div class="card">
+            <div style="display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;font-size:20px;font-weight:500;">4-Day Hypertrophy</div><span class="badge b-ai">AI</span></div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:6px;">Intermediate · Hypertrophy</div>
+            <div style="font-size:12px;color:#6B6B70;margin-top:4px;">Mon · Tue · Thu · Fri</div>
+            <div style="display:flex;gap:8px;margin-top:14px;">
+              <button style="flex:1;height:40px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;color:#1C1C1E;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Edit</button>
+              <button style="flex:1;height:40px;border:none;border-radius:12px;background:#1C1C1E;color:#fff;font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;">Regenerate</button>
+            </div>
+            <div style="text-align:right;margin-top:10px;"><button style="border:none;background:none;color:#B3271B;font-family:inherit;font-size:12px;font-weight:500;text-decoration:underline;cursor:pointer;">Delete this plan</button></div>
+          </div>
+          <div class="week">
+            <div class="d"><div class="n">M</div>on</div>
+            <div class="d dot on"><div class="n">T</div>ue</div>
+            <div class="d"><div class="n">W</div>ed</div>
+            <div class="d dot"><div class="n">T</div>hu</div>
+            <div class="d dot"><div class="n">F</div>ri</div>
+          </div>
+          <div class="sect">TODAY'S SESSION</div>
+          <div class="card">
+            <div style="font-size:12px;font-weight:500;letter-spacing:0.04em;color:#C2410C;">TODAY'S SESSION</div>
+            <div style="font-size:18px;font-weight:500;margin-top:6px;">Pull Day</div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:2px;">5 exercises</div>
+            <button class="bo" style="margin-top:14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5l11 7-11 7V5z" fill="#fff"/></svg> Start Workout</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> gate <code>traineeCanEditDeleteAIPlan(plan)</code> → <code>aiPlanActions</code> (WorkoutHubView:285). Badge <b>"AI"</b> orange when <code>canMutateAI</code> (:211-219). Buttons exactly as source: <b>Edit</b> (white), <b>Regenerate</b> (black, :310 <code>Color.black</code>), <b>"Delete this plan"</b> demoted red underline (:322) — all <code>disabled</code> while <code>isMutatingAIPlan</code>. Title <code>plan.title</code>; "\(level) · \(focus)" (:232). Week strip = <code>TTHomeWeekDatePicker</code>; dots = scheduled days. Start label from <code>completedExerciseCount==0</code> (:982).</div>
+    </div>
+
+    <!-- 3 · AI PLAN AFTER TRAINER LINKS (read-only) -->
+    <div class="fw">
+      <div class="flabel">3 · AI plan after trainer links (read-only)</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div></div>
+        <div class="body">
+          <div style="margin-top:14px;background:#EAF2FD;border:1px solid #CFE2FB;border-radius:16px;padding:14px;">
+            <div style="display:flex;align-items:center;gap:10px;"><div aria-hidden="true" style="width:32px;height:32px;border-radius:100px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.2" stroke="#2563EB" stroke-width="1.8"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round"/></svg></div><div style="font-size:15px;font-weight:500;">Coach Maya guides your training</div></div>
+            <div style="font-size:13px;color:#2B3A4D;margin-top:8px;line-height:1.4;">Your AI controls are paused while you're connected. Leaving your coach recalculates availability from your current eligibility.</div>
+          </div>
+          <div class="card">
+            <div style="display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;font-size:20px;font-weight:500;">4-Day Hypertrophy</div><span class="badge b-tr">Read-only</span></div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:6px;">Intermediate · Hypertrophy</div>
+            <div style="font-size:12px;color:#6B6B70;margin-top:4px;">Mon · Tue · Thu · Fri</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:12px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#6B6B70" stroke-width="1.7"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#6B6B70" stroke-width="1.7"/></svg><span style="font-size:12px;color:#6B6B70;">No edit controls while a coach guides you</span></div>
+          </div>
+          <div class="sect">TODAY'S SESSION</div>
+          <div class="card">
+            <div style="font-size:18px;font-weight:500;">Pull Day</div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:2px;">5 exercises</div>
+            <button class="bo" style="margin-top:14px;">Start Workout</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> when a trainer links, <code>traineeCanEditDeleteAIPlan==false</code> → <code>aiPlanActions</code> not rendered (:248). Explainer mirrors Home State 3, <code>TTColor.info #2563EB</code>. <span class="warn">Badge quirk:</span> source badge logic is <code>canMutateAI ? "AI" : "Trainer"</code> (:211) — so a now-locked AI plan would literally show <b>"Trainer"</b>; shown here as <b>"Read-only"</b> as a clearer label (flag for build: badge copy decision). Session still startable (read-only ≠ un-trainable).</div>
+    </div>
+
+    <!-- 4 · TRAINER-ASSIGNED PLAN -->
+    <div class="fw">
+      <div class="flabel">4 · Trainer-assigned plan (read-only)</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div></div>
+        <div class="body">
+          <div class="card">
+            <div style="display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;font-size:20px;font-weight:500;">Maya's Strength Block</div><span class="badge b-tr">Trainer</span></div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:6px;">Intermediate · Strength</div>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:8px;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.7"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.7" stroke-linecap="round"/></svg><span style="font-size:12px;color:#511A97;font-weight:500;">From Coach Maya</span></div>
+          </div>
+          <div class="week"><div class="d"><div class="n">M</div>on</div><div class="d dot on"><div class="n">T</div>ue</div><div class="d"><div class="n">W</div>ed</div><div class="d dot"><div class="n">T</div>hu</div><div class="d"><div class="n">F</div>ri</div></div>
+          <div class="sect">TODAY'S SESSION</div>
+          <div class="card">
+            <div style="font-size:12px;font-weight:500;letter-spacing:0.04em;color:#C2410C;">TODAY'S SESSION</div>
+            <div style="font-size:18px;font-weight:500;margin-top:6px;">Lower Body</div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:2px;">6 exercises · assigned by Maya</div>
+            <button class="bo" style="margin-top:14px;">Start Workout</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> badge <b>"Trainer"</b> (gray) when <code>!canMutateAI</code> (:221-228). "From Coach" = <code>WorkoutPlan.source=="trainer"</code>/<code>!isAISource</code> (Models:286,335) + trainer name <code>store.trainer(for:)</code>. No AI actions (:248). Start/Continue per <code>completedExerciseCount</code>.</div>
+    </div>
+
+    <!-- 5 · LOADING -->
+    <div class="fw">
+      <div class="flabel">5 · Loading (no data yet)</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div></div>
+        <div class="body">
+          <div class="card" style="box-shadow:none;margin-top:14px;">
+            <div class="skel" style="width:60%;height:22px;"></div>
+            <div class="skel" style="width:40%;height:13px;margin-top:10px;"></div>
+            <div class="skel" style="width:70%;height:12px;margin-top:8px;"></div>
+          </div>
+          <div class="week"><div class="skel d" style="height:44px;"></div><div class="skel d" style="height:44px;"></div><div class="skel d" style="height:44px;"></div><div class="skel d" style="height:44px;"></div><div class="skel d" style="height:44px;"></div></div>
+          <div class="skel" style="width:140px;height:12px;margin-top:20px;"></div>
+          <div class="skel" style="width:100%;height:120px;margin-top:10px;border-radius:16px;"></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> <code>.task { refreshAssignedPlanForCurrentTrainee }</code> (:66). Source has no spinner; shows cached plan + pull-to-refresh (:58). Skeleton here applies <b>only on first load with no plan cached</b> (consistent with Home R-loading); otherwise render immediately + silent refresh.</div>
+    </div>
+
+    <!-- 6 · ERROR -->
+    <div class="fw">
+      <div class="flabel">6 · Error (inline retry)</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">Workout</div></div>
+        <div class="body">
+          <div style="margin-top:14px;background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#C2263C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;color:#8A1C30;">Couldn't refresh your plan. Check your connection.</div>
+            <button style="border:1px solid #C2263C;border-radius:12px;background:#fff;color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;">Retry</button>
+          </div>
+          <div class="card" style="opacity:0.55;margin-top:14px;">
+            <div style="display:flex;align-items:flex-start;gap:8px;"><div style="flex:1;font-size:20px;font-weight:500;">4-Day Hypertrophy</div><span class="badge b-ai">AI</span></div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:6px;">Showing your last saved plan</div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> fetch failure → inline banner + Retry; last-loaded plan stays (dimmed). No blocking modal. Consistent with Home State 10 + existing <code>hubToast</code> error pattern (WorkoutHubView uses <code>TTToastMessage(..., style:.error)</code>, e.g. :348). Tone <code>TTColor.danger</code>.</div>
+    </div>
+
+    <!-- 7 · ACTIVE OVERVIEW (resume) -->
+    <div class="fw">
+      <div class="flabel">7 · Active workout overview — resume (exercise-level)</div>
+      <div class="phone">
+        <div style="padding:52px 16px 0;display:flex;align-items:center;gap:12px;">
+          <button aria-label="Back" style="width:36px;height:36px;border:none;border-radius:100px;background:#EDECF0;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          <div style="font-size:20px;font-weight:500;">Pull Day</div>
+        </div>
+        <div class="body" style="padding-top:8px;">
+          <div class="card" style="display:flex;align-items:center;gap:16px;">
+            <svg width="64" height="64" viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" stroke="#EDEDF0" stroke-width="7" fill="none"/><circle cx="32" cy="32" r="26" stroke="#C2410C" stroke-width="7" fill="none" stroke-linecap="round" stroke-dasharray="163" stroke-dashoffset="109" transform="rotate(-90 32 32)"/></svg>
+            <div><div style="font-size:22px;font-weight:500;">2 of 5</div><div style="font-size:13px;color:#6B6B70;">exercises done</div></div>
+          </div>
+          <div class="card" style="padding:4px 16px;">
+            <div class="exrow" style="border-top:none;"><div class="exn" style="background:#E7F8EC;color:#2E9E4B;">✓</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Pull-ups</div><div style="font-size:12px;color:#6B6B70;">3 × 8 · done</div></div></div>
+            <div class="exrow"><div class="exn" style="background:#E7F8EC;color:#2E9E4B;">✓</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Barbell Row</div><div style="font-size:12px;color:#6B6B70;">4 × 10 · done</div></div></div>
+            <div class="exrow" style="background:rgba(194,65,12,0.06);margin:0 -16px;padding:12px 16px;"><div class="exn" style="background:#C2410C;color:#fff;">3</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Lat Pulldown</div><div style="font-size:12px;color:#C2410C;">next up · 4 × 12</div></div></div>
+            <div class="exrow"><div class="exn" style="background:#F0F0F3;color:#6B6B70;">4</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Face Pull</div><div style="font-size:12px;color:#6B6B70;">3 × 15</div></div></div>
+            <div class="exrow"><div class="exn" style="background:#F0F0F3;color:#6B6B70;">5</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Bicep Curl</div><div style="font-size:12px;color:#6B6B70;">3 × 12</div></div></div>
+          </div>
+          <button class="bo" style="margin-top:14px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="1.8"/><path d="M10 9l5 3-5 3V9z" fill="#fff"/></svg> Continue Workout</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>ActiveWorkoutView</code> overview. "2 of 5" / ring = <code>completedExerciseCount</code> = <code>Set(logs.map(exerciseId)).count</code> (:904). Next-up row = <code>activeExerciseIndex</code> — first exercise whose working sets aren't all in <code>logs</code> (:917). Button label <code>completedExerciseCount==0 ? "Start Workout" : "Continue Workout"</code> (:982-984); tapping sets <code>guidedStartIndex = activeExerciseIndex</code> (:978). <b>Resume is exercise-level</b> (Phase 3). No tab bar (pushed/fullScreen).</div>
+    </div>
+
+    <!-- 8 · GUIDED EXERCISE -->
+    <div class="fw">
+      <div class="flabel">8 · Guided set — fullScreenCover</div>
+      <div class="phone guided">
+        <div class="gtop"><button class="gx" aria-label="Exit workout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="gtimer">24:08</div><div style="width:34px;"></div></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 24px;text-align:center;">
+          <div style="font-size:22px;font-weight:500;color:#fff;">Lat Pulldown</div>
+          <div style="display:flex;gap:8px;margin-top:10px;"><span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.28);border-radius:100px;padding:4px 10px;">Back</span><span style="font-size:11px;color:rgba(255,255,255,0.72);border:1px solid rgba(255,255,255,0.28);border-radius:100px;padding:4px 10px;">Cable</span></div>
+          <div style="margin-top:44px;font-size:13px;font-weight:500;color:rgba(255,255,255,0.62);">Set 3 of 4</div>
+          <div style="font-size:80px;font-weight:500;color:#fff;line-height:1;margin-top:4px;">12</div>
+          <div style="font-size:18px;font-weight:500;color:rgba(255,255,255,0.62);">reps</div>
+          <div style="font-size:24px;font-weight:500;color:#E8742A;margin-top:8px;">60 kg</div>
+        </div>
+        <div style="padding:0 24px 48px;">
+          <button style="width:100%;height:64px;border:none;border-radius:20px;background:#C2410C;color:#fff;font-family:inherit;font-size:20px;font-weight:500;cursor:pointer;">Done</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>GuidedWorkoutFlow</code> exercise screen (WorkoutHubView:1420+). Charcoal <b>#1C1C1E</b> (L=0.0117). Shows the <b>prescribed target</b>: "Set N of total" (:1434), big reps <code>set.reps</code> 80pt (:1438), weight <code>set.weightKg</code> orange (:1448).<br><b>Contrast (recomputed on #1C1C1E):</b> white numerals = <b>17.0:1</b>; secondary text raised 0.45/0.5 → <b>0.62 = 6.8:1</b> ("Set 3 of 4", "reps"); muscle chips 0.72 = 9.0:1; weight orange #E8742A = <b>5.6:1</b> (recalculated — earlier 4.7 figure corrected); Done fill #C2410C/white = 5.9:1. All ≥4.5:1.<br><span class="warn">⚠️ OPEN ITEM (W-1):</span> <b>"Done" logs the PRESCRIBED set only</b> — <code>logSet()</code> writes <code>reps: set.reps</code>, <code>weightKg: set.weightKg ?? item.recommendedWeightKg ?? 0</code> (:1244-1275); no <code>TextField</code>/<code>Stepper</code> exists. Trainee cannot record actual performed reps/weight → affects volume/history/form stats. Tracked in IMPLEMENTATION-NOTES.md (W-1).</div>
+    </div>
+
+    <!-- 9 · GUIDED REST -->
+    <div class="fw">
+      <div class="flabel">9 · Guided rest countdown</div>
+      <div class="phone guided">
+        <div class="gtop"><button class="gx" aria-label="Exit workout"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="gtimer">25:41</div><div style="width:34px;"></div></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 24px;text-align:center;">
+          <svg width="120" height="120" viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,0.12)" stroke-width="8" fill="none"/><circle cx="60" cy="60" r="52" stroke="#E8742A" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="327" stroke-dashoffset="120" transform="rotate(-90 60 60)"/></svg>
+          <div style="font-size:16px;font-weight:500;color:rgba(255,255,255,0.72);margin-top:28px;letter-spacing:0.04em;">REST</div>
+          <div style="font-size:48px;font-weight:500;color:#fff;font-variant-numeric:tabular-nums;margin-top:6px;">1:12</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:14px;">Next · Set 4 of 4 · Lat Pulldown</div>
+        </div>
+        <div style="padding:0 24px 48px;text-align:center;">
+          <div style="font-size:13px;color:rgba(255,255,255,0.62);">Continues automatically when rest ends</div>
+        </div>
+      </div>
+      <div class="anno"><b>Source (faithful — no proposed controls this round):</b> <code>restScreen</code> (WorkoutHubView:1508). "Rest" + <code>restString</code> m:ss (:1242, :1516); default <code>restSeconds = 90</code> (:1312); counts down and <b>auto-advances</b> via <code>advanceAfterRest()</code> at 0 (:1397) — <b>no skip control exists</b>, shown truthfully.<br><b>Contrast (#1C1C1E):</b> "REST" &amp; "Next·…" raised 0.5/0.6 → <b>0.72 = 9.0:1</b>; timer white = 17.0:1; footer 0.62 = 6.8:1. All ≥4.5:1.<br><span class="warn">A "Skip rest / +30s" control was considered but REMOVED from this approval round</span> — it changes behavior (auto-advance → manual), logged as pending decision W-2 in IMPLEMENTATION-NOTES.md for separate sign-off.</div>
+    </div>
+
+    <!-- 10 · COMPLETE -->
+    <div class="fw">
+      <div class="flabel">10 · Workout complete (sheet)</div>
+      <div class="phone" style="background:#1C1C1E;">
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,0.35);"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:62%;background:#fff;border-top-left-radius:28px;border-top-right-radius:28px;padding:12px 24px 32px;display:flex;flex-direction:column;align-items:center;">
+          <div style="width:36px;height:4px;border-radius:100px;background:#D2D2D7;"></div>
+          <div style="width:100px;height:100px;border-radius:100px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;margin-top:24px;font-size:52px;">🏆</div>
+          <div style="font-size:26px;font-weight:500;margin-top:24px;">Workout Complete!</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:8px;text-align:center;">Every rep counts. You showed up.</div>
+          <div style="display:flex;width:100%;background:#F7F7F8;border-radius:20px;padding:16px 0;margin-top:26px;">
+            <div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:500;">48m</div><div style="font-size:12px;color:#6B6B70;">Duration</div></div>
+            <div style="width:1px;background:#E6E6EA;"></div>
+            <div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:500;">5</div><div style="font-size:12px;color:#6B6B70;">Exercises</div></div>
+            <div style="width:1px;background:#E6E6EA;"></div>
+            <div style="flex:1;text-align:center;"><div style="font-size:22px;font-weight:500;">18</div><div style="font-size:12px;color:#6B6B70;">Sets</div></div>
+          </div>
+          <button style="width:100%;height:54px;border:none;border-radius:18px;background:#C2410C;color:#fff;font-family:inherit;font-size:16px;font-weight:500;cursor:pointer;margin-top:26px;">Done — back to home</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>WorkoutCompleteSheet</code> (WorkoutHubView:1571), <code>.presentationDetents([.medium])</code>, <code>interactiveDismissDisabled</code> (:1659). 🏆 in orange circle; "Workout Complete!"; motivation line (:1660 list, e.g. "Every rep counts. You showed up."). Stat boxes <b>Duration / Exercises / Sets</b> = <code>duration/exercisesCount/setsCount</code> passed in (:1571-1575); duration shows "Xm" (:1649). "Done — back to home" orange (:1618).</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

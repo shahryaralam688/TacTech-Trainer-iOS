@@ -53,6 +53,11 @@ final class AppStore {
     var aiSoftNotice: String?
     /// Trainer Boost status (`GET /me/boost`). Nil for trainees / before first load.
     var myBoost: MeBoostDTO?
+    /// Active workout session fetched from `GET /trainee/sessions/active`. Nil when none.
+    var activeWorkoutSession: WorkoutSession?
+    /// True while fetching or mutating the active session.
+    var isLoadingSession = false
+
     /// Live Sandow Score chart (`GET /me/sandow-score` or local compose fallback).
     var sandowScore: SandowScoreResponse?
     var sandowPeriod: SandowScorePeriod = .week
@@ -1178,6 +1183,64 @@ final class AppStore {
         } catch {
             // Keep last-known trainer on transient network errors.
         }
+    }
+
+    // MARK: - Workout session lifecycle
+
+    /// Fetches the active session and updates `activeWorkoutSession`. Safe to call on every Home appear.
+    func refreshActiveSession() async {
+        guard !isLoadingSession else { return }
+        isLoadingSession = true
+        defer { isLoadingSession = false }
+        activeWorkoutSession = try? await api.activeSession()
+    }
+
+    /// Starts a new session for the given plan/day. Throws if a session is already active.
+    func startWorkoutSession(planId: String, dayId: String?) async throws -> WorkoutSession {
+        isLoadingSession = true
+        defer { isLoadingSession = false }
+        let session = try await api.startSession(WorkoutSessionBody(planId: planId, dayId: dayId))
+        activeWorkoutSession = session
+        return session
+    }
+
+    /// Saves one completed set to the active session. Returns the server-confirmed log entry or the
+    /// local fallback if the server returns empty. Idempotent: the caller guards against duplicates.
+    func logSet(sessionId: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double) async throws -> WorkoutSetLog {
+        let body = SessionSetBody(exerciseId: exerciseId, setNumber: setNumber, reps: reps, weightKg: weightKg)
+        let remote = try await api.logSessionSet(sessionId: sessionId, body)
+        let log = remote ?? WorkoutSetLog(
+            id: "\(exerciseId)-\(setNumber)",
+            exerciseId: exerciseId, setNumber: setNumber, reps: reps, weightKg: weightKg
+        )
+        // Mirror into the local session so progress ring is up-to-date without a full refresh.
+        if activeWorkoutSession?.id == sessionId {
+            if !(activeWorkoutSession?.sets.contains(where: { $0.exerciseId == log.exerciseId && $0.setNumber == log.setNumber }) ?? false) {
+                activeWorkoutSession?.sets.append(log)
+            }
+        }
+        return log
+    }
+
+    /// Completes the active session, saves the resulting WorkoutLog, and clears `activeWorkoutSession`.
+    func completeWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
+        guard !isLoadingSession else { return }
+        isLoadingSession = true
+        defer { isLoadingSession = false }
+        let log = try await api.completeSession(sessionId: sessionId, CompleteSessionBody(durationMinutes: durationMinutes))
+        activeWorkoutSession = nil
+        if let log { upsert(log) }
+        if let trainee = currentTrainee, let logs = try? await api.traineeLogs() {
+            replaceLogs(logs, traineeId: trainee.id)
+        }
+    }
+
+    /// Discards the active session without saving a workout log.
+    func discardWorkoutSession(sessionId: String) async throws {
+        isLoadingSession = true
+        defer { isLoadingSession = false }
+        try await api.discardSession(sessionId: sessionId)
+        activeWorkoutSession = nil
     }
 
     func saveWorkoutLog(_ log: WorkoutLog) async throws {

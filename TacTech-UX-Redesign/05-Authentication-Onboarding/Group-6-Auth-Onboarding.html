@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 6 · Authentication & Onboarding</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:860px;line-height:1.5;}
+.rules{max-width:860px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;} .rules .warn{color:#B3450A;font-weight:500;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#fff;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.pad{padding:60px 24px 28px;flex:1;display:flex;flex-direction:column;}
+.fld-l{font-size:12px;font-weight:500;color:#6B6B70;margin-top:16px;}
+.fld{display:flex;align-items:center;gap:10px;border:1px solid #E0E0E6;border-radius:14px;padding:14px 16px;font-size:15px;color:#1C1C1E;margin-top:6px;background:#fff;}
+.fld .ph{color:#9A9AA0;}
+.bk{width:100%;height:56px;border:none;border-radius:16px;background:#1C1C1E;color:#fff;font-family:inherit;font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;}
+.bk.dis{background:rgba(28,28,30,0.35);}
+.ghost{width:100%;height:54px;border:1.5px solid #1C1C1E;border-radius:16px;background:#fff;color:#1C1C1E;font-family:inherit;font-size:16px;font-weight:500;cursor:pointer;}
+.err{background:#FDECEE;border:1px solid #F6CBD1;border-radius:12px;padding:10px 14px;font-size:13px;color:#B3182E;margin-top:14px;display:flex;gap:8px;align-items:center;}
+.foot{text-align:center;font-size:14px;color:#6B6B70;margin-top:18px;}
+.foot a{color:#8621EB;font-weight:500;text-decoration:none;}
+.dots{display:flex;gap:7px;justify-content:center;}
+.dots span{width:7px;height:7px;border-radius:100px;background:#DADADF;}
+.dots span.on{width:22px;background:#8621EB;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;} .anno .warn{color:#B3450A;font-weight:500;} .anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.track{height:4px;background:#EDEDF0;border-radius:100px;margin-top:10px;}
+.track>div{height:100%;background:#1C1C1E;border-radius:100px;}
+.rolecard{border:1.5px solid #E0E0E6;border-radius:18px;padding:18px;text-align:center;cursor:pointer;flex:1;}
+.rolecard.on{border-color:#8621EB;background:#F9EBFF;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 6 · Authentication &amp; Onboarding — 12 states</h1>
+  <p class="sub"><code>WelcomeOnboardingView</code> + <code>AuthFlowView</code> + <code>AuthScreens</code> + <code>ProfileCompletionFlowView</code>. Verified against source; literal strings cited. R1–R5 carried. Full-screen flows (no tab bar).</p>
+  <div class="rules"><b>Phase-1 gaps accounted for:</b> <span class="warn">PostLoginBridgeView is dead code</span> — referenced only by its own <code>#Preview</code> (PostLoginBridgeView.swift:257/261), never in the live path, so there is <b>no welcome-back/first-setup interstitial</b> between login and root; not designed. <span class="warn">profileSetupCompleted is an unenforced gate</span> — <code>ProfileCompletionFlowView</code> is reachable only from Account Settings, <b>not</b> a launch gate (AppRootView), so these setup steps (8–11) are an <b>optional post-login flow</b>, never blocking app entry (consistent with Group 1 §4 non-blocking nudge).</div>
+  <div class="row">
+
+    <!-- 1 · WELCOME CAROUSEL -->
+    <div class="fw">
+      <div class="flabel">1 · Welcome carousel (1 of 6)</div>
+      <div class="phone">
+        <div class="pad" style="background:#29074F;">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;"><div style="width:220px;height:220px;border-radius:32px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center;"><svg width="90" height="90" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#B069FF" stroke-width="1.6" stroke-linecap="round"/></svg></div></div>
+          <div style="font-size:30px;font-weight:500;color:#fff;line-height:1.2;">Welcome to<br>TacTech</div>
+          <div style="font-size:16px;color:rgba(255,255,255,0.72);margin-top:10px;">Train with clarity.</div>
+          <div class="dots" style="margin-top:28px;justify-content:flex-start;"><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+          <button class="bk" style="background:#fff;color:#29074F;margin-top:22px;">Next</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>WelcomeOnboardingView</code> — <b>6</b> <code>OnboardingPage</code>s (WelcomeOnboardingView.swift:15-52): titles "Welcome to\nTacTech" / "Personalized\nFitness Plans" / "Health Metrics &amp; Fitness Analytics" / "Extensive Workout Libraries" / "Virtual AI Coach Mentoring" / "Nutrition &amp; Diet Guidance", each with its subtitle. Swipe carousel (<code>pageIndex</code>); last page's Next → <code>onFinished</code> sets <code>hasCompletedWelcome=true</code>. One-time gate. Illustration = OnboardingHero/… imagesets (placeholder here).</div>
+    </div>
+
+    <!-- 2 · WELCOME LANDING -->
+    <div class="fw">
+      <div class="flabel">2 · Welcome landing</div>
+      <div class="phone">
+        <div class="pad" style="background:#29074F;">
+          <div style="font-size:14px;font-weight:500;letter-spacing:0.18em;color:rgba(255,255,255,0.72);">TACTECH</div>
+          <div style="flex:1;display:flex;flex-direction:column;justify-content:center;">
+            <div style="font-size:40px;font-weight:500;color:#fff;line-height:1.1;">Train with<br>clarity.</div>
+            <div style="font-size:16px;color:rgba(255,255,255,0.72);margin-top:12px;">One app for coaches and athletes.</div>
+          </div>
+          <button class="bk" style="background:#fff;color:#29074F;">Create account</button>
+          <button class="ghost" style="border-color:rgba(255,255,255,0.4);background:transparent;color:#fff;margin-top:12px;">I already have an account</button>
+          <div style="background:rgba(255,255,255,0.08);border-radius:14px;padding:12px 14px;margin-top:20px;">
+            <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.72);">Demo accounts</div>
+            <div style="font-size:12px;color:#fff;margin-top:4px;font-variant-numeric:tabular-nums;">trainer@tactech.app / trainer123</div>
+            <div style="font-size:12px;color:#fff;font-variant-numeric:tabular-nums;">trainee@tactech.app / trainee123</div>
+          </div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>WelcomeView</code> (AuthFlowView:84-143): "TACTECH" wordmark, <b>"Train with\nclarity."</b>, "One app for coaches and athletes.", <b>"Create account"</b> → signup, <b>"I already have an account"</b> → login, <code>demoHint</code> "Demo accounts" + <b>trainer@tactech.app / trainer123</b> + <b>trainee@tactech.app / trainee123</b> (:135-143). Wordmark is text (no logo asset).</div>
+    </div>
+
+    <!-- 3 · LOGIN -->
+    <div class="fw">
+      <div class="flabel">3 · Login</div>
+      <div class="phone">
+        <div class="pad">
+          <div style="font-size:26px;font-weight:500;">Sign In To TacTech</div>
+          <div style="font-size:15px;color:#6B6B70;margin-top:4px;">Let's personalize your fitness with AI</div>
+          <div class="fld-l">Email Address</div>
+          <div class="fld">alex@example.com</div>
+          <div class="fld-l">Password</div>
+          <div class="fld"><span style="flex:1;">••••••••</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="#6B6B70" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" stroke="#6B6B70" stroke-width="1.6"/></svg></div>
+          <div style="flex:1;"></div>
+          <button class="bk">Sign In</button>
+          <button style="border:none;background:none;color:#6B6B70;font-family:inherit;font-size:14px;font-weight:500;margin-top:14px;cursor:pointer;">Forgot Password</button>
+          <div class="foot">Don't have an account? <a href="#">Sign Up.</a></div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>LoginView</code> (AuthScreens:35): header <b>"Sign In To TacTech"</b> / "Let's personalize your fitness with AI" (:50-51); "Email Address", "Password" + <code>AuthEyeButton</code> toggle (:66-74); <code>AuthBlackButton(title:"Sign In")</code> (:81); "Forgot Password" (:91); footer <code>AuthFooterLink("Don't have an account?","Sign Up.")</code> (:88).</div>
+    </div>
+
+    <!-- 4 · LOGIN ERROR -->
+    <div class="fw">
+      <div class="flabel">4 · Login — error</div>
+      <div class="phone">
+        <div class="pad">
+          <div style="font-size:26px;font-weight:500;">Sign In To TacTech</div>
+          <div style="font-size:15px;color:#6B6B70;margin-top:4px;">Let's personalize your fitness with AI</div>
+          <div class="fld-l">Email Address</div>
+          <div class="fld">alex@example.com</div>
+          <div class="fld-l">Password</div>
+          <div class="fld" style="border-color:#F6CBD1;"><span style="flex:1;">••••••</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="#6B6B70" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" stroke="#6B6B70" stroke-width="1.6"/></svg></div>
+          <div class="err"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#B3182E" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#B3182E" stroke-width="1.7" stroke-linecap="round"/></svg> Incorrect email or password.</div>
+          <div style="flex:1;"></div>
+          <button class="bk">Sign In</button>
+          <button style="border:none;background:none;color:#6B6B70;font-family:inherit;font-size:14px;font-weight:500;margin-top:14px;cursor:pointer;">Forgot Password</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> login failure sets <code>error</code> → <code>AuthErrorBanner(message:)</code> (AuthScreens:77-78); message is <code>error.localizedDescription</code> from <code>store.login</code> (:110). <span class="warn">"Incorrect email or password." is illustrative</span> — the real text is whatever the server/localized error returns; confirm copy at build.</div>
+    </div>
+
+    <!-- 5 · SIGNUP -->
+    <div class="fw">
+      <div class="flabel">5 · Signup (step 1 — account)</div>
+      <div class="phone">
+        <div class="pad">
+          <div style="font-size:26px;font-weight:500;">Sign Up For Free</div>
+          <div style="font-size:15px;color:#6B6B70;margin-top:4px;">Quickly make your account in 1 minute</div>
+          <div class="fld-l">Email Address</div>
+          <div class="fld">alex@example.com</div>
+          <div class="fld-l">Password</div>
+          <div class="fld"><span style="flex:1;">••••••••</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="#6B6B70" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" stroke="#6B6B70" stroke-width="1.6"/></svg></div>
+          <div class="fld-l">Confirm Password</div>
+          <div class="fld"><span style="flex:1;">••••••••</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" stroke="#6B6B70" stroke-width="1.6"/><circle cx="12" cy="12" r="2.6" stroke="#6B6B70" stroke-width="1.6"/></svg></div>
+          <div style="flex:1;"></div>
+          <button class="bk">Sign Up</button>
+          <div class="foot">Already have an account? <a href="#">Sign In.</a></div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>SignupView</code> (AuthScreens:115): header <b>"Sign Up For Free"</b> / "Quickly make your account in 1 minute" (:135-136); Email / Password / <b>Confirm Password</b> + eye (:141-163); <code>AuthBlackButton(title:"Sign Up")</code> (:181) → <code>onContinue(SignupDraft(name:"", email, password))</code> — <b>name is empty here; collected on the role step</b> (:193). Footer "Already have an account? Sign In." (:196).</div>
+    </div>
+
+    <!-- 6 · SIGNUP ERROR -->
+    <div class="fw">
+      <div class="flabel">6 · Signup — password mismatch</div>
+      <div class="phone">
+        <div class="pad">
+          <div style="font-size:26px;font-weight:500;">Sign Up For Free</div>
+          <div style="font-size:15px;color:#6B6B70;margin-top:4px;">Quickly make your account in 1 minute</div>
+          <div class="fld-l">Email Address</div>
+          <div class="fld">alex@example.com</div>
+          <div class="fld-l">Password</div>
+          <div class="fld"><span style="flex:1;">••••••••</span></div>
+          <div class="fld-l">Confirm Password</div>
+          <div class="fld" style="border-color:#F6CBD1;"><span style="flex:1;">•••••</span></div>
+          <div class="err"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#B3182E" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#B3182E" stroke-width="1.7" stroke-linecap="round"/></svg> ERROR: Password Don't Match!</div>
+          <div style="flex:1;"></div>
+          <button class="bk">Sign Up</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> validation banners (AuthScreens:176-189, verbatim): <b>"ERROR: Password Don't Match!"</b> (mismatch), <b>"ERROR: Enter a valid email."</b>, <b>"ERROR: Password must be at least 6 characters."</b> <span class="warn">These strings are literal from source</span> (shown as-is); flagged for a copy/localization pass at build — "Don't" + all-caps "ERROR:" aren't HIG-standard.</div>
+    </div>
+
+    <!-- 7 · ROLE SELECTION -->
+    <div class="fw">
+      <div class="flabel">7 · Role selection (step 2 of 2 + invite)</div>
+      <div class="phone">
+        <div class="pad" style="padding-top:56px;overflow:auto;">
+          <div style="font-size:12px;font-weight:500;letter-spacing:0.1em;color:#8621EB;">STEP 2 OF 2</div>
+          <div style="font-size:26px;font-weight:500;margin-top:6px;">Choose your path</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:6px;line-height:1.4;">Pick Trainer or Trainee. Tools and screens will match the role you choose.</div>
+          <div style="display:flex;gap:6px;align-items:flex-start;background:#F9EBFF;border-radius:12px;padding:10px 12px;margin-top:14px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:1px;"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 1 4 10.5c-.6.6-1 1.3-1 2H9c0-.7-.4-1.4-1-2A6 6 0 0 1 12 3z" stroke="#8621EB" stroke-width="1.5" stroke-linejoin="round"/></svg>
+            <div style="font-size:12px;color:#511A97;">Suggestion: use invite code TACT-MAYA to request to join the demo trainer.</div>
+          </div>
+          <div class="fld-l">Your name</div>
+          <div class="fld">Alex Rivera</div>
+          <div style="display:flex;gap:12px;margin-top:16px;">
+            <div class="rolecard on"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin:0 auto;display:block;"><circle cx="12" cy="7" r="3.2" stroke="#8621EB" stroke-width="1.7"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6" stroke="#8621EB" stroke-width="1.7" stroke-linecap="round"/></svg><div style="font-size:15px;font-weight:500;margin-top:8px;">Trainer</div></div>
+            <div class="rolecard"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin:0 auto;display:block;"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.6" stroke-linecap="round"/></svg><div style="font-size:15px;font-weight:500;margin-top:8px;">Trainee</div></div>
+          </div>
+          <div class="fld-l">Trainer invite (optional)</div>
+          <div class="fld"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#9A9AA0" stroke-width="1.6" stroke-linecap="round"/></svg><span class="ph">e.g. TACT-MAYA</span></div>
+          <div style="font-size:12px;color:#6B6B70;margin-top:8px;line-height:1.4;">Paste your trainer's code to request to join, or use TACT-MAYA for the demo.</div>
+          <button class="bk" style="margin-top:16px;">Continue to assessment <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>RoleSelectionView</code> (AuthFlowView:151): <b>"STEP 2 OF 2"</b> (:241), <b>"Choose your path"</b> (:254), "Pick Trainer or Trainee…" (:258), invite suggestion chip <b>"Suggestion: use invite code TACT-MAYA…"</b> (:271), <b>"Your name"</b> field (:310, required — <code>canContinue=!name.isEmpty</code> :384), role cards Trainer/Trainee (<code>UserRole.title</code>, Models:11-12), <b>"Trainer invite (optional)"</b> prompt "e.g. TACT-MAYA" (:344) + hint (:359), <b>"Continue to assessment"</b> → <code>store.signup(…, inviteCode:)</code> (:420-424). Invite-code entry point confirmed here.</div>
+    </div>
+
+    <!-- 8 · PROFILE COMPLETION — AVATAR -->
+    <div class="fw">
+      <div class="flabel">8 · Profile completion — Avatar</div>
+      <div class="phone">
+        <div style="padding:52px 20px 10px;display:flex;align-items:center;gap:12px;">
+          <div style="flex:1;"><div style="font-size:19px;font-weight:500;">Profile Setup</div></div>
+          <span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">1/4</span>
+        </div>
+        <div class="track" style="margin:0 20px;"><div style="width:25%;"></div></div>
+        <div class="pad" style="padding-top:24px;">
+          <div style="font-size:24px;font-weight:500;">Pick your avatar</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:6px;">Choose a look for your profile.</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:20px;">
+            <div style="aspect-ratio:1;border-radius:16px;background:#9338FA;border:2px solid #8621EB;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#F3EDFB;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#EAF2FD;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#E7F8EC;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#FFF2E5;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#FDECEE;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#F0F0F3;"></div>
+            <div style="aspect-ratio:1;border-radius:16px;background:#F0F0F3;"></div>
+          </div>
+          <div style="flex:1;"></div>
+          <button class="bk">Continue</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>ProfileCompletionFlowView</code> production path <b>Avatar → Profile → Biometrics → Notifications → Score</b> (:9). Header <b>"Profile Setup"</b> + <code>"\(step+1)/\(totalSteps)"</code> pill (:123-128), black progress track (:143), back button when step&gt;0 (:114). <code>avatarStep</code>; <code>canContinue</code> true (:185). Primary <b>black</b> "Continue" (:165). <span class="warn">Optional flow — not a launch gate (see header note).</span></div>
+    </div>
+
+    <!-- 9 · PROFILE COMPLETION — BIOMETRIC -->
+    <div class="fw">
+      <div class="flabel">9 · Profile completion — Biometrics</div>
+      <div class="phone">
+        <div style="padding:52px 20px 10px;display:flex;align-items:center;gap:12px;">
+          <button aria-label="Back" style="width:30px;height:30px;border:none;border-radius:100px;background:#F0F0F3;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          <div style="flex:1;"><div style="font-size:19px;font-weight:500;">Profile Setup</div></div>
+          <span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">3/4</span>
+        </div>
+        <div class="track" style="margin:0 20px;"><div style="width:75%;"></div></div>
+        <div class="pad" style="padding-top:24px;align-items:center;text-align:center;">
+          <div style="flex:1;"></div>
+          <div style="width:96px;height:96px;border-radius:24px;background:#F3EDFB;display:flex;align-items:center;justify-content:center;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="5" stroke="#8621EB" stroke-width="1.6"/><path d="M9 9v1M15 9v1M9 15c1 1 5 1 6 0" stroke="#8621EB" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          <div style="font-size:24px;font-weight:500;margin-top:20px;">Enable Face ID</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">Unlock TacTech quickly and keep your account secure. You can change this later in Settings.</div>
+          <div style="flex:1;"></div>
+          <button class="bk">Continue</button>
+          <button style="border:none;background:none;color:#6B6B70;font-family:inherit;font-size:15px;font-weight:500;margin-top:12px;cursor:pointer;">Not now</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>biometricStep</code> (:83); <code>canContinue</code> true so it's effectively skippable (:193). <span class="warn">"Enable Face ID" layout &amp; "Not now" copy are proposed</span> (biometric step exists; exact in-step copy not fully quoted here) — confirm against the step body + request biometric permission only on tap (R-permission). Primary black "Continue" (:178).</div>
+    </div>
+
+    <!-- 10 · PROFILE COMPLETION — NOTIFICATIONS -->
+    <div class="fw">
+      <div class="flabel">10 · Profile completion — Notifications (priming)</div>
+      <div class="phone">
+        <div style="padding:52px 20px 10px;display:flex;align-items:center;gap:12px;">
+          <button aria-label="Back" style="width:30px;height:30px;border:none;border-radius:100px;background:#F0F0F3;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+          <div style="flex:1;"><div style="font-size:19px;font-weight:500;">Profile Setup</div></div>
+          <span style="font-size:13px;font-weight:500;color:#6B6B70;background:#F0F0F3;border-radius:100px;padding:6px 12px;">4/4</span>
+        </div>
+        <div class="track" style="margin:0 20px;"><div style="width:100%;"></div></div>
+        <div class="pad" style="padding-top:24px;align-items:center;text-align:center;">
+          <div style="flex:1;"></div>
+          <div style="width:96px;height:96px;border-radius:24px;background:#FFF2E5;display:flex;align-items:center;justify-content:center;"><svg width="46" height="46" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#C2410C" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#C2410C" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+          <div style="font-size:24px;font-weight:500;margin-top:20px;">Stay in the loop</div>
+          <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">Get notified about new plans, coach messages, and request updates. You choose what in Settings.</div>
+          <div style="flex:1;"></div>
+          <button class="bk">Generate score</button>
+          <button style="border:none;background:none;color:#6B6B70;font-family:inherit;font-size:15px;font-weight:500;margin-top:12px;cursor:pointer;">Not now</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>notificationsStep</code> (:84); primary label is literally <b>"Generate score"</b> (:177) — this step precedes the score step. Triggers notification auth (<code>requestAuthorizationAndRegister</code>, ProfileCompletionFlowView:936). <b>This IS the in-context priming moment for friction F</b> — explain value, then the OS prompt fires on tap. "Not now" proposed for a skip affordance. Push delivery still depends on APNs provisioning (U3).</div>
+    </div>
+
+    <!-- 11 · PROFILE COMPLETION — SCORE -->
+    <div class="fw">
+      <div class="flabel">11 · Profile completion — Score</div>
+      <div class="phone">
+        <div class="pad" style="background:#29074F;align-items:center;text-align:center;">
+          <div style="flex:1;"></div>
+          <svg width="180" height="180" viewBox="0 0 180 180" aria-hidden="true"><circle cx="90" cy="90" r="76" stroke="rgba(255,255,255,0.14)" stroke-width="12" fill="none"/><circle cx="90" cy="90" r="76" stroke="#B069FF" stroke-width="12" fill="none" stroke-linecap="round" stroke-dasharray="477" stroke-dashoffset="110" transform="rotate(-90 90 90)"/><text x="90" y="86" text-anchor="middle" fill="#fff" font-size="48" font-family="Work Sans" font-weight="500">77</text><text x="90" y="112" text-anchor="middle" fill="rgba(255,255,255,0.72)" font-size="13" font-family="Work Sans">Sandow score</text></svg>
+          <div style="font-size:24px;font-weight:500;color:#fff;margin-top:24px;">You're all set, Alex</div>
+          <div style="font-size:14px;color:rgba(255,255,255,0.72);margin-top:8px;line-height:1.45;">Your starting health score. Train and log to watch it climb.</div>
+          <div style="flex:1;"></div>
+          <button class="bk" style="background:#fff;color:#29074F;">Enter TacTech</button>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>scoreStep</code> (:85) — final step, <code>isScoreStep</code> hides the header/footer chrome (:68-72) for a full-bleed reveal. Shows the Sandow score. <span class="warn">Score value (77) &amp; "Enter TacTech" copy are illustrative</span> — the score is the computed Sandow score; confirm the real value source + final CTA copy at build. On finish → <code>markProfileSetupCompleted</code>.</div>
+    </div>
+
+    <!-- 12 · LOADING -->
+    <div class="fw">
+      <div class="flabel">12 · Auth submit — loading</div>
+      <div class="phone">
+        <div class="pad">
+          <div style="font-size:26px;font-weight:500;">Sign In To TacTech</div>
+          <div style="font-size:15px;color:#6B6B70;margin-top:4px;">Let's personalize your fitness with AI</div>
+          <div class="fld-l">Email Address</div>
+          <div class="fld">alex@example.com</div>
+          <div class="fld-l">Password</div>
+          <div class="fld"><span style="flex:1;">••••••••</span></div>
+          <div style="flex:1;"></div>
+          <button class="bk" style="background:rgba(28,28,30,0.7);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="rgba(255,255,255,0.3)" stroke-width="2.5"/><path d="M12 3a9 9 0 0 1 9 9" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/></svg></button>
+          <div class="foot">Don't have an account? <a href="#">Sign Up.</a></div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>AuthBlackButton(isLoading:)</code> shows a <code>ProgressView</code> and the button is disabled while <code>store.login</code>/<code>store.signup</code> runs (<code>isLoading</code>, AuthScreens). During this, <code>isBootstrappingSession</code> is set (AppStore) — the splash/root machine keeps the user on this screen until the session resolves. No separate full-screen spinner. Applies to login, signup, and "Continue to assessment".</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

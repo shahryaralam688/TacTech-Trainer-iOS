@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 3 · Trainer Home</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:860px;line-height:1.5;}
+.rules{max-width:860px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#F5F4F7;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.hdr{background:#29074F;padding:52px 20px 24px;border-bottom-left-radius:28px;border-bottom-right-radius:28px;}
+.hrow{display:flex;align-items:flex-start;justify-content:space-between;}
+.greet{font-size:15px;color:rgba(255,255,255,0.72);}
+.name{font-size:26px;font-weight:500;color:#fff;margin-top:2px;}
+.chips{display:flex;gap:8px;margin-top:14px;}
+.chip{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.12);border-radius:100px;padding:6px 12px;font-size:13px;color:#fff;}
+.ib{width:40px;height:40px;border:none;border-radius:100px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
+.av{width:40px;height:40px;border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:16px;}
+.body{flex:1;overflow:hidden;padding:18px 16px 0;}
+.sect{font-size:12px;font-weight:500;letter-spacing:0.08em;color:#6B6B70;margin-top:20px;}
+.stats{display:flex;background:#fff;border-radius:18px;padding:16px 4px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:-36px;position:relative;}
+.stat{flex:1;text-align:center;}
+.stat .v{font-size:22px;font-weight:500;}
+.stat .l{font-size:11px;color:#6B6B70;margin-top:2px;}
+.stat .sep,.sd{width:1px;background:#EDEDF0;}
+.card{background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:10px;}
+.qrow{display:flex;align-items:center;gap:12px;padding:14px 16px;background:#fff;border-radius:16px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:10px;border-left:4px solid #999;}
+.qpill{font-size:12px;font-weight:500;color:#fff;border-radius:100px;padding:7px 12px;white-space:nowrap;}
+.bo{width:100%;height:48px;border:none;border-radius:14px;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
+.tabwrap{position:absolute;left:0;right:0;bottom:0;height:96px;}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:66px;background:#fff;border-radius:28px;box-shadow:0 8px 24px rgba(41,7,79,0.14);display:flex;align-items:center;padding:0 14px;}
+.ts{flex:1;display:flex;justify-content:space-around;}
+.ti{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:500;}
+.fab{position:absolute;left:50%;transform:translateX(-50%);bottom:48px;width:58px;height:58px;border:none;border-radius:100px;background:#8621EB;box-shadow:0 8px 20px rgba(134,33,235,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;} .anno .warn{color:#B3450A;font-weight:500;} .anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.skel{background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);border-radius:8px;}
+.navbar{padding:52px 16px 10px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #EDEDF0;}
+.dkhdr{background:#29074F;padding:52px 20px 22px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 3 · Trainer Home — 8 states</h1>
+  <p class="sub"><code>TrainerDashboardView</code> + <code>JoinRequestsView</code> + <code>TraineeDetailView</code>. Verified against source; each frame cites snippets. Carries R1–R5. Trainer tabs: Home · Plans · Trainees · Profile.</p>
+  <div class="rules"><b>Palette:</b> dark header <code>TTPurple.p100 #29074F</code>; KPI tints orange/blue/gray per source; action-queue priority colors from <code>QueueItem.priority</code> (0 check-in=blue, 1 session=orange, 2 no-plan=dark, 3 done=green). Pill text on colored fills uses AA-safe shades. R2 greys = <code>#6B6B70</code>.</div>
+  <div class="row">
+
+    <!-- 1 · EMPTY ROSTER -->
+    <div class="fw">
+      <div class="flabel">1 · Empty roster — no trainees</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Welcome back,</div><div class="name">Jordan</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">J</div></div></div>
+          <div class="chips"><span class="chip">👥 0 Trainees</span><span class="chip">★ Coach</span></div>
+        </div>
+        <div class="body">
+          <div class="stats"><div class="stat"><div class="v">0</div><div class="l">Clients</div></div><div class="sd"></div><div class="stat"><div class="v">0</div><div class="l">Active plans</div></div><div class="sd"></div><div class="stat"><div class="v">—</div><div class="l">Form avg</div></div></div>
+          <div class="card" style="border:1px solid #E6E6EA;box-shadow:none;margin-top:16px;">
+            <div style="font-size:20px;font-weight:500;">No trainees yet</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:8px;line-height:1.45;">Share your invite code so athletes can join. Once they link to you, they'll appear here every day.</div>
+            <div style="display:flex;align-items:center;gap:10px;background:#F4F4F6;border-radius:16px;padding:14px;margin-top:14px;">
+              <span style="font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;">TACT-JORDAN</span>
+              <span style="flex:1;"></span>
+              <button style="border:none;background:#C2410C;color:#fff;font-family:inherit;font-size:13px;font-weight:500;border-radius:100px;padding:8px 16px;cursor:pointer;">Copy</button>
+            </div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6M22 20c0-2.5-1.5-4-3.5-4.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>emptyRosterCard</code> (TrainerDashboardView:392): "No trainees yet" + "Share your invite code so athletes can join…" + <code>store.currentTrainer.inviteCode</code> with <b>Copy</b> (orange capsule, :417). KPIs <code>clients.count</code>=0 / <code>activePlanCount</code>=0 / <code>formAvgLabel</code>="—" (:526-539). Header metrics "N Trainees"/"Coach" (:109-124). No join banner (0 pending).</div>
+    </div>
+
+    <!-- 2 · ACTIVE DASHBOARD + QUEUE -->
+    <div class="fw">
+      <div class="flabel">2 · Active roster · join banner · action queue</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Welcome back,</div><div class="name">Jordan</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications, 2 unread"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg><span style="position:absolute;top:6px;right:7px;min-width:15px;height:15px;padding:0 3px;border-radius:100px;background:#E11D48;border:1.5px solid #29074F;color:#fff;font-size:9px;font-weight:500;display:flex;align-items:center;justify-content:center;">2</span></button><div class="av" aria-hidden="true">J</div></div></div>
+          <div class="chips"><span class="chip">👥 6 Trainees</span><span class="chip">★ Coach</span></div>
+        </div>
+        <div class="body">
+          <div class="stats"><div class="stat"><div class="v">6</div><div class="l">Clients</div></div><div class="sd"></div><div class="stat"><div class="v">4</div><div class="l">Active plans</div></div><div class="sd"></div><div class="stat"><div class="v">82%</div><div class="l">Form avg</div></div></div>
+          <!-- join requests banner -->
+          <button style="width:100%;text-align:left;display:flex;align-items:center;gap:12px;padding:14px;margin-top:14px;background:rgba(194,65,12,0.07);border:1px solid rgba(194,65,12,0.3);border-radius:18px;cursor:pointer;">
+            <span style="width:40px;height:40px;border-radius:12px;background:rgba(194,65,12,0.14);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.4" stroke="#C2410C" stroke-width="1.8"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="6" r="3" fill="#C2410C"/></svg></span>
+            <span style="flex:1;"><span style="display:block;font-size:16px;font-weight:500;">Join requests</span><span style="display:block;font-size:12px;color:#6B6B70;">2 waiting for your approval</span></span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="sect">TODAY'S PRIORITIES</div>
+          <div class="qrow" style="border-left-color:#1C1C1E;"><div class="av" style="background:#DDD;color:#444;">R</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Ravi S.</div><div style="font-size:12px;color:#6B6B70;">No workout plan assigned</div></div><span class="qpill" style="background:#1C1C1E;">Assign plan</span></div>
+          <div class="qrow" style="border-left-color:#C2410C;"><div class="av" style="background:#DDD;color:#444;">M</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Mia T.</div><div style="font-size:12px;color:#6B6B70;">Push Day</div></div><span class="qpill" style="background:#C2410C;">View session</span></div>
+          <div class="qrow" style="border-left-color:#2563EB;"><div class="av" style="background:#DDD;color:#444;">L</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Leo K.</div><div style="font-size:12px;color:#6B6B70;">4 days without a log</div></div><span class="qpill" style="background:#2563EB;">Check in</span></div>
+          <div class="sect">COMPLETED</div>
+          <div class="qrow" style="border-left-color:#2E7D46;"><div class="av" style="background:#E7F8EC;color:#2E7D46;">✓</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Ana P.</div><div style="font-size:12px;color:#6B6B70;">Completed today's session</div></div></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6M22 20c0-2.5-1.5-4-3.5-4.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>statsRow</code> KPIs — Clients <code>clients.count</code>, Active plans <code>activePlanCount</code> (clients with <code>assignedPlan</code>), Form avg <code>formAvgLabel</code> (avg <code>FormReport.score</code> or "—") (:138-165, 526-539). Join banner <code>joinRequestsCard</code> — "N waiting for your approval" (:462-496), shown only when pending>0. <b>Action queue</b> <code>actionQueue</code> sorted by <code>priority</code>: 2 no-plan "No workout plan assigned"/dark → "Assign plan"; 1 session <code>session.title</code>/orange → "View session"; 0 check-in "N days without a log"/blue → "Check in"; 3 done green under "Completed" (:541-573). Rows NavigationLink → TraineeDetailView; priority-2 also opens assign sheet (:322). Pill colors AA-safe.</div>
+    </div>
+
+    <!-- 3 · ALL CLEAR -->
+    <div class="fw">
+      <div class="flabel">3 · All clear</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Welcome back,</div><div class="name">Jordan</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">J</div></div></div>
+          <div class="chips"><span class="chip">👥 6 Trainees</span><span class="chip">★ Coach</span></div>
+        </div>
+        <div class="body">
+          <div class="stats"><div class="stat"><div class="v">6</div><div class="l">Clients</div></div><div class="sd"></div><div class="stat"><div class="v">6</div><div class="l">Active plans</div></div><div class="sd"></div><div class="stat"><div class="v">88%</div><div class="l">Form avg</div></div></div>
+          <div class="card" style="text-align:center;border:1.5px solid rgba(46,125,70,0.25);box-shadow:none;margin-top:16px;padding:28px;">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin:0 auto;display:block;"><path d="M12 2l2.4 1.8 3 .2.9 2.8 2.2 2-1 2.8 1 2.8-2.2 2-.9 2.8-3 .2L12 22l-2.4-1.8-3-.2-.9-2.8-2.2-2 1-2.8-1-2.8 2.2-2 .9-2.8 3-.2L12 2z" fill="#2E7D46"/><path d="M9 12l2 2 4-4" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <div style="font-size:20px;font-weight:500;margin-top:12px;">You're clear for today</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:6px;">All 6 trainees are on track. Check back tomorrow.</div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6M22 20c0-2.5-1.5-4-3.5-4.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>allClearCard</code> (:437): seal icon, "You're clear for today", "All \(clients.count) trainees are on track. Check back tomorrow." Shown when roster non-empty and <code>actionQueue</code> yields no urgent items (all priority 3). Green = <code>TTColor.success</code> (darkened #2E7D46 for AA on white).</div>
+    </div>
+
+    <!-- 4 · JOIN REQUESTS LIST (sheet) -->
+    <div class="fw">
+      <div class="flabel">4 · Join requests list (sheet)</div>
+      <div class="phone" style="background:#fff;">
+        <div class="navbar"><div style="font-size:20px;font-weight:500;flex:1;">Join requests</div><button aria-label="Close" style="width:32px;height:32px;border:none;border-radius:100px;background:#EDECF0;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" stroke="#1C1C1E" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+        <div class="body" style="padding-top:14px;">
+          <div class="card" style="background:#F5F4F7;box-shadow:none;">
+            <div style="display:flex;align-items:center;gap:12px;"><div class="av" style="width:48px;height:48px;background:#9338FA;">R</div><div style="flex:1;"><div style="font-size:16px;font-weight:500;">Ravi Sharma</div><div style="font-size:12px;color:#6B6B70;">2 hours ago</div></div></div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:10px;">Hi coach — I'd love to train for a half marathon.</div>
+            <div style="display:flex;gap:10px;margin-top:12px;"><button style="flex:1;height:40px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Decline</button><button style="flex:1;height:40px;border:none;border-radius:12px;background:#C2410C;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Accept</button></div>
+          </div>
+          <div class="card" style="background:#F5F4F7;box-shadow:none;">
+            <div style="display:flex;align-items:center;gap:12px;"><div class="av" style="width:48px;height:48px;background:#9338FA;">N</div><div style="flex:1;"><div style="font-size:16px;font-weight:500;">Nadia Rahman</div><div style="font-size:12px;color:#6B6B70;">Yesterday</div></div></div>
+            <div style="display:flex;gap:10px;margin-top:12px;"><button style="flex:1;height:40px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Decline</button><button style="flex:1;height:40px;border:none;border-radius:12px;background:#C2410C;color:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Accept</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>requestRow</code> (JoinRequestsView:87). <code>TTAvatar(name:)</code>; name <code>request.trainee?.name ?? "Trainee"</code>; time <code>relativeTime(createdAt)</code>; optional <code>request.message</code>; <b>Decline</b> (<code>TTColor.danger</code> tint, opens <code>confirmationDialog</code>, :110) + <b>Accept</b> (<code>TTColor.actionOrange</code>, shows <code>ProgressView</code> while busy, :117-141). Presented as sheet. Empty state (not shown) = "No pending requests" (JoinRequestsView:72) — no skeleton here (that's the dashboard, State 7).</div>
+    </div>
+
+    <!-- 5 · TRAINEE DETAIL — assigned plan -->
+    <div class="fw">
+      <div class="flabel">5 · Trainee detail — assigned (unassign / remove)</div>
+      <div class="phone" style="background:#F5F4F7;">
+        <div class="dkhdr">
+          <div style="display:flex;align-items:center;gap:12px;"><button aria-label="Back" style="width:34px;height:34px;border:none;border-radius:100px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="av" style="width:44px;height:44px;">M</div><div><div style="font-size:20px;font-weight:500;color:#fff;">Mia Torres</div><div style="font-size:13px;color:rgba(255,255,255,0.72);">Goal · Build strength</div></div></div>
+        </div>
+        <div class="body" style="padding-top:14px;overflow:auto;">
+          <div class="card">
+            <div style="font-size:10px;font-weight:500;letter-spacing:0.06em;color:#C2410C;">CURRENT PLAN</div>
+            <div style="font-size:17px;font-weight:500;margin-top:4px;">Maya's Strength Block</div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:2px;">Intermediate · Strength</div>
+            <div style="display:flex;gap:24px;margin-top:14px;align-items:flex-start;">
+              <div style="flex:1;"><div style="font-size:20px;font-weight:500;">78% <span style="font-size:13px;color:#6B6B70;font-weight:400;">follow</span></div><div style="height:6px;background:#EDEDF0;border-radius:100px;margin-top:6px;overflow:hidden;"><div style="width:78%;height:100%;background:#C2410C;"></div></div><div style="font-size:11px;color:#6B6B70;margin-top:4px;">14-day adherence</div></div>
+              <div><div style="font-size:16px;font-weight:500;">Last Oct 12</div><div style="font-size:11px;color:#6B6B70;margin-top:2px;">Last workout</div></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:14px;"><button style="flex:1;height:42px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">View plan</button><button style="flex:1;height:42px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;">Unassign</button></div>
+          </div>
+          <div class="sect">COACHING</div>
+          <div class="card">
+            <div style="font-size:13px;color:#6B6B70;line-height:1.4;">Ends the coaching relationship. This is different from Unassign, which only removes the plan.</div>
+            <button style="width:100%;height:44px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:10px;">Remove from roster</button>
+          </div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>assignedPlanSummary</code> (TraineeDetailView:317): "CURRENT PLAN" orange overline, <code>plan.title</code>, "\(level) · \(focus)", <b>Adherence &amp; last-workout VERIFIED with snippets:</b> <code>planAdherencePercent(…,lookbackDays:14)</code> (AppStore:1383) = over 14 days counts days where <code>plan.session(on:day)!=nil</code> as "expected" and days with a matching log as "completed", returns <code>Int(completed/expected*100)</code>; rendered <code>Text("\(adherence)% follow")</code> + progress bar (TraineeDetailView:358,387). So the UI label is <b>"% follow"</b> (relabeled from my earlier "Adherence" — now matches source). <code>lastPlanWorkoutDate</code> = <code>workoutLogs.filter{…}.map(\.completedAt).max()</code>, rendered <code>Text("Last \(last.formatted(date:.abbreviated…)))"</code> → <b>"Last Oct 12"</b> (corrected from the earlier "2d ago" — source uses an abbreviated date, not relative). "View plan" + <b>Unassign</b> (confirm → <code>store.unassign</code>). <code>removeFromRosterCard</code> (:143): verbatim copy "Ends the coaching relationship. This is different from Unassign, which only removes the plan." → <b>Remove from roster</b> (<code>TTColor.danger</code>, confirm → <code>store.removeTrainee</code>). Both use real store methods; <b>Unassign ≠ Remove</b> preserved.</div>
+    </div>
+
+    <!-- 6 · TRAINEE DETAIL — no plan (assign) -->
+    <div class="fw">
+      <div class="flabel">6 · Trainee detail — no plan (assign)</div>
+      <div class="phone" style="background:#F5F4F7;">
+        <div class="dkhdr">
+          <div style="display:flex;align-items:center;gap:12px;"><button aria-label="Back" style="width:34px;height:34px;border:none;border-radius:100px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M15 6l-6 6 6 6" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg></button><div class="av" style="width:44px;height:44px;">R</div><div><div style="font-size:20px;font-weight:500;color:#fff;">Ravi Sharma</div><div style="font-size:13px;color:rgba(255,255,255,0.72);">Goal · Half marathon</div></div></div>
+        </div>
+        <div class="body" style="padding-top:14px;">
+          <div class="sect" style="margin-top:0;">ASSIGN A PLAN</div>
+          <div class="card">
+            <div style="font-size:14px;color:#6B6B70;">No plan assigned yet. Pick one of your plans to assign to Ravi.</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;border:1px solid #E0E0E6;border-radius:12px;padding:12px 14px;margin-top:12px;"><span style="font-size:15px;font-weight:500;">Maya's Strength Block</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 10l5 5 5-5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <button style="width:100%;height:48px;border:none;border-radius:14px;background:#C2410C;color:#fff;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:12px;">Assign plan</button>
+          </div>
+          <div class="sect">COACHING</div>
+          <div class="card"><div style="font-size:13px;color:#6B6B70;line-height:1.4;">Ends the coaching relationship. This is different from Unassign, which only removes the plan.</div><button style="width:100%;height:44px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:10px;">Remove from roster</button></div>
+        </div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>assignCard</code> (TraineeDetailView:258): "no plan" summary + <code>Picker</code> of the trainer's plans + <code>TTAssignSuccessButton</code> → <code>assignSelectedPlan()</code> → <code>store.assign(planId:to:)</code> (:447). Dropdown lists <code>store.plans</code> for the trainer. Remove card as State 5.</div>
+    </div>
+
+    <!-- 7 · LOADING (skeleton, G fix) -->
+    <div class="fw">
+      <div class="flabel">7 · Loading — skeleton gated (G fix)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Welcome back,</div><div class="name">Jordan</div></div><div style="display:flex;gap:12px;"><div class="ib" aria-hidden="true"></div><div class="av" aria-hidden="true">J</div></div></div>
+          <div class="chips"><span class="chip">👥 6 Trainees</span><span class="chip">★ Coach</span></div>
+        </div>
+        <div class="body">
+          <div class="stats"><div class="stat"><div class="v">6</div><div class="l">Clients</div></div><div class="sd"></div><div class="stat"><div class="v">4</div><div class="l">Active plans</div></div><div class="sd"></div><div class="stat"><div class="v">82%</div><div class="l">Form avg</div></div></div>
+          <div class="skel" style="width:100%;height:68px;margin-top:14px;border-radius:18px;"></div>
+          <div class="sect">TODAY'S PRIORITIES</div>
+          <div class="skel" style="width:100%;height:68px;margin-top:10px;border-radius:16px;"></div>
+          <div class="skel" style="width:100%;height:68px;margin-top:10px;border-radius:16px;"></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6M22 20c0-2.5-1.5-4-3.5-4.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>G FIX:</b> source has <code>joinRequestsLoadingSkeleton</code> (TrainerDashboardView:500) driven by <code>isLoadingJoinRequests</code> set true in <code>.task</code> and shown <b>unconditionally</b> until fetch resolves (:39-41, 85-89) — it flashes even when 0 pending. <b>Proposed:</b> show the skeleton <b>only when no prior value AND a fetch is active</b>, and render a stable empty (nothing) after an empty success. KPIs/header render immediately from loaded data. <span class="warn">Needs a "loaded ≥1" signal</span> — <code>trainerJoinRequests:[]</code> can't distinguish "not loaded" from "empty" (tracked, IMPLEMENTATION-NOTES W-3).</div>
+    </div>
+
+    <!-- 8 · ERROR -->
+    <div class="fw">
+      <div class="flabel">8 · Error (inline retry)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Welcome back,</div><div class="name">Jordan</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">J</div></div></div>
+          <div class="chips"><span class="chip">👥 6 Trainees</span><span class="chip">★ Coach</span></div>
+        </div>
+        <div class="body">
+          <div class="stats"><div class="stat"><div class="v">6</div><div class="l">Clients</div></div><div class="sd"></div><div class="stat"><div class="v">4</div><div class="l">Active plans</div></div><div class="sd"></div><div class="stat"><div class="v">82%</div><div class="l">Form avg</div></div></div>
+          <div style="margin-top:14px;background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#C2263C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;color:#8A1C30;">Couldn't load your roster. Check your connection.</div>
+            <button style="border:1px solid #C2263C;border-radius:12px;background:#fff;color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;">Retry</button>
+          </div>
+          <div class="sect">TODAY'S PRIORITIES</div>
+          <div class="qrow" style="opacity:0.55;border-left-color:#C2410C;"><div class="av" style="background:#DDD;color:#444;">M</div><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Mia T.</div><div style="font-size:12px;color:#6B6B70;">Last known · Push Day</div></div></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#6B6B70" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6M22 20c0-2.5-1.5-4-3.5-4.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> roster/queue fetch failure → inline banner + Retry; last-known data stays (dimmed). No blocking modal. Consistent with Groups 1–2 error handling; tone <code>TTColor.danger</code>. KPIs keep last-loaded values.</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

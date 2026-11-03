@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 5 · Trainees + Join a Coach</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:860px;line-height:1.5;}
+.rules{max-width:860px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#F5F4F7;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.lhdr{padding:54px 20px 6px;display:flex;align-items:flex-start;justify-content:space-between;}
+.lhdr .big{font-size:28px;font-weight:500;}
+.ib{width:40px;height:40px;border:none;border-radius:14px;background:#1C1C1E;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.body{flex:1;overflow:hidden;padding:12px 16px 0;}
+.sect{font-size:12px;font-weight:500;letter-spacing:0.08em;color:#6B6B70;margin-top:18px;}
+.card{background:#F3F3F4;border-radius:18px;padding:16px;margin-top:10px;}
+.cardw{background:#fff;border-radius:16px;padding:14px;box-shadow:0 4px 10px rgba(0,0,0,0.05);margin-top:10px;}
+.searchpill{display:flex;align-items:center;gap:8px;background:#fff;border-radius:100px;padding:12px 16px;color:#6B6B70;font-size:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);}
+.pill{font-size:11px;font-weight:500;border-radius:100px;padding:4px 10px;}
+.avatar{border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;}
+.field{display:flex;align-items:center;gap:8px;border:1px solid #E0E0E6;border-radius:12px;padding:12px 14px;font-size:15px;color:#9A9AA0;background:#fff;margin-top:8px;}
+.tabwrap{position:absolute;left:0;right:0;bottom:0;height:96px;}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:66px;background:#fff;border-radius:28px;box-shadow:0 8px 24px rgba(41,7,79,0.14);display:flex;align-items:center;padding:0 14px;}
+.ts{flex:1;display:flex;justify-content:space-around;}
+.ti{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:500;}
+.fab{position:absolute;left:50%;transform:translateX(-50%);bottom:48px;width:58px;height:58px;border:none;border-radius:100px;background:#8621EB;box-shadow:0 8px 20px rgba(134,33,235,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;} .anno .warn{color:#B3450A;font-weight:500;} .anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.skel{background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);border-radius:8px;}
+.dkhdr{background:#29074F;padding:52px 20px 20px;border-bottom-left-radius:28px;border-bottom-right-radius:28px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 5 · Trainees + Join a Coach — 8 states</h1>
+  <p class="sub"><code>MyTraineesView</code> (trainer) + <code>TraineeProfileView</code> join surfaces (trainee). Verified against source; literal strings &amp; view hierarchy cited. R1–R5 carried.</p>
+  <div class="rules"><b>Verified corrections:</b> invite-banner <b>Copy</b> button is <code>Color.black</code> (MyTraineesView:244), not orange. Trainee "Send request" uses <code>TTButton(.secondary)</code>. Join = invite-code path (U1 fallback is the built path); request-from-coach-profile shown as proposed (U1) + full discovery in Group 6.</div>
+  <div class="row">
+
+    <!-- 1 · TRAINER ROSTER EMPTY -->
+    <div class="fw">
+      <div class="flabel">1 · Trainer roster — empty</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">My Trainees</div><button class="ib" aria-label="Copy invite code"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#fff" stroke-width="1.8"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <!-- invite banner -->
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:12px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:12px;color:#6B6B70;">Invite code</div><div style="font-size:18px;font-weight:500;">TACT-JORDAN</div></div>
+            <button style="border:none;background:#1C1C1E;color:#fff;font-family:inherit;font-size:13px;font-weight:500;border-radius:100px;padding:8px 14px;cursor:pointer;">Copy</button>
+          </div>
+          <!-- requests entry (0) -->
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:12px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="8" r="3.2" stroke="#C2410C" stroke-width="1.8"/><path d="M4 20c0-3.2 3.1-5 7-5" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="15" r="4" stroke="#C2410C" stroke-width="1.6"/><path d="M18 13.5V15l1 .8" stroke="#C2410C" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:16px;font-weight:500;">Requests</div><div style="font-size:12px;color:#6B6B70;">No pending join requests</div></div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div class="searchpill" style="margin-top:14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search trainees</div>
+          <div class="cardw" style="text-align:center;padding:28px 20px;">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="margin:0 auto;display:block;"><circle cx="9" cy="8" r="3" stroke="#C2410C" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="font-size:17px;font-weight:500;margin-top:12px;">No trainees yet</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:6px;">Share your invite code to add your first athlete.</div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#8621EB" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>trainerListHeader(title:"My Trainees", trailingIcon:.userPlus)</code> → copies invite code (MyTraineesView:21-28). <code>inviteBanner</code> (:214): "Invite code" caption + code bold + <b>Copy</b> button <code>Color.black</code> (:244). <code>joinRequestsEntry</code> (:104): "Requests" + <b>"No pending join requests"</b> (pendingRequestCount==0) — no badge when 0. <code>emptyCard</code> "No trainees yet" (:85). Search pill → overlay.</div>
+    </div>
+
+    <!-- 2 · TRAINER ROSTER POPULATED -->
+    <div class="fw">
+      <div class="flabel">2 · Trainer roster — populated (+ badge)</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">My Trainees</div><button class="ib" aria-label="Copy invite code"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#fff" stroke-width="1.8"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:12px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:12px;color:#6B6B70;">Invite code</div><div style="font-size:18px;font-weight:500;">TACT-JORDAN</div></div>
+            <button style="border:none;background:#1C1C1E;color:#fff;font-family:inherit;font-size:13px;font-weight:500;border-radius:100px;padding:8px 14px;cursor:pointer;">Copy</button>
+          </div>
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:12px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="8" r="3.2" stroke="#C2410C" stroke-width="1.8"/><path d="M4 20c0-3.2 3.1-5 7-5" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round"/><circle cx="18" cy="15" r="4" stroke="#C2410C" stroke-width="1.6"/><path d="M18 13.5V15l1 .8" stroke="#C2410C" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:16px;font-weight:500;">Requests</div><div style="font-size:12px;color:#6B6B70;">2 waiting for approval</div></div>
+            <span class="pill" style="background:#C2410C;color:#fff;">2</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div class="searchpill" style="margin-top:14px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#6B6B70" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg> Search trainees</div>
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div class="avatar" style="width:46px;height:46px;">M</div>
+            <div style="flex:1;"><div style="font-size:16px;font-weight:500;">Mia Torres</div><div style="font-size:13px;color:#6B6B70;">Maya's Strength Block</div><div style="font-size:13px;color:#9A9AA0;">Build strength</div></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;"><span class="pill" style="background:rgba(46,125,70,0.12);color:#2E7D46;">Active</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div class="avatar" style="width:46px;height:46px;">R</div>
+            <div style="flex:1;"><div style="font-size:16px;font-weight:500;">Ravi Sharma</div><div style="font-size:13px;color:#6B6B70;">No plan assigned</div><div style="font-size:13px;color:#9A9AA0;">Half marathon</div></div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;"><span class="pill" style="background:rgba(107,107,112,0.12);color:#6B6B70;">Idle</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#8621EB" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>joinRequestsEntry</code> "Requests" + <b>"2 waiting for approval"</b> + orange badge pill <code>"\(pendingRequestCount)"</code> when &gt;0 (MyTraineesView:104-147). <code>traineeRow</code> (:253): <code>TTAvatar</code>, <code>user.name</code>, <code>plan?.title ?? "No plan assigned"</code>, <code>trainee.goal</code>, badge <b>"Active"</b> (<code>TTColor.success</code>) / <b>"Idle"</b> (<code>inkMuted</code>). <span class="warn">⚠️ W-5 — condition verified, no time window:</span> <code>active = store.logs(for: trainee.id).first != nil</code> (:256), and <code>logs(for:)</code> returns <b>all</b> logs unfiltered (<code>workoutLogs.filter{…}.sorted</code>, AppStore:1312). So "Active" means <b>ever logged ≥1 workout</b>, "Idle" means <b>never logged</b> — a trainee who logged once long ago still reads "Active". The badge does not signal recent activity; the dashboard action queue (Group 3, "N days without a log") is the real recency signal. Tracked in IMPLEMENTATION-NOTES (W-5). Rows → TraineeDetailView.</div>
+    </div>
+
+    <!-- 3 · TRAINEE — NO TRAINER (join card) -->
+    <div class="fw">
+      <div class="flabel">3 · Trainee — join a coach (no trainer)</div>
+      <div class="phone">
+        <div class="dkhdr"><div style="font-size:15px;color:rgba(255,255,255,0.72);">Profile</div><div style="font-size:24px;font-weight:500;color:#fff;margin-top:2px;">Alex Rivera</div></div>
+        <div class="body">
+          <div class="sect" style="margin-top:6px;">FIND A COACH</div>
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:100px;background:#F9EBFF;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="#8621EB" stroke-width="1.8"/><path d="M20 20l-3-3" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:15px;font-weight:500;">Browse coaches</div><div style="font-size:13px;color:#6B6B70;">Discover verified trainers</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+          <div class="sect">HAVE AN INVITE CODE?</div>
+          <div class="card">
+            <div style="font-size:16px;font-weight:500;">Request to join a trainer</div>
+            <div class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#9A9AA0" stroke-width="1.7" stroke-linecap="round"/></svg> Invite code</div>
+            <div class="field" style="height:auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v11H8l-4 3V5z" stroke="#9A9AA0" stroke-width="1.6"/></svg> Message (optional)</div>
+            <button style="width:100%;height:50px;border:1.5px solid #8621EB;border-radius:14px;background:#fff;color:#8621EB;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:12px;">Send request</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>joinRequestCard</code> (TraineeProfileView:176): title <b>"Request to join a trainer"</b>, <code>TTTextField("Invite code", icon:"link")</code> + <code>TTTextField("Message (optional)")</code>, <b>"Send request"</b> = <code>TTButton(.secondary)</code> disabled until invite non-empty (:187). "Browse coaches" = <code>findCoachesCard</code> → FindCoaches sheet (:145, full UI in Group 6). <span class="warn">Per Phase 3 (U1):</span> the architecture's primary path is "Request to train" from a coach profile; until the backend accepts a trainer-id, <b>invite-code is the built path</b> shown here.</div>
+    </div>
+
+    <!-- 4 · TRAINEE — PENDING -->
+    <div class="fw">
+      <div class="flabel">4 · Trainee — pending approval</div>
+      <div class="phone">
+        <div class="dkhdr"><div style="font-size:15px;color:rgba(255,255,255,0.72);">Profile</div><div style="font-size:24px;font-weight:500;color:#fff;margin-top:2px;">Alex Rivera</div></div>
+        <div class="body">
+          <div class="sect" style="margin-top:6px;">MY TRAINER</div>
+          <div class="card">
+            <div style="font-size:16px;font-weight:500;">My Trainer</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+              <div class="avatar" style="width:54px;height:54px;">M</div>
+              <div><div style="font-size:16px;font-weight:500;">Maya Okafor</div><span class="pill" style="background:rgba(194,65,12,0.12);color:#C2410C;display:inline-block;margin-top:4px;">Pending approval</span></div>
+            </div>
+            <div style="font-size:13px;color:#6B6B70;margin-top:12px;">"I'd love to train for a half marathon."</div>
+            <button style="width:100%;height:42px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:12px;">Cancel request</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>pendingCard</code> (TraineeProfileView:197): header <b>"My Trainer"</b>, <code>TTAvatar(request.trainer?.name)</code> + name + <b>"Pending approval"</b> orange pill (:208), optional <code>request.message</code>, <b>"Cancel request"</b> (<code>TTColor.danger</code>) → confirm → <code>cancelJoinRequest</code>. One trainee ↔ one trainer preserved.</div>
+    </div>
+
+    <!-- 5 · TRAINEE — LINKED -->
+    <div class="fw">
+      <div class="flabel">5 · Trainee — linked (My Trainer + Leave)</div>
+      <div class="phone">
+        <div class="dkhdr"><div style="font-size:15px;color:rgba(255,255,255,0.72);">Profile</div><div style="font-size:24px;font-weight:500;color:#fff;margin-top:2px;">Alex Rivera</div></div>
+        <div class="body">
+          <div class="sect" style="margin-top:6px;">MY TRAINER</div>
+          <div class="card">
+            <div style="font-size:16px;font-weight:500;">My Trainer</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:12px;">
+              <div class="avatar" style="width:54px;height:54px;">M</div>
+              <div><div style="font-size:16px;font-weight:500;">Maya Okafor</div><div style="font-size:13px;color:#6B6B70;margin-top:2px;">Strength &amp; conditioning</div></div>
+            </div>
+            <button style="width:100%;height:42px;border:none;border-radius:12px;background:rgba(225,29,72,0.08);color:#C2263C;font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;margin-top:14px;">Leave trainer</button>
+          </div>
+          <div class="sect">COACH</div>
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div class="avatar" style="width:40px;height:40px;background:#9338FA;">M</div>
+            <div style="flex:1;"><div style="font-size:15px;font-weight:500;">Message Maya</div><div style="font-size:13px;color:#6B6B70;">Open your chat</div></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> <code>MyTrainerCard</code> (TraineeProfileView:298): header "My Trainer", <code>TTAvatar(linked.user.name)</code> + name + <code>linked.trainer.specialty.isEmpty ? "Linked coach" : specialty</code> (:308), <b>"Leave trainer"</b> (<code>TTColor.danger</code>) → <code>confirmationDialog("Leave this trainer?")</code> msg <b>"Stop coaching with {name}? Your assigned plan will be cleared. Chat history stays."</b> (:347-360). "Message" entry per relationship component (Group 1 N).</div>
+    </div>
+
+    <!-- 6 · TRAINEE — DECLINED -->
+    <div class="fw">
+      <div class="flabel">6 · Trainee — request declined</div>
+      <div class="phone">
+        <div class="dkhdr"><div style="font-size:15px;color:rgba(255,255,255,0.72);">Profile</div><div style="font-size:24px;font-weight:500;color:#fff;margin-top:2px;">Alex Rivera</div></div>
+        <div class="body">
+          <div class="sect" style="margin-top:6px;">HAVE AN INVITE CODE?</div>
+          <div style="background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:12px 14px;margin-top:10px;display:flex;gap:10px;align-items:center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M15 9l-6 6M9 9l6 6" stroke="#C2263C" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <div style="font-size:13px;color:#8A1C30;">Request declined. You can request another coach.</div>
+          </div>
+          <div class="card">
+            <div style="font-size:16px;font-weight:500;">Request to join a trainer</div>
+            <div class="field"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#9A9AA0" stroke-width="1.7" stroke-linecap="round"/></svg> Invite code</div>
+            <button style="width:100%;height:50px;border:1.5px solid #8621EB;border-radius:14px;background:#fff;color:#8621EB;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;margin-top:12px;">Send request</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Source:</b> on reject, <code>handleJoinRequestRealtime("join_request_rejected")</code> clears pending + refreshes join state (AppStore:725); the join card returns. The inline "Request declined…" line maps to the <code>message</code> surfaced by <code>joinRequestCard</code> (TraineeProfileView:181-185). Re-request allowed (one-trainer rule). <span class="warn">Copy "Request declined. You can request another coach." is proposed wording</span> for the <code>message</code> slot — confirm final string (localized) at build.</div>
+    </div>
+
+    <!-- 7 · LOADING -->
+    <div class="fw">
+      <div class="flabel">7 · Trainer roster — loading</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">My Trainees</div><button class="ib" aria-label="Copy invite code"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#fff" stroke-width="1.8"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="skel" style="width:100%;height:68px;border-radius:18px;margin-top:4px;"></div>
+          <div class="skel" style="width:100%;height:68px;border-radius:18px;margin-top:10px;"></div>
+          <div class="skel" style="width:100%;height:46px;border-radius:100px;margin-top:14px;"></div>
+          <div class="skel" style="width:100%;height:76px;border-radius:16px;margin-top:12px;"></div>
+          <div class="skel" style="width:100%;height:76px;border-radius:16px;margin-top:10px;"></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#8621EB" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> roster from <code>store.trainees(for:)</code> renders immediately when present; join requests fetched in <code>.task</code> (:87-89). Skeleton only on first load with nothing cached. Invite banner shows as soon as <code>inviteCode</code> is known. Consistent with Groups 1–4.</div>
+    </div>
+
+    <!-- 8 · ERROR -->
+    <div class="fw">
+      <div class="flabel">8 · Trainer roster — error</div>
+      <div class="phone">
+        <div class="lhdr"><div class="big">My Trainees</div><button class="ib" aria-label="Copy invite code"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#fff" stroke-width="1.8"/><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/><path d="M18 8v6M15 11h6" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>
+        <div class="body">
+          <div class="cardw" style="display:flex;align-items:center;gap:12px;">
+            <div style="width:44px;height:44px;border-radius:12px;background:rgba(194,65,12,0.12);display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 15l6-6M8 13l-2 2a3 3 0 0 0 4 4l2-2M16 11l2-2a3 3 0 0 0-4-4l-2 2" stroke="#C2410C" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:12px;color:#6B6B70;">Invite code</div><div style="font-size:18px;font-weight:500;">TACT-JORDAN</div></div>
+            <button style="border:none;background:#1C1C1E;color:#fff;font-family:inherit;font-size:13px;font-weight:500;border-radius:100px;padding:8px 14px;cursor:pointer;">Copy</button>
+          </div>
+          <div style="margin-top:12px;background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#C2263C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;color:#8A1C30;">Couldn't load your roster. Check your connection.</div>
+            <button style="border:1px solid #C2263C;border-radius:12px;background:#fff;color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;">Retry</button>
+          </div>
+          <div class="cardw" style="opacity:0.55;display:flex;align-items:center;gap:12px;"><div class="avatar" style="width:46px;height:46px;">M</div><div style="flex:1;"><div style="font-size:16px;font-weight:500;">Mia Torres</div><div style="font-size:13px;color:#6B6B70;">Last known roster</div></div></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke="#6B6B70" stroke-width="1.8"/><path d="M9 9h6M9 13h6M9 17h3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Plans</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="#8621EB" stroke-width="1.8"/><path d="M2 20c0-3 2.5-5 7-5s7 2 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/><path d="M16 6a3 3 0 0 1 0 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>Trainees</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> roster/requests fetch failure → inline banner + Retry; invite banner &amp; last-known roster stay (dimmed). No blocking modal. Tone <code>TTColor.danger</code>; consistent with prior groups.</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

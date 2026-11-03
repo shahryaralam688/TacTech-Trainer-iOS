@@ -62,13 +62,18 @@ struct TraineeDashboardView: View {
                             // ── Zone 3: Health & Support ────────────────────
                             traineZoneLabel("Health & Support")
                                 .ttHomeAppear(index: 6)
-                            VStack(alignment: .leading, spacing: 14) {
-                                dietSection
+                            if hasMeaningfulActivity {
+                                VStack(alignment: .leading, spacing: 14) {
+                                    dietSection
+                                        .ttHomeAppear(index: 7)
+                                    coachSection
+                                        .ttHomeAppear(index: 8)
+                                    formInsightsSection
+                                        .ttHomeAppear(index: 9)
+                                }
+                            } else {
+                                getStartedCard
                                     .ttHomeAppear(index: 7)
-                                coachSection
-                                    .ttHomeAppear(index: 8)
-                                formInsightsSection
-                                    .ttHomeAppear(index: 9)
                             }
                         }
                         .padding(.horizontal, TTSpace.screen)
@@ -92,6 +97,9 @@ struct TraineeDashboardView: View {
             }
             .task {
                 await store.refreshAICapabilities()
+            }
+            .task {
+                await store.refreshActiveSession()
             }
             .overlay(alignment: .top) {
                 if let generateNotice {
@@ -155,7 +163,7 @@ struct TraineeDashboardView: View {
                     id: "health",
                     icon: .plus,
                     iconColor: orange,
-                    text: "\(healthScore)% Healthy"
+                    text: hasRealHealthScore ? "\(healthScore)% Healthy" : "Complete a workout"
                 ),
                 TTHomeProfileMetric(
                     id: "member",
@@ -195,13 +203,13 @@ struct TraineeDashboardView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     Button { showProgress = true } label: {
-                        metricCard(title: "Score", value: "\(healthScore)%", icon: "plus", tint: orange, chart: .ring)
+                        metricCard(title: "Score", value: hasRealHealthScore ? "\(healthScore)%" : "—", icon: "plus", tint: orange, chart: .ring)
                     }
                     .buttonStyle(TTHomeCardPressStyle())
                     .ttHomeCardMorph()
 
                     Button { showNutrition = true } label: {
-                        metricCard(title: "Hydration", value: "\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
+                        metricCard(title: "Est. Hydration", value: "~\(hydrationMl) ml", icon: "drop.fill", tint: blue, chart: .wave)
                     }
                     .buttonStyle(TTHomeCardPressStyle())
                     .ttHomeCardMorph()
@@ -305,8 +313,26 @@ struct TraineeDashboardView: View {
 
                 TTHomeHeroSheen()
 
-                TTCardBadge(text: "\(minutes) Min")
-                    .padding(TTCardTokens.padding)
+                // Top-left: duration + optional "Done" badge in brand style
+                HStack(spacing: 6) {
+                    TTCardBadge(text: "\(minutes) Min")
+                    if hasCompletedTodayWorkout {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Done today")
+                                .font(TTFont.workSans(12, weight: .bold))
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .transition(.scale(scale: 0.7).combined(with: .opacity))
+                    }
+                }
+                .padding(TTCardTokens.padding)
+                .animation(.spring(response: 0.4, dampingFraction: 0.75), value: hasCompletedTodayWorkout)
 
                 VStack {
                     Spacer()
@@ -333,7 +359,7 @@ struct TraineeDashboardView: View {
                         }
                         Spacer(minLength: 0)
                         TTHomeProgressRing(
-                            progress: plan == nil ? 0.15 : min(1, Double(series) / 8.0),
+                            progress: plan == nil ? 0 : min(1, Double(series) / 8.0),
                             tint: .white,
                             lineWidth: 5,
                             size: 48,
@@ -347,7 +373,7 @@ struct TraineeDashboardView: View {
                     Spacer(minLength: 0)
                     HStack {
                         Spacer(minLength: 0)
-                        TTCardActionButton(systemImage: "play.fill")
+                        TTCardActionButton(systemImage: hasCompletedTodayWorkout ? "arrow.clockwise" : "play.fill")
                             .padding(TTCardTokens.padding)
                             .padding(.bottom, 56)
                     }
@@ -358,27 +384,61 @@ struct TraineeDashboardView: View {
             .ttHomeCardMorph()
 
             if let plan {
-                NavigationLink {
-                    ActiveWorkoutView(plan: plan, day: session)
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "play.fill")
-                            .font(TTFont.workSans(14, weight: .semibold))
-                        Text(session == nil ? "Start Next Session" : "Start Today’s Workout")
-                            .font(TTFont.textLG(.semibold))
+                if hasCompletedTodayWorkout {
+                    // Primary: view — secondary ghost: go again
+                    VStack(spacing: 10) {
+                        Button {
+                            TTHomeHaptics.light()
+                            showWorkouts = true
+                        } label: {
+                            Text("View today’s workout")
+                                .font(TTFont.workSans(15, weight: .semibold))
+                                .foregroundStyle(Color(white: 0.25))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 54)
+                                .background(Color(white: 0.93))
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                        }
+                        .buttonStyle(TTHomeCardPressStyle())
+
+                        Button {
+                            TTHomeHaptics.medium()
+                            celebrateStart = true
+                            showWorkouts = true
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 12, weight: .bold))
+                                Text("Go again")
+                                    .font(TTFont.workSans(13, weight: .semibold))
+                            }
+                            .foregroundStyle(orange)
+                        }
+                        .buttonStyle(.plain)
+                        .ttHomeWin(celebrate: $celebrateStart, tint: orange)
                     }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 54)
-                    .background(orange)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                } else {
+                    Button {
+                        TTHomeHaptics.medium()
+                        celebrateStart = true
+                        showWorkouts = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: store.activeWorkoutSession != nil ? "arrow.right.circle.fill" : "play.fill")
+                                .font(TTFont.workSans(14, weight: .semibold))
+                            Text(store.activeWorkoutSession != nil ? "Continue Workout" : session == nil ? "See My Workouts" : "Start Today’s Workout")
+                                .font(TTFont.textLG(.semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 54)
+                        .background(orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(TTHomeHapticPressStyle(intensity: .medium))
+                    .ttHomeCTAPulse(tint: orange)
+                    .ttHomeWin(celebrate: $celebrateStart, tint: orange)
                 }
-                .buttonStyle(TTHomeHapticPressStyle(intensity: .medium))
-                .ttHomeCTAPulse(tint: orange)
-                .simultaneousGesture(TapGesture().onEnded {
-                    celebrateStart = true
-                })
-                .ttHomeWin(celebrate: $celebrateStart, tint: orange)
             } else if !store.canShowSoloAIGenerate {
                 // Only show "Link a trainer" when AI generate is also not available
                 // — avoids two competing CTAs on the same screen
@@ -416,7 +476,7 @@ struct TraineeDashboardView: View {
                     Image(systemName: "sparkles")
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(orange)
-                    Text("Generate my week")
+                    Text("Your AI Training Week")
                         .font(TTFont.workSans(17, weight: .bold))
                         .foregroundStyle(.black)
                     Spacer(minLength: 0)
@@ -434,7 +494,7 @@ struct TraineeDashboardView: View {
                     HStack(spacing: 10) {
                         Image(systemName: "wand.and.stars")
                             .font(TTFont.workSans(14, weight: .semibold))
-                        Text("Generate my week")
+                        Text("Build my plan")
                             .font(TTFont.textLG(.semibold))
                     }
                     .foregroundStyle(.white)
@@ -464,6 +524,59 @@ struct TraineeDashboardView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Get Started (shown before first workout / meal / trainer)
+
+    private var getStartedCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "star.fill")
+                        .foregroundStyle(orange)
+                    Text("Set yourself up for success")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(.black)
+                }
+                Text("Log your first workout or meal and your nutrition, coach notes, and form insights will appear here.")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(Color(white: 0.45))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 10) {
+                Button {
+                    TTHomeHaptics.medium()
+                    showNutrition = true
+                } label: {
+                    Text("Log a meal")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(orange)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(Color(white: 0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TTHomeCardPressStyle())
+
+                Button {
+                    TTHomeHaptics.medium()
+                    showFindCoaches = true
+                } label: {
+                    Text("Find a coach")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(orange)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(TTHomeCardPressStyle())
+            }
+        }
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .ttHomeCardMorph()
     }
 
     // MARK: - Diet & Nutrition
@@ -631,24 +744,26 @@ struct TraineeDashboardView: View {
                             .foregroundStyle(.black)
 
                         HStack(spacing: 14) {
-                            Label(deltaLabel(delta), systemImage: "star.fill")
+                            Label(deltaLabel(delta), systemImage: delta >= 0 ? "flame.fill" : "arrow.down")
                                 .font(TTFont.workSans(13, weight: .semibold))
                                 .foregroundStyle(delta >= 0 ? orange : Color(white: 0.45))
 
-                            Label("\(suggestions) Suggestions", systemImage: "person.fill")
-                                .font(TTFont.workSans(13, weight: .semibold))
-                                .foregroundStyle(Color(white: 0.45))
+                            if suggestions > 0 {
+                                Label("\(suggestions) tips ready", systemImage: "lightbulb.fill")
+                                    .font(TTFont.workSans(13, weight: .semibold))
+                                    .foregroundStyle(Color(white: 0.45))
+                            }
                         }
                     }
 
                     Spacer()
 
                     TTHomeProgressRing(
-                        progress: Double(healthScore) / 100.0,
+                        progress: hasRealHealthScore ? Double(healthScore) / 100.0 : 0,
                         tint: orange,
                         lineWidth: 6,
                         size: 52,
-                        label: "\(healthScore)"
+                        label: hasRealHealthScore ? "\(healthScore)" : "—"
                     )
                 }
             }
@@ -714,8 +829,8 @@ struct TraineeDashboardView: View {
                     Button {
                         showProfile = true
                     } label: {
-                        Image(systemName: "bubble.left.and.bubble.right.fill")
-                            .font(TTFont.workSans(16, weight: .semibold))
+                        Image(systemName: "person.crop.circle.fill")
+                            .font(.system(size: 22))
                             .foregroundStyle(orange)
                             .frame(width: 44, height: 44)
                             .background(Color.white)
@@ -794,8 +909,8 @@ struct TraineeDashboardView: View {
 
                                     HStack(spacing: 12) {
                                         Label(String(format: "%.1f", Double(report.score) / 20.0), systemImage: "star.fill")
-                                        Label("\(report.repCount) reps", systemImage: "eye")
-                                        Label("\(report.cues.count) cues", systemImage: "heart.fill")
+                                        Label("\(report.repCount) reps", systemImage: "figure.strengthtraining.traditional")
+                                        Label("\(report.cues.count) tips", systemImage: "lightbulb.fill")
                                     }
                                     .font(TTFont.workSans(11, weight: .semibold))
                                     .foregroundStyle(Color(white: 0.45))
@@ -820,12 +935,17 @@ struct TraineeDashboardView: View {
     // MARK: - Zone label
 
     private func traineZoneLabel(_ title: String) -> some View {
-        Text(title.uppercased())
-            .font(TTFont.workSans(10, weight: .bold))
-            .foregroundStyle(Color(white: 0.55))
-            .kerning(1.2)
-            .padding(.top, 28)
-            .padding(.bottom, 10)
+        HStack(spacing: 8) {
+            Capsule()
+                .fill(orange)
+                .frame(width: 3, height: 13)
+            Text(title.uppercased())
+                .font(TTFont.workSans(12, weight: .bold))
+                .foregroundStyle(Color(white: 0.28))
+                .kerning(1.0)
+        }
+        .padding(.top, 28)
+        .padding(.bottom, 10)
     }
 
     // MARK: - Shared chrome
@@ -847,15 +967,16 @@ struct TraineeDashboardView: View {
     }
 
 
+    // Only show a real score — never a placeholder number that misleads the user
+    private var hasRealHealthScore: Bool {
+        store.currentTrainee.map { !store.formReports(for: $0.id).isEmpty } ?? false
+    }
+
     private var healthScore: Int {
-        if let score = store.currentTrainee.flatMap({ store.formReports(for: $0.id).first?.score }) {
-            return min(max(score, 1), 99)
+        guard let score = store.currentTrainee.flatMap({ store.formReports(for: $0.id).first?.score }) else {
+            return 0
         }
-        if let userId = store.session?.userId,
-           UserDefaults.standard.bool(forKey: "profile.setup.completed.\(userId)") {
-            return 88
-        }
-        return 72
+        return min(max(score, 1), 99)
     }
 
     private var hydrationMl: Int {
@@ -872,6 +993,22 @@ struct TraineeDashboardView: View {
 
     private var workoutCount: Int {
         store.currentTrainee.map { store.logs(for: $0.id).count } ?? 0
+    }
+
+    private var hasCompletedTodayWorkout: Bool {
+        guard let trainee = store.currentTrainee else { return false }
+        return store.logs(for: trainee.id).contains {
+            Calendar.current.isDateInToday($0.completedAt)
+        }
+    }
+
+    // Show Health & Support zone only once the user has real activity or a trainer
+    private var hasMeaningfulActivity: Bool {
+        guard let trainee = store.currentTrainee else { return false }
+        return store.logs(for: trainee.id).count > 0
+            || store.formReports(for: trainee.id).count > 0
+            || store.trainer(for: trainee) != nil
+            || !(store.meals(for: trainee.id, on: Date()).isEmpty)
     }
 
     private var cueSuggestionCount: Int {
@@ -909,8 +1046,8 @@ struct TraineeDashboardView: View {
     }
 
     private func deltaLabel(_ delta: Int) -> String {
-        if delta == 0 { return "0" }
-        return delta > 0 ? "+\(delta)" : "\(delta)"
+        if abs(delta) < 50 { return "On track this week" }
+        return delta > 0 ? "Ahead of last week" : "Behind last week"
     }
 
     private func exerciseTitle(for exerciseId: String) -> String {

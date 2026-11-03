@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TacTech — Group 1 · Trainee Home (10 states)</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500&display=swap');
+*{box-sizing:border-box;}
+body{margin:0;background:#ECEAF0;font-family:'Work Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased;color:#1C1C1E;}
+.page{padding:40px 32px 80px;}
+h1{font-weight:500;font-size:30px;color:#29074F;margin:0 0 4px;}
+.sub{font-weight:400;font-size:15px;color:#6B6B70;margin:0 0 10px;max-width:820px;line-height:1.5;}
+.rules{max-width:820px;background:#fff;border:1px solid #E6E2EE;border-radius:14px;padding:14px 18px;margin:0 0 34px;font-size:13px;color:#44424C;line-height:1.55;}
+.rules b{color:#29074F;}
+.row{display:flex;gap:40px;flex-wrap:wrap;}
+.fw{display:flex;flex-direction:column;align-items:center;gap:10px;width:390px;}
+.flabel{font-size:13px;font-weight:500;color:#511A97;text-align:center;}
+.phone{width:390px;height:844px;background:#F5F4F7;border-radius:44px;position:relative;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 50px rgba(41,7,79,0.22);border:10px solid #15121C;}
+.phone *{box-sizing:border-box;}
+.hdr{background:#29074F;padding:50px 20px 24px;border-bottom-left-radius:28px;border-bottom-right-radius:28px;}
+.hrow{display:flex;align-items:flex-start;justify-content:space-between;}
+.greet{font-size:15px;color:rgba(255,255,255,0.72);}
+.name{font-size:26px;font-weight:500;color:#fff;margin-top:2px;}
+.ib{width:40px;height:40px;border:none;border-radius:100px;background:rgba(255,255,255,0.14);display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
+.av{width:40px;height:40px;border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:16px;}
+.well{margin-top:20px;background:rgba(255,255,255,0.10);border-radius:18px;padding:13px 8px;display:flex;}
+.well .m{flex:1;text-align:center;}
+.well .v{font-size:19px;font-weight:500;color:#fff;}
+.well .l{font-size:11px;color:rgba(255,255,255,0.72);margin-top:2px;}
+.well .sep{width:1px;background:rgba(255,255,255,0.14);}
+.body{flex:1;overflow:hidden;padding:18px 16px 0;}
+.sect{font-size:12px;font-weight:500;letter-spacing:0.08em;color:#6B6B70;}
+.sect.mt{margin-top:22px;}
+.card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 4px 10px rgba(0,0,0,0.06);margin-top:10px;}
+.title{font-size:18px;font-weight:500;}
+.desc{font-size:15px;color:#6B6B70;margin-top:8px;line-height:1.4;}
+.bp{width:100%;height:56px;border:none;border-radius:18px;background:#8621EB;color:#fff;font-family:inherit;font-size:16px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;margin-top:16px;}
+.bs{width:100%;height:50px;border:1px solid #DDB8FF;border-radius:16px;background:#fff;color:#8621EB;font-family:inherit;font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;}
+.rowcard{background:#fff;border-radius:16px;padding:14px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 10px rgba(0,0,0,0.06);margin-top:10px;}
+.tabwrap{position:absolute;left:0;right:0;bottom:0;height:96px;}
+.tab{position:absolute;left:14px;right:14px;bottom:18px;height:66px;background:#fff;border-radius:28px;box-shadow:0 8px 24px rgba(41,7,79,0.14);display:flex;align-items:center;padding:0 14px;}
+.ts{flex:1;display:flex;justify-content:space-around;}
+.ti{display:flex;flex-direction:column;align-items:center;gap:3px;font-size:10px;font-weight:500;}
+.fab{position:absolute;left:50%;transform:translateX(-50%);bottom:48px;width:58px;height:58px;border:none;border-radius:100px;background:#8621EB;box-shadow:0 8px 20px rgba(134,33,235,0.4);display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.anno{width:390px;background:#FBFAFD;border:1px solid #E6E2EE;border-left:3px solid #8621EB;border-radius:10px;padding:12px 14px;font-size:12px;color:#44424C;line-height:1.5;}
+.anno b{color:#29074F;}
+.anno .warn{color:#B3450A;font-weight:500;}
+.anno code{background:#F0ECF7;padding:1px 4px;border-radius:4px;font-size:11px;}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:500;letter-spacing:0.03em;}
+.dot{width:9px;height:9px;border-radius:100px;background:#E8742A;display:inline-block;}
+.skel{background:linear-gradient(90deg,#ECECF0,#F4F4F7,#ECECF0);border-radius:8px;}
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Group 1 · Trainee Home — 10 states</h1>
+  <p class="sub"><code>TraineeDashboardView</code>. Corrected per review: every number maps to a real AppStore property (listed under each frame); no invented data; mismatched figures removed; contrast fixed; tab labels added; annotations live outside the frames.</p>
+  <div class="rules">
+    <b>Global rules applied:</b> No streak / no "x/4 week" / no adherence % / no letter grades / no "kg volume" where unsourced (all <span class="warn">NOT FOUND</span> in source). Primary buttons use brand <b>#8621EB</b> (AA-safe white text); workout identity = orange <i>dot + ink label</i> (no white-on-light-orange). <code>#2563EB</code> = existing <b>TTColor.info</b>. Tab bar now has text labels. Notification dot shows only when <code>unreadCount&gt;0</code>. <b>Contrast fix:</b> all decorative/navigational icons &amp; inactive tab items darkened to <b>#6B6B70</b> (<code>TTColor.inkMuted</code>, ~5:1) — replaces the earlier #6B6B70/#6B6B70 greys everywhere.
+  </div>
+  <div class="row">
+
+    <!-- ============ STATE 1 · NEW TRAINEE ============ -->
+    <div class="fw">
+      <div class="flabel">1 · New trainee → “Build my plan”</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div>
+            <div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div>
+          </div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:8px;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l1.8 4.6L18 9l-4.2 1.4L12 15l-1.8-4.6L6 9l4.2-1.4L12 3z" fill="#8621EB"/></svg><div class="title">Start your training</div></div>
+            <div class="desc">Build a personalized AI plan from your assessment.</div>
+            <button class="bp">Build my plan <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+          <div class="sect mt">HEALTH &amp; SUPPORT</div>
+          <div class="rowcard">
+            <div aria-hidden="true" style="width:38px;height:38px;border-radius:100px;background:#F9EBFF;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <div style="flex:1;"><div style="font-size:15px;font-weight:500;">Train with a coach</div><div style="font-size:13px;color:#6B6B70;margin-top:1px;">Find a coach to guide you</div></div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <div class="rowcard" style="background:#F9EBFF;box-shadow:none;border:1px solid #EFD1FF;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#8621EB" stroke-width="1.6"/><path d="M12 8v4l2.5 1.5" stroke="#8621EB" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;font-weight:500;color:#511A97;">Finish setting up your profile</div>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#9338FA" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> Today <code>hasCompletedTodayWorkout</code> (:998) → "—"; Calories <code>caloriesToday</code>=<code>dailyMacros.calories</code> (:989); Sessions <code>workoutCount</code>=logs.count (:994). CTA gate <code>canShowSoloAIGenerate</code>. No notification dot (<code>unreadCount</code>=0). Profile nudge = boolean <code>profileSetupCompleted</code> → single row, no "x of 5" (<span class="warn">no per-step data</span>).</div>
+    </div>
+
+    <!-- ============ STATE 2 · CONTINUE WORKOUT ============ -->
+    <div class="fw">
+      <div class="flabel">2 · Active session → “Continue Workout” (E)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v" style="font-size:15px;">In progress</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">1,180</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">14</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card">
+            <div class="pill"><span class="dot"></span><span style="color:#1C1C1E;">IN PROGRESS · PUSH DAY</span></div>
+            <div class="title" style="margin-top:10px;">Exercise 3 of 6 · Bench Press</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:4px;">8 sets logged so far.</div>
+            <div style="display:flex;gap:5px;margin-top:14px;"><span style="flex:1;height:5px;border-radius:100px;background:#8621EB;"></span><span style="flex:1;height:5px;border-radius:100px;background:#8621EB;"></span><span style="flex:1;height:5px;border-radius:100px;background:#DDB8FF;"></span><span style="flex:1;height:5px;border-radius:100px;background:#EDEDF0;"></span><span style="flex:1;height:5px;border-radius:100px;background:#EDEDF0;"></span><span style="flex:1;height:5px;border-radius:100px;background:#EDEDF0;"></span></div>
+            <button class="bp">Continue Workout <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#fff" stroke-width="1.8"/><path d="M10 9l5 3-5 3V9z" fill="#fff"/></svg></button>
+          </div>
+          <div class="sect mt">PROGRESS</div>
+          <div style="margin-top:10px;display:flex;gap:10px;">
+            <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.06);"><div style="font-size:24px;font-weight:500;">14</div><div style="font-size:12px;color:#6B6B70;">Sessions logged</div></div>
+            <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.06);"><div style="font-size:24px;font-weight:500;">88</div><div style="font-size:12px;color:#6B6B70;">Best form score</div></div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> "In progress" = <code>activeWorkoutSession!=nil</code> (:427); "Exercise 3 of 6" = <code>activeExerciseIndex</code> logic (exercise-level, WorkoutHub:917); "8 sets logged" = <code>activeWorkoutSession.sets.count</code> (APIClient:443) — <b>removed "set 2 of 4"</b>; Sessions <code>logs.count</code>; Best form = <code>FormReport.score</code> max, numeric (:585) — <b>not a letter grade</b>. Button is brand purple (AA). <b>Fallback-to-hub note lives here, outside the frame</b> (resume is exercise-level; if <code>dayId</code> unresolved → WorkoutHub).</div>
+    </div>
+
+    <!-- ============ STATE 3 · COACH LINKED, NO PLAN ============ -->
+    <div class="fw">
+      <div class="flabel">3 · Coach linked, no plan (B/N · U2)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications, 1 unread"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg><span style="position:absolute;top:6px;right:7px;min-width:15px;height:15px;padding:0 3px;border-radius:100px;background:#E11D48;border:1.5px solid #29074F;color:#fff;font-size:9px;font-weight:500;display:flex;align-items:center;justify-content:center;">1</span></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">640</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div style="margin-top:10px;background:#EAF2FD;border:1px solid #CFE2FB;border-radius:16px;padding:16px;">
+            <div style="display:flex;align-items:center;gap:10px;"><div aria-hidden="true" style="width:36px;height:36px;border-radius:100px;background:#fff;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="#2563EB" stroke-width="1.8"/><path d="M5 20c0-3.3 3.1-5.5 7-5.5s7 2.2 7 5.5" stroke="#2563EB" stroke-width="1.8" stroke-linecap="round"/></svg></div><div style="font-size:17px;font-weight:500;">Coach Maya guides your training</div></div>
+            <div style="font-size:14px;color:#2B3A4D;margin-top:10px;line-height:1.45;">It will appear here when it's ready.</div>
+          </div>
+          <div style="margin-top:12px;background:#F7F3FC;border-radius:14px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#8621EB" stroke-width="1.6"/><path d="M12 8v5M12 16h.01" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg><div style="font-size:13px;color:#6B6B70;line-height:1.4;">AI plan building is managed by your coach while you're connected. Leaving your coach recalculates availability from your current eligibility.</div></div>
+          <div class="sect mt">YOUR COACH</div>
+          <div class="rowcard">
+            <div aria-hidden="true" style="width:42px;height:42px;border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;">M</div>
+            <div style="flex:1;"><div style="font-size:15px;font-weight:500;">Maya Okafor</div><div style="font-size:13px;color:#6B6B70;margin-top:1px;">Your coach</div></div>
+            <button aria-label="Message Maya" style="width:40px;height:40px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v11H8l-4 3V5z" stroke="#8621EB" stroke-width="1.7" stroke-linejoin="round"/></svg></button>
+            <button aria-label="View profile" style="width:40px;height:40px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> <code>hasLinkedTrainer</code> &amp; <code>assignedPlan==nil</code>. Coach name <code>store.trainer(for:)</code>→users.name (:782). Explainer = info card, <code>TTColor.info #2563EB</code> (existing token). <b>No "verified" badge</b> — <span class="warn">isVerified NOT on TrainerProfile</span> (discovery-only). <b>Merged</b> relationship into one component: Message + View profile. Notification dot shown because <code>unreadCount=1</code> (real). Removed "1/4 week". U2 copy unchanged.</div>
+    </div>
+
+    <!-- ============ STATE 4 · COMPLETED TODAY ============ -->
+    <div class="fw">
+      <div class="flabel">4 · Completed today</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good evening,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v" style="color:#34C759;">Done ✓</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">1,540</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">15</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card">
+            <div style="display:flex;align-items:center;gap:10px;"><div aria-hidden="true" style="width:34px;height:34px;border-radius:100px;background:#E7F8EC;display:flex;align-items:center;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4 10-10" stroke="#2E9E4B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div><div><div class="title" style="font-size:17px;">Completed today</div><div style="font-size:13px;color:#6B6B70;">Push Day · 6 exercises · 48 min</div></div></div>
+            <div style="display:flex;gap:10px;margin-top:16px;"><button style="flex:1;height:52px;border:1px solid #E0E0E6;border-radius:16px;background:#fff;color:#1C1C1E;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;">View workout</button><button style="flex:1;height:52px;border:none;border-radius:16px;background:#F3EDFB;color:#8621EB;font-family:inherit;font-size:15px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 12a8 8 0 1 1 2.3 5.6M4 12V7m0 5h5" stroke="#8621EB" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>Go again</button></div>
+          </div>
+          <div class="sect mt">PROGRESS</div>
+          <div style="margin-top:10px;display:flex;gap:10px;">
+            <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.06);"><div style="font-size:24px;font-weight:500;">15</div><div style="font-size:12px;color:#6B6B70;">Sessions logged</div></div>
+            <div style="flex:1;background:#fff;border-radius:16px;padding:16px;box-shadow:0 4px 10px rgba(0,0,0,0.06);"><div style="font-size:24px;font-weight:500;">88<span style="font-size:13px;color:#6B6B70;"> / 100</span></div><div style="font-size:12px;color:#6B6B70;">Latest form health</div></div>
+          </div>
+          <div class="sect mt">NUTRITION TODAY</div>
+          <div class="card" style="padding:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-size:22px;font-weight:500;">1,540 <span style="font-size:13px;color:#6B6B70;">/ 2,100 kcal</span></div><div style="font-size:12px;color:#8621EB;font-weight:500;">73%</div></div>
+            <div style="height:8px;background:#EDEDF0;border-radius:100px;margin-top:10px;overflow:hidden;"><div style="width:73%;height:100%;background:#8621EB;"></div></div>
+            <div style="display:flex;gap:16px;margin-top:12px;font-size:13px;"><span><b style="font-weight:500;">120g</b> <span style="color:#6B6B70;">protein</span></span><span><b style="font-weight:500;">150g</b> <span style="color:#6B6B70;">carbs</span></span><span><b style="font-weight:500;">48g</b> <span style="color:#6B6B70;">fat</span></span></div>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> <code>hasCompletedTodayWorkout</code> (:998). <b>"Go again" CONFIRMED in source</b> — <code>Button</code> at <code>TraineeDashboardView.swift:409–418</code> (<code>Text("Go again")</code> + <code>arrow.clockwise</code>, shown when <code>hasCompletedTodayWorkout</code>). Sessions = <code>logs.count</code>. <b>"Latest form health" = <code>FormReport.score</code> (Int).</b> <span class="warn">Range is NOT declared in the model</span>; existing code treats it as 0–100 (<code>progress=score/100</code> :893, <code>star=score/20</code> :911) and <code>healthScore</code> clamps 1–99 (:978). "/100" shown to match that usage — <b>inferred, not a stored bound</b>. Nutrition: <code>caloriesToday</code> vs <code>TraineeProfile.dailyCalorieTarget</code> (Models:88); macros labeled from <code>MacroEstimate</code>. <b>Macro color tokens CONFIRMED EXISTING:</b> <code>TTColor.protein/carbs/fat/calorie = Color("Protein")…</code> (TTTheme:65-68) — used if macro color-coding is added; current bar is brand purple.</div>
+    </div>
+
+    <!-- ============ STATE 5 · PENDING JOIN REQUEST ============ -->
+    <div class="fw">
+      <div class="flabel">5 · Pending join request</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">YOUR REQUEST</div>
+          <div class="card">
+            <div class="pill" style="color:#B3450A;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#B3450A" stroke-width="1.7"/><path d="M12 8v4l2.5 1.5" stroke="#B3450A" stroke-width="1.7" stroke-linecap="round"/></svg>REQUEST PENDING</div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:14px;">
+              <div aria-hidden="true" style="width:46px;height:46px;border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;font-size:18px;">M</div>
+              <div><div style="font-size:17px;font-weight:500;">Maya Okafor</div><div style="font-size:13px;color:#6B6B70;">Waiting for Maya to accept your request</div></div>
+            </div>
+            <button style="margin-top:16px;width:100%;height:50px;border:1px solid #F3C9CF;border-radius:16px;background:#fff;color:#C2263C;font-family:inherit;font-size:15px;font-weight:500;cursor:pointer;">Cancel request</button>
+          </div>
+          <div style="margin-top:12px;background:#F7F3FC;border-radius:14px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:1px;"><circle cx="12" cy="12" r="9" stroke="#8621EB" stroke-width="1.6"/><path d="M12 8v5M12 16h.01" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg><div style="font-size:13px;color:#6B6B70;line-height:1.4;">You can keep training with AI while you wait — or cancel to choose another coach.</div></div>
+          <div class="sect mt">TODAY</div>
+          <div class="rowcard"><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Train with AI meanwhile</div><div style="font-size:13px;color:#6B6B70;margin-top:1px;">Build a plan while you wait</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> <code>pendingJoinRequest</code> (AppStore:32), <code>.isPending</code>; coach name <code>trainer.name</code> (JoinRequestTrainerSummary, APIClient:342); Cancel = <code>cancelJoinRequest(id:)</code> (:689). "Train with AI meanwhile" shown only if <code>canShowSoloAIGenerate</code> still true. Pending accent = ink + clock icon (orange reserved for in-progress; meaning not by color alone).</div>
+    </div>
+
+    <!-- ============ STATE 6 · TRAINER-ASSIGNED PLAN ============ -->
+    <div class="fw">
+      <div class="flabel">6 · Trainer-assigned plan (read-only)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">410</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">7</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card">
+            <div class="pill" style="color:#511A97;"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#8621EB" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round"/></svg>FROM COACH MAYA</div>
+            <div class="title" style="margin-top:10px;">Lower Body · 5 exercises</div>
+            <div style="font-size:14px;color:#6B6B70;margin-top:4px;">Assigned plan · managed by your coach</div>
+            <button class="bp">Start Today's Workout</button>
+            <div style="display:flex;align-items:center;gap:6px;margin-top:12px;justify-content:center;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" stroke="#6B6B70" stroke-width="1.7"/><path d="M8 11V8a4 4 0 0 1 8 0v3" stroke="#6B6B70" stroke-width="1.7"/></svg><span style="font-size:12px;color:#6B6B70;">Read-only — only Maya can edit this plan</span></div>
+          </div>
+          <div class="sect mt">YOUR COACH</div>
+          <div class="rowcard">
+            <div aria-hidden="true" style="width:42px;height:42px;border-radius:100px;background:#9338FA;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:500;">M</div>
+            <div style="flex:1;"><div style="font-size:15px;font-weight:500;">Maya Okafor</div><div style="font-size:13px;color:#6B6B70;margin-top:1px;">Your coach</div></div>
+            <button aria-label="Message Maya" style="width:40px;height:40px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5h16v11H8l-4 3V5z" stroke="#8621EB" stroke-width="1.7" stroke-linejoin="round"/></svg></button>
+            <button aria-label="View profile" style="width:40px;height:40px;border:1px solid #E0E0E6;border-radius:12px;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> "From Coach" = <code>WorkoutPlan.source=="trainer"</code>/<code>!isAISource</code> (Models:286,335) + trainer name via <code>store.trainer(for:)</code> (:782). Read-only = <code>traineeCanEditDeleteAIPlan==false</code> (no AI edit controls). Session from <code>assignedPlan.session(on:)</code>; "5 exercises" = day.exercises.count. CTA label from the §4.1 resolver (Start / Continue).</div>
+    </div>
+
+    <!-- ============ STATE 7 · REST DAY ============ -->
+    <div class="fw">
+      <div class="flabel">7 · Rest day (no session today)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">Rest</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">980</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">15</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card" style="text-align:center;padding:26px 18px;">
+            <div aria-hidden="true" style="width:52px;height:52px;border-radius:100px;background:#F3EDFB;display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 7 7 0 0 1-9 9z" stroke="#8621EB" stroke-width="1.7" stroke-linejoin="round"/></svg></div>
+            <div class="title" style="margin-top:14px;">Rest day</div>
+            <div class="desc" style="margin-top:6px;">No session scheduled today in your plan. Recover well — next up is Thursday.</div>
+            <button class="bs" style="margin-top:16px;">See this week</button>
+          </div>
+          <div class="sect mt">HEALTH &amp; SUPPORT</div>
+          <div class="rowcard"><div style="flex:1;"><div style="font-size:15px;font-weight:500;">Log today's meals</div><div style="font-size:13px;color:#6B6B70;margin-top:1px;">Stay on track on rest days</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 6l6 6-6 6" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Data sources:</b> Rest = <code>assignedPlan.session(on: today)==nil</code> (Models:350) — a weekday with no <code>PlanDay</code>. "Next up Thursday" = next weekday that HAS a PlanDay (derivable). <span class="warn">Note: rest day is IMPLICIT today (no explicit rest-day type); copy must not imply a stored "rest" flag.</span> Sessions/calories as above.</div>
+    </div>
+
+    <!-- ============ STATE 8 · PLAN FINISHED/EXPIRED ============ -->
+    <div class="fw">
+      <div class="flabel">8 · Plan finished / expired ⚠️</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">0</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">24</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div class="sect">TODAY</div>
+          <div class="card" style="text-align:center;padding:24px 18px;">
+            <div aria-hidden="true" style="width:52px;height:52px;border-radius:100px;background:#E7F8EC;display:flex;align-items:center;justify-content:center;margin:0 auto;"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12l4 4 10-10" stroke="#2E9E4B" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <div class="title" style="margin-top:14px;">You've finished this plan</div>
+            <div class="desc" style="margin-top:6px;">Great work completing every session. Generate a fresh week to keep going.</div>
+            <button class="bp" style="margin-top:16px;">Build my next plan</button>
+          </div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><span class="warn">⚠️ NEEDS VERIFICATION / PRODUCT DECISION.</span> <b>No "completed" or "expired" plan state exists today</b> — <code>WorkoutPlan</code> has no end date and no completion field (verified). This screen is a <b>proposal</b> that would need a new "all sessions logged" derivation or a plan-end concept. Until decided, the app has no way to reach this state. CTA reuses existing AI generate (solo) when eligible.</div>
+    </div>
+
+    <!-- ============ STATE 9 · LOADING ============ -->
+    <div class="fw">
+      <div class="flabel">9 · First-load skeleton (no data yet)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="skel" style="width:120px;height:14px;background:rgba(255,255,255,0.18);"></div><div class="skel" style="width:80px;height:24px;margin-top:8px;background:rgba(255,255,255,0.22);"></div></div><div style="display:flex;gap:12px;"><div class="ib" aria-hidden="true"></div><div class="av skel" style="background:rgba(255,255,255,0.22);"></div></div></div>
+          <div class="well"><div class="m"><div class="skel" style="width:40px;height:18px;margin:0 auto;background:rgba(255,255,255,0.2);"></div></div><div class="sep"></div><div class="m"><div class="skel" style="width:40px;height:18px;margin:0 auto;background:rgba(255,255,255,0.2);"></div></div><div class="sep"></div><div class="m"><div class="skel" style="width:40px;height:18px;margin:0 auto;background:rgba(255,255,255,0.2);"></div></div></div>
+        </div>
+        <div class="body">
+          <div class="skel" style="width:80px;height:12px;"></div>
+          <div class="card" style="box-shadow:none;">
+            <div class="skel" style="width:60%;height:20px;"></div>
+            <div class="skel" style="width:90%;height:14px;margin-top:12px;"></div>
+            <div class="skel" style="width:100%;height:56px;margin-top:18px;border-radius:18px;"></div>
+          </div>
+          <div class="skel" style="width:120px;height:12px;margin-top:22px;"></div>
+          <div class="skel" style="width:100%;height:64px;margin-top:10px;border-radius:16px;"></div>
+          <div class="skel" style="width:100%;height:64px;margin-top:10px;border-radius:16px;"></div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> skeleton shows <b>only when nothing is loaded yet</b> (first cold start, no cached store data). On every later open Home renders last-loaded data immediately and refreshes silently — no skeleton flash. Mirrors the trainer-dashboard fix (G): "not loaded" must be distinguishable from "loaded empty".</div>
+    </div>
+
+    <!-- ============ STATE 10 · ERROR ============ -->
+    <div class="fw">
+      <div class="flabel">10 · Refresh error (inline retry)</div>
+      <div class="phone">
+        <div class="hdr">
+          <div class="hrow"><div><div class="greet">Good morning,</div><div class="name">Alex</div></div><div style="display:flex;gap:12px;"><button class="ib" aria-label="Notifications"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.7 21a2 2 0 0 1-3.4 0" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg></button><div class="av" aria-hidden="true">A</div></div></div>
+          <div class="well"><div class="m"><div class="v">—</div><div class="l">Today</div></div><div class="sep"></div><div class="m"><div class="v">—</div><div class="l">Calories</div></div><div class="sep"></div><div class="m"><div class="v">—</div><div class="l">Sessions</div></div></div>
+        </div>
+        <div class="body">
+          <div style="margin-top:10px;background:#FDEEF0;border:1px solid #F6D2D8;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="#C2263C" stroke-width="1.7"/><path d="M12 8v4M12 16h.01" stroke="#C2263C" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <div style="flex:1;font-size:14px;color:#8A1C30;">Couldn't refresh your home. Check your connection.</div>
+            <button style="border:1px solid #C2263C;border-radius:12px;background:#fff;color:#C2263C;font-family:inherit;font-size:13px;font-weight:500;padding:8px 14px;cursor:pointer;">Retry</button>
+          </div>
+          <div class="sect mt">TODAY</div>
+          <div class="card" style="opacity:0.55;">
+            <div class="title">Your last workout</div>
+            <div class="desc">Showing your most recent saved data while offline.</div>
+          </div>
+          <div style="font-size:12px;color:#6B6B70;margin-top:14px;text-align:center;">Last synced 2 h ago</div>
+        </div>
+        <div class="tabwrap"><div class="tab"><div class="ts"><div class="ti" style="color:#8621EB;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 11l9-7 9 7M5 9.5V20h14V9.5" stroke="#8621EB" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Home</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 9v6M20 9v6M7 7v10M17 7v10M7 12h10" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Workout</div></div><div style="width:64px;"></div><div class="ts"><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 3c0 4-2 5-2 9a5 5 0 0 0 10 0c0-1 .5-2 1-3" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>Nutrition</div><div class="ti" style="color:#6B6B70;"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="8" r="3.2" stroke="#6B6B70" stroke-width="1.8"/><path d="M5 20c0-3.2 3.1-5 7-5s7 1.8 7 5" stroke="#6B6B70" stroke-width="1.8" stroke-linecap="round"/></svg>Profile</div></div></div><button class="fab" aria-label="Quick actions"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg></button></div>
+      </div>
+      <div class="anno"><b>Behavior:</b> fetch failure → <b>inline</b> banner + Retry, <b>never a blocking modal</b>; last-loaded data stays visible (dimmed) so Home is never a dead screen. Error tone = <code>TTColor.danger</code>. Matches existing soft-toast failure handling.</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

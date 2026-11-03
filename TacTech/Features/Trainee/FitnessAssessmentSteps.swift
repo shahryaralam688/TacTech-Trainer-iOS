@@ -143,15 +143,15 @@ struct GoalStep: View {
     @Binding var draft: FitnessAssessment
 
     private let options: [(title: String, icon: SandowIcon)] = [
-        ("I wanna lose weight", .weightScale),
-        ("I wanna try AI Coach", .robotFace1),
-        ("I wanna get bulks", .barbellHorizontal),
-        ("I wanna gain endurance", .heartEcg),
-        ("Just trying out the app! 👍", .mobile)
+        ("Lose weight", .weightScale),
+        ("Build muscle", .barbellHorizontal),
+        ("Improve endurance", .heartEcg),
+        ("Improve overall fitness", .sparkle1),
+        ("I’m not sure yet", .questionMarkCircle)
     ]
 
     var body: some View {
-        AssessmentQuestion("What’s your fitness goal/target?", centered: true) {
+        AssessmentQuestion("What’s your fitness goal?", centered: true) {
             VStack(spacing: 12) {
                 ForEach(options, id: \.title) { item in
                     AssessmentChoice(
@@ -257,27 +257,25 @@ struct WeightStep: View {
             AssessmentRuler(
                 value: displayBinding,
                 range: draft.weightUnit == "lbs" ? 80...400 : 35...220,
-                step: 0.1
+                step: 1
             )
             .padding(.top, 28)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, 8)
-        .sensoryFeedback(.selection, trigger: Int((displayedWeight * 10).rounded()))
+        .sensoryFeedback(.selection, trigger: Int(displayedWeight))
     }
 
     private var displayNumber: String {
-        displayedWeight.rounded(to: 1).truncatingRemainder(dividingBy: 1) == 0
-            ? String(format: "%.0f", displayedWeight)
-            : String(format: "%.1f", displayedWeight)
+        String(format: "%.0f", displayedWeight)
     }
 
     private var displayedWeight: Double {
         if draft.weightUnit == "lbs" {
-            return (draft.weightKg * 2.20462).rounded(to: 1)
+            return (draft.weightKg * 2.20462).rounded()
         }
-        return draft.weightKg.rounded(to: 1)
+        return draft.weightKg.rounded()
     }
 
     private var displayBinding: Binding<Double> {
@@ -285,9 +283,9 @@ struct WeightStep: View {
             get: { displayedWeight },
             set: { newValue in
                 if draft.weightUnit == "lbs" {
-                    draft.weightKg = (newValue / 2.20462).rounded(to: 1)
+                    draft.weightKg = (newValue / 2.20462).rounded()
                 } else {
-                    draft.weightKg = newValue.rounded(to: 1)
+                    draft.weightKg = newValue.rounded()
                 }
             }
         )
@@ -1220,7 +1218,7 @@ struct DaysStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("How many days/wk will\nyou commit?")
+            Text("How many days a week\nwill you train?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
@@ -1959,6 +1957,12 @@ struct BodyScanStep: View {
             Button("Open camera") { showCamera = true }
                 .font(TTFont.heading(15))
                 .foregroundStyle(TTColor.brand)
+            Button("Skip for now") {
+                draft.bodyScanCaptured = false
+            }
+            .font(TTFont.body(14))
+            .foregroundStyle(TTColor.inkMuted)
+            .padding(.top, 4)
         }
         .sheet(isPresented: $showCamera) {
             CameraImagePicker(image: $image)
@@ -2012,6 +2016,12 @@ struct VoiceStep: View {
                     .font(TTFont.caption(13))
                     .foregroundStyle(TTColor.success)
             }
+            Button("Skip for now") {
+                draft.voiceCaptured = false
+            }
+            .font(TTFont.body(14))
+            .foregroundStyle(TTColor.inkMuted)
+            .padding(.top, 4)
         }
     }
 
@@ -2164,7 +2174,8 @@ struct AssessmentRuler: View {
     var range: ClosedRange<Double>
     var step: Double = 1
 
-    private let slotWidth: CGFloat = 9
+    // Each integer value gets its own 14pt slot — clear, tappable, not cramped
+    private let slotWidth: CGFloat = 14
     private let indicator = AssessmentColor.orange
 
     @State private var scrollID: Int?
@@ -2175,16 +2186,22 @@ struct AssessmentRuler: View {
                 HStack(spacing: 0) {
                     ForEach(tickIndexes, id: \.self) { index in
                         let tick = range.lowerBound + Double(index) * step
-                        VStack(spacing: 8) {
+                        let kind = tickKind(for: tick)
+                        VStack(spacing: 6) {
                             Capsule()
-                                .fill(AssessmentColor.line)
-                                .frame(width: strokeWidth(for: tick), height: tickHeight(for: tick))
-                            Text(label(for: tick))
-                                .font(TTFont.workSans(12, weight: .medium))
-                                .foregroundStyle(AssessmentColor.grey)
-                                .frame(height: 16)
+                                .fill(kind == .major ? AssessmentColor.orange : AssessmentColor.line)
+                                .frame(width: kind == .minor ? 1.5 : 2.5,
+                                       height: kind == .major ? 32 : kind == .mid ? 20 : 12)
+                            if kind == .major {
+                                Text("\(Int(tick.rounded()))")
+                                    .font(TTFont.workSans(11, weight: .semibold))
+                                    .foregroundStyle(AssessmentColor.grey)
+                                    .fixedSize()
+                            } else {
+                                Color.clear.frame(height: 14)
+                            }
                         }
-                        .frame(width: slotWidth, height: 72, alignment: .top)
+                        .frame(width: slotWidth, height: 60, alignment: .top)
                         .id(key(tick))
                     }
                 }
@@ -2206,14 +2223,23 @@ struct AssessmentRuler: View {
             .overlay(alignment: .top) {
                 Capsule()
                     .fill(indicator)
-                    .frame(width: 5, height: 44)
-                    .shadow(color: indicator.opacity(0.55), radius: 8)
-                    .padding(.top, 0)
+                    .frame(width: 3, height: 38)
+                    .shadow(color: indicator.opacity(0.6), radius: 6)
                     .allowsHitTesting(false)
             }
         }
-        .frame(height: 80)
+        .frame(height: 66)
         .sensoryFeedback(.selection, trigger: scrollID)
+    }
+
+    private enum TickKind { case major, mid, minor }
+
+    // major = every 10 (labelled + orange), mid = every 5, minor = every 1
+    private func tickKind(for tick: Double) -> TickKind {
+        let v = Int(tick.rounded())
+        if v % 10 == 0 { return .major }
+        if v % 5  == 0 { return .mid }
+        return .minor
     }
 
     private var tickIndexes: Range<Int> {
@@ -2227,26 +2253,6 @@ struct AssessmentRuler: View {
 
     private func key(_ tick: Double) -> Int {
         Int((tick / step).rounded())
-    }
-
-    private func tenths(_ tick: Double) -> Int {
-        Int((tick * 10).rounded()) % 10
-    }
-
-    private func tickHeight(for tick: Double) -> CGFloat {
-        switch tenths(tick) {
-        case 0: 36
-        case 5: 24
-        default: 14
-        }
-    }
-
-    private func strokeWidth(for tick: Double) -> CGFloat {
-        tenths(tick) == 0 ? 2.2 : 1.4
-    }
-
-    private func label(for tick: Double) -> String {
-        tenths(tick) == 0 ? "\(Int(tick.rounded()))" : ""
     }
 }
 

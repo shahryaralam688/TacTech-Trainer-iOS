@@ -162,7 +162,7 @@ private struct OnboardingSlideView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .padding(.horizontal, 28)
-                .padding(.bottom, 118)
+                .padding(.bottom, 160)
             }
         }
         .ignoresSafeArea()

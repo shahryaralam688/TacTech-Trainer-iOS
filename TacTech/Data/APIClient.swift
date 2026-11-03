@@ -419,6 +419,49 @@ struct WorkoutLogBody: Encodable {
     var sets: [WorkoutSetBody]
 }
 
+// MARK: - Workout session API contracts
+
+struct WorkoutSessionBody: Encodable {
+    var planId: String
+    var dayId: String?
+}
+
+struct SessionSetBody: Encodable {
+    var exerciseId: String
+    var setNumber: Int
+    var reps: Int
+    var weightKg: Double
+}
+
+struct WorkoutSession: Decodable, Identifiable {
+    var id: String
+    var planId: String
+    var dayId: String?
+    var startedAt: Date
+    var completedAt: Date?
+    var durationMinutes: Int?
+    var sets: [WorkoutSetLog]
+
+    enum CodingKeys: String, CodingKey {
+        case id, planId, dayId, startedAt, completedAt, durationMinutes, sets
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        planId = try c.decode(String.self, forKey: .planId)
+        dayId = try c.decodeIfPresent(String.self, forKey: .dayId)
+        startedAt = try c.decode(Date.self, forKey: .startedAt)
+        completedAt = try c.decodeIfPresent(Date.self, forKey: .completedAt)
+        durationMinutes = try c.decodeIfPresent(Int.self, forKey: .durationMinutes)
+        sets = try c.decodeIfPresent([WorkoutSetLog].self, forKey: .sets) ?? []
+    }
+}
+
+struct CompleteSessionBody: Encodable {
+    var durationMinutes: Int
+}
+
 struct FormReportBody: Encodable {
     var exerciseId: String
     var score: Int
@@ -1188,6 +1231,28 @@ actor APIClient {
 
     func createWorkoutLog(_ body: WorkoutLogBody) async throws -> WorkoutLog? {
         try await sendOptional(path: "/trainee/logs", method: .post, body: body)
+    }
+
+    // MARK: - Session endpoints
+
+    func startSession(_ body: WorkoutSessionBody) async throws -> WorkoutSession {
+        try await send(path: "/trainee/sessions", method: .post, body: body)
+    }
+
+    func activeSession() async throws -> WorkoutSession? {
+        try? await send(path: "/trainee/sessions/active", method: .get)
+    }
+
+    func logSessionSet(sessionId: String, _ body: SessionSetBody) async throws -> WorkoutSetLog? {
+        try await sendOptional(path: "/trainee/sessions/\(sessionId)/sets", method: .post, body: body)
+    }
+
+    func completeSession(sessionId: String, _ body: CompleteSessionBody) async throws -> WorkoutLog? {
+        try await sendOptional(path: "/trainee/sessions/\(sessionId)/complete", method: .post, body: body)
+    }
+
+    func discardSession(sessionId: String) async throws {
+        try await sendVoid(path: "/trainee/sessions/\(sessionId)/discard", method: .post, body: EmptyBody())
     }
 
     func traineeMeals(on date: Date) async throws -> [Meal] {

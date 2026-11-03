@@ -557,10 +557,10 @@ struct CreatePlanView: View {
         focus = plan.focus
         level = plan.level.isEmpty ? "Intermediate" : plan.level
         notes = plan.notes ?? ""
-        selectedDays = plan.scheduledDays.map(\.weekday)
-        sessions = Dictionary(uniqueKeysWithValues: plan.scheduledDays.map { day in
-            (day.weekday, SessionDraft(from: day))
-        })
+        // De-duplicate by weekday — keep the last entry if the plan has duplicate days
+        let uniqueDays = plan.scheduledDays.reduce(into: [Weekday: PlanDay]()) { $0[$1.weekday] = $1 }
+        selectedDays = Array(uniqueDays.keys)
+        sessions = uniqueDays.mapValues { SessionDraft(from: $0) }
     }
 }
 
@@ -579,7 +579,7 @@ struct SessionDraft {
     var exercises: [ExerciseDraft] = []
 
     init(day: Weekday, focus: String = "") {
-        self.day = day
+        self.day = day 
         self.focus = focus
     }
 

@@ -86,28 +86,34 @@ struct FitnessAssessmentFlowView: View {
     }
 
     private var header: some View {
-        ZStack {
-            Text("Assessment")
-                .font(TTFont.workSans(17, weight: .bold))
-                .foregroundStyle(AssessmentColor.ink)
+        VStack(spacing: 10) {
+            ZStack {
+                Text("Assessment")
+                    .font(TTFont.workSans(17, weight: .bold))
+                    .foregroundStyle(AssessmentColor.ink)
 
-            HStack {
-                if step > 0 {
-                    TTBackButton { step -= 1 }
-                } else {
-                    Color.clear.frame(width: TTBackButton.size, height: TTBackButton.size)
+                HStack {
+                    if step > 0 {
+                        TTBackButton { step -= 1 }
+                    } else {
+                        Color.clear.frame(width: TTBackButton.size, height: TTBackButton.size)
+                    }
+                    Spacer()
                 }
-
-                Spacer()
-
-                Text("\(step + 1) of \(total)")
-                    .font(TTFont.workSans(13, weight: .semibold))
-                    .foregroundStyle(AssessmentColor.blue)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(AssessmentColor.blueSoft)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
+
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(AssessmentColor.blueSoft)
+                        .frame(height: 4)
+                    Capsule()
+                        .fill(AssessmentColor.blue)
+                        .frame(width: geo.size.width * CGFloat(step + 1) / CGFloat(total), height: 4)
+                        .animation(.easeInOut(duration: 0.25), value: step)
+                }
+            }
+            .frame(height: 4)
         }
         .padding(.horizontal, TTSpace.screen)
         .padding(.top, 6)
@@ -133,8 +139,8 @@ struct FitnessAssessmentFlowView: View {
         case 10: draft.takesSupplements != nil
         case 11: draft.takesSupplements == false || !draft.supplements.isEmpty
         case 13: !draft.sleepQuality.isEmpty
-        case 14: draft.bodyScanCaptured
-        case 15: draft.voiceCaptured
+        case 14: true
+        case 15: true
         default: true
         }
     }

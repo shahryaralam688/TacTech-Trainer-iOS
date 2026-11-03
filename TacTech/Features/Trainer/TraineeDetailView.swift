@@ -10,6 +10,7 @@ struct TraineeDetailView: View {
     @FocusState private var noteFocused: Bool
     @State private var isAssigning = false
     @State private var assignSucceeded = false
+    @State private var showCreatePlan = false
     @State private var celebrateAssign = false
     @State private var feedbackToast: TTToastMessage?
     @State private var unassignConfirm = false
@@ -275,11 +276,12 @@ struct TraineeDetailView: View {
             }
 
             if plans.isEmpty {
-                Text("No plans to assign yet. Create a plan first.")
+                Text("No plans to assign yet. Create a new plan to put \(displayName) on a program.")
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(assigned == nil ? "Assign a plan" : "Change plan")
+                Text(assigned == nil ? "Choose an existing plan" : "Change plan")
                     .font(TTFont.caption(11))
                     .fontWeight(.bold)
                     .foregroundStyle(TTColor.inkSubtle)
@@ -308,10 +310,40 @@ struct TraineeDetailView: View {
                     Task { await assignSelectedPlan() }
                 }
             }
+
+            createPlanButton(hasPlans: !plans.isEmpty)
         }
         .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .sheet(isPresented: $showCreatePlan) {
+            CreatePlanView { newPlan in
+                // Reuse the new plan immediately in the assign flow.
+                selectedPlanId = newPlan.id
+            }
+        }
+    }
+
+    /// "Create new plan" action — available alongside the existing-plan picker so the
+    /// trainer can either reuse a built plan or build a fresh one without leaving.
+    private func createPlanButton(hasPlans: Bool) -> some View {
+        Button {
+            showCreatePlan = true
+        } label: {
+            HStack(spacing: 8) {
+                TTIcon(icon: .plus, filled: true, size: 14)
+                Text("Create new plan")
+                    .font(TTFont.workSans(14, weight: .semibold))
+            }
+            .foregroundStyle(TTColor.actionOrange)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(TTColor.actionOrange.opacity(0.4), lineWidth: 1.5)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func assignedPlanSummary(_ plan: WorkoutPlan) -> some View {

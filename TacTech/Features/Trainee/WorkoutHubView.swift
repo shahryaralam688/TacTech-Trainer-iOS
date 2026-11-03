@@ -247,6 +247,9 @@ struct WorkoutHubView: View {
 
             if canMutateAI {
                 aiPlanActions(plan)
+            } else if plan.isAISource && store.hasLinkedTrainer {
+                // Friction B: explain why the AI controls disappeared instead of going silent.
+                aiPausedExplainer
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -280,6 +283,36 @@ struct WorkoutHubView: View {
             }
         }
         return keys
+    }
+
+    /// Friction B: inline, neutral explainer for an AI plan whose controls are paused
+    /// because a coach is now linked. Read-only ≠ un-trainable — the session still starts.
+    private var aiPausedExplainer: some View {
+        let coachName = store.currentTrainee
+            .flatMap { store.trainer(for: $0)?.userId }
+            .flatMap { id in store.users.first { $0.id == id }?.name }?
+            .components(separatedBy: " ").first ?? "Your coach"
+
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(TTColor.info)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(coachName) guides your training")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                Text("Your AI plan controls are paused while a coach guides you. They return if you leave your coach.")
+                    .font(TTFont.workSans(12, weight: .medium))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(TTColor.info.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(.top, 4)
     }
 
     private func aiPlanActions(_ plan: WorkoutPlan) -> some View {

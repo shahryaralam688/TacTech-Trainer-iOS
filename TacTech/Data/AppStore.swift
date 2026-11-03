@@ -28,6 +28,8 @@ final class AppStore {
     var isBootstrappingSession = false
     /// Trainer-saved exercise prescriptions (local).
     var exerciseTemplates: [ExerciseTemplate] = []
+    /// Trainer-defined exercises added locally (catalog has no create API). Persisted per trainer.
+    var customExercises: [Exercise] = []
     /// Trainee: pending join request (invite awaiting trainer approval).
     var pendingJoinRequest: JoinRequestDTO?
     /// Trainer: pending join requests for the Requests inbox.
@@ -1762,6 +1764,53 @@ final class AppStore {
         UserDefaults.standard.set(data, forKey: "exercise.templates.\(trainerId)")
     }
 
+    // MARK: - Custom exercises (local, trainer-defined)
+
+    /// Creates a local custom exercise, merges it into the live catalog, and persists it.
+    /// Returns the new exercise so the caller can keep the user on the selection screen.
+    @discardableResult
+    func addCustomExercise(name: String, muscleGroup: String, equipment: String, difficulty: String) -> Exercise {
+        let exercise = Exercise(
+            id: "custom-\(UUID().uuidString)",
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            muscleGroup: muscleGroup.trimmingCharacters(in: .whitespacesAndNewlines),
+            equipment: equipment.trimmingCharacters(in: .whitespacesAndNewlines),
+            difficulty: difficulty.trimmingCharacters(in: .whitespacesAndNewlines),
+            cues: [],
+            icon: "figure.strengthtraining.traditional"
+        )
+        customExercises.insert(exercise, at: 0)
+        if !exercises.contains(where: { $0.id == exercise.id }) {
+            exercises.insert(exercise, at: 0)
+        }
+        persistCustomExercises()
+        return exercise
+    }
+
+    func loadCustomExercises() {
+        guard let trainerId = currentTrainer?.id,
+              let data = UserDefaults.standard.data(forKey: "exercise.custom.\(trainerId)"),
+              let decoded = try? JSONDecoder().decode([Exercise].self, from: data)
+        else {
+            customExercises = []
+            return
+        }
+        customExercises = decoded
+    }
+
+    /// Re-adds persisted custom exercises after the backend catalog reload replaces `exercises`.
+    func mergeCustomExercises() {
+        for ex in customExercises where !exercises.contains(where: { $0.id == ex.id }) {
+            exercises.insert(ex, at: 0)
+        }
+    }
+
+    private func persistCustomExercises() {
+        guard let trainerId = currentTrainer?.id,
+              let data = try? JSONEncoder().encode(customExercises) else { return }
+        UserDefaults.standard.set(data, forKey: "exercise.custom.\(trainerId)")
+    }
+
     func dailyMacros(for traineeId: String, on date: Date) -> MacroEstimate {
         if let cached = macrosByKey[macroKey(traineeId, on: date)] {
             return cached
@@ -2377,6 +2426,8 @@ final class AppStore {
     private func loadTrainerWorkspace() async throws {
         plans = try await api.trainerPlans()
         loadExerciseTemplates()
+        loadCustomExercises()
+        mergeCustomExercises()
         let items = try await api.trainerTrainees()
         if let trainerId = currentTrainer?.id {
             // Replace roster from server so removed trainees disappear on refresh.

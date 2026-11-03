@@ -13,6 +13,10 @@ struct TraineeDashboardView: View {
     @State private var celebrateStart = false
     @State private var generateNotice: String?
     @State private var showAssessmentReview = false
+    @State private var showProfileCompletion = false
+    @State private var dismissedProfileNudge = false
+    /// Friction E: direct resume of the live guided session from Home.
+    @State private var resumeTarget: ResumeTarget?
     @Bindable private var notificationStore = NotificationStore.shared
     @Namespace private var activitySegmentNS
 
@@ -75,6 +79,14 @@ struct TraineeDashboardView: View {
                                 getStartedCard
                                     .ttHomeAppear(index: 7)
                             }
+
+                            // Friction H: unobtrusive, dismissible profile-completion nudge
+                            if shouldShowProfileNudge {
+                                profileCompletionNudge
+                                    .padding(.top, 14)
+                                    .ttHomeAppear(index: 10)
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                            }
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -89,6 +101,9 @@ struct TraineeDashboardView: View {
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(item: $resumeTarget) { target in
+                ActiveWorkoutView(plan: target.plan, day: target.day)
+            }
             .ttSyncRootTabBarWithNavigationDepth()
             .task(id: selectedDay) {
                 if let trainee = store.currentTrainee {
@@ -145,7 +160,76 @@ struct TraineeDashboardView: View {
                 }
                 .ttModalSheetPresentation()
             }
+            .sheet(isPresented: $showProfileCompletion) {
+                ProfileCompletionFlowView()
+                    .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
         }
+    }
+
+    // MARK: - Friction E: resume the live guided session directly
+
+    /// Resolves the in-progress session to its plan + day and pushes `ActiveWorkoutView`
+    /// (which resumes at `activeExerciseIndex`). Falls back to the Workout hub when the
+    /// session can't be resolved — no new resume rule is invented.
+    private func continueWorkout() {
+        TTHomeHaptics.medium()
+        if let session = store.activeWorkoutSession,
+           let plan = store.plans.first(where: { $0.id == session.planId })
+                ?? store.currentTrainee.flatMap({ store.assignedPlan(for: $0) }),
+           let day = session.dayId.flatMap({ id in plan.days.first(where: { $0.id == id }) })
+                ?? plan.session(on: Date()) {
+            resumeTarget = ResumeTarget(plan: plan, day: day)
+        } else {
+            celebrateStart = true
+            showWorkouts = true
+        }
+    }
+
+    // MARK: - Friction H: non-blocking profile completion nudge
+
+    private var shouldShowProfileNudge: Bool {
+        !dismissedProfileNudge && !store.profileSetupCompleted && store.session?.role == .trainee
+    }
+
+    @ViewBuilder private var profileCompletionNudge: some View {
+        Button {
+            TTHomeHaptics.light()
+            showProfileCompletion = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Complete your profile")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(.black)
+                    Text("A few details help tailor your coaching.")
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(Color(white: 0.45))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Button {
+                    TTHomeHaptics.light()
+                    withAnimation(.snappy(duration: 0.2)) { dismissedProfileNudge = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color(white: 0.5))
+                        .frame(width: 28, height: 28)
+                        .background(Color(white: 0.95))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .ttHomeCardMorph()
+        }
+        .buttonStyle(TTHomeCardPressStyle())
     }
 
     // MARK: - Header
@@ -418,15 +502,21 @@ struct TraineeDashboardView: View {
                         .ttHomeWin(celebrate: $celebrateStart, tint: orange)
                     }
                 } else {
+                    let hasActiveSession = store.activeWorkoutSession != nil
                     Button {
-                        TTHomeHaptics.medium()
-                        celebrateStart = true
-                        showWorkouts = true
+                        if hasActiveSession {
+                            // Friction E: resume the live session instead of the hub overview.
+                            continueWorkout()
+                        } else {
+                            TTHomeHaptics.medium()
+                            celebrateStart = true
+                            showWorkouts = true
+                        }
                     } label: {
                         HStack(spacing: 10) {
-                            Image(systemName: store.activeWorkoutSession != nil ? "arrow.right.circle.fill" : "play.fill")
+                            Image(systemName: hasActiveSession ? "arrow.right.circle.fill" : "play.fill")
                                 .font(TTFont.workSans(14, weight: .semibold))
-                            Text(store.activeWorkoutSession != nil ? "Continue Workout" : session == nil ? "See My Workouts" : "Start Today’s Workout")
+                            Text(hasActiveSession ? "Continue Workout" : session == nil ? "See My Workouts" : "Start Today’s Workout")
                                 .font(TTFont.textLG(.semibold))
                         }
                         .foregroundStyle(.white)
@@ -439,17 +529,20 @@ struct TraineeDashboardView: View {
                     .ttHomeCTAPulse(tint: orange)
                     .ttHomeWin(celebrate: $celebrateStart, tint: orange)
                 }
+            } else if store.hasLinkedTrainer {
+                // Friction B/N (§2e): linked coach but no plan assigned yet — explain, don't go silent.
+                // Neutral copy only; no AI-generate CTA here (correctly gated off).
+                coachAwaitingPlanCard
             } else if !store.canShowSoloAIGenerate {
-                // Only show "Link a trainer" when AI generate is also not available
-                // — avoids two competing CTAs on the same screen
+                // No trainer and solo-AI unavailable: steer to discovery (avoids two competing CTAs).
                 Button {
                     TTHomeHaptics.medium()
-                    showProfile = true
+                    showFindCoaches = true
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: "link")
                             .font(TTFont.workSans(14, weight: .semibold))
-                        Text("Link a trainer to get workouts")
+                        Text("Find a coach to get workouts")
                             .font(TTFont.textLG(.semibold))
                     }
                     .foregroundStyle(Color(white: 0.35))
@@ -510,6 +603,54 @@ struct TraineeDashboardView: View {
             .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             .ttHomeCardMorph()
         }
+    }
+
+    // MARK: - Coach assigned, awaiting first plan (friction B/N §2e)
+
+    private var coachAwaitingPlanCard: some View {
+        let coachName = store.currentTrainee
+            .flatMap { store.trainer(for: $0)?.userId }
+            .flatMap { id in store.users.first { $0.id == id }?.name }?
+            .components(separatedBy: " ").first ?? "Your coach"
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(orange)
+                Text("\(coachName) guides your training")
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(.black)
+                Spacer(minLength: 0)
+            }
+
+            Text("Waiting for \(coachName) to assign your first plan. You’ll be notified when it’s ready.")
+                .font(TTFont.workSans(13, weight: .medium))
+                .foregroundStyle(Color(white: 0.4))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                TTHomeHaptics.light()
+                showProfile = true
+            } label: {
+                HStack(spacing: 8) {
+                    Text("View coach")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 12, weight: .bold))
+                }
+                .foregroundStyle(Color(white: 0.25))
+                .frame(maxWidth: .infinity)
+                .frame(height: 48)
+                .background(Color(white: 0.95))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(TTHomeCardPressStyle())
+        }
+        .padding(16)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .ttHomeCardMorph()
     }
 
     private func flashGenerateNotice(_ text: String) {
@@ -1056,6 +1197,15 @@ struct TraineeDashboardView: View {
         }
         return "Form check"
     }
+}
+
+// MARK: - Resume target (friction E)
+
+/// Identifiable wrapper so Home can push `ActiveWorkoutView` for the resolved session day.
+private struct ResumeTarget: Identifiable, Hashable {
+    let plan: WorkoutPlan
+    let day: PlanDay
+    var id: String { "\(plan.id)#\(day.id)" }
 }
 
 // MARK: - Activity range

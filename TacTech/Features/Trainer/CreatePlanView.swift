@@ -44,6 +44,9 @@ struct CreatePlanView: View {
 
     /// When set, wizard edits this plan instead of creating a new one.
     var editingPlan: WorkoutPlan? = nil
+    /// Called with the newly created plan after a successful create (not on edit).
+    /// Lets a presenter (e.g. the trainee assign flow) pick up and select the new plan.
+    var onCreate: ((WorkoutPlan) -> Void)? = nil
 
     @State private var step: CreatePlanStep = .basics
     @State private var title = ""
@@ -543,6 +546,7 @@ struct CreatePlanView: View {
                 try await store.updatePlan(draft)
             } else {
                 try await store.createPlan(draft)
+                onCreate?(draft)
             }
             dismiss()
         } catch {
@@ -1184,6 +1188,7 @@ struct ExerciseLibrarySheet: View {
     let onPick: (ExerciseDraft) -> Void
 
     @State private var query = ""
+    @State private var showCreateExercise = false
     @FocusState private var searchFocused: Bool
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -1222,6 +1227,27 @@ struct ExerciseLibrarySheet: View {
                             idleFill: cardFill
                         )
 
+                        // Create-new option alongside the existing exercise list — stays on
+                        // this screen after saving so the trainer never loses their place.
+                        Button {
+                            showCreateExercise = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                TTIcon(icon: .plus, filled: true, size: 15)
+                                Text("Create new exercise")
+                                    .font(TTFont.workSans(15, weight: .semibold))
+                                Spacer(minLength: 0)
+                            }
+                            .foregroundStyle(orange)
+                            .padding(14)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                    .stroke(orange.opacity(0.4), lineWidth: 1.5)
+                            )
+                        }
+                        .buttonStyle(TTSearchPressStyle(scale: 0.99))
+
                         if filtered.isEmpty {
                             Text("No matches")
                                 .font(TTFont.body(14))
@@ -1249,6 +1275,20 @@ struct ExerciseLibrarySheet: View {
             }
             .background(canvas.ignoresSafeArea())
             .ttHideSystemNavigationBar()
+            .sheet(isPresented: $showCreateExercise) {
+                CreateExerciseSheet { name, muscleGroup, equipment, difficulty in
+                    let created = store.addCustomExercise(
+                        name: name,
+                        muscleGroup: muscleGroup,
+                        equipment: equipment,
+                        difficulty: difficulty
+                    )
+                    // Surface the new exercise at the top of this same list.
+                    query = ""
+                    _ = created
+                }
+                .ttModalSheetPresentation()
+            }
         }
     }
 
@@ -1280,6 +1320,99 @@ struct ExerciseLibrarySheet: View {
             Spacer(minLength: 0)
             TTIcon(icon: .chevronRight, size: 14)
                 .foregroundStyle(TTColor.inkSubtle)
+        }
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
+// MARK: - Create custom exercise
+
+/// Lightweight form to define a new exercise inline, without leaving the picker flow.
+struct CreateExerciseSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onCreate: (_ name: String, _ muscleGroup: String, _ equipment: String, _ difficulty: String) -> Void
+
+    @State private var name = ""
+    @State private var muscleGroup = ""
+    @State private var equipment = ""
+    @State private var difficulty = "Intermediate"
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case name, muscle, equipment }
+    private let difficulties = ["Beginner", "Intermediate", "Advanced"]
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let orange = TTColor.actionOrange
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(title: "New exercise", background: .white)
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 14) {
+                    field("EXERCISE NAME", placeholder: "e.g. Cable Fly", text: $name, focus: .name)
+                    field("MUSCLE GROUP", placeholder: "e.g. Chest", text: $muscleGroup, focus: .muscle)
+                    field("EQUIPMENT", placeholder: "e.g. Cable", text: $equipment, focus: .equipment)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("DIFFICULTY")
+                            .font(TTFont.caption(11))
+                            .foregroundStyle(TTColor.inkMuted)
+                        Picker("Difficulty", selection: $difficulty) {
+                            ForEach(difficulties, id: \.self) { Text($0).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                    .padding(14)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+
+                    Button {
+                        onCreate(name, muscleGroup, equipment, difficulty)
+                        dismiss()
+                    } label: {
+                        Text("Create exercise")
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 56)
+                            .background(canSave ? Color.black : Color.black.opacity(0.3))
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(TTSearchPressStyle(scale: 0.98))
+                    .disabled(!canSave)
+                    .padding(.top, 4)
+                }
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
+            }
+        }
+        .background(canvas.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+    }
+
+    private func field(_ label: String, placeholder: String, text: Binding<String>, focus: Field) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label)
+                .font(TTFont.caption(11))
+                .foregroundStyle(TTColor.inkMuted)
+            TextField(placeholder, text: text)
+                .font(TTFont.body(16))
+                .focused($focusedField, equals: focus)
+                .tint(orange)
+                .padding(12)
+                .ttInputChrome(
+                    focused: focusedField == focus,
+                    cornerRadius: 12,
+                    idleFill: .white
+                )
         }
         .padding(14)
         .background(cardFill)

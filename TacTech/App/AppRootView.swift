@@ -60,7 +60,7 @@ struct AppRootView: View {
             }
         }
         .task {
-            try? await Task.sleep(for: .milliseconds(1400))
+            try? await Task.sleep(for: .milliseconds(600))
             splashElapsed = true
             if showsAuthenticatedContent {
                 HumanCallStore.shared.startMonitoring()

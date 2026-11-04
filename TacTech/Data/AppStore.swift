@@ -1892,20 +1892,31 @@ final class AppStore {
         exercises = try await api.exercises()
         if session?.role == .trainer {
             try await loadTrainerWorkspace()
-            await fetchTrainerJoinRequests()
         } else {
             try await loadTraineeWorkspace()
-            await refreshTraineeJoinState()
         }
-        await refreshEntitlements()
-        await refreshAIEntitlements()
-        await refreshAICapabilities()
-        // Avatar source of truth — required so home/profile work after reinstall.
-        _ = try? await fetchMeProfile()
-        if session?.role == .trainer {
-            await refreshMyBoost()
+
+        // Everything below is non-critical for the first screen. Running it in the
+        // background lets the splash clear as soon as Home has what it needs, instead
+        // of blocking the launch on entitlements / AI / avatar / boost round-trips.
+        let role = session?.role
+        Task { [weak self] in
+            guard let self else { return }
+            if role == .trainer {
+                await self.fetchTrainerJoinRequests()
+            } else {
+                await self.refreshTraineeJoinState()
+            }
+            await self.refreshEntitlements()
+            await self.refreshAIEntitlements()
+            await self.refreshAICapabilities()
+            // Avatar source of truth — required so home/profile work after reinstall.
+            _ = try? await self.fetchMeProfile()
+            if role == .trainer {
+                await self.refreshMyBoost()
+            }
+            AIStoreKitService.shared.startListeningForUpdates()
         }
-        AIStoreKitService.shared.startListeningForUpdates()
     }
 
     /// Loads `/me/entitlements`. Failures are silent — never blocks workspace or AI.
@@ -2434,8 +2445,15 @@ final class AppStore {
             trainees.removeAll { $0.trainerId == trainerId }
         }
         apply(traineeItems: items)
-        for trainee in trainees where trainee.trainerId == currentTrainer?.id {
-            await loadTrainerDetail(traineeId: trainee.id)
+        // Load each trainee's detail concurrently instead of serially — a serial loop
+        // made cold launch scale with roster size (one round-trip per trainee).
+        let roster = trainees.filter { $0.trainerId == currentTrainer?.id }.map(\.id)
+        await withTaskGroup(of: Void.self) { group in
+            for traineeId in roster {
+                group.addTask { [weak self] in
+                    await self?.loadTrainerDetail(traineeId: traineeId)
+                }
+            }
         }
     }
 

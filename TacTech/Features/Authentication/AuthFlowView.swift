@@ -251,7 +251,7 @@ struct RoleSelectionView: View {
 
     private var titleBlock: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Choose your path")
+            Text("Continue As")
                 .font(TTFont.workSans(32, weight: .bold))
                 .foregroundStyle(ink)
 

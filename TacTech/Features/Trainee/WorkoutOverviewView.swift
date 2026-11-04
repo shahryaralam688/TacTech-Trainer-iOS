@@ -266,18 +266,29 @@ struct WorkoutOverviewView: View {
         return VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 12) {
                 if let exerciseData = store.exercise(id: exercise.exerciseId) {
-                    Text("\(index + 1)")
-                        .font(TTFont.workSans(16, weight: .bold))
-                        .foregroundStyle(orange)
-                        .frame(width: 32, height: 32)
-                        .background(orange.opacity(0.12))
-                        .clipShape(Circle())
-                    
+                    // Exercise thumbnail with a small ordinal badge — matches the hub's
+                    // exercise-row visual language while keeping the step number.
+                    ZStack(alignment: .topLeading) {
+                        RoundedRectangle(cornerRadius: TTCardTokens.thumbCorner, style: .continuous)
+                            .fill(orange.opacity(0.12))
+                            .frame(width: 44, height: 44)
+                        TTIcon(icon: .kettlebell, filled: true, size: 20)
+                            .foregroundStyle(orange)
+                            .frame(width: 44, height: 44)
+                        Text("\(index + 1)")
+                            .font(TTFont.workSans(10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(orange)
+                            .clipShape(Circle())
+                            .offset(x: -5, y: -5)
+                    }
+
                     VStack(alignment: .leading, spacing: 4) {
                         Text(exerciseData.name)
                             .font(TTFont.workSans(15, weight: .semibold))
                             .foregroundStyle(TTColor.ink)
-                        
+
                         Text(exercise.prescriptionLine)
                             .font(TTFont.workSans(13, weight: .medium))
                             .foregroundStyle(TTColor.inkMuted)

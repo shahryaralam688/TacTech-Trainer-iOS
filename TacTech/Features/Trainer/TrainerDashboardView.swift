@@ -8,6 +8,11 @@ struct TrainerDashboardView: View {
     @State private var showJoinRequests = false
     @State private var isLoadingJoinRequests = true
     @State private var showAssignSheet = false
+    @State private var assignTrainee: TraineeProfile?
+    @State private var detailTrainee: TraineeProfile?
+    @State private var previousPlanId: String?
+    @State private var toast: TTToastMessage?
+    @State private var showCreate = false
     @Bindable private var notificationStore = NotificationStore.shared
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
@@ -80,6 +85,20 @@ struct TrainerDashboardView: View {
             }
             .sheet(isPresented: $showAssignSheet) {
                 PlanQuickAssignSheet()
+                    .ttModalSheetPresentation()
+            }
+            .navigationDestination(item: $detailTrainee) { trainee in
+                TraineeDetailView(trainee: trainee)
+            }
+            .sheet(item: $assignTrainee) { trainee in
+                PlanQuickAssignSheet(preselectedTraineeId: trainee.id, onAssigned: {
+                    showAssignedToast(for: trainee)
+                })
+                .ttModalSheetPresentation()
+            }
+            .ttToast($toast)
+            .sheet(isPresented: $showCreate) {
+                CreatePlanView()
                     .ttModalSheetPresentation()
             }
             .task {
@@ -190,7 +209,7 @@ struct TrainerDashboardView: View {
     private var quickActions: some View {
         HStack(spacing: 10) {
             Button {
-                selectTrainerTab(.plans)
+                showCreate = true
             } label: {
                 Label("Create Plan", systemImage: "plus.square.fill")
                     .font(TTFont.workSans(14, weight: .semibold))
@@ -275,8 +294,8 @@ struct TrainerDashboardView: View {
     // MARK: - Action card (ONE button, ONE job)
 
     private func actionCard(_ item: QueueItem) -> some View {
-        NavigationLink {
-            TraineeDetailView(trainee: item.trainee)
+        Button {
+            detailTrainee = item.trainee
         } label: {
             HStack(spacing: 0) {
                 // Colour strip = urgency at a glance
@@ -319,11 +338,57 @@ struct TrainerDashboardView: View {
             )
         }
         .buttonStyle(TTHomeCardPressStyle())
-        .simultaneousGesture(TapGesture().onEnded {
+        // Sibling of the card button, so the two taps can never both fire.
+        .overlay(alignment: .trailing) {
             if item.priority == 2 {
-                showAssignSheet = true
+                Button {
+                    previousPlanId = store.assignedPlan(for: item.trainee)?.id
+                    assignTrainee = item.trainee
+                } label: {
+                    assignPill
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 14)
+                .accessibilityLabel("Assign plan to \(store.user(forTrainee: item.trainee)?.name ?? "trainee")")
             }
-        })
+        }
+    }
+
+    /// Toast after the assign sheet closes, with Undo back to the previous state.
+    private func showAssignedToast(for trainee: TraineeProfile) {
+        guard let newPlan = store.assignedPlan(for: trainee) else { return }
+        let name = store.user(forTrainee: trainee)?.name ?? "Trainee"
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        let previous = previousPlanId
+        toast = TTToastMessage(
+            text: "“\(newPlan.title)” assigned to \(first)",
+            action: TTToastAction(title: "Undo") {
+                Task {
+                    do {
+                        if let previous {
+                            try await store.assign(planId: previous, to: trainee.id)
+                        } else {
+                            try await store.unassign(planId: newPlan.id, from: trainee.id)
+                        }
+                        toast = TTToastMessage(text: "Undone")
+                    } catch {
+                        toast = TTToastMessage(text: "Couldn’t undo", style: .error, subtitle: error.localizedDescription)
+                    }
+                }
+            }
+        )
+    }
+
+    private var assignPill: some View {
+        Text("Assign plan")
+            .font(TTFont.textXS(.bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color(white: 0.2))
+            .clipShape(Capsule())
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
     }
 
     @ViewBuilder
@@ -347,14 +412,8 @@ struct TrainerDashboardView: View {
                 .background(orange)
                 .clipShape(Capsule())
 
-        case 2: // No plan
-            Text("Assign plan")
-                .font(TTFont.textXS(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(Color(white: 0.2))
-                .clipShape(Capsule())
+        case 2: // No plan — invisible spacer; the real button is overlaid outside the card button
+            assignPill.hidden()
 
         default:
             EmptyView()

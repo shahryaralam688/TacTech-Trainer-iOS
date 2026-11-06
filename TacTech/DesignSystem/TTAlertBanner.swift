@@ -103,6 +103,9 @@ struct TTAlertBanner: View {
     var onDismiss: (() -> Void)? = nil
     var actionTitle: String? = nil
     var onAction: (() -> Void)? = nil
+    var actionStyle: ActionStyle = .chip
+
+    enum ActionStyle { case chip, link }
 
     var body: some View {
         HStack(alignment: subtitle == nil ? .center : .top, spacing: TTAlertMetrics.contentSpacing) {
@@ -126,7 +129,16 @@ struct TTAlertBanner: View {
 
             Spacer(minLength: 8)
 
-            if let actionTitle, let onAction {
+            if let actionTitle, let onAction, actionStyle == .link {
+                Button(action: onAction) {
+                    Text(actionTitle)
+                        .font(TTFont.workSans(14, weight: .bold))
+                        .foregroundStyle(TTColor.actionOrange)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            } else if let actionTitle, let onAction {
                 Button(action: onAction) {
                     Text(actionTitle)
                         .font(TTFont.workSans(12, weight: .bold))

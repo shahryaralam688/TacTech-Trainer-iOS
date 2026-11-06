@@ -832,6 +832,21 @@ struct TTToastMessage: Equatable {
     let text: String
     var style: TTToastStyle = .success
     var subtitle: String? = nil
+    var action: TTToastAction? = nil
+}
+
+/// Optional trailing link on a toast (e.g. "Undo"). Each instance is unique for equality.
+struct TTToastAction: Equatable {
+    let title: String
+    let handler: () -> Void
+    private let id = UUID()
+
+    init(title: String, handler: @escaping () -> Void) {
+        self.title = title
+        self.handler = handler
+    }
+
+    static func == (lhs: TTToastAction, rhs: TTToastAction) -> Bool { lhs.id == rhs.id }
 }
 
 /// Floating bottom toast — Sandow alert chrome; auto-dismisses after `duration`.
@@ -845,17 +860,35 @@ struct TTToastBanner: View {
     var onDismiss: (() -> Void)? = nil
 
     var body: some View {
-        TTAlertBanner(
-            tone: message.style.alertTone,
-            title: message.text,
-            subtitle: message.subtitle,
-            onDismiss: onDismiss
-        )
-        .frame(maxWidth: 360)
-        .padding(.horizontal, TTSpace.screen)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(accessibilitySummary)
-        .accessibilityAddTraits(.isStaticText)
+        if let action = message.action {
+            TTAlertBanner(
+                tone: message.style.alertTone,
+                title: message.text,
+                subtitle: message.subtitle,
+                actionTitle: action.title,
+                onAction: {
+                    action.handler()
+                    onDismiss?()
+                },
+                actionStyle: .link
+            )
+            .frame(maxWidth: 360)
+            .padding(.horizontal, TTSpace.screen)
+            // Reads "<message>, <action> button"; double-tap runs the action.
+            .accessibilityElement(children: .combine)
+        } else {
+            TTAlertBanner(
+                tone: message.style.alertTone,
+                title: message.text,
+                subtitle: message.subtitle,
+                onDismiss: onDismiss
+            )
+            .frame(maxWidth: 360)
+            .padding(.horizontal, TTSpace.screen)
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel(accessibilitySummary)
+            .accessibilityAddTraits(.isStaticText)
+        }
     }
 
     private var accessibilitySummary: String {
@@ -941,7 +974,10 @@ private struct TTToastModifier: ViewModifier {
                 dismissTask?.cancel()
                 guard let newValue else { return }
                 announce(newValue)
-                let hold = max(duration, newValue.style.minimumReadableDuration)
+                // Actionable toasts (e.g. Undo) stay long enough to reach the button.
+                let hold = newValue.action != nil
+                    ? 5.0
+                    : max(duration, newValue.style.minimumReadableDuration)
                 dismissTask = Task { @MainActor in
                     try? await Task.sleep(nanoseconds: UInt64(hold * 1_000_000_000))
                     guard !Task.isCancelled else { return }

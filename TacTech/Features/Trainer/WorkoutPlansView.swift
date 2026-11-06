@@ -12,6 +12,18 @@ struct WorkoutPlansView: View {
     @State private var selectedPlan: WorkoutPlan?
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
+    // Sort / filter / delete
+    @AppStorage("trainer.plans.sort") private var sortRaw = PlanSort.newest.rawValue
+    @State private var levelFilter: String?
+    @State private var isSelecting = false
+    @State private var selection: Set<String> = []
+    @State private var pendingDelete: [WorkoutPlan] = []
+    @State private var showDeleteConfirm = false
+    @State private var isDeleting = false
+    @State private var toast: TTToastMessage?
+
+    private let levels = ["Beginner", "Intermediate", "Advanced"]
+
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "workoutPlans"
@@ -21,7 +33,7 @@ struct WorkoutPlansView: View {
             VStack(spacing: 0) {
                 trainerListHeader(
                     title: "Workout Plans",
-                    subtitle: "\(filtered.count) programs",
+                    subtitle: plans.count == 1 ? "1 plan" : "\(plans.count) plans",
                     trailingIcon: .plus,
                     collapseProgress: scrollCollapse.progress
                 ) {
@@ -41,14 +53,35 @@ struct WorkoutPlansView: View {
                                 showSearch = true
                             }
 
-                            if filtered.isEmpty {
+                            if plans.count > 1 {
+                                listControls
+                            }
+
+                            if isFiltering && !isSelecting {
+                                filterSummary
+                            }
+
+                            if plans.isEmpty {
                                 emptyCard(
                                     icon: .clipboard,
-                                    title: plans.isEmpty ? "No plans yet" : "No matches",
-                                    message: plans.isEmpty
-                                        ? "Tap + to build a detailed weekly plan for your athletes."
-                                        : "Try a different search."
-                                )
+                                    title: "No plans yet",
+                                    message: "Build a weekly plan once, then assign it to any of your trainees.",
+                                    actionTitle: "Create your first plan"
+                                ) { showCreate = true }
+                            } else if filtered.isEmpty {
+                                emptyCard(
+                                    icon: .clipboard,
+                                    title: "No plans match",
+                                    message: "Nothing fits \(activeFilterText). Clear it to see all \(plans.count) plans.",
+                                    actionTitle: "Clear search and filters"
+                                ) { clearFilters() }
+                            } else if isSelecting {
+                                // Plain list while selecting — no stacked scroll effect under checkboxes.
+                                VStack(spacing: TTSpace.md) {
+                                    ForEach(filtered) { plan in
+                                        selectableCard(plan)
+                                    }
+                                }
                             } else {
                                 TTStackedSections(
                                     data: filtered,
@@ -64,6 +97,19 @@ struct WorkoutPlansView: View {
                                         planCard(plan)
                                     }
                                     .buttonStyle(.plain)
+                                    .contextMenu {
+                                        Button {
+                                            isSelecting = true
+                                            selection = [plan.id]
+                                        } label: {
+                                            Label("Select", systemImage: "checkmark.circle")
+                                        }
+                                        Button(role: .destructive) {
+                                            requestDelete([plan])
+                                        } label: {
+                                            Label("Delete plan", systemImage: "trash")
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -74,6 +120,12 @@ struct WorkoutPlansView: View {
                 }
                 .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
                 .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+                .safeAreaInset(edge: .bottom) {
+                    if isSelecting { selectionBar }
+                }
+            }
+            .onChange(of: plans.count) { _, count in
+                if count < 2 && isSelecting { exitSelection() }
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
@@ -90,6 +142,285 @@ struct WorkoutPlansView: View {
                 catalog: searchCatalog,
                 namespace: searchNS,
                 onOutcome: handleSearchOutcome
+            )
+            .confirmationDialog(
+                deleteTitle,
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button(pendingDelete.count == 1 ? "Delete plan" : "Delete \(pendingDelete.count) plans",
+                       role: .destructive) {
+                    Task { await performDelete() }
+                }
+                Button("Cancel", role: .cancel) { pendingDelete = [] }
+            } message: {
+                Text(deleteMessage)
+            }
+            .ttToast($toast)
+        }
+    }
+
+    // MARK: - Sort / filter / select
+
+    enum PlanSort: String, CaseIterable, Identifiable {
+        // Kept to the orders trainers actually reach for; old stored values fall back to .newest.
+        case newest, oldest, name, level, shortest
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .newest: "Newest first"
+            case .oldest: "Oldest first"
+            case .name: "Name (A–Z)"
+            case .level: "Level (Beginner first)"
+            case .shortest: "Shortest session first"
+            }
+        }
+        var short: String {
+            switch self {
+            case .newest: "Newest"
+            case .oldest: "Oldest"
+            case .name: "Name"
+            case .level: "Level"
+            case .shortest: "Shortest"
+            }
+        }
+    }
+
+    private var sort: PlanSort { PlanSort(rawValue: sortRaw) ?? .newest }
+
+    /// Only offer levels that actually exist in the trainer's plans.
+    private var availableLevels: [String] {
+        levels.filter { level in plans.contains { $0.level.caseInsensitiveCompare(level) == .orderedSame } }
+    }
+
+    /// One calm row: Sort · Level on the left, Select on the right. Hidden while selecting.
+    @ViewBuilder private var listControls: some View {
+        if isSelecting {
+            HStack(spacing: 10) {
+                Button("Done") { exitSelection() }
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(minHeight: 44)
+
+                Text(selection.isEmpty ? "Tap plans to select" : "\(selection.count) selected")
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                    .frame(maxWidth: .infinity)
+
+                Button(allFilteredSelected ? "Deselect All" : "Select All") {
+                    selection = allFilteredSelected ? [] : Set(filtered.map(\.id))
+                }
+                .font(TTFont.workSans(15, weight: .semibold))
+                .foregroundStyle(TTColor.actionOrange)
+                .frame(minHeight: 44)
+            }
+        } else {
+            HStack(spacing: 8) {
+                Menu {
+                    Picker("Sort by", selection: $sortRaw) {
+                        ForEach(PlanSort.allCases) { option in
+                            Text(option.title).tag(option.rawValue)
+                        }
+                    }
+                } label: {
+                    controlPill(icon: "arrow.up.arrow.down", text: sort.short, active: false)
+                }
+                .accessibilityLabel("Sort plans, currently \(sort.title)")
+
+                if availableLevels.count > 1 {
+                    Menu {
+                        Picker("Level", selection: $levelFilter) {
+                            Text("All levels").tag(String?.none)
+                            ForEach(availableLevels, id: \.self) { level in
+                                Text(level).tag(String?.some(level))
+                            }
+                        }
+                    } label: {
+                        controlPill(
+                            icon: "line.3.horizontal.decrease",
+                            text: levelFilter ?? "All levels",
+                            active: levelFilter != nil
+                        )
+                    }
+                    .accessibilityLabel("Filter by level, currently \(levelFilter ?? "all levels")")
+                }
+
+                Spacer(minLength: 0)
+
+                Button {
+                    withAnimation(.snappy(duration: 0.2)) { isSelecting = true }
+                } label: {
+                    Text("Select")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(TTColor.actionOrange)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Choose plans to delete")
+            }
+        }
+    }
+
+    /// iOS-style bottom action bar for bulk actions — destructive action lives here, away from Select All.
+    private var selectionBar: some View {
+        Button {
+            requestDelete(filtered.filter { selection.contains($0.id) })
+        } label: {
+            HStack(spacing: 8) {
+                if isDeleting {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "trash")
+                    Text(selection.isEmpty
+                         ? "Delete"
+                         : selection.count == 1 ? "Delete 1 plan" : "Delete \(selection.count) plans")
+                }
+            }
+            .font(TTFont.workSans(16, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52)
+            .background(selection.isEmpty ? Color(white: 0.75) : TTColor.danger)
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(selection.isEmpty || isDeleting)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+    }
+
+    // MARK: - Filter state
+
+    private var isFiltering: Bool { !query.isEmpty || focusFilter != nil || levelFilter != nil }
+
+    private var activeFilterText: String {
+        var parts: [String] = []
+        if !query.isEmpty { parts.append("“\(query)”") }
+        if let focusFilter { parts.append(focusFilter) }
+        if let levelFilter { parts.append(levelFilter) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// Always tells the trainer when part of the list is hidden, with a one-tap way back.
+    private var filterSummary: some View {
+        HStack(spacing: 8) {
+            Text("Showing \(filtered.count) of \(plans.count) · \(activeFilterText)")
+                .font(TTFont.workSans(13, weight: .medium))
+                .foregroundStyle(TTColor.inkMuted)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer(minLength: 8)
+            Button("Clear") { clearFilters() }
+                .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(TTColor.actionOrange)
+                .frame(minHeight: 44)
+        }
+    }
+
+    private func clearFilters() {
+        withAnimation(.snappy(duration: 0.2)) {
+            query = ""
+            focusFilter = nil
+            levelFilter = nil
+        }
+    }
+
+    private func controlPill(icon: String, text: String, active: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+            Text(text)
+                .font(TTFont.workSans(14, weight: .semibold))
+            Image(systemName: "chevron.down")
+                .font(.system(size: 10, weight: .bold))
+        }
+        .foregroundStyle(active ? .white : TTColor.ink)
+        .padding(.horizontal, 14)
+        .frame(height: 40)
+        .background(active ? Color.black : cardFill)
+        .clipShape(Capsule())
+        .contentShape(Capsule())
+    }
+
+    private func selectableCard(_ plan: WorkoutPlan) -> some View {
+        let isOn = selection.contains(plan.id)
+        return Button {
+            if isOn { selection.remove(plan.id) } else { selection.insert(plan.id) }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 24, weight: .regular))
+                    .foregroundStyle(isOn ? TTColor.actionOrange : Color(white: 0.7))
+                    .frame(width: 32)
+                planCard(plan)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous)
+                            .strokeBorder(isOn ? TTColor.actionOrange : .clear, lineWidth: 2)
+                    )
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+        .accessibilityHint("Double-tap to \(isOn ? "deselect" : "select")")
+    }
+
+    private var allFilteredSelected: Bool {
+        !filtered.isEmpty && filtered.allSatisfy { selection.contains($0.id) }
+    }
+
+    private func exitSelection() {
+        withAnimation(.snappy(duration: 0.2)) {
+            isSelecting = false
+            selection = []
+        }
+    }
+
+    // MARK: - Delete
+
+    private func requestDelete(_ targets: [WorkoutPlan]) {
+        guard !targets.isEmpty else { return }
+        pendingDelete = targets
+        showDeleteConfirm = true
+    }
+
+    private var deleteTitle: String {
+        pendingDelete.count == 1 ? "Delete “\(pendingDelete[0].title)”?" : "Delete \(pendingDelete.count) plans?"
+    }
+
+    private var deleteMessage: String {
+        let ids = Set(pendingDelete.map(\.id))
+        let affected = Set(store.assignments.filter { ids.contains($0.planId) }.map(\.traineeId)).count
+        let base = "This can’t be undone."
+        switch affected {
+        case 0: return base
+        case 1: return "1 trainee is using \(pendingDelete.count == 1 ? "this plan" : "these plans") and will lose it. \(base)"
+        default: return "\(affected) trainees are using \(pendingDelete.count == 1 ? "this plan" : "these plans") and will lose it. \(base)"
+        }
+    }
+
+    private func performDelete() async {
+        let targets = pendingDelete
+        pendingDelete = []
+        isDeleting = true
+        defer { isDeleting = false }
+        var failed = 0
+        for plan in targets {
+            do { try await store.deletePlan(id: plan.id) } catch { failed += 1 }
+        }
+        let deleted = targets.count - failed
+        selection.subtract(targets.map(\.id))
+        if failed == 0 {
+            toast = TTToastMessage(text: deleted == 1 ? "Plan deleted" : "\(deleted) plans deleted")
+            exitSelection()
+        } else {
+            toast = TTToastMessage(
+                text: deleted == 0 ? "Couldn’t delete" : "Deleted \(deleted) of \(targets.count)",
+                style: .error,
+                subtitle: "\(failed) plan\(failed == 1 ? "" : "s") couldn’t be deleted. Try again."
             )
         }
     }
@@ -116,11 +447,38 @@ struct WorkoutPlansView: View {
         if let focusFilter {
             result = result.filter { $0.focus.lowercased() == focusFilter.lowercased() }
         }
-        guard !query.isEmpty else { return result }
-        return result.filter {
-            $0.title.localizedCaseInsensitiveContains(query)
-                || $0.focus.localizedCaseInsensitiveContains(query)
-                || $0.level.localizedCaseInsensitiveContains(query)
+        if let levelFilter {
+            result = result.filter { $0.level.caseInsensitiveCompare(levelFilter) == .orderedSame }
+        }
+        if !query.isEmpty {
+            result = result.filter {
+                $0.title.localizedCaseInsensitiveContains(query)
+                    || $0.focus.localizedCaseInsensitiveContains(query)
+                    || $0.level.localizedCaseInsensitiveContains(query)
+            }
+        }
+        return sorted(result)
+    }
+
+    /// WorkoutPlan has no created date — store order is creation order (new plans are appended).
+    private func sorted(_ list: [WorkoutPlan]) -> [WorkoutPlan] {
+        let order = Dictionary(store.plans.enumerated().map { ($1.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let byNewest: (WorkoutPlan, WorkoutPlan) -> Bool = { (order[$0.id] ?? 0) > (order[$1.id] ?? 0) }
+        let rank: (String) -> Int = { ["beginner": 0, "intermediate": 1, "advanced": 2][$0.lowercased()] ?? 3 }
+        switch sort {
+        case .newest:
+            return list.sorted(by: byNewest)
+        case .oldest:
+            return list.sorted { (order[$0.id] ?? 0) < (order[$1.id] ?? 0) }
+        case .name:
+            return list.sorted {
+                let c = $0.title.localizedStandardCompare($1.title)
+                return c == .orderedSame ? byNewest($0, $1) : c == .orderedAscending
+            }
+        case .shortest:
+            return list.sorted { $0.durationMinutes == $1.durationMinutes ? byNewest($0, $1) : $0.durationMinutes < $1.durationMinutes }
+        case .level:
+            return list.sorted { rank($0.level) == rank($1.level) ? byNewest($0, $1) : rank($0.level) < rank($1.level) }
         }
     }
 
@@ -181,22 +539,36 @@ struct WorkoutPlansView: View {
                     .clipShape(Capsule())
             }
 
-            Text(plan.scheduleLine)
-                .font(TTFont.caption(12))
-                .foregroundStyle(TTColor.actionOrange)
-
+            // Shape of the plan in one scannable line (schedule days already say how many per week).
             HStack(spacing: 14) {
-                metaChip(icon: .alarm, text: "\(plan.durationMinutes) min")
                 metaChip(
                     icon: .calendar1,
                     text: plan.scheduledDays.isEmpty
-                        ? "\(plan.daysPerWeek)× / week"
-                        : "\(plan.scheduledDays.count) days"
+                        ? "\(plan.daysPerWeek) days / week"
+                        : plan.scheduledDays.map { $0.weekday.short }.joined(separator: " · ")
                 )
-                metaChip(icon: .kettlebell, text: "\(plan.allExercises.count) moves")
+                metaChip(icon: .alarm, text: "\(plan.durationMinutes) min")
+                metaChip(icon: .kettlebell, text: "\(plan.allExercises.count) exercises")
                 Spacer(minLength: 0)
-                TTIcon(icon: .chevronRight, size: 16)
-                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            .lineLimit(1)
+
+            Divider().opacity(0.6)
+
+            // What a trainer most needs to know at a glance: is this plan in use?
+            HStack(spacing: 6) {
+                let count = assignedCount(plan)
+                Circle()
+                    .fill(count > 0 ? TTColor.success : Color(white: 0.7))
+                    .frame(width: 7, height: 7)
+                Text(count == 0 ? "Not assigned yet" : count == 1 ? "Assigned to 1 trainee" : "Assigned to \(count) trainees")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(count > 0 ? TTColor.ink : TTColor.inkMuted)
+                Spacer(minLength: 0)
+                if !isSelecting {
+                    TTIcon(icon: .chevronRight, size: 16)
+                        .foregroundStyle(TTColor.inkSubtle)
+                }
             }
         }
         .padding(14)
@@ -215,7 +587,17 @@ struct WorkoutPlansView: View {
         .foregroundStyle(TTColor.inkMuted)
     }
 
-    private func emptyCard(icon: SandowIcon, title: String, message: String) -> some View {
+    private func assignedCount(_ plan: WorkoutPlan) -> Int {
+        Set(store.assignments.filter { $0.planId == plan.id }.map(\.traineeId)).count
+    }
+
+    private func emptyCard(
+        icon: SandowIcon,
+        title: String,
+        message: String,
+        actionTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
         VStack(spacing: 12) {
             TTIcon(icon: icon, filled: true, size: 28)
                 .foregroundStyle(TTColor.actionOrange)
@@ -225,6 +607,17 @@ struct WorkoutPlansView: View {
                 .font(TTFont.body(14))
                 .foregroundStyle(TTColor.inkMuted)
                 .multilineTextAlignment(.center)
+            Button(action: action) {
+                Text(actionTitle)
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(height: 46)
+                    .background(Color.black)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity)
         .padding(28)
@@ -890,6 +1283,14 @@ struct PlanQuickAssignSheet: View {
     @State private var assignSucceeded = false
     @State private var celebrateAssign = false
     @State private var feedbackToast: TTToastMessage?
+    @State private var showCreatePlan = false
+    @State private var newPlanId: String?
+    @State private var planSearch = ""
+    @FocusState private var searchFocused: Bool
+
+    var preselectedPlanId: String? = nil
+    var preselectedTraineeId: String? = nil
+    var onAssigned: (() -> Void)? = nil
 
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
 
@@ -897,24 +1298,395 @@ struct PlanQuickAssignSheet: View {
         store.plans.filter { $0.trainerId == store.currentTrainer?.id }
     }
 
+    /// Opened from the saved screen → trainees without a plan first; otherwise roster order.
     private var trainees: [TraineeProfile] {
         guard let trainer = store.currentTrainer else { return [] }
-        return store.trainees(for: trainer)
+        let all = store.trainees(for: trainer)
+        guard preselectedPlanId != nil else { return all }
+        return all.filter { store.assignedPlan(for: $0) == nil } + all.filter { store.assignedPlan(for: $0) != nil }
     }
 
     var body: some View {
+        Group {
+            if preselectedTraineeId != nil {
+                traineeModeBody
+            } else {
+                defaultBody
+            }
+        }
+        // Wizard stacks on top of this sheet; Cancel/Discard returns here unchanged.
+        .sheet(isPresented: $showCreatePlan) {
+            CreatePlanView(onCreate: { plan in
+                newPlanId = plan.id
+                planId = plan.id
+                planSearch = ""
+            }, returnAfterCreate: true, initialTitle: trimmedSearch.isEmpty ? nil : trimmedSearch)
+            .ttModalSheetPresentation()
+        }
+    }
+
+    // MARK: Shared: create-a-plan row + plan meta
+
+    private var createPlanRow: some View {
+        Button {
+            showCreatePlan = true
+        } label: {
+            HStack(spacing: 12) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(TTColor.actionOrange.opacity(0.12))
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(TTColor.actionOrange)
+                }
+                .frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(isSearching ? "Create “\(trimmedSearch)”" : "Create a new plan")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                        .lineLimit(1)
+                    Text("You’ll come back here with it selected")
+                        .font(TTFont.textSM(.medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+                Spacer(minLength: 0)
+                TTIcon(icon: .chevronRight, size: 14)
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(Color(white: 0.75), style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// "<focus> · <level> · <n> days/week · <m> min" from non-empty parts only.
+    private func planMeta(_ plan: WorkoutPlan) -> String {
+        let days = plan.daysPerWeek > 0 ? "\(plan.daysPerWeek) \(plan.daysPerWeek == 1 ? "day" : "days")/week" : ""
+        let minutes = plan.durationMinutes > 0 ? "\(plan.durationMinutes) min" : ""
+        return [plan.level, days, minutes]
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    /// New plan first, then the current plan, then the rest in store order; searchable when long.
+    private var orderedPlans: [WorkoutPlan] {
+        let pinned = [newPlanId, currentPlan?.id].compactMap { $0 }
+        var list = pinned.compactMap { id in plans.first { $0.id == id } }
+        list += plans.filter { !pinned.contains($0.id) }
+        var seen = Set<String>()
+        list = list.filter { seen.insert($0.id).inserted }
+        guard isSearching else { return list }
+        // Filtering only hides cards; the selected planId is never cleared here.
+        return list.filter {
+            $0.title.localizedCaseInsensitiveContains(trimmedSearch)
+                || $0.focus.localizedCaseInsensitiveContains(trimmedSearch)
+        }
+    }
+
+    private var trimmedSearch: String { planSearch.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    /// Search only exists (and only applies) when the list is long enough to need it.
+    private var isSearching: Bool { plans.count > 6 && !trimmedSearch.isEmpty }
+
+    // MARK: Trainee mode (opened for one trainee)
+
+    private var fixedTrainee: TraineeProfile? {
+        guard let preselectedTraineeId, let trainer = store.currentTrainer else { return nil }
+        return store.trainees(for: trainer).first { $0.id == preselectedTraineeId }
+    }
+
+    private var fixedTraineeName: String {
+        fixedTrainee.flatMap { store.user(forTrainee: $0)?.name } ?? "Trainee"
+    }
+
+    private var firstName: String {
+        fixedTraineeName.split(separator: " ").first.map(String.init) ?? fixedTraineeName
+    }
+
+    private var currentPlan: WorkoutPlan? {
+        fixedTrainee.flatMap { store.assignedPlan(for: $0) }
+    }
+
+    private var traineeModeHint: String {
+        if planId.isEmpty { return "Choose a plan to continue" }
+        if let currentPlan, currentPlan.id == planId { return "This is already their plan" }
+        let picked = plans.first { $0.id == planId }?.title ?? "Plan"
+        if let currentPlan { return "“\(picked)” replaces “\(currentPlan.title)”" }
+        return "“\(picked)” · \(firstName) sees it in their Workout tab"
+    }
+
+    private var traineeModeBody: some View {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(
+                title: currentPlan == nil ? "Assign plan" : "Change plan",
+                background: .white,
+                showsBack: false
+            ) {
+                Button("Cancel") { dismiss() }
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(minHeight: 44)
+            }
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 12) {
+                        Text("FOR")
+                            .font(TTFont.workSans(12, weight: .bold))
+                            .foregroundStyle(TTColor.inkMuted)
+                        TTAvatar(name: fixedTraineeName, size: 32)
+                        Text(fixedTraineeName)
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(14)
+                    .background(cardFill)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .accessibilityElement(children: .combine)
+
+                    HStack {
+                        Text("CHOOSE A PLAN")
+                            .font(TTFont.workSans(12, weight: .semibold))
+                            .tracking(1.2)
+                            .foregroundStyle(TTColor.inkMuted)
+                        Spacer(minLength: 8)
+                        Text(isSearching ? "\(orderedPlans.count) of \(plans.count)" : "\(plans.count) \(plans.count == 1 ? "plan" : "plans")")
+                            .font(TTFont.workSans(12, weight: .medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+
+                    if plans.count > 6 {
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(TTColor.inkMuted)
+                            TextField("Search name or focus", text: $planSearch)
+                                .font(TTFont.workSans(15, weight: .medium))
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .submitLabel(.search)
+                                .focused($searchFocused)
+                                .onSubmit { searchFocused = false }
+                            if !planSearch.isEmpty {
+                                Button {
+                                    planSearch = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .foregroundStyle(Color(white: 0.7))
+                                        .frame(width: 44, height: 44)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityLabel("Clear search")
+                            }
+                        }
+                        .padding(.leading, 14)
+                        .padding(.trailing, planSearch.isEmpty ? 14 : 0)
+                        .frame(height: 44)
+                        .background(cardFill)
+                        .clipShape(Capsule())
+                    }
+
+                    VStack(spacing: 10) {
+                        createPlanRow
+                        if plans.isEmpty {
+                            Text("No plans yet")
+                                .font(TTFont.workSans(14, weight: .medium))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        if isSearching && orderedPlans.isEmpty {
+                            Text("No plans match “\(trimmedSearch)”. Create it above, or clear the search.")
+                                .font(TTFont.workSans(14, weight: .medium))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(18)
+                                .background(cardFill)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        ForEach(orderedPlans) { plan in
+                            planRadioCard(plan)
+                        }
+                    }
+                }
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, 16)
+            }
+            .scrollDismissesKeyboard(.immediately)
+
+            VStack(spacing: 10) {
+                Text(traineeModeHint)
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity)
+
+                // Same primary button as CreatePlanView's Continue: black, label left, arrow right.
+                let canAssign = !planId.isEmpty && planId != currentPlan?.id
+                Button {
+                    Task { await assignForTrainee() }
+                } label: {
+                    HStack(spacing: 8) {
+                        if isAssigning {
+                            ProgressView().tint(.white)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            Text("Assign to \(firstName)")
+                                .font(TTFont.workSans(16, weight: .bold))
+                            Spacer(minLength: 8)
+                            TTIcon(icon: .chevronRight, size: 14)
+                        }
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(canAssign ? Color.black : Color(white: 0.72))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+                .buttonStyle(TTSearchPressStyle(scale: 0.98))
+                .disabled(!canAssign || isAssigning)
+            }
+            .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+            .padding(.top, 10)
+            .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
+        }
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+        .ttToast($feedbackToast)
+        .onAppear {
+            traineeId = preselectedTraineeId ?? ""
+            // Only the trainee's current plan is preselected; otherwise nothing is.
+            if planId.isEmpty, newPlanId == nil { planId = currentPlan?.id ?? "" }
+        }
+    }
+
+    private func planRadioCard(_ plan: WorkoutPlan) -> some View {
+        let isOn = planId == plan.id
+        let isCurrent = plan.id == currentPlan?.id
+        let isNew = plan.id == newPlanId
+        return Button {
+            planId = plan.id
+            searchFocused = false
+        } label: {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: isOn ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 20))
+                    .foregroundStyle(isOn ? TTColor.actionOrange : Color(white: 0.7))
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(plan.title)
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                        if isNew {
+                            Text("New")
+                                .font(TTFont.caption(11))
+                                .fontWeight(.bold)
+                                .foregroundStyle(TTColor.actionOrange)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(TTColor.actionOrange.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                        if isCurrent {
+                            Text("Current")
+                                .font(TTFont.caption(11))
+                                .fontWeight(.bold)
+                                .foregroundStyle(TTColor.success)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(TTColor.success.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                    }
+                    let focus = plan.focus.trimmingCharacters(in: .whitespaces)
+                    if !focus.isEmpty {
+                        Text(focus)
+                            .font(TTFont.textSM(.medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    let meta = planMeta(plan)
+                    if !meta.isEmpty {
+                        Text(meta)
+                            .font(TTFont.textSM(.medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(isOn ? TTColor.actionOrange : Color(white: 0.88), lineWidth: isOn ? 2 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
+    }
+
+    /// Trainee mode: close immediately; the opener shows the toast (with Undo).
+    private func assignForTrainee() async {
+        guard let preselectedTraineeId else { return }
+        isAssigning = true
+        defer { isAssigning = false }
+        do {
+            try await store.assign(planId: planId, to: preselectedTraineeId)
+            onAssigned?()
+            dismiss()
+        } catch {
+            feedbackToast = TTToastMessage(
+                text: "Couldn’t assign plan",
+                style: .error,
+                subtitle: error.localizedDescription
+            )
+        }
+    }
+
+    // MARK: Default mode
+
+    private var defaultBody: some View {
         VStack(spacing: 0) {
             TTModalSheetHeader(title: "Assign to trainee", background: .white)
 
             VStack(alignment: .leading, spacing: 16) {
-                section("Plan") {
-                    Picker("Plan", selection: $planId) {
-                        Text("Select plan").tag("")
-                        ForEach(plans) { plan in
-                            Text(plan.title).tag(plan.id)
+                createPlanRow
+
+                if plans.isEmpty {
+                    Text("No plans yet")
+                        .font(TTFont.workSans(14, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    section("Plan") {
+                        Picker("Plan", selection: $planId) {
+                            Text("Select plan").tag("")
+                            ForEach(orderedPlans) { plan in
+                                Text(plan.id == newPlanId ? "\(plan.title) · New" : plan.title).tag(plan.id)
+                            }
                         }
+                        .pickerStyle(.menu)
                     }
-                    .pickerStyle(.menu)
                 }
 
                 section("Trainee") {
@@ -946,8 +1718,13 @@ struct PlanQuickAssignSheet: View {
         .ttHideSystemNavigationBar()
         .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
         .onAppear {
-            if planId.isEmpty { planId = plans.first?.id ?? "" }
-            if traineeId.isEmpty { traineeId = trainees.first?.id ?? "" }
+            if let preselectedPlanId {
+                // Opened for a specific plan: select it, let the coach pick the trainee.
+                planId = preselectedPlanId
+            } else {
+                if planId.isEmpty { planId = plans.first?.id ?? "" }
+                if traineeId.isEmpty { traineeId = trainees.first?.id ?? "" }
+            }
         }
     }
 
@@ -970,6 +1747,7 @@ struct PlanQuickAssignSheet: View {
             }
             try? await Task.sleep(for: .milliseconds(1100))
             dismiss()
+            onAssigned?()
         } catch {
             feedbackToast = TTToastMessage(
                 text: "Couldn’t assign plan",

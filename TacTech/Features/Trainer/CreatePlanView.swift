@@ -47,6 +47,10 @@ struct CreatePlanView: View {
     /// Called with the newly created plan after a successful create (not on edit).
     /// Lets a presenter (e.g. the trainee assign flow) pick up and select the new plan.
     var onCreate: ((WorkoutPlan) -> Void)? = nil
+    /// When true, a successful create hands the plan to `onCreate` and closes — no saved screen.
+    var returnAfterCreate: Bool = false
+    /// Prefills step 1's name (e.g. from the assign sheet's search text). Ignored when editing.
+    var initialTitle: String? = nil
 
     @State private var step: CreatePlanStep = .basics
     @State private var title = ""
@@ -61,6 +65,12 @@ struct CreatePlanView: View {
     @State private var showLeaveConfirm = false
     @State private var showSessionTips = false
     @State private var didHydrate = false
+    @State private var showNotes = false
+    @State private var hasChanges = false
+    @State private var savedPlan: WorkoutPlan? = nil
+    @State private var savedPlanResolved = false   // false → only the draft fallback was found
+    @State private var showAssign = false
+    @Environment(\.selectTrainerTab) private var selectTrainerTab
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -81,37 +91,75 @@ struct CreatePlanView: View {
         reduceMotion ? .easeInOut(duration: 0.2) : .spring(response: 0.38, dampingFraction: 0.88)
     }
 
-    private var hasDraftProgress: Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || !selectedDays.isEmpty
-            || sessions.values.contains { !$0.exercises.isEmpty }
-    }
-
     private var canAdvance: Bool {
         switch step {
         case .basics:
             !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                && !focus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .days:
-            !selectedDays.isEmpty
+            !selectedDays.isEmpty && allDaysHaveTitleAndFocus
         case .sessions:
             canSave
         }
     }
 
+    private var allDaysHaveTitleAndFocus: Bool {
+        selectedDays.allSatisfy { day in
+            guard let session = sessions[day] else { return false }
+            return !session.title.trimmingCharacters(in: .whitespaces).isEmpty
+                && !session.focus.trimmingCharacters(in: .whitespaces).isEmpty
+        }
+    }
+
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
-            && selectedDays.contains { !(sessions[$0]?.exercises.isEmpty ?? true) }
+            && selectedDays.allSatisfy { !(sessions[$0]?.exercises.isEmpty ?? true) }
+    }
+
+    private var emptyDaysHint: String? {
+        let empty = selectedDays.filter { sessions[$0]?.exercises.isEmpty ?? true }
+        if empty.isEmpty { return nil }
+        let names = empty.map { $0.short }.joined(separator: ", ")
+        return "\(names) has no exercises. Days without exercises aren't saved. Add one or remove the day in step 2."
     }
 
     var body: some View {
+        if let savedPlan {
+            PlanSavedContent(
+                plan: savedPlan,
+                unassignedCount: unassignedTraineeCount,
+                onDone: { dismiss() },
+                onAssign: { showAssign = true },
+                onViewInPlans: {
+                    dismiss()
+                    selectTrainerTab(.plans)
+                }
+            )
+            .sheet(isPresented: $showAssign) {
+                PlanQuickAssignSheet(
+                    preselectedPlanId: savedPlanResolved ? savedPlan.id : nil,
+                    onAssigned: { dismiss() }
+                )
+                .ttModalSheetPresentation()
+            }
+        } else {
+            wizardBody
+        }
+    }
+
+    /// Roster members with no assigned plan (existing roster + assigned-plan lookups).
+    private var unassignedTraineeCount: Int {
+        guard let trainer = store.currentTrainer else { return 0 }
+        return store.trainees(for: trainer).filter { store.assignedPlan(for: $0) == nil }.count
+    }
+
+    private var wizardBody: some View {
         VStack(spacing: 0) {
             wizardHeader
             progressTrack
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: TTModalSheetChrome.contentSpacing) {
-                    stepGuidance
-
                     Group {
                         switch step {
                         case .basics: basicsStep
@@ -152,40 +200,68 @@ struct CreatePlanView: View {
             }
             .ttModalSheetPresentation()
         }
+        .interactiveDismissDisabled(hasChanges)
         .confirmationDialog(
-            "Continue later?",
+            isEditing ? "Discard changes?" : "Discard this plan?",
             isPresented: $showLeaveConfirm,
             titleVisibility: .visible
         ) {
-            Button("Continue later", role: .destructive) { dismiss() }
+            Button(isEditing ? "Discard changes" : "Discard plan", role: .destructive) { dismiss() }
             Button("Keep editing", role: .cancel) {}
         } message: {
             Text(
                 isEditing
-                    ? "Unsaved edits will be discarded."
-                    : "This plan isn’t saved yet. You can start again anytime from Plans."
+                    ? "Your edits to this plan won't be saved."
+                    : "Nothing has been saved yet."
             )
         }
-        .onAppear { hydrateFromEditingPlanIfNeeded() }
+        .onAppear {
+            hydrateFromEditingPlanIfNeeded()
+            if editingPlan == nil, title.isEmpty, let initialTitle, !initialTitle.isEmpty {
+                title = initialTitle
+                DispatchQueue.main.async { hasChanges = false }
+            }
+        }
     }
 
     // MARK: - Chrome
 
     private var wizardHeader: some View {
-        TTModalSheetHeader(
-            title: isEditing ? "Edit Plan" : "New Plan",
-            subtitle: "Step \(step.number) of \(CreatePlanStep.basics.total)",
-            background: .white,
-            onBack: { goBack() }
-        ) {
-            Text("\(step.number)/\(CreatePlanStep.basics.total)")
-                .font(TTFont.workSans(13, weight: .bold))
-                .foregroundStyle(TTColor.inkMuted)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .background(Color(white: 0.94))
-                .clipShape(Capsule())
+        HStack(alignment: .center, spacing: TTModalSheetChrome.headerSpacing) {
+            if step != .basics {
+                TTBackButton(
+                    style: .onLight,
+                    size: TTModalSheetChrome.controlSize
+                ) {
+                    goBack()
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(isEditing ? "Edit Plan" : "New Plan")
+                    .font(TTFont.workSans(20, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                Text("Step \(step.number) of \(CreatePlanStep.basics.total) · \(step.title)")
+                    .font(TTFont.caption(13))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .lineLimit(1)
+            }
+
+            Spacer()
+
+            Button("Cancel") {
+                requestLeave()
+            }
+            .font(TTFont.workSans(15, weight: .semibold))
+            .foregroundStyle(TTColor.ink)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+        .padding(.vertical, TTModalSheetChrome.headerVerticalPadding)
+        .frame(maxWidth: .infinity)
+        .background(Color.white)
     }
 
     private var progressTrack: some View {
@@ -228,6 +304,13 @@ struct CreatePlanView: View {
 
     private var wizardFooter: some View {
         VStack(spacing: 10) {
+            if step == .basics {
+                Text(basicsHint)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
             Button {
                 Task { await advance() }
             } label: {
@@ -253,19 +336,6 @@ struct CreatePlanView: View {
             .buttonStyle(TTSearchPressStyle(scale: 0.98))
             .disabled(!canAdvance || isSaving)
             .accessibilityLabel(step.primaryTitle)
-
-            Button {
-                requestLeave()
-            } label: {
-                Text("Continue later")
-                    .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(TTColor.inkMuted)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-            }
-            .buttonStyle(.plain)
-            .disabled(isSaving)
-            .accessibilityLabel("Continue later")
         }
         .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
         .padding(.top, 10)
@@ -277,14 +347,35 @@ struct CreatePlanView: View {
         )
     }
 
+    private var basicsHint: String {
+        let titleEmpty = title.trimmingCharacters(in: .whitespaces).isEmpty
+        let focusEmpty = focus.trimmingCharacters(in: .whitespaces).isEmpty
+
+        if titleEmpty && focusEmpty {
+            return "Add a plan name and a focus"
+        } else if titleEmpty {
+            return "Add a plan name to continue"
+        } else if focusEmpty {
+            return "Add a focus to continue"
+        } else {
+            return "Next: Training days"
+        }
+    }
+
     // MARK: - Steps
 
     private var basicsStep: some View {
         VStack(alignment: .leading, spacing: 16) {
             sectionLabel("Program", icon: .clipboard)
 
-            sandowField("Plan title", text: $title, prompt: "e.g. 4-day strength block")
-            sandowField("Focus (optional)", text: $focus, prompt: "Hypertrophy · posterior chain")
+            labeledField("Plan title", "Required", text: $title, prompt: "e.g. 4-day strength block")
+                .onChange(of: title) { _, _ in
+                    if !isEditing { hasChanges = true }
+                }
+            labeledField("Focus", "Required", text: $focus, prompt: "e.g. Hypertrophy")
+                .onChange(of: focus) { _, _ in
+                    if !isEditing { hasChanges = true }
+                }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("LEVEL")
@@ -307,22 +398,76 @@ struct CreatePlanView: View {
                         .buttonStyle(.plain)
                     }
                 }
+                .onChange(of: level) { _, _ in
+                    if !isEditing { hasChanges = true }
+                }
             }
 
-            sandowField(
-                "Coach notes (optional)",
-                text: $notes,
-                prompt: "How this week should feel, deload rules…",
-                axis: .vertical
-            )
+            if showNotes || !notes.isEmpty {
+                sandowField(
+                    "Coach notes (optional)",
+                    text: $notes,
+                    prompt: "How this week should feel, deload rules…",
+                    axis: .vertical
+                )
+                .onChange(of: notes) { _, _ in
+                    if !isEditing { hasChanges = true }
+                }
+            } else {
+                Button {
+                    withAnimation(stepMotion) { showNotes = true }
+                } label: {
+                    Text("Add coach notes (optional)")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                }
+                .buttonStyle(.plain)
+            }
 
-            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                tipRow("Add a plan title to continue.")
+            if let duplicateWarning = duplicateNameWarning {
+                Text(duplicateWarning)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(orange)
+                    .padding(.top, 4)
             }
         }
         .padding(18)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private func labeledField(_ title: String, _ required: String, text: Binding<String>, prompt: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title)
+                    .font(TTFont.caption(11))
+                    .foregroundStyle(TTColor.inkMuted)
+                Spacer()
+                Text(required)
+                    .font(TTFont.caption(10))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            TTSandowLabeledField(title: "", prompt: prompt, axis: .horizontal, idleFill: .white, text: text)
+        }
+    }
+
+    private var duplicateNameWarning: String? {
+        let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
+        guard !trimmedTitle.isEmpty else { return nil }
+
+        let existingPlans = store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+        let plansToCheck = isEditing
+            ? existingPlans.filter { $0.id != editingPlan?.id }
+            : existingPlans
+
+        let hasDuplicate = plansToCheck.contains { $0.title.trimmingCharacters(in: .whitespaces).localizedCaseInsensitiveContains(trimmedTitle) }
+
+        if hasDuplicate {
+            return "You already have a plan with this name. A different name makes them easier to tell apart."
+        }
+        return nil
     }
 
     private var daysStep: some View {
@@ -358,6 +503,11 @@ struct CreatePlanView: View {
                     .font(TTFont.caption(12))
                     .foregroundStyle(orange)
                     .fontWeight(.semibold)
+
+                if !daysMissingTitleOrFocus.isEmpty {
+                    let missing = daysMissingTitleOrFocus.map { $0.short }.joined(separator: ", ")
+                    tipRow("Add a title and target muscles for \(missing).")
+                }
             }
         }
         .padding(18)
@@ -389,16 +539,18 @@ struct CreatePlanView: View {
             } else {
                 ForEach(selectedDays, id: \.self) { day in
                     if let binding = binding(for: day) {
-                        SessionEditor(day: day, draft: binding) {
-                            pickerDay = day
-                        }
+                        SessionEditor(day: day, draft: binding, addExercise: { pickerDay = day }, isEditing: isEditing, onChange: { hasChanges = true })
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
                     }
                 }
             }
 
             if !canSave, !selectedDays.isEmpty {
-                tipRow("Add at least one exercise to any day before saving.")
+                if let hint = emptyDaysHint {
+                    tipRow(hint)
+                } else {
+                    tipRow("Add at least one exercise to any day before saving.")
+                }
             }
         }
     }
@@ -465,7 +617,7 @@ struct CreatePlanView: View {
     }
 
     private func requestLeave() {
-        if hasDraftProgress {
+        if hasChanges {
             showLeaveConfirm = true
         } else {
             dismiss()
@@ -481,7 +633,31 @@ struct CreatePlanView: View {
         } else {
             selectedDays.append(day)
             selectedDays.sort { $0.sortIndex < $1.sortIndex }
-            sessions[day] = SessionDraft(day: day, focus: focus)
+            let sessionTitle = sessionTitleForDay(day)
+            let session = SessionDraft(day: day, focus: focus)
+            sessions[day] = session
+            if session.title.isEmpty {
+                sessions[day]?.title = sessionTitle
+            }
+            if session.focus.isEmpty {
+                sessions[day]?.focus = focus
+            }
+        }
+        if !isEditing { hasChanges = true }
+    }
+
+    private func sessionTitleForDay(_ day: Weekday) -> String {
+        let sortedDays = selectedDays.sorted { $0.sortIndex < $1.sortIndex }
+        guard let index = sortedDays.firstIndex(of: day) else { return "" }
+        let letters = ["A", "B", "C", "D", "E", "F", "G"]
+        return "Session \(letters[index % letters.count])"
+    }
+
+    private var daysMissingTitleOrFocus: [Weekday] {
+        selectedDays.filter { day in
+            guard let session = sessions[day] else { return true }
+            return session.title.trimmingCharacters(in: .whitespaces).isEmpty
+                || session.focus.trimmingCharacters(in: .whitespaces).isEmpty
         }
     }
 
@@ -495,6 +671,7 @@ struct CreatePlanView: View {
 
     private func add(_ draft: ExerciseDraft, to day: Weekday) {
         sessions[day, default: SessionDraft(day: day, focus: focus)].exercises.append(draft)
+        if !isEditing { hasChanges = true }
     }
 
     private func save() async {
@@ -544,11 +721,22 @@ struct CreatePlanView: View {
         do {
             if isEditing {
                 try await store.updatePlan(draft)
+                dismiss()
             } else {
                 try await store.createPlan(draft)
-                onCreate?(draft)
+                // createPlan returns Void → read the stored copy (server id may differ from the draft's).
+                let resolved = store.plans.first { $0.id == draft.id }
+                    ?? store.plans.last { $0.title == draft.title && $0.trainerId == draft.trainerId }
+                let created = resolved ?? draft
+                onCreate?(created)
+                hasChanges = false
+                if returnAfterCreate {
+                    dismiss()
+                    return
+                }
+                savedPlanResolved = resolved != nil
+                withAnimation(stepMotion) { savedPlan = created }
             }
-            dismiss()
         } catch {
             self.error = error.localizedDescription
         }
@@ -565,7 +753,15 @@ struct CreatePlanView: View {
         let uniqueDays = plan.scheduledDays.reduce(into: [Weekday: PlanDay]()) { $0[$1.weekday] = $1 }
         selectedDays = Array(uniqueDays.keys)
         sessions = uniqueDays.mapValues { SessionDraft(from: $0) }
+        hasChanges = false
+        // onChange handlers fire after this pass — reset again once they've run.
+        DispatchQueue.main.async { hasChanges = false }
     }
+}
+
+/// Keeps a loaded value visible unchanged when it isn't in the preset list.
+private func pickerOptions(_ base: [Int], including value: Int) -> [Int] {
+    base.contains(value) ? base : (base + [value]).sorted()
 }
 
 // MARK: - Drafts
@@ -657,9 +853,9 @@ struct ExerciseDraft: Identifiable {
         }
 
         exerciseId = exercise.exerciseId
-        sets = max(1, builtRows.count)
-        reps = workingReps
-        rest = max(0, exercise.restSeconds)
+        sets = builtRows.count <= 0 ? 4 : builtRows.count
+        reps = workingReps <= 0 ? 8 : workingReps
+        rest = exercise.restSeconds <= 0 ? 90 : exercise.restSeconds
         weight = workingWeight
         tempo = exercise.tempo ?? "3-1-1-0"
         rpe = exercise.rpe ?? 7.5
@@ -720,6 +916,8 @@ struct SessionEditor: View {
     let day: Weekday
     @Binding var draft: SessionDraft
     var addExercise: () -> Void
+    var isEditing: Bool = false
+    var onChange: () -> Void = {}
 
     @Environment(AppStore.self) private var store
     @State private var isExpanded = false
@@ -788,9 +986,17 @@ struct SessionEditor: View {
                 .frame(width: 42, height: 42)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(day.title)
-                        .font(TTFont.workSans(17, weight: .bold))
-                        .foregroundStyle(TTColor.ink)
+                    HStack(spacing: 6) {
+                        Text(day.title)
+                            .font(TTFont.workSans(17, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                        if draft.exercises.isEmpty {
+                            Image(systemName: "exclamationmark.circle.fill")
+                                .foregroundStyle(orange)
+                                .font(.system(size: 16))
+                                .accessibilityLabel("\(day.title), no exercises yet")
+                        }
+                    }
                     Text(sessionSubtitle)
                         .font(TTFont.caption(12))
                         .foregroundStyle(TTColor.inkMuted)
@@ -869,12 +1075,21 @@ struct SessionEditor: View {
     private var sessionFields: some View {
         VStack(alignment: .leading, spacing: 14) {
             TTSandowLabeledField(title: "Session name", prompt: "Lower strength", idleFill: .white, text: $draft.title)
+                .onChange(of: draft.title) { _, _ in
+                    if !isEditing { onChange() }
+                }
             TTSandowLabeledField(title: "Focus", prompt: "Squat pattern + hamstrings", idleFill: .white, text: $draft.focus)
+                .onChange(of: draft.focus) { _, _ in
+                    if !isEditing { onChange() }
+                }
 
             HStack(spacing: 12) {
                 labeled("When") {
                     DatePicker("", selection: $draft.time, displayedComponents: .hourAndMinute)
                         .labelsHidden()
+                }
+                .onChange(of: draft.time) { _, _ in
+                    if !isEditing { onChange() }
                 }
                 TTDropPicker(
                     title: "Minutes",
@@ -882,6 +1097,9 @@ struct SessionEditor: View {
                     options: Array(stride(from: 20, through: 120, by: 5)),
                     format: { "\($0) min" }
                 )
+                .onChange(of: draft.duration) { _, _ in
+                    if !isEditing { onChange() }
+                }
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -893,6 +1111,7 @@ struct SessionEditor: View {
                         let on = draft.location == place
                         Button {
                             draft.location = place
+                            if !isEditing { onChange() }
                         } label: {
                             Text(place)
                                 .font(TTFont.workSans(12, weight: .semibold))
@@ -931,6 +1150,9 @@ struct SessionEditor: View {
                         idleFill: .white,
                         text: $draft.warmup
                     )
+                    .onChange(of: draft.warmup) { _, _ in
+                        if !isEditing { onChange() }
+                    }
                     TTSandowLabeledField(
                         title: "How to finish (cool-down)",
                         prompt: "Cool-down",
@@ -938,6 +1160,9 @@ struct SessionEditor: View {
                         idleFill: .white,
                         text: $draft.cooldown
                     )
+                    .onChange(of: draft.cooldown) { _, _ in
+                        if !isEditing { onChange() }
+                    }
                     TTSandowLabeledField(
                         title: "How they should do this day",
                         prompt: "Pace, rest rules, form priority…",
@@ -945,6 +1170,9 @@ struct SessionEditor: View {
                         idleFill: .white,
                         text: $draft.coachNotes
                     )
+                    .onChange(of: draft.coachNotes) { _, _ in
+                        if !isEditing { onChange() }
+                    }
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -953,8 +1181,12 @@ struct SessionEditor: View {
 
     private var exercisesBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Exercises")
-                .font(TTFont.workSans(16, weight: .bold))
+            HStack {
+                Text("Exercises")
+                    .font(TTFont.workSans(16, weight: .bold))
+                Spacer()
+                volumeLabel
+            }
 
             if draft.exercises.isEmpty {
                 Text("Tap Add to pick an exercise and template.")
@@ -966,7 +1198,7 @@ struct SessionEditor: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             } else {
                 ForEach($draft.exercises) { $item in
-                    ExerciseDraftEditor(draft: $item)
+                    ExerciseDraftEditor(draft: $item, isEditing: isEditing, onChange: onChange)
                         .transition(.asymmetric(
                             insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .move(edge: .bottom)),
                             removal: .opacity.combined(with: .scale(scale: 0.96))
@@ -974,6 +1206,26 @@ struct SessionEditor: View {
                 }
             }
         }
+    }
+
+    private var volumeLabel: some View {
+        let count = draft.exercises.count
+        let (text, color): (String, Color) = {
+            switch count {
+            case 0...3: ("Aim for 4–6 exercises", TTColor.inkMuted)
+            case 4...6: ("Good volume", TTColor.success)
+            case 7: ("Upper limit", orange)
+            default: ("Too many — trainees tire out", orange)
+            }
+        }()
+        return Text(text)
+            .font(TTFont.caption(11))
+            .fontWeight(.semibold)
+            .foregroundStyle(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12))
+            .clipShape(Capsule())
     }
 
     private func labeled<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -996,11 +1248,23 @@ struct ExerciseDraftEditor: View {
     @Environment(AppStore.self) private var store
     @Binding var draft: ExerciseDraft
     @FocusState private var howToFocused: Bool
+    @State private var showMoreOptions = false
+    var isEditing: Bool = false
+    var onChange: () -> Void = {}
 
     private let orange = TTColor.actionOrange
 
     private var morph: Animation {
         .spring(response: 0.32, dampingFraction: 0.88)
+    }
+
+    private var hasNonDefaults: Bool {
+        draft.weight != 40.0 ||
+        draft.tempo != "3-1-1-0" ||
+        draft.rpe != 7.5 ||
+        !draft.howTo.isEmpty ||
+        draft.setRows.count != 4 ||
+        draft.setRows.contains(where: { $0.reps != 8 || $0.weight != 40.0 })
     }
 
     private var exerciseTitle: String {
@@ -1038,10 +1302,17 @@ struct ExerciseDraftEditor: View {
                             .foregroundStyle(orange.opacity(0.95))
                             .lineLimit(1)
                         if !draft.isExpanded {
-                            Text(draft.prescriptionSummary)
-                                .font(TTFont.caption(11))
-                                .foregroundStyle(TTColor.inkMuted)
-                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                Text("Rest \(draft.rest)s")
+                                    .font(TTFont.caption(11))
+                                    .foregroundStyle(TTColor.inkMuted)
+                                Text("·")
+                                    .foregroundStyle(TTColor.inkSubtle)
+                                Text(draft.prescriptionSummary)
+                                    .font(TTFont.caption(11))
+                                    .foregroundStyle(TTColor.inkMuted)
+                                    .lineLimit(1)
+                            }
                         }
                     }
 
@@ -1060,6 +1331,16 @@ struct ExerciseDraftEditor: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onAppear {
+                if hasNonDefaults {
+                    showMoreOptions = true
+                }
+            }
+            .onChange(of: hasNonDefaults) { _, newValue in
+                if newValue && !showMoreOptions {
+                    showMoreOptions = true
+                }
+            }
 
             if draft.isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
@@ -1078,85 +1359,128 @@ struct ExerciseDraftEditor: View {
                     }
 
                     HStack(spacing: 8) {
-                        TTDropPicker(title: "Sets", selection: $draft.sets, options: Array(1...8))
-                            .onChange(of: draft.sets) { _, _ in draft.syncSetCount() }
+                        TTDropPicker(title: "Sets", selection: $draft.sets, options: pickerOptions(Array(1...8), including: draft.sets))
+                            .onChange(of: draft.sets) { _, _ in
+                                draft.syncSetCount()
+                                if !isEditing { onChange() }
+                            }
                         TTDropPicker(
                             title: "Reps",
                             selection: $draft.reps,
-                            options: Array(1...30),
+                            options: pickerOptions(Array(1...30), including: draft.reps),
                             format: { "\($0)" }
                         )
                         .onChange(of: draft.reps) { _, value in
                             for index in draft.setRows.indices { draft.setRows[index].reps = value }
+                            if !isEditing { onChange() }
                         }
                         TTDropPicker(
                             title: "Rest",
                             selection: $draft.rest,
-                            options: [20, 30, 45, 60, 75, 90, 120, 150, 180, 210, 240],
+                            options: pickerOptions([20, 30, 45, 60, 75, 90, 120, 150, 180, 210, 240], including: draft.rest),
                             format: { "\($0)s" }
                         )
-                    }
-
-                    TTDropPicker(
-                        title: "Working weight",
-                        selection: $draft.weight,
-                        options: PlanPickValues.weights,
-                        format: { "\($0.cleanKg) kg" }
-                    )
-                    .onChange(of: draft.weight) { _, value in
-                        for index in draft.setRows.indices { draft.setRows[index].weight = value }
-                    }
-
-                    VStack(spacing: 8) {
-                        ForEach($draft.setRows) { $row in
-                            HStack(spacing: 8) {
-                                Text("Set \(row.setNumber)")
-                                    .font(TTFont.workSans(13, weight: .semibold))
-                                    .foregroundStyle(TTColor.ink)
-                                    .frame(width: 52, alignment: .leading)
-                                TTDropPicker(
-                                    selection: $row.reps,
-                                    options: Array(1...30),
-                                    format: { "\($0) reps" }
-                                )
-                                TTDropPicker(
-                                    selection: $row.weight,
-                                    options: PlanPickValues.weights,
-                                    format: { "\($0.cleanKg) kg" }
-                                )
-                            }
+                        .onChange(of: draft.rest) { _, _ in
+                            if !isEditing { onChange() }
                         }
                     }
 
-                    HStack(spacing: 8) {
-                        TTDropPicker(
-                            title: "Tempo",
-                            selection: $draft.tempo,
-                            options: ["3-1-1-0", "2-0-2-0", "3-0-1-0", "4-1-1-0", "2-1-1-0", "1-0-X-0", "Explosive"]
-                        )
-                        TTDropPicker(
-                            title: "RPE",
-                            selection: $draft.rpe,
-                            options: PlanPickValues.rpe,
-                            format: { String(format: "%g", $0) }
-                        )
+                    Button {
+                        withAnimation(morph) { showMoreOptions.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(showMoreOptions ? "Hide options" : "More options")
+                                .font(TTFont.workSans(12, weight: .bold))
+                            Spacer()
+                            TTIcon(icon: .chevronDown, size: 10)
+                                .rotationEffect(.degrees(showMoreOptions ? 180 : 0))
+                        }
+                        .foregroundStyle(orange)
+                        .padding(.vertical, 2)
                     }
+                    .buttonStyle(.plain)
 
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("HOW TO PERFORM")
-                            .font(TTFont.caption(10))
-                            .foregroundStyle(TTColor.inkSubtle)
-                        TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
-                            .font(TTFont.body(14))
-                            .lineLimit(2...5)
-                            .focused($howToFocused)
-                            .tint(orange)
-                            .padding(10)
-                            .ttInputChrome(
-                                focused: howToFocused,
-                                cornerRadius: 12,
-                                idleFill: Color(white: 0.97)
+                    if showMoreOptions {
+                        VStack(alignment: .leading, spacing: 12) {
+                            TTDropPicker(
+                                title: "Working weight",
+                                selection: $draft.weight,
+                                options: PlanPickValues.weights,
+                                format: { "\($0.cleanKg) kg" }
                             )
+                            .onChange(of: draft.weight) { _, value in
+                                for index in draft.setRows.indices { draft.setRows[index].weight = value }
+                                if !isEditing { onChange() }
+                            }
+
+                            VStack(spacing: 8) {
+                                ForEach($draft.setRows) { $row in
+                                    HStack(spacing: 8) {
+                                        Text("Set \(row.setNumber)")
+                                            .font(TTFont.workSans(13, weight: .semibold))
+                                            .foregroundStyle(TTColor.ink)
+                                            .frame(width: 52, alignment: .leading)
+                                        TTDropPicker(
+                                            selection: $row.reps,
+                                            options: pickerOptions(Array(1...30), including: row.reps),
+                                            format: { "\($0) reps" }
+                                        )
+                                        .onChange(of: row.reps) { _, _ in
+                                            if !isEditing { onChange() }
+                                        }
+                                        TTDropPicker(
+                                            selection: $row.weight,
+                                            options: PlanPickValues.weights,
+                                            format: { "\($0.cleanKg) kg" }
+                                        )
+                                        .onChange(of: row.weight) { _, _ in
+                                            if !isEditing { onChange() }
+                                        }
+                                    }
+                                }
+                            }
+
+                            HStack(spacing: 8) {
+                                TTDropPicker(
+                                    title: "Tempo",
+                                    selection: $draft.tempo,
+                                    options: ["3-1-1-0", "2-0-2-0", "3-0-1-0", "4-1-1-0", "2-1-1-0", "1-0-X-0", "Explosive"]
+                                )
+                                .onChange(of: draft.tempo) { _, _ in
+                                    if !isEditing { onChange() }
+                                }
+                                TTDropPicker(
+                                    title: "RPE",
+                                    selection: $draft.rpe,
+                                    options: PlanPickValues.rpe,
+                                    format: { String(format: "%g", $0) }
+                                )
+                                .onChange(of: draft.rpe) { _, _ in
+                                    if !isEditing { onChange() }
+                                }
+                            }
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("HOW TO PERFORM")
+                                    .font(TTFont.caption(10))
+                                    .foregroundStyle(TTColor.inkSubtle)
+                                TextField("Cues, depth, grip, breathing…", text: $draft.howTo, axis: .vertical)
+                                    .font(TTFont.body(14))
+                                    .lineLimit(2...5)
+                                    .focused($howToFocused)
+                                    .tint(orange)
+                                    .padding(10)
+                                    .onChange(of: draft.howTo) { _, _ in
+                                        if !isEditing { onChange() }
+                                    }
+                                    .ttInputChrome(
+                                        focused: howToFocused,
+                                        cornerRadius: 12,
+                                        idleFill: Color(white: 0.97)
+                                    )
+                            }
+                        }
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
                 .padding(.horizontal, 12)
@@ -1442,4 +1766,127 @@ extension Date {
 #Preview("Create Plan") {
     CreatePlanView()
         .ttPreviewTrainer()
+}
+
+// MARK: - Saved: what next?
+
+/// Shown in the same sheet after a NEW plan is saved (create mode only).
+private struct PlanSavedContent: View {
+    let plan: WorkoutPlan
+    let unassignedCount: Int
+    var onDone: () -> Void
+    var onAssign: () -> Void
+    var onViewInPlans: () -> Void
+
+    private let canvas = Color(white: 0.97)
+    private let orange = TTColor.actionOrange
+
+    private var exerciseCount: Int { plan.days.reduce(0) { $0 + $1.exercises.count } }
+    private var setCount: Int { plan.days.flatMap(\.exercises).reduce(0) { $0 + $1.sets } }
+
+    private var assignSubtitle: String {
+        switch unassignedCount {
+        case 0: "Pick who should train with it"
+        case 1: "1 trainee has no plan yet"
+        default: "\(unassignedCount) trainees have no plan yet"
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button("Done", action: onDone)
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(orange)
+                    .frame(minHeight: 44)
+            }
+            .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+            .padding(.vertical, TTModalSheetChrome.headerVerticalPadding)
+            .background(Color.white)
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(spacing: 10) {
+                        Circle()
+                            .fill(TTColor.success)
+                            .frame(width: 64, height: 64)
+                            .overlay(TTIcon(icon: .check, filled: true, size: 28).foregroundStyle(.white))
+                            .accessibilityHidden(true)
+                        Text("Plan saved")
+                            .font(TTFont.workSans(24, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                        Text(plan.title)
+                            .font(TTFont.workSans(17, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .multilineTextAlignment(.center)
+                        Text("\(plan.level) · \(plan.daysPerWeek) days/week · \(plan.durationMinutes) min")
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                        Text("\(exerciseCount) exercises · \(setCount) sets")
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 12)
+
+                    Text("WHAT'S NEXT?")
+                        .font(TTFont.workSans(12, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(TTColor.inkMuted)
+
+                    VStack(spacing: 12) {
+                        nextRow(title: "Assign to a trainee", subtitle: assignSubtitle,
+                                icon: .userPlus, dark: true, action: onAssign)
+                        nextRow(title: "View in Plans", subtitle: "Review it with your other plans",
+                                icon: .barbellDiagonal, dark: false, action: onViewInPlans)
+                    }
+
+                    Text("Tap Done to go back. You can assign it any time from Plans.")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+                .padding(.top, TTModalSheetChrome.contentTopPadding)
+                .padding(.bottom, 24)
+            }
+        }
+        .background(canvas.ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+    }
+
+    private func nextRow(title: String, subtitle: String, icon: SandowIcon, dark: Bool,
+                         action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                TTIcon(icon: icon, filled: true, size: 20)
+                    .foregroundStyle(dark ? .white : orange)
+                    .frame(width: 44, height: 44)
+                    .background(dark ? orange : orange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(TTFont.workSans(16, weight: .semibold))
+                        .foregroundStyle(dark ? .white : TTColor.ink)
+                    Text(subtitle)
+                        .font(TTFont.caption(13))
+                        .foregroundStyle(dark ? Color.white.opacity(0.7) : TTColor.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                TTChevronForward(color: dark ? Color.white.opacity(0.7) : Color(white: 0.55))
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(dark ? Color.black : Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(TTSearchPressStyle(scale: 0.98))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
+        .accessibilityHint(subtitle)
+        .accessibilityAddTraits(.isButton)
+    }
 }

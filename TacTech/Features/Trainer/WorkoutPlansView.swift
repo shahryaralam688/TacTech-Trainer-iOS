@@ -91,8 +91,9 @@ struct WorkoutPlansView: View {
                                     scrollRunway: TTStackedTokens.defaultRunway,
                                     coordinateSpaceName: scrollSpace
                                 ) { plan in
-                                    NavigationLink {
-                                        WorkoutPlanDetailView(plan: plan)
+                                    // Single push style: the stack's navigationDestination(item:) owns the push.
+                                    Button {
+                                        selectedPlan = plan
                                     } label: {
                                         planCard(plan)
                                     }

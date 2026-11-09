@@ -127,22 +127,22 @@ private struct HelpFAQPane: View {
     private let items: [HelpFAQItem] = [
         HelpFAQItem(
             id: "what",
-            question: "What is TecTach?",
-            answer: "TecTach is an advanced fitness app that uses AI to deliver personalized training for coaches and athletes."
+            question: "What is TacTech?",
+            answer: "TacTech is an advanced fitness app that uses AI to deliver personalized training for coaches and athletes."
         ),
         HelpFAQItem(
             id: "how",
-            question: "How does TecTach work?",
+            question: "How does TacTech work?",
             answer: "Coaches build plans and athletes follow them with progress tracking, form cues, and nutrition tools in one place."
         ),
         HelpFAQItem(
             id: "coach",
-            question: "Is TecTach a replacement for a fitness coach?",
-            answer: "No — TecTach amplifies coaching. Trainers stay in control while AI speeds up plans, feedback, and check-ins."
+            question: "Is TacTech a replacement for a fitness coach?",
+            answer: "No — TacTech amplifies coaching. Trainers stay in control while AI speeds up plans, feedback, and check-ins."
         ),
         HelpFAQItem(
             id: "free",
-            question: "Is TecTach free to use?",
+            question: "Is TacTech free to use?",
             answer: "Core features are available to get started. Premium coaching tools may require a plan depending on your organization."
         ),
         HelpFAQItem(
@@ -331,7 +331,7 @@ struct LiveChatView: View {
 
     private static let seed: [LiveChatMessage] = [
         .init(id: "1", side: .user, text: "Hi! There is a problem with my account update of profile picture.", timeLabel: nil),
-        .init(id: "2", side: .support, text: "Hi! Thank you for contacting TecTach support. We will investigate and resolve the issue as soon as possible.", timeLabel: nil),
+        .init(id: "2", side: .support, text: "Hi! Thank you for contacting TacTech support. We will investigate and resolve the issue as soon as possible.", timeLabel: nil),
         .init(id: "3", side: .user, text: "Thank you so much!", timeLabel: "10:00 AM"),
         .init(id: "4", side: .support, text: "You are welcome! The issue is fixed. Please try again.", timeLabel: nil)
     ]
@@ -560,7 +560,7 @@ struct LiveChatView: View {
                 LiveChatMessage(
                     id: UUID().uuidString,
                     side: .support,
-                    text: "Thanks — a TecTach agent will follow up shortly.",
+                    text: "Thanks — a TacTech agent will follow up shortly.",
                     timeLabel: nil
                 )
             )

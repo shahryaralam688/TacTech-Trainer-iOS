@@ -9,6 +9,7 @@ struct MyTraineesView: View {
     @State private var query = ""
     @State private var goalFilter: String?
     @State private var selectedTrainee: TraineeProfile?
+    @State private var showJoinRequests = false
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
@@ -36,8 +37,8 @@ struct MyTraineesView: View {
                                 inviteBanner(code: code)
                             }
 
-                            NavigationLink {
-                                JoinRequestsView()
+                            Button {
+                                showJoinRequests = true
                             } label: {
                                 joinRequestsEntry
                             }
@@ -55,8 +56,8 @@ struct MyTraineesView: View {
                                 emptyCard
                             } else {
                                 ForEach(filtered) { trainee in
-                                    NavigationLink {
-                                        TraineeDetailView(trainee: trainee)
+                                    Button {
+                                        selectedTrainee = trainee
                                     } label: {
                                         traineeRow(trainee)
                                     }
@@ -77,6 +78,9 @@ struct MyTraineesView: View {
             .ttSyncRootTabBarWithNavigationDepth()
             .navigationDestination(item: $selectedTrainee) { trainee in
                 TraineeDetailView(trainee: trainee)
+            }
+            .navigationDestination(isPresented: $showJoinRequests) {
+                JoinRequestsView()
             }
             .ttSearchOverlay(
                 isPresented: $showSearch,

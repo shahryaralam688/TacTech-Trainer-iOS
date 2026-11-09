@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TraineeTab: Hashable {
-    case home, workout, nutrition, profile
+    case home, workout, nutrition, progress
 }
 
 struct TraineeRootView: View {
@@ -11,6 +11,7 @@ struct TraineeRootView: View {
     @State private var showAIChat = false
     @State private var showLiquidMenu = false
     @State private var showCoachChat = false
+    @State private var showProfileSheet = false   // Profile moved off the tab bar → opened as a sheet
     @State private var pendingChatThreadId: String?
     @State private var rootTabBarVisible = true
     @State private var relationshipToast: TTToastMessage?
@@ -23,7 +24,7 @@ struct TraineeRootView: View {
             TTTabBarItem(.home, icon: .house1, label: String(localized: "tab.home", locale: locale)),
             TTTabBarItem(.workout, icon: .barbellDiagonal, label: String(localized: "tab.workout", locale: locale)),
             TTTabBarItem(.nutrition, icon: .forkKnife, label: String(localized: "tab.nutrition", locale: locale)),
-            TTTabBarItem(.profile, icon: .user, label: String(localized: "tab.profile", locale: locale))
+            TTTabBarItem(.progress, icon: .chartAxisArea, label: String(localized: "tab.progress", defaultValue: "Progress", locale: locale))
         ]
     }
 
@@ -60,12 +61,12 @@ struct TraineeRootView: View {
                                     if tab != .nutrition { visible = true }
                                 }
                         }
-                        if mounted.contains(.profile) {
-                            TraineeProfileView()
-                                .opacity(tab == .profile ? 1 : 0)
-                                .allowsHitTesting(tab == .profile)
+                        if mounted.contains(.progress) {
+                            TraineeProgressView()
+                                .opacity(tab == .progress ? 1 : 0)
+                                .allowsHitTesting(tab == .progress)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
-                                    if tab != .profile { visible = true }
+                                    if tab != .progress { visible = true }
                                 }
                         }
                     }
@@ -138,14 +139,12 @@ struct TraineeRootView: View {
             showCoachChat = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfile)) { _ in
-            mounted.insert(.profile)
-            tab = .profile
+            showProfileSheet = true
             // Inbox tap may arrive without a live socket event — same coalesced accept sync.
             store.scheduleTraineeCoachLinkSync()
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
-            mounted.insert(.profile)
-            tab = .profile
+            showProfileSheet = true
             Task { await store.handleJoinRequestRealtime(type: "join_request_rejected") }
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
@@ -163,8 +162,7 @@ struct TraineeRootView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
-            mounted.insert(.profile)
-            tab = .profile
+            showProfileSheet = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
             // Root always refreshes — Home + Workout update even if Workout tab isn’t selected.
@@ -188,9 +186,9 @@ struct TraineeRootView: View {
         .onChange(of: showCoachChat) { _, open in
             if !open { pendingChatThreadId = nil }
         }
-        .task {
-            try? await Task.sleep(for: .milliseconds(600))
-            mounted.insert(.profile)
+        .sheet(isPresented: $showProfileSheet) {
+            TraineeProfileView(showsBack: true)
+                .ttModalSheetPresentation(dragIndicator: .hidden)
         }
     }
 
@@ -204,9 +202,12 @@ struct TraineeRootView: View {
         switch action.id {
         case "ai":
             openAIChat()
-        case "coachChat":
-            TTKeyboard.dismiss()
-            showCoachChat = true
+        case "logMeal":
+            mounted.insert(.nutrition)
+            tab = .nutrition
+        case "quickWorkout":
+            mounted.insert(.workout)
+            tab = .workout
         default:
             break
         }

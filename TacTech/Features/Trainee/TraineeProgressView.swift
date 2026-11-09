@@ -72,6 +72,8 @@ struct TraineeProgressView: View {
                 )
             }
 
+            activityEnergySection(trainee)
+
             progressStage
 
             if !logs.isEmpty {
@@ -97,6 +99,66 @@ struct TraineeProgressView: View {
                     )
                 }
             }
+        }
+    }
+
+    // MARK: - Activities (moved here from Home)
+
+    /// Weekly energy trend = meal calories + estimated workout burn per day.
+    @ViewBuilder
+    private func activityEnergySection(_ trainee: TraineeProfile) -> some View {
+        let points = activityPoints(trainee)
+        let total = points.reduce(0) { $0 + $1.value }
+        if total > 0 {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Activity")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(ProgressPalette.ink)
+                    Spacer()
+                    Text("\(total.formatted()) kcal · 7 days")
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(ProgressPalette.muted)
+                }
+
+                Chart(points, id: \.date) { point in
+                    LineMark(
+                        x: .value("Day", point.date),
+                        y: .value("Energy", point.value)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(ProgressPalette.accent)
+
+                    AreaMark(
+                        x: .value("Day", point.date),
+                        y: .value("Energy", point.value)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(ProgressPalette.accent.opacity(0.12))
+                }
+                .chartYAxis(.hidden)
+                .frame(height: 120)
+            }
+            .padding(14)
+            .background(ProgressPalette.panel)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(ProgressPalette.line, lineWidth: 1)
+            )
+        }
+    }
+
+    private func activityPoints(_ trainee: TraineeProfile) -> [(date: Date, value: Int)] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        return (0..<7).reversed().compactMap { offset -> (Date, Int)? in
+            guard let day = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+            let mealKcal = store.dailyMacros(for: trainee.id, on: day).calories
+            let workoutKcal = store.logs(for: trainee.id)
+                .filter { calendar.isDate($0.completedAt, inSameDayAs: day) }
+                .reduce(0) { $0 + max($1.durationMinutes * 8, 0) }
+            return (day, mealKcal + workoutKcal)
         }
     }
 

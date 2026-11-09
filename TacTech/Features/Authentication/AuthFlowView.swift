@@ -121,9 +121,11 @@ struct WelcomeView: View {
                     }
                     .padding(.horizontal, 24)
 
+                    #if DEBUG
                     demoHint
                         .padding(.top, 16)
                         .padding(.bottom, 8)
+                    #endif
                 }
             }
         }

@@ -75,7 +75,7 @@ struct AboutUsView: View {
                 .accessibilityHidden(true)
 
             VStack(spacing: 8) {
-                Text("TecTach")
+                Text("TacTech")
                     .font(TTFont.workSans(34, weight: .bold))
                     .foregroundStyle(TTColor.ink)
 
@@ -86,7 +86,7 @@ struct AboutUsView: View {
         }
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("TecTach, AI Fitness and Training Solution")
+        .accessibilityLabel("TacTech, AI Fitness and Training Solution")
     }
 
     // MARK: - Cards

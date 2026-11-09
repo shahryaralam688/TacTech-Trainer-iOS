@@ -27,6 +27,7 @@ struct AccountSettingsView: View {
     @State private var isRestoringPurchases = false
     @State private var toast: TTToastMessage?
     @State private var showAIFreemiumInfo = false
+    @State private var showSignOutConfirm = false
 
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
@@ -293,13 +294,19 @@ struct AccountSettingsView: View {
     private var logoutSection: some View {
         settingsGroup(title: "Log Out") {
             Button {
-                Task { await store.logout() }
+                showSignOutConfirm = true
             } label: {
                 settingsRowLabel(title: "Sign Out", icon: "rectangle.portrait.and.arrow.right", trailing: {
                     TTChevronForward()
                 })
             }
             .buttonStyle(.plain)
+            .confirmationDialog("Sign out?", isPresented: $showSignOutConfirm, titleVisibility: .visible) {
+                Button("Sign out", role: .destructive) {
+                    Task { await store.logout() }
+                }
+                Button("Cancel", role: .cancel) {}
+            }
         }
     }
 

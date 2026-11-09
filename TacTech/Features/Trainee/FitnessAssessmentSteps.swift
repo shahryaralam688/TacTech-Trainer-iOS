@@ -142,20 +142,28 @@ struct AssessmentTextBox: View {
 struct GoalStep: View {
     @Binding var draft: FitnessAssessment
 
-    private let options: [(title: String, icon: SandowIcon)] = [
-        ("Lose weight", .weightScale),
-        ("Build muscle", .barbellHorizontal),
-        ("Improve endurance", .heartEcg),
-        ("Improve overall fitness", .sparkle1),
-        ("I’m not sure yet", .questionMarkCircle)
+    private let options: [(title: String, subtitle: String, icon: SandowIcon)] = [
+        ("Lose weight", "Feel lighter", .weightScale),
+        ("Build muscle", "Grow your muscles", .barbellHorizontal),
+        ("Get stronger", "Lift and do more", .barbellHorizontal),
+        ("Feel fitter", "Improve your fitness", .sparkle1),
+        ("Stay healthy", "Keep your body active", .heartEcg),
+        ("Move better", "Improve movement and flexibility", .leaf)
     ]
 
     var body: some View {
-        AssessmentQuestion("What’s your fitness goal?", centered: true) {
+        AssessmentQuestion("What would you like to do?", centered: true) {
+            Text("Choose what matters most to you.")
+                .font(TTFont.workSans(16, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity, alignment: .center)
+
             VStack(spacing: 12) {
                 ForEach(options, id: \.title) { item in
                     AssessmentChoice(
                         title: item.title,
+                        subtitle: item.subtitle,
                         icon: item.icon,
                         selected: draft.goal == item.title
                     ) {
@@ -169,18 +177,19 @@ struct GoalStep: View {
 
 struct GenderStep: View {
     @Binding var draft: FitnessAssessment
-    var onSkip: () -> Void
 
     var body: some View {
-        AssessmentQuestion("What is your gender?", centered: true) {
+        AssessmentQuestion("What’s your gender?", centered: true) {
             VStack(spacing: 12) {
                 genderCard("Male", icon: .genderMale, photo: "AssessmentMale")
                 genderCard("Female", icon: .genderFemale, photo: "AssessmentFemale")
-                Button(action: onSkip) {
+                Button {
+                    draft.gender = "Prefer Not to Say"
+                } label: {
                     HStack(spacing: 8) {
-                        Text("Prefer to skip, thanks!")
+                        Text("Skip this")
                             .font(TTFont.workSans(16, weight: .semibold))
-                        TTIcon(icon: .closeX, size: 14)
+                        AssessmentRadio(selected: draft.gender == "Prefer Not to Say")
                     }
                     .foregroundStyle(AssessmentColor.orange)
                     .frame(maxWidth: .infinity)
@@ -235,7 +244,7 @@ struct WeightStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("What is your weight?")
+            Text("What’s your current weight?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
@@ -254,12 +263,14 @@ struct WeightStep: View {
                     .animation(.snappy(duration: 0.18), value: draft.weightUnit)
             }
             .padding(.top, 36)
+            AssessmentSlideHint()
+                .padding(.top, 14)
             AssessmentRuler(
                 value: displayBinding,
                 range: draft.weightUnit == "lbs" ? 80...400 : 35...220,
                 step: 1
             )
-            .padding(.top, 28)
+            .padding(.top, 16)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -297,7 +308,7 @@ struct AgeStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("What is your age?")
+            Text("What’s your age?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
@@ -436,6 +447,480 @@ struct AssessmentAgeWheel: View {
             )
             .frame(height: rowHeight * 1.15)
         }
+    }
+}
+
+struct HeightStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("What’s your height?")
+                .font(TTFont.workSans(28, weight: .bold))
+                .foregroundStyle(AssessmentColor.ink)
+                .multilineTextAlignment(.center)
+                .padding(.top, 28)
+            AssessmentUnitToggle(selection: $draft.heightUnit, left: ("cm", "cm"), right: ("ft / in", "ft"))
+                .padding(.top, 28)
+            Text(displayLabel)
+                .font(TTFont.workSans(64, weight: .bold))
+                .foregroundStyle(AssessmentColor.ink)
+                .contentTransition(.numericText())
+                .animation(.snappy(duration: 0.18), value: draft.heightCm)
+                .animation(.snappy(duration: 0.18), value: draft.heightUnit)
+                .padding(.top, 36)
+            AssessmentSlideHint()
+                .padding(.top, 14)
+            AssessmentRuler(
+                value: displayBinding,
+                range: draft.heightUnit == "ft" ? 48...90 : 120...220,
+                step: 1
+            )
+            .padding(.top, 16)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 8)
+        .sensoryFeedback(.selection, trigger: Int(draft.heightCm))
+    }
+
+    /// cm → whole cm; ft → total inches.
+    private var displayedValue: Double {
+        draft.heightUnit == "ft" ? (draft.heightCm / 2.54).rounded() : draft.heightCm.rounded()
+    }
+
+    private var displayLabel: String {
+        if draft.heightUnit == "ft" {
+            let totalInches = Int((draft.heightCm / 2.54).rounded())
+            return "\(totalInches / 12)′\(totalInches % 12)″"
+        }
+        return "\(Int(draft.heightCm.rounded())) cm"
+    }
+
+    private var displayBinding: Binding<Double> {
+        Binding(
+            get: { displayedValue },
+            set: { newValue in
+                draft.heightCm = draft.heightUnit == "ft" ? (newValue * 2.54).rounded() : newValue.rounded()
+            }
+        )
+    }
+}
+
+struct TargetWeightStep: View {
+    @Binding var draft: FitnessAssessment
+
+    private var noTarget: Bool { draft.hasTargetWeight == false }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text("What’s your target weight?")
+                .font(TTFont.workSans(28, weight: .bold))
+                .foregroundStyle(AssessmentColor.ink)
+                .multilineTextAlignment(.center)
+                .padding(.top, 24)
+                .padding(.horizontal, 20)
+
+            bmiCard
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(displayNumber)
+                    .font(TTFont.workSans(60, weight: .bold))
+                    .foregroundStyle(noTarget ? AssessmentColor.coolGrey : AssessmentColor.ink)
+                    .contentTransition(.numericText())
+                Text(draft.weightUnit)
+                    .font(TTFont.workSans(20, weight: .medium))
+                    .foregroundStyle(AssessmentColor.grey)
+            }
+            .padding(.top, 18)
+
+            AssessmentRuler(
+                value: displayBinding,
+                range: draft.weightUnit == "lbs" ? 80...400 : 35...220,
+                step: 1
+            )
+            .padding(.top, 18)
+            .opacity(noTarget ? 0.4 : 1)
+
+            Button {
+                draft.hasTargetWeight = false
+            } label: {
+                HStack(spacing: 8) {
+                    Text("I Don’t Have a Target")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                    AssessmentRadio(selected: noTarget)
+                }
+                .foregroundStyle(AssessmentColor.orange)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(AssessmentColor.peach)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 8)
+        .sensoryFeedback(.selection, trigger: Int(draft.targetWeightKg))
+    }
+
+    private var bmiCard: some View {
+        HStack(spacing: 12) {
+            TTIcon(icon: .heartEcg, size: 22)
+                .foregroundStyle(AssessmentColor.blue)
+            VStack(alignment: .leading, spacing: 2) {
+                if let bmi = draft.bmi {
+                    Text("Your BMI is \(String(format: "%.1f", bmi))")
+                        .font(TTFont.workSans(15, weight: .bold))
+                        .foregroundStyle(AssessmentColor.ink)
+                    Text(draft.bmiCategory ?? "")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(AssessmentColor.slate)
+                } else {
+                    Text("BMI unavailable")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(AssessmentColor.slate)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity)
+        .background(AssessmentColor.blueSoft)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityLabel(draft.bmi.map { "Your B M I is \(String(format: "%.1f", $0)), \(draft.bmiCategory ?? "")" } ?? "B M I unavailable")
+    }
+
+    private var displayNumber: String {
+        String(format: "%.0f", displayedTarget)
+    }
+
+    private var displayedTarget: Double {
+        draft.weightUnit == "lbs" ? (draft.targetWeightKg * 2.20462).rounded() : draft.targetWeightKg.rounded()
+    }
+
+    private var displayBinding: Binding<Double> {
+        Binding(
+            get: { displayedTarget },
+            set: { newValue in
+                draft.hasTargetWeight = true
+                draft.targetWeightKg = draft.weightUnit == "lbs" ? (newValue / 2.20462).rounded() : newValue.rounded()
+            }
+        )
+    }
+}
+
+struct ExperienceLevelStep: View {
+    @Binding var draft: FitnessAssessment
+
+    private let options: [(title: String, subtitle: String)] = [
+        ("Beginner", "New to working out"),
+        ("Intermediate", "Train on and off"),
+        ("Advanced", "Train regularly"),
+        ("Not Sure", "Hard to say")
+    ]
+
+    var body: some View {
+        AssessmentQuestion("How experienced are you with exercise?") {
+            VStack(spacing: 12) {
+                ForEach(options, id: \.title) { item in
+                    AssessmentChoice(
+                        title: item.title,
+                        subtitle: item.subtitle,
+                        selected: draft.experienceLevel == item.title
+                    ) {
+                        select(item.title)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Keep the legacy `hasExperience` / `fitnessLevel` fields in sync for existing logic.
+    private func select(_ level: String) {
+        draft.experienceLevel = level
+        switch level {
+        case "Beginner":
+            draft.hasExperience = false
+            draft.fitnessLevel = 2
+        case "Intermediate":
+            draft.hasExperience = true
+            draft.fitnessLevel = 3
+        case "Advanced":
+            draft.hasExperience = true
+            draft.fitnessLevel = 4
+        default:
+            draft.hasExperience = nil
+            draft.fitnessLevel = 3
+        }
+    }
+}
+
+struct ActivityLevelStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        AssessmentQuestion("How active are you during the day?") {
+            VStack(spacing: 10) {
+                ForEach(AssessmentCatalog.activityLevels, id: \.title) { item in
+                    AssessmentChoice(
+                        title: item.title,
+                        subtitle: item.detail,
+                        selected: draft.activityLevel == item.title
+                    ) {
+                        draft.activityLevel = item.title
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct WorkoutLocationStep: View {
+    @Binding var draft: FitnessAssessment
+
+    private let icons: [String: SandowIcon] = [
+        "Gym": .barbellHorizontal,
+        "Home": .user,
+        "Outdoors": .personHiking,
+        "Mix of Places": .sparkle1
+    ]
+
+    var body: some View {
+        AssessmentQuestion("Where do you work out?") {
+            VStack(spacing: 10) {
+                ForEach(AssessmentCatalog.workoutLocations, id: \.title) { item in
+                    AssessmentChoice(
+                        title: item.title,
+                        subtitle: item.detail,
+                        icon: icons[item.title],
+                        selected: draft.workoutLocation == item.title
+                    ) {
+                        draft.workoutLocation = item.title
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct EquipmentStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        AssessmentQuestion("What equipment do you have?") {
+            Text("Pick everything you can use — choose as many as you like.")
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+            AssessmentChipGrid(items: AssessmentCatalog.equipment, selected: $draft.equipment)
+        }
+        .sensoryFeedback(.selection, trigger: draft.equipment.count)
+    }
+}
+
+struct WorkoutDurationStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        AssessmentQuestion("How much time can you spend per workout?") {
+            VStack(spacing: 10) {
+                ForEach(AssessmentCatalog.workoutDurations, id: \.self) { item in
+                    AssessmentChoice(title: item, selected: draft.workoutDuration == item) {
+                        draft.workoutDuration = item
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct WaterStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        AssessmentQuestion("How much water do you drink daily?") {
+            VStack(spacing: 10) {
+                ForEach(AssessmentCatalog.waterOptions, id: \.title) { item in
+                    AssessmentChoice(
+                        title: item.title,
+                        subtitle: item.detail,
+                        selected: draft.waterIntake == item.title
+                    ) {
+                        draft.waterIntake = item.title
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct ImproveStep: View {
+    @Binding var draft: FitnessAssessment
+
+    var body: some View {
+        AssessmentQuestion("What would you like to improve?") {
+            Text("Choose as many as you like.")
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+            AssessmentChipGrid(items: AssessmentCatalog.improvementAreas, selected: $draft.improvementAreas)
+        }
+        .sensoryFeedback(.selection, trigger: draft.improvementAreas.count)
+    }
+}
+
+struct ProgressPhotosStep: View {
+    @Binding var draft: FitnessAssessment
+
+    @State private var capturing: Shot?
+    @State private var image: UIImage?
+
+    private enum Shot: String, Identifiable {
+        case front = "Front", side = "Side", back = "Back"
+        var id: String { rawValue }
+    }
+
+    var body: some View {
+        AssessmentQuestion("Would you like to add progress photos?") {
+            Text("These are optional — they help track how you change over time.")
+                .font(TTFont.workSans(15, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+
+            photoRow("Take Front Photo", captured: draft.frontPhotoCaptured) { capturing = .front }
+            photoRow("Take Side Photo", captured: draft.sidePhotoCaptured) { capturing = .side }
+            photoRow("Take Back Photo", captured: draft.backPhotoCaptured) { capturing = .back }
+        }
+        .sheet(item: $capturing) { _ in
+            CameraImagePicker(image: $image)
+                .ignoresSafeArea()
+        }
+        .onChange(of: image) { _, newValue in
+            guard newValue != nil, let shot = capturing else { return }
+            switch shot {
+            case .front: draft.frontPhotoCaptured = true
+            case .side: draft.sidePhotoCaptured = true
+            case .back: draft.backPhotoCaptured = true
+            }
+            image = nil
+            capturing = nil
+        }
+    }
+
+    private func photoRow(_ title: String, captured: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                TTIcon(icon: captured ? .check : .camera1, size: 22)
+                Text(captured ? title.replacingOccurrences(of: "Take ", with: "") + " added" : title)
+                    .font(TTFont.workSans(16, weight: .semibold))
+                Spacer(minLength: 8)
+            }
+            .foregroundStyle(captured ? AssessmentColor.white : AssessmentColor.ink)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+            .background(captured ? AssessmentColor.orange : AssessmentColor.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+/// Handoff screen after the 8 essential questions. Users can generate a plan
+/// now, or continue to the optional questions — nothing here is required.
+struct AllSetStep: View {
+    @Binding var draft: FitnessAssessment
+    var isSaving: Bool
+    var onCreatePlan: () -> Void
+    var onAddDetails: () -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 18) {
+                ZStack {
+                    Circle()
+                        .fill(AssessmentColor.peach)
+                        .frame(width: 96, height: 96)
+                    TTIcon(icon: .check, size: 44)
+                        .foregroundStyle(AssessmentColor.orange)
+                }
+                .padding(.top, 20)
+
+                Text("You’re all set!")
+                    .font(TTFont.workSans(30, weight: .bold))
+                    .foregroundStyle(AssessmentColor.ink)
+
+                Text("We’ve got what we need to build your first workout plan. You can add more details now, or anytime later from your profile.")
+                    .font(TTFont.workSans(16, weight: .medium))
+                    .foregroundStyle(AssessmentColor.slate)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 8)
+
+                summaryCard
+
+                VStack(spacing: 12) {
+                    Button(action: onCreatePlan) {
+                        HStack(spacing: 8) {
+                            if isSaving { ProgressView().tint(.white) }
+                            Text(isSaving ? "Setting up…" : "Create my plan")
+                                .font(TTFont.workSans(17, weight: .semibold))
+                        }
+                        .foregroundStyle(AssessmentColor.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(AssessmentColor.ink)
+                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    }
+                    .disabled(isSaving)
+
+                    Button(action: onAddDetails) {
+                        Text("Add more details (optional)")
+                            .font(TTFont.workSans(16, weight: .semibold))
+                            .foregroundStyle(AssessmentColor.orange)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 52)
+                            .background(AssessmentColor.peach)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .disabled(isSaving)
+                }
+                .padding(.top, 4)
+            }
+            .padding(.horizontal, 22)
+            .padding(.bottom, 24)
+        }
+    }
+
+    private var summaryCard: some View {
+        VStack(spacing: 0) {
+            summaryRow("Goal", draft.goal.isEmpty ? "—" : draft.goal)
+            Divider()
+            summaryRow("Days / week", "\(draft.daysPerWeek)×")
+            if let bmi = draft.bmi {
+                Divider()
+                summaryRow("BMI", "\(String(format: "%.1f", bmi)) · \(draft.bmiCategory ?? "")")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(AssessmentColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func summaryRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(TTFont.workSans(14, weight: .medium))
+                .foregroundStyle(AssessmentColor.slate)
+            Spacer()
+            Text(value)
+                .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(AssessmentColor.ink)
+        }
+        .padding(.vertical, 12)
     }
 }
 
@@ -851,7 +1336,7 @@ struct LimitationsStep: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 18) {
-                Text("Do you have any physical\nlimitations?")
+                Text("Do you have any injuries or\nphysical limitations?")
                     .font(TTFont.workSans(28, weight: .bold))
                     .foregroundStyle(AssessmentColor.ink)
                     .multilineTextAlignment(.center)
@@ -941,7 +1426,7 @@ struct LimitationsStep: View {
 
     private func mostCommonChip(_ title: String) -> some View {
         let selected = draft.limitations.contains(title)
-        let isNone = title.caseInsensitiveCompare("None") == .orderedSame
+        let isNone = title.caseInsensitiveCompare("No") == .orderedSame
         return Button {
             toggle(title)
         } label: {
@@ -965,7 +1450,7 @@ struct LimitationsStep: View {
     }
 
     private func toggle(_ title: String) {
-        if title.caseInsensitiveCompare("None") == .orderedSame {
+        if title.caseInsensitiveCompare("No") == .orderedSame {
             selectNone()
             return
         }
@@ -980,23 +1465,23 @@ struct LimitationsStep: View {
     private func selectNone() {
         isFieldFocused = false
         draftText = ""
-        if draft.limitations == ["None"] {
+        if draft.limitations == ["No"] {
             draft.limitations = []
         } else {
-            draft.limitations = ["None"]
+            draft.limitations = ["No"]
         }
     }
 
     private func add(_ title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if trimmed.caseInsensitiveCompare("None") == .orderedSame {
+        if trimmed.caseInsensitiveCompare("No") == .orderedSame {
             selectNone()
             return
         }
         guard draft.limitations.count < maxTags else { return }
         guard !draft.limitations.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else { return }
-        draft.limitations.removeAll { $0.caseInsensitiveCompare("None") == .orderedSame }
+        draft.limitations.removeAll { $0.caseInsensitiveCompare("No") == .orderedSame }
         draft.limitations.append(trimmed)
     }
 
@@ -1067,10 +1552,14 @@ struct DietStep: View {
     @Binding var draft: FitnessAssessment
 
     private let options: [(title: String, subtitle: String, icon: SandowIcon)] = [
-        ("Plant Based", "Vegan", .leaf),
-        ("Carbo Diet", "Bread, etc", .breadToast),
-        ("Specialized", "Paleo, keto, etc", .forkKnife),
-        ("Traditional", "Fruit diet", .apple)
+        ("No Specific Diet", "I eat it all", .forkKnife),
+        ("Vegetarian", "No meat", .leaf),
+        ("Vegan", "Plant based", .leaf),
+        ("Pescatarian", "Fish, no meat", .forkKnife),
+        ("Halal", "Halal only", .apple),
+        ("Keto", "Low carb", .breadToast),
+        ("Mediterranean", "Balanced", .apple),
+        ("Other", "Something else", .sparkle1)
     ]
 
     private let columns = [
@@ -1079,8 +1568,9 @@ struct DietStep: View {
     ]
 
     var body: some View {
+        ScrollView {
         VStack(spacing: 0) {
-            Text("Do you have a specific\ndiet preference?")
+            Text("What type of diet do you follow?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
@@ -1105,8 +1595,8 @@ struct DietStep: View {
             }
             .padding(.horizontal, 22)
             .padding(.top, 28)
-
-            Spacer(minLength: 12)
+            .padding(.bottom, 20)
+        }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -1218,7 +1708,7 @@ struct DaysStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            Text("How many days a week\nwill you train?")
+            Text("How many days can you\nwork out each week?")
                 .font(TTFont.workSans(28, weight: .bold))
                 .foregroundStyle(AssessmentColor.ink)
                 .multilineTextAlignment(.center)
@@ -1257,21 +1747,21 @@ struct DaysStep: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
-            if draft.daysPerWeek < 1 || draft.daysPerWeek > 5 {
-                draft.daysPerWeek = min(max(draft.daysPerWeek, 1), 5)
+            if draft.daysPerWeek < 2 || draft.daysPerWeek > 7 {
+                draft.daysPerWeek = min(max(draft.daysPerWeek, 2), 7)
             }
         }
         .sensoryFeedback(.selection, trigger: clampedDays)
     }
 
     private var clampedDays: Int {
-        min(max(draft.daysPerWeek, 1), 5)
+        min(max(draft.daysPerWeek, 2), 7)
     }
 
     private var daysBinding: Binding<Int> {
         Binding(
             get: { clampedDays },
-            set: { draft.daysPerWeek = min(max($0, 1), 5) }
+            set: { draft.daysPerWeek = min(max($0, 2), 7) }
         )
     }
 }
@@ -1280,8 +1770,8 @@ struct DaysStep: View {
 struct DaysCommitmentSlider: View {
     @Binding var value: Int
 
-    private let values = Array(1...5)
-    private let thumbSize: CGFloat = 54
+    private let values = Array(2...7)
+    private let thumbSize: CGFloat = 48
     private let trackHeight: CGFloat = 64
 
     @State private var dragX: CGFloat?
@@ -1292,7 +1782,8 @@ struct DaysCommitmentSlider: View {
             let layout = DaySliderLayout(
                 width: geo.size.width,
                 thumbSize: thumbSize,
-                count: values.count
+                count: values.count,
+                minValue: values.first ?? 1
             )
             let thumbX = dragX ?? layout.x(for: value)
 
@@ -1363,20 +1854,21 @@ struct DaySliderLayout {
     var width: CGFloat
     var thumbSize: CGFloat
     var count: Int
+    var minValue: Int = 1
 
     var minX: CGFloat { thumbSize / 2 }
     var maxX: CGFloat { width - thumbSize / 2 }
     var usable: CGFloat { max(maxX - minX, 1) }
 
     func x(for value: Int) -> CGFloat {
-        let index = CGFloat(max(value - 1, 0))
+        let index = CGFloat(max(value - minValue, 0))
         return minX + usable * index / CGFloat(max(count - 1, 1))
     }
 
     func value(at x: CGFloat) -> Int {
         let t = (x - minX) / usable
-        let raw = Int((t * CGFloat(count - 1)).rounded()) + 1
-        return min(max(raw, 1), count)
+        let raw = Int((t * CGFloat(count - 1)).rounded()) + minValue
+        return min(max(raw, minValue), minValue + count - 1)
     }
 }
 
@@ -1384,15 +1876,16 @@ struct ExercisePrefStep: View {
     @Binding var draft: FitnessAssessment
 
     private let lanes: [(title: String, vibe: String, icon: SandowIcon)] = [
-        ("Jogging", "Road rhythm", .personRunning),
-        ("Walking", "Easy miles", .personWalking),
-        ("Hiking", "Trail days", .personHiking),
-        ("Skating", "Balance & flow", .rollerSkating),
-        ("Biking", "Spin & power", .bicycle),
-        ("Weightlift", "Strength focus", .barbellHorizontal),
+        ("Weight Training", "Strength focus", .barbellHorizontal),
         ("Cardio", "Heart work", .heartEcg),
+        ("Bodyweight Exercises", "No gear needed", .personWalking),
+        ("HIIT", "Short & intense", .sparkle1),
+        ("Running", "Road rhythm", .personRunning),
+        ("Cycling", "Spin & power", .bicycle),
+        ("Swimming", "Full body", .heartEcg),
         ("Yoga", "Mobility calm", .leaf),
-        ("Other", "Something else", .sparkle1)
+        ("Pilates", "Core control", .leaf),
+        ("Functional Training", "Everyday strength", .personHiking)
     ]
 
     private let columns = [
@@ -1401,11 +1894,11 @@ struct ExercisePrefStep: View {
     ]
 
     private var selectedCount: Int {
-        draft.exercisePreferences.filter { $0.caseInsensitiveCompare("None") != .orderedSame }.count
+        draft.exercisePreferences.filter { $0.caseInsensitiveCompare("No Preference") != .orderedSame }.count
     }
 
     private var hasNone: Bool {
-        draft.exercisePreferences.contains { $0.caseInsensitiveCompare("None") == .orderedSame }
+        draft.exercisePreferences.contains { $0.caseInsensitiveCompare("No Preference") == .orderedSame }
     }
 
     var body: some View {
@@ -1414,10 +1907,10 @@ struct ExercisePrefStep: View {
                 ExercisePrefHero()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Build your training mix")
+                    Text("What types of exercise do you enjoy?")
                         .font(TTFont.workSans(28, weight: .bold))
                         .foregroundStyle(AssessmentColor.ink)
-                    Text("Tap the lanes you actually enjoy — pick one or stack a few.")
+                    Text("Tap the ones you actually enjoy — pick one or stack a few.")
                         .font(TTFont.workSans(15, weight: .medium))
                         .foregroundStyle(AssessmentColor.slate)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1535,7 +2028,7 @@ struct ExercisePrefStep: View {
         if draft.exercisePreferences.contains(title) {
             draft.exercisePreferences.removeAll { $0 == title }
         } else {
-            draft.exercisePreferences.removeAll { $0.caseInsensitiveCompare("None") == .orderedSame }
+            draft.exercisePreferences.removeAll { $0.caseInsensitiveCompare("No Preference") == .orderedSame }
             draft.exercisePreferences.append(title)
         }
     }
@@ -1544,7 +2037,7 @@ struct ExercisePrefStep: View {
         if hasNone {
             draft.exercisePreferences = []
         } else {
-            draft.exercisePreferences = ["None"]
+            draft.exercisePreferences = ["No Preference"]
         }
     }
 }
@@ -1702,13 +2195,14 @@ private struct ExerciseLaneCard: View {
 struct SupplementYesNoStep: View {
     @Binding var draft: FitnessAssessment
     var body: some View {
-        AssessmentQuestion("Are you taking any supplements?") {
-            HStack(spacing: 12) {
-                AssessmentChoice(title: "No", selected: draft.takesSupplements == false) {
-                    draft.takesSupplements = false
-                }
-                AssessmentChoice(title: "Yes", selected: draft.takesSupplements == true) {
-                    draft.takesSupplements = true
+        AssessmentQuestion("Do you take any supplements?") {
+            VStack(spacing: 12) {
+                ForEach(AssessmentCatalog.supplementFrequencies, id: \.self) { freq in
+                    AssessmentChoice(title: freq, selected: draft.supplementFrequency == freq) {
+                        draft.supplementFrequency = freq
+                        draft.takesSupplements = (freq != "No")
+                        if freq == "No" { draft.supplements = [] }
+                    }
                 }
             }
         }
@@ -1724,7 +2218,7 @@ struct SupplementPickStep: View {
     private let maxTags = 15
 
     var body: some View {
-        AssessmentQuestion("Specify Supplement") {
+        AssessmentQuestion("Which supplements do you take?") {
             Text("Pick from the list, or type any supplement and tap Add.")
                 .font(TTFont.workSans(15, weight: .medium))
                 .foregroundStyle(AssessmentColor.slate)
@@ -1802,6 +2296,7 @@ struct SupplementPickStep: View {
             .foregroundStyle(TTColor.brand)
 
             Button("Prefer to skip, thanks!") {
+                draft.supplementFrequency = "No"
                 draft.takesSupplements = false
                 draft.supplements = []
                 query = ""
@@ -1924,11 +2419,12 @@ struct CalorieStep: View {
 struct SleepStep: View {
     @Binding var draft: FitnessAssessment
     var body: some View {
-        AssessmentQuestion("What’s your sleep quality like?") {
+        AssessmentQuestion("How many hours do you usually sleep?") {
             VStack(spacing: 10) {
                 ForEach(AssessmentCatalog.sleepOptions, id: \.title) { item in
-                    AssessmentChoice(title: item.title, subtitle: item.detail, selected: draft.sleepQuality == item.title) {
-                        draft.sleepQuality = item.title
+                    AssessmentChoice(title: item.title, subtitle: item.detail, selected: draft.sleepHours == item.title) {
+                        draft.sleepHours = item.title
+                        draft.sleepQuality = item.title   // mirror for API compatibility
                     }
                 }
             }
@@ -2042,13 +2538,13 @@ struct VoiceStep: View {
 struct TextAnalysisStep: View {
     @Binding var draft: FitnessAssessment
     var body: some View {
-        AssessmentQuestion("AI Textual Analysis") {
-            Text("Freely write down any fitness concerns on your mind. TacTech AI will listen. 👍")
+        AssessmentQuestion("Anything else we should know?") {
+            Text("Share any goals, concerns, or notes for your coach. This is optional.")
                 .font(TTFont.body(15))
                 .foregroundStyle(TTColor.inkMuted)
             AssessmentTextBox(
                 text: $draft.concerns,
-                placeholder: "I can’t do more than 22 squats. Also my elbow can’t bend above 24°. Is this fine, coach?"
+                placeholder: "e.g. I get short on time some weeks, and my left knee aches after running."
             )
         }
     }
@@ -2169,6 +2665,21 @@ struct AssessmentUnitToggle: View {
     }
 }
 
+/// Small discoverability hint shown above the scrollable ruler.
+struct AssessmentSlideHint: View {
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "hand.draw")
+                .font(.system(size: 13, weight: .semibold))
+            Text("Slide to adjust")
+                .font(TTFont.workSans(13, weight: .medium))
+        }
+        .foregroundStyle(AssessmentColor.slate)
+        .frame(maxWidth: .infinity)
+        .accessibilityHidden(true)
+    }
+}
+
 struct AssessmentRuler: View {
     @Binding var value: Double
     var range: ClosedRange<Double>
@@ -2221,11 +2732,18 @@ struct AssessmentRuler: View {
                 if scrollID != next { scrollID = next }
             }
             .overlay(alignment: .top) {
-                Capsule()
-                    .fill(indicator)
-                    .frame(width: 3, height: 38)
-                    .shadow(color: indicator.opacity(0.6), radius: 6)
-                    .allowsHitTesting(false)
+                // Pointer-style needle: a downward caret marks the value sitting
+                // under it, so it reads clearly as the current selection.
+                VStack(spacing: 1) {
+                    Image(systemName: "arrowtriangle.down.fill")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(indicator)
+                    Capsule()
+                        .fill(indicator)
+                        .frame(width: 2, height: 28)
+                }
+                .shadow(color: indicator.opacity(0.3), radius: 3, y: 1)
+                .allowsHitTesting(false)
             }
         }
         .frame(height: 66)

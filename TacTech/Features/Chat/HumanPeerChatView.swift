@@ -8,6 +8,8 @@ struct HumanPeerChatView: View {
     var audience: HumanChatAudience
     /// When set (push / inbox deep link), open this thread after bootstrap.
     var preferredThreadId: String? = nil
+    /// When set (e.g. Home "Message"), open the thread with this peer user; back closes the chat.
+    var preferredPeerUserId: String? = nil
 
     @Environment(AppStore.self) private var appStore
     @Environment(\.dismiss) private var dismiss
@@ -113,6 +115,10 @@ struct HumanPeerChatView: View {
                 if let peer = peers.first(where: { $0.id == peerId }) {
                     await chatStore.openThread(peer)
                 }
+            } else if let preferredPeerUserId,
+                      let peer = peers.first(where: { $0.id == preferredPeerUserId }) {
+                selectedPeerId = peer.id
+                await chatStore.openThread(peer)
             } else if audience == .trainee, peers.count == 1, selectedPeerId == nil {
                 let peer = peers[0]
                 selectedPeerId = peer.id
@@ -364,7 +370,10 @@ struct HumanPeerChatView: View {
                 onBack: {
                     composerFocused = false
                     TTKeyboard.dismiss()
-                    if audience == .trainer || peers.count > 1 {
+                    if preferredPeerUserId != nil {
+                        // Opened for one person from elsewhere → back returns there.
+                        dismiss()
+                    } else if audience == .trainer || peers.count > 1 {
                         chatStore.closeThread()
                         selectedPeerId = nil
                     } else {

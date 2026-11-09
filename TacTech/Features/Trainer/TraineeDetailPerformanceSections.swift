@@ -55,6 +55,12 @@ struct TraineeDetailHistorySection: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    /// WorkoutLog carries no plan-day id, so there is no exact day title to show.
+    /// TODO: show the day's title once logs include a day id. Never infer it from the weekday.
+    private func historyTitle(_ log: WorkoutLog) -> String {
+        "Workout"
+    }
+
     private func historyRow(_ log: WorkoutLog) -> some View {
         let volume = log.totalVolumeKg
         let volumeLabel = volume >= 1000
@@ -63,13 +69,13 @@ struct TraineeDetailHistorySection: View {
 
         return HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(store.plans.first { $0.id == log.planId }?.title ?? "Workout")
+                Text(historyTitle(log))
                     .font(TTFont.workSans(15, weight: .bold))
                     .foregroundStyle(TTColor.ink)
                 Text(log.completedAt.formatted(date: .abbreviated, time: .shortened))
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkMuted)
-                Text("\(log.setCount) sets · \(volumeLabel)")
+                Text("\(log.setCount) \(log.setCount == 1 ? "set" : "sets") · \(volumeLabel)")
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkSubtle)
             }

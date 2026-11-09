@@ -59,20 +59,26 @@ extension TTLiquidFABAction {
         )
     ]
 
-    /// Trainee center-tab quick actions.
+    /// Trainee center-tab quick actions — limited to things the tabs don't already cover.
     static let traineeCenterMenu: [TTLiquidFABAction] = [
         TTLiquidFABAction(
             id: "ai",
-            title: "AI Assistant",
+            title: "Ask AI coach",
             subtitle: "Form · nutrition · cues",
             icon: .sparkle2,
             highlighted: true
         ),
         TTLiquidFABAction(
-            id: "coachChat",
-            title: "Coach chat",
-            subtitle: "Message · media · video call",
-            icon: .chat
+            id: "logMeal",
+            title: "Log a meal",
+            subtitle: "Scan or add food",
+            icon: .forkKnife
+        ),
+        TTLiquidFABAction(
+            id: "quickWorkout",
+            title: "Quick workout",
+            subtitle: "Start training now",
+            icon: .barbellDiagonal
         )
     ]
 }

@@ -12,6 +12,8 @@ struct TrainerDashboardView: View {
     @State private var detailTrainee: TraineeProfile?
     @State private var previousPlanId: String?
     @State private var toast: TTToastMessage?
+    @State private var showChat = false
+    @State private var chatPeerUserId: String?
     @State private var showCreate = false
     @Bindable private var notificationStore = NotificationStore.shared
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
@@ -22,6 +24,7 @@ struct TrainerDashboardView: View {
 
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue   = Color(red: 37  / 255, green: 99  / 255, blue: 235 / 255)
+    private let amber  = Color(red: 217 / 255, green: 119 / 255, blue: 6 / 255)
     private let green  = Color(red: 34  / 255, green: 197 / 255, blue: 94  / 255)
     private let canvas = Color.white
 
@@ -36,26 +39,9 @@ struct TrainerDashboardView: View {
 
                         VStack(alignment: .leading, spacing: 16) {
 
-                            // 3-stat snapshot row
-                            statsRow
-                                .ttHomeAppear(index: 0)
-
-                            // Join requests — urgent banner
-                            if isLoadingJoinRequests {
-                                joinRequestsLoadingSkeleton
-                                    .ttHomeAppear(index: 1)
-                            } else if store.trainerJoinRequests.contains(where: \.isPending) {
-                                joinRequestsCard
-                                    .ttHomeAppear(index: 1)
-                            }
-
-                            // What needs doing right now
+                            // What needs doing right now — the only thing on Home
                             actionList
-                                .ttHomeAppear(index: 2)
-
-                            // 2 quick actions at the bottom
-                            quickActions
-                                .ttHomeAppear(index: 3)
+                                .ttHomeAppear(index: 0)
                         }
                         .padding(.horizontal, TTSpace.screen)
                         .padding(.top, 20)
@@ -97,6 +83,9 @@ struct TrainerDashboardView: View {
                 .ttModalSheetPresentation()
             }
             .ttToast($toast)
+            .fullScreenCover(isPresented: $showChat) {
+                HumanPeerChatView(audience: .trainer, preferredPeerUserId: chatPeerUserId)
+            }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
                     .ttModalSheetPresentation()
@@ -126,20 +115,7 @@ struct TrainerDashboardView: View {
             avatarUserId: store.session?.userId,
             badgeCount: notificationStore.unreadCount,
             showsAIPro: store.aiEntitlement?.active == true,
-            metrics: [
-                TTHomeProfileMetric(
-                    id: "trainees",
-                    icon: .usersTwo,
-                    iconColor: orange,
-                    text: "\(clients.count) Trainees"
-                ),
-                TTHomeProfileMetric(
-                    id: "coach",
-                    icon: .starFull,
-                    iconColor: blue,
-                    text: "Coach"
-                )
-            ],
+            metrics: [],
             collapseProgress: scrollCollapse.progress,
             onProfileTap: {
                 TTHomeHaptics.light()
@@ -152,143 +128,69 @@ struct TrainerDashboardView: View {
         )
     }
 
-    // MARK: - 3-stat snapshot row
-
-    private var statsRow: some View {
-        HStack(spacing: 10) {
-            statCell(
-                value: "\(clients.count)",
-                label: "Clients",
-                icon: "person.2.fill",
-                tint: orange
-            )
-            statDivider
-            statCell(
-                value: "\(activePlanCount)",
-                label: "Active plans",
-                icon: "list.clipboard.fill",
-                tint: blue
-            )
-            statDivider
-            statCell(
-                value: formAvgLabel,
-                label: "Form avg",
-                icon: "camera.viewfinder",
-                tint: Color(white: 0.3)
-            )
-        }
-        .padding(.vertical, 16)
-        .padding(.horizontal, 18)
-        .background(Color(white: 0.97))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func statCell(value: String, label: String, icon: String, tint: Color) -> some View {
-        VStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(tint)
-            Text(value)
-                .font(TTFont.workSans(22, weight: .bold))
-                .foregroundStyle(.black)
-            Text(label)
-                .font(TTFont.workSans(11, weight: .medium))
-                .foregroundStyle(Color(white: 0.5))
-        }
-        .frame(maxWidth: .infinity)
-    }
-
-    private var statDivider: some View {
-        Rectangle()
-            .fill(Color(white: 0.88))
-            .frame(width: 1, height: 36)
-    }
-
-    // MARK: - Quick actions (2 only)
-
-    private var quickActions: some View {
-        HStack(spacing: 10) {
-            Button {
-                showCreate = true
-            } label: {
-                Label("Create Plan", systemImage: "plus.square.fill")
-                    .font(TTFont.workSans(14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(TTHomeCardPressStyle())
-
-            Button {
-                selectTrainerTab(.trainees)
-            } label: {
-                Label("View Trainees", systemImage: "person.2.fill")
-                    .font(TTFont.workSans(14, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(Color(white: 0.93))
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(TTHomeCardPressStyle())
-        }
-    }
-
     // MARK: - Action list (the only thing on Home)
 
     private var actionList: some View {
         VStack(alignment: .leading, spacing: 12) {
-
-            // Title: tells trainer exactly how many things need doing
-            let urgent = actionQueue.filter { $0.priority < 3 }
-            let done   = actionQueue.filter { $0.priority == 3 }
+            let attention = attentionItems
+            let training = trainingToday
+            let pendingJoins = store.trainerJoinRequests.filter(\.isPending)
+            let total = attention.count + (pendingJoins.isEmpty ? 0 : 1)
 
             if clients.isEmpty {
+                if !pendingJoins.isEmpty { joinRequestsCard(pendingJoins) }
                 emptyRosterCard
-            } else if urgent.isEmpty && done.isEmpty {
-                allClearCard
             } else {
-                // Section title
-                HStack(alignment: .firstTextBaseline) {
-                    Text(urgent.isEmpty ? "All done today 🎉" : "\(urgent.count) thing\(urgent.count == 1 ? "" : "s") need your attention")
-                        .font(TTFont.workSans(20, weight: .bold))
-                        .foregroundStyle(.black)
-                    Spacer()
-                    Text(Date(), format: .dateTime.weekday(.wide))
-                        .font(TTFont.workSans(13, weight: .medium))
-                        .foregroundStyle(Color(white: 0.5))
-                }
-                .padding(.bottom, 4)
-
-                // Urgent cards — each has ONE action
-                ForEach(urgent) { item in
-                    actionCard(item)
-                }
-
-                // Divider + done section
-                if !done.isEmpty {
-                    HStack(spacing: 8) {
-                        Rectangle()
-                            .fill(Color(white: 0.88))
-                            .frame(height: 1)
-                        Text("Completed")
-                            .font(TTFont.workSans(11, weight: .semibold))
-                            .foregroundStyle(Color(white: 0.6))
-                            .fixedSize()
-                        Rectangle()
-                            .fill(Color(white: 0.88))
-                            .frame(height: 1)
+                if total == 0 {
+                    allClearCard
+                } else {
+                    // Section title
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("\(total) thing\(total == 1 ? "" : "s") to do")
+                            .font(TTFont.workSans(20, weight: .bold))
+                            .foregroundStyle(.black)
+                        Spacer()
+                        Text(Date(), format: .dateTime.weekday(.wide))
+                            .font(TTFont.workSans(13, weight: .medium))
+                            .foregroundStyle(Color(white: 0.5))
                     }
-                    .padding(.vertical, 6)
+                    .padding(.bottom, 4)
 
-                    ForEach(done) { item in
-                        doneCard(item)
+                    // Join requests first, then each card with ONE real action.
+                    if !pendingJoins.isEmpty {
+                        joinRequestsCard(pendingJoins)
+                    }
+                    ForEach(attention) { item in
+                        actionCard(item)
+                    }
+                }
+
+                if !training.isEmpty {
+                    sectionHeader(
+                        "Training today",
+                        subtitle: "\(training.filter(\.done).count) of \(training.count) done"
+                    )
+                    ForEach(training, id: \.trainee.id) { row in
+                        trainingRow(row.trainee, title: row.title, done: row.done)
                     }
                 }
             }
         }
+    }
+
+    private func sectionHeader(_ title: String, subtitle: String?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(TTFont.workSans(17, weight: .bold))
+                .foregroundStyle(.black)
+            Spacer()
+            if let subtitle {
+                Text(subtitle)
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(Color(white: 0.5))
+            }
+        }
+        .padding(.top, 12)
     }
 
     // MARK: - Action card (ONE button, ONE job)
@@ -312,6 +214,10 @@ struct TrainerDashboardView: View {
                     )
 
                     VStack(alignment: .leading, spacing: 4) {
+                        Text(item.priority == 0 ? "NEEDS A CHECK-IN" : "NO PLAN")
+                            .font(TTFont.workSans(11, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(item.priority == 0 ? amber : Color(white: 0.5))
                         Text(store.user(forTrainee: item.trainee)?.name ?? "Trainee")
                             .font(TTFont.textLG(.bold))
                             .foregroundStyle(.black)
@@ -340,18 +246,41 @@ struct TrainerDashboardView: View {
         .buttonStyle(TTHomeCardPressStyle())
         // Sibling of the card button, so the two taps can never both fire.
         .overlay(alignment: .trailing) {
-            if item.priority == 2 {
+            let name = store.user(forTrainee: item.trainee)?.name ?? "trainee"
+            if item.priority == 0 {
+                Button {
+                    openMessage(item.trainee)
+                } label: {
+                    actionPill("Message")
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, 14)
+                .accessibilityLabel("Message \(name)")
+            } else if item.priority == 2 {
                 Button {
                     previousPlanId = store.assignedPlan(for: item.trainee)?.id
                     assignTrainee = item.trainee
                 } label: {
-                    assignPill
+                    actionPill("Assign plan")
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, 14)
-                .accessibilityLabel("Assign plan to \(store.user(forTrainee: item.trainee)?.name ?? "trainee")")
+                .accessibilityLabel("Assign plan to \(name)")
             }
         }
+    }
+
+    /// Prefills a friendly opener only when the coach has no draft yet; never sends.
+    private func openMessage(_ trainee: TraineeProfile) {
+        let peerId = trainee.userId
+        let name = store.user(forTrainee: trainee)?.name ?? "there"
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        let existing = HumanChatStore.shared.drafts[peerId] ?? ""
+        if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            HumanChatStore.shared.drafts[peerId] = "Hi \(first), how’s training going?"
+        }
+        chatPeerUserId = peerId
+        showChat = true
     }
 
     /// Toast after the assign sheet closes, with Undo back to the previous state.
@@ -379,71 +308,64 @@ struct TrainerDashboardView: View {
         )
     }
 
-    private var assignPill: some View {
-        Text("Assign plan")
+    /// Standard small black action button (44pt min tap area).
+    private func actionPill(_ title: String) -> some View {
+        Text(title)
             .font(TTFont.textXS(.bold))
             .foregroundStyle(.white)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(Color(white: 0.2))
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .background(Color.black)
             .clipShape(Capsule())
             .frame(minWidth: 44, minHeight: 44)
             .contentShape(Rectangle())
     }
 
+    /// Invisible spacer that reserves room for the overlaid real button.
     @ViewBuilder
     private func actionButton(_ item: QueueItem) -> some View {
         switch item.priority {
-        case 0: // Check-in needed
-            Text("Check in")
-                .font(TTFont.textXS(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(blue)
-                .clipShape(Capsule())
-
-        case 1: // Session today
-            Text("View session")
-                .font(TTFont.textXS(.bold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background(orange)
-                .clipShape(Capsule())
-
-        case 2: // No plan — invisible spacer; the real button is overlaid outside the card button
-            assignPill.hidden()
-
-        default:
-            EmptyView()
+        case 0: actionPill("Message").hidden()
+        case 2: actionPill("Assign plan").hidden()
+        default: EmptyView()
         }
     }
 
-    // MARK: - Done card (muted, no button)
+    // MARK: - Training today / You did today rows
 
-    private func doneCard(_ item: QueueItem) -> some View {
-        HStack(spacing: 12) {
-            TTAvatar(
-                name: store.user(forTrainee: item.trainee)?.name ?? "T",
-                size: 38
-            )
-            .opacity(0.55)
-
-            Text(store.user(forTrainee: item.trainee)?.name ?? "Trainee")
-                .font(TTFont.textMD(.semibold))
-                .foregroundStyle(Color(white: 0.5))
-
-            Spacer(minLength: 0)
-
-            Label("Done", systemImage: "checkmark.circle.fill")
-                .font(TTFont.textXS(.semibold))
-                .foregroundStyle(green)
+    private func trainingRow(_ trainee: TraineeProfile, title: String, done: Bool) -> some View {
+        Button {
+            detailTrainee = trainee
+        } label: {
+            HStack(spacing: 12) {
+                TTAvatar(name: store.user(forTrainee: trainee)?.name ?? "T", size: 38)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(store.user(forTrainee: trainee)?.name ?? "Trainee")
+                        .font(TTFont.textMD(.semibold))
+                        .foregroundStyle(.black)
+                    Text(title)
+                        .font(TTFont.textSM(.medium))
+                        .foregroundStyle(Color(white: 0.45))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                // Only "Done" is knowable from logs; never show "In progress".
+                if done {
+                    Text("Done")
+                        .font(TTFont.textXS(.bold))
+                        .foregroundStyle(green)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(green.opacity(0.12))
+                        .clipShape(Capsule())
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(Color(white: 0.97))
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(Color(white: 0.97))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .buttonStyle(TTHomeCardPressStyle())
     }
 
     // MARK: - Empty states
@@ -498,7 +420,7 @@ struct TrainerDashboardView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
                 .foregroundStyle(green)
-            Text("You're clear for today")
+            Text("You're all caught up")
                 .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(.black)
             Text("All \(clients.count) trainees are on track. Check back tomorrow.")
@@ -518,62 +440,50 @@ struct TrainerDashboardView: View {
 
     // MARK: - Join requests card
 
-    private var joinRequestsCard: some View {
-        let count = store.trainerJoinRequests.filter(\.isPending).count
+    /// Same card anatomy as the attention cards: tag, names, one "Review" button.
+    private func joinRequestsCard(_ requests: [JoinRequestDTO]) -> some View {
+        let names = requests.compactMap { $0.trainee?.name }.filter { !$0.isEmpty }
+        let shown = names.prefix(2).joined(separator: ", ")
+        let extra = requests.count - min(names.count, 2)
+        let line = shown.isEmpty
+            ? "\(requests.count) waiting for your approval"
+            : extra > 0 ? "\(shown) + \(extra) more" : shown
         return Button {
             showJoinRequests = true
         } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "person.badge.clock.fill")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(orange)
-                    .frame(width: 40, height: 40)
-                    .background(orange.opacity(0.12))
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Join requests")
-                        .font(TTFont.workSans(16, weight: .bold))
-                        .foregroundStyle(.black)
-                    Text("\(count) waiting for your approval")
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(Color(white: 0.45))
+            HStack(spacing: 0) {
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(orange)
+                    .frame(width: 4)
+                    .padding(.vertical, 12)
+                    .padding(.leading, 4)
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("JOIN REQUESTS")
+                            .font(TTFont.workSans(11, weight: .bold))
+                            .tracking(0.8)
+                            .foregroundStyle(orange)
+                        Text(line)
+                            .font(TTFont.textLG(.bold))
+                            .foregroundStyle(.black)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
+                    actionPill("Review")
                 }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color(white: 0.6))
+                .padding(.vertical, 14)
+                .padding(.trailing, 14)
+                .padding(.leading, 10)
             }
-            .padding(14)
-            .background(orange.opacity(0.07))
+            .background(Color(white: 0.97))
             .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .strokeBorder(orange.opacity(0.3), lineWidth: 1)
+                    .strokeBorder(orange.opacity(0.18), lineWidth: 1)
             )
         }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Loading skeleton
-
-    private var joinRequestsLoadingSkeleton: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(white: 0.92))
-                .frame(width: 40, height: 40)
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(white: 0.88))
-                    .frame(width: 110, height: 11)
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(white: 0.92))
-                    .frame(width: 80, height: 10)
-            }
-            Spacer()
-        }
-        .padding(14)
-        .background(Color(white: 0.96))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .buttonStyle(TTHomeCardPressStyle())
+        .accessibilityLabel("Review join requests: \(line)")
     }
 
     // MARK: - Data
@@ -603,6 +513,26 @@ struct TrainerDashboardView: View {
         let detail: String
         let tint: Color
         let priority: Int  // 0=check-in, 1=session today, 2=no plan, 3=done
+        var inactiveDays: Int? = nil
+    }
+
+    /// Check-ins (longest inactive first, never-logged first of all), then no plan.
+    private var attentionItems: [QueueItem] {
+        let checkIns = actionQueue.filter { $0.priority == 0 }
+            .sorted { ($0.inactiveDays ?? .max) > ($1.inactiveDays ?? .max) }
+        return checkIns + actionQueue.filter { $0.priority == 2 }
+    }
+
+    /// Trainees with a session today or who already trained today.
+    private var trainingToday: [(trainee: TraineeProfile, title: String, done: Bool)] {
+        let today = Date()
+        return clients.compactMap { trainee in
+            let plan = store.assignedPlan(for: trainee)
+            let session = plan?.session(on: today)
+            let done = didTrain(trainee, on: today)
+            guard session != nil || done else { return nil }
+            return (trainee, session?.title ?? plan?.title ?? "Workout", done)
+        }
     }
 
     private var actionQueue: [QueueItem] {
@@ -624,7 +554,7 @@ struct TrainerDashboardView: View {
             }
             if days == nil || (days ?? 0) >= 3 {
                 let wait = days.map { "\($0) days without a log" } ?? "No logs yet"
-                return QueueItem(trainee: trainee, detail: wait, tint: blue, priority: 0)
+                return QueueItem(trainee: trainee, detail: wait, tint: amber, priority: 0, inactiveDays: days)
             }
             return nil
         }

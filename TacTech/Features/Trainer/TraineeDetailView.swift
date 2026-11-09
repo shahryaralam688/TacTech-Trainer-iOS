@@ -4,13 +4,12 @@ struct TraineeDetailView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let trainee: TraineeProfile
-    @State private var selectedPlanId: String = ""
     @State private var note = ""
     @State private var selectedDay = Date()
     @FocusState private var noteFocused: Bool
-    @State private var isAssigning = false
-    @State private var assignSucceeded = false
-    @State private var showCreatePlan = false
+    @State private var showAssignSheet = false
+    @State private var previousPlanId: String?
+    @State private var viewedPlan: WorkoutPlan?
     @State private var celebrateAssign = false
     @State private var feedbackToast: TTToastMessage?
     @State private var unassignConfirm = false
@@ -28,6 +27,10 @@ struct TraineeDetailView: View {
 
     private var displayName: String {
         store.user(forTrainee: trainee)?.name ?? "Trainee"
+    }
+
+    private var firstName: String {
+        displayName.split(separator: " ").first.map(String.init) ?? displayName
     }
 
     private var currentAssignedPlan: WorkoutPlan? {
@@ -55,9 +58,6 @@ struct TraineeDetailView: View {
                         profileCard
                         sectionLabel("Assigned plan")
                         assignCard
-                        sectionLabel("Roster")
-                        removeFromRosterCard
-
                         performancePicker
 
                         Group {
@@ -79,6 +79,11 @@ struct TraineeDetailView: View {
                         formCard
                         sectionLabel("Feedback")
                         feedbackCard
+
+                        // Destructive, rarely used → last, with breathing room above.
+                        sectionLabel("Roster")
+                            .padding(.top, 32)
+                        removeFromRosterCard
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
@@ -95,9 +100,6 @@ struct TraineeDetailView: View {
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
-        .onAppear {
-            selectedPlanId = store.assignedPlan(for: trainee)?.id ?? store.plans.first?.id ?? ""
-        }
         .onChange(of: store.trainees.map(\.id)) { _, ids in
             // Peer leave / remote remove — detail is stale; pop without force-quit.
             if !ids.contains(trainee.id) {
@@ -111,6 +113,15 @@ struct TraineeDetailView: View {
             await store.refreshDay(for: trainee.id, on: selectedDay)
         }
         .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
+        .navigationDestination(item: $viewedPlan) { plan in
+            WorkoutPlanDetailView(plan: plan)
+        }
+        .sheet(isPresented: $showAssignSheet) {
+            PlanQuickAssignSheet(preselectedTraineeId: trainee.id, onAssigned: {
+                showAssignedToast()
+            })
+            .ttModalSheetPresentation()
+        }
         .confirmationDialog(
             "Unassign this plan?",
             isPresented: $unassignConfirm,
@@ -223,9 +234,6 @@ struct TraineeDetailView: View {
             HStack(spacing: 14) {
                 TTAvatar(name: displayName, size: 64)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(displayName)
-                        .font(TTFont.workSans(18, weight: .bold))
-                        .foregroundStyle(TTColor.ink)
                     Text(trainee.goal)
                         .font(TTFont.body(14))
                         .foregroundStyle(TTColor.inkMuted)
@@ -235,7 +243,7 @@ struct TraineeDetailView: View {
             HStack {
                 stat("Weight", "\(Int(trainee.weightKg)) kg")
                 stat("Height", "\(trainee.heightCm) cm")
-                stat("Target", "\(trainee.dailyCalorieTarget) kcal")
+                stat("Calories", "\(trainee.dailyCalorieTarget) kcal")
             }
         }
         .padding(14)
@@ -256,94 +264,74 @@ struct TraineeDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// One plan card: assigning / changing always goes through PlanQuickAssignSheet.
     private var assignCard: some View {
-        let plans = store.plans.filter { $0.trainerId == store.currentTrainer?.id }
-        let assigned = currentAssignedPlan
-        let alreadySelected = assigned?.id == selectedPlanId && !selectedPlanId.isEmpty
-
-        return VStack(alignment: .leading, spacing: 14) {
-            if let assigned {
+        VStack(alignment: .leading, spacing: 14) {
+            if let assigned = currentAssignedPlan {
                 assignedPlanSummary(assigned)
             } else {
-                HStack(alignment: .top, spacing: 10) {
-                    TTIcon(icon: .barbellDiagonal, filled: true, size: 16)
-                        .foregroundStyle(TTColor.actionOrange)
-                    Text("No plan assigned yet. Pick a plan below to put \(displayName) on a program.")
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("No plan yet")
+                        .font(TTFont.workSans(17, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Assign a plan so \(firstName) can start training. Their sessions will show up below.")
                         .font(TTFont.body(13))
                         .foregroundStyle(TTColor.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            if plans.isEmpty {
-                Text("No plans to assign yet. Create a new plan to put \(displayName) on a program.")
-                    .font(TTFont.body(14))
-                    .foregroundStyle(TTColor.inkMuted)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(assigned == nil ? "Choose an existing plan" : "Change plan")
-                    .font(TTFont.caption(11))
-                    .fontWeight(.bold)
-                    .foregroundStyle(TTColor.inkSubtle)
-                    .tracking(0.4)
-
-                Picker("Plan", selection: $selectedPlanId) {
-                    Text("Select plan").tag("")
-                    ForEach(plans) { plan in
-                        Text(plan.title).tag(plan.id)
+                Button {
+                    openAssignSheet()
+                } label: {
+                    // Standard primary button (same as the assign sheet): label left, arrow right.
+                    HStack(spacing: 8) {
+                        Text("Assign plan")
+                            .font(TTFont.workSans(16, weight: .bold))
+                        Spacer(minLength: 8)
+                        TTIcon(icon: .chevronRight, size: 14)
                     }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 56)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
-                .pickerStyle(.menu)
-                .tint(TTColor.actionOrange)
-                .onAppear {
-                    if selectedPlanId.isEmpty || !plans.contains(where: { $0.id == selectedPlanId }) {
-                        selectedPlanId = assigned?.id ?? plans.first?.id ?? ""
-                    }
-                }
-
-                TTAssignSuccessButton(
-                    title: alreadySelected ? "Already assigned" : (assigned == nil ? "Assign to trainee" : "Switch to this plan"),
-                    isEnabled: !selectedPlanId.isEmpty && !alreadySelected,
-                    isLoading: isAssigning,
-                    showSuccess: assignSucceeded
-                ) {
-                    Task { await assignSelectedPlan() }
-                }
+                .buttonStyle(TTSearchPressStyle(scale: 0.98))
             }
-
-            createPlanButton(hasPlans: !plans.isEmpty)
         }
         .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .sheet(isPresented: $showCreatePlan) {
-            CreatePlanView { newPlan in
-                // Reuse the new plan immediately in the assign flow.
-                selectedPlanId = newPlan.id
-            }
-        }
     }
 
-    /// "Create new plan" action — available alongside the existing-plan picker so the
-    /// trainer can either reuse a built plan or build a fresh one without leaving.
-    private func createPlanButton(hasPlans: Bool) -> some View {
-        Button {
-            showCreatePlan = true
-        } label: {
-            HStack(spacing: 8) {
-                TTIcon(icon: .plus, filled: true, size: 14)
-                Text("Create new plan")
-                    .font(TTFont.workSans(14, weight: .semibold))
+    private func openAssignSheet() {
+        previousPlanId = currentAssignedPlan?.id
+        showAssignSheet = true
+    }
+
+    /// Same pattern as Home: toast after the sheet closes, Undo restores the previous state.
+    private func showAssignedToast() {
+        guard let newPlan = store.assignedPlan(for: trainee) else { return }
+        let first = displayName.split(separator: " ").first.map(String.init) ?? displayName
+        let previous = previousPlanId
+        feedbackToast = TTToastMessage(
+            text: "“\(newPlan.title)” assigned to \(first)",
+            action: TTToastAction(title: "Undo") {
+                Task {
+                    do {
+                        if let previous {
+                            try await store.assign(planId: previous, to: trainee.id)
+                        } else {
+                            try await store.unassign(planId: newPlan.id, from: trainee.id)
+                        }
+                        feedbackToast = TTToastMessage(text: "Undone")
+                    } catch {
+                        feedbackToast = TTToastMessage(text: "Couldn’t undo", style: .error, subtitle: error.localizedDescription)
+                    }
+                }
             }
-            .foregroundStyle(TTColor.actionOrange)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(TTColor.actionOrange.opacity(0.4), lineWidth: 1.5)
-            )
-        }
-        .buttonStyle(.plain)
+        )
     }
 
     private func assignedPlanSummary(_ plan: WorkoutPlan) -> some View {
@@ -421,15 +409,28 @@ struct TraineeDetailView: View {
             }
             .frame(height: 4)
 
+            Button {
+                openAssignSheet()
+            } label: {
+                Text("Change plan")
+                    .font(TTFont.workSans(14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+
             HStack(spacing: 10) {
-                NavigationLink {
-                    WorkoutPlanDetailView(plan: plan)
+                Button {
+                    viewedPlan = plan
                 } label: {
                     Text("View plan")
                         .font(TTFont.workSans(13, weight: .bold))
                         .foregroundStyle(TTColor.ink)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 36)
+                        .frame(height: 44)
                         .background(Color.white)
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -448,7 +449,7 @@ struct TraineeDetailView: View {
                     }
                     .foregroundStyle(TTColor.danger)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 36)
+                    .frame(height: 44)
                     .background(TTColor.danger.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
@@ -471,35 +472,6 @@ struct TraineeDetailView: View {
         }
     }
 
-    private func assignSelectedPlan() async {
-        guard !selectedPlanId.isEmpty else { return }
-        isAssigning = true
-        defer { isAssigning = false }
-        do {
-            try await store.assign(planId: selectedPlanId, to: trainee.id)
-            let planTitle = store.plans.first(where: { $0.id == selectedPlanId })?.title ?? "Plan"
-            TTAssignSuccessFeedback.play(
-                toast: $feedbackToast,
-                celebrate: $celebrateAssign,
-                planTitle: planTitle,
-                traineeName: displayName
-            )
-            withAnimation(.spring(response: 0.36, dampingFraction: 0.78)) {
-                assignSucceeded = true
-            }
-            try? await Task.sleep(for: .milliseconds(1400))
-            withAnimation(.easeOut(duration: 0.2)) {
-                assignSucceeded = false
-            }
-        } catch {
-            feedbackToast = TTToastMessage(
-                text: "Couldn’t assign plan",
-                style: .error,
-                subtitle: error.localizedDescription
-            )
-        }
-    }
-
     private func unassignCurrentPlan() async {
         guard let plan = currentAssignedPlan else { return }
         isUnassigning = true
@@ -507,9 +479,6 @@ struct TraineeDetailView: View {
         do {
             try await store.unassign(planId: plan.id, from: trainee.id)
             TTAssignSuccessFeedback.playUnassign(toast: $feedbackToast, traineeName: displayName)
-            if selectedPlanId == plan.id {
-                selectedPlanId = store.plans.first(where: { $0.trainerId == store.currentTrainer?.id })?.id ?? ""
-            }
         } catch {
             feedbackToast = TTToastMessage(
                 text: "Couldn’t unassign",
@@ -602,9 +571,14 @@ struct TraineeDetailView: View {
                                 .font(TTFont.workSans(14, weight: .semibold))
                                 .foregroundStyle(TTColor.ink)
                             Spacer()
-                            Text("\(report.score)")
-                                .font(TTFont.workSans(16, weight: .bold))
-                                .foregroundStyle(report.score >= 80 ? TTColor.success : TTColor.actionOrange)
+                            HStack(spacing: 6) {
+                                Text("\(report.score)/100")
+                                    .font(TTFont.workSans(16, weight: .bold))
+                                    .foregroundStyle(report.score >= 80 ? TTColor.success : TTColor.actionOrange)
+                                Text(report.score >= 80 ? "Good" : report.score >= 60 ? "Fair" : "Needs work")
+                                    .font(TTFont.caption(12))
+                                    .foregroundStyle(TTColor.inkMuted)
+                            }
                         }
                         Text(report.cues.joined(separator: " · "))
                             .font(TTFont.caption(12))
@@ -642,22 +616,9 @@ struct TraineeDetailView: View {
                         .stroke(noteFocused ? TTColor.actionOrange : Color.clear, lineWidth: 1.5)
                 )
 
+            let canSend = !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             Button {
-                guard let trainer = store.currentTrainer, !note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-                let text = note
-                note = ""
-                Task {
-                    try? await store.saveFeedback(
-                        TrainerFeedback(
-                            id: UUID().uuidString,
-                            trainerId: trainer.id,
-                            traineeId: trainee.id,
-                            message: text,
-                            createdAt: .now,
-                            relatedExerciseId: nil
-                        )
-                    )
-                }
+                Task { await sendFeedback() }
             } label: {
                 HStack(spacing: 8) {
                     Text("Send feedback")
@@ -667,14 +628,38 @@ struct TraineeDetailView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(Color.black)
+                .background(canSend ? Color.black : Color(white: 0.72))
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(!canSend)
         }
         .padding(14)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Keeps the text on failure so nothing the coach wrote is lost.
+    private func sendFeedback() async {
+        let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let trainer = store.currentTrainer, !text.isEmpty else { return }
+        do {
+            try await store.saveFeedback(
+                TrainerFeedback(
+                    id: UUID().uuidString,
+                    trainerId: trainer.id,
+                    traineeId: trainee.id,
+                    message: text,
+                    createdAt: .now,
+                    relatedExerciseId: nil
+                )
+            )
+            note = ""
+            noteFocused = false
+            feedbackToast = TTToastMessage(text: "Note sent to \(firstName)")
+        } catch {
+            feedbackToast = TTToastMessage(text: "Couldn’t send. Try again.", style: .error)
+        }
     }
 
     private func sectionLabel(_ title: String) -> some View {

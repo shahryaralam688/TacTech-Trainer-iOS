@@ -264,16 +264,32 @@ struct AssessmentBody: Encodable {
     var gender: String
     var weightKg: Double
     var age: Int
+    var heightCm: Double
+    var hasTargetWeight: Bool?
+    var targetWeightKg: Double
+    var bmi: Double?
+    var experienceLevel: String
     var hasExperience: Bool?
     var fitnessLevel: Int
+    var activityLevel: String
+    var workoutLocation: String
+    var equipment: [String]
     var limitations: [String]
     var diet: String
     var daysPerWeek: Int
+    var workoutDuration: String
     var exercisePreferences: [String]
+    var supplementFrequency: String
     var takesSupplements: Bool?
     var supplements: [String]
     var calorieGoal: Int
+    var sleepHours: String
     var sleepQuality: String
+    var waterIntake: String
+    var improvementAreas: [String]
+    var frontPhotoCaptured: Bool
+    var sidePhotoCaptured: Bool
+    var backPhotoCaptured: Bool
     var bodyScanCaptured: Bool
     var voiceCaptured: Bool
     var concerns: String
@@ -283,16 +299,32 @@ struct AssessmentBody: Encodable {
         gender = assessment.gender
         weightKg = assessment.weightKg
         age = assessment.age
+        heightCm = assessment.heightCm
+        hasTargetWeight = assessment.hasTargetWeight
+        targetWeightKg = assessment.targetWeightKg
+        bmi = assessment.bmi
+        experienceLevel = assessment.experienceLevel
         hasExperience = assessment.hasExperience
         fitnessLevel = assessment.fitnessLevel
+        activityLevel = assessment.activityLevel
+        workoutLocation = assessment.workoutLocation
+        equipment = assessment.equipment
         limitations = assessment.limitations
         diet = assessment.diet
         daysPerWeek = assessment.daysPerWeek
+        workoutDuration = assessment.workoutDuration
         exercisePreferences = assessment.exercisePreferences
+        supplementFrequency = assessment.supplementFrequency
         takesSupplements = assessment.takesSupplements
         supplements = assessment.supplements
         calorieGoal = assessment.calorieGoal
+        sleepHours = assessment.sleepHours
         sleepQuality = assessment.sleepQuality
+        waterIntake = assessment.waterIntake
+        improvementAreas = assessment.improvementAreas
+        frontPhotoCaptured = assessment.frontPhotoCaptured
+        sidePhotoCaptured = assessment.sidePhotoCaptured
+        backPhotoCaptured = assessment.backPhotoCaptured
         bodyScanCaptured = assessment.bodyScanCaptured
         voiceCaptured = assessment.voiceCaptured
         concerns = assessment.concerns

@@ -2061,21 +2061,52 @@ final class AppStore {
         if !a.goal.isEmpty { parts.append("goal \(a.goal)") }
         if !a.gender.isEmpty { parts.append("gender \(a.gender)") }
         parts.append("age \(a.age)")
+        parts.append("height \(Int(a.heightCm.rounded())) cm")
         parts.append("weight \(a.weightKg.cleanKg) kg")
-        parts.append("fitness level \(a.fitnessLevel)/5")
-        parts.append("\(a.daysPerWeek) days/week")
-        if let exp = a.hasExperience {
+        if a.hasTargetWeight == true {
+            parts.append("target weight \(a.targetWeightKg.cleanKg) kg")
+        } else if a.hasTargetWeight == false {
+            parts.append("no target weight")
+        }
+        if let bmi = a.bmi {
+            parts.append("BMI \(String(format: "%.1f", bmi))\(a.bmiCategory.map { " (\($0))" } ?? "")")
+        }
+        if !a.experienceLevel.isEmpty {
+            parts.append("experience \(a.experienceLevel)")
+        } else if let exp = a.hasExperience {
             parts.append(exp ? "has training experience" : "beginner / little experience")
+        }
+        parts.append("fitness level \(a.fitnessLevel)/5")
+        if !a.activityLevel.isEmpty { parts.append("daily activity: \(a.activityLevel)") }
+        if !a.workoutLocation.isEmpty { parts.append("works out: \(a.workoutLocation)") }
+        if !a.equipment.isEmpty {
+            parts.append("equipment: \(a.equipment.joined(separator: ", "))")
+        }
+        parts.append("\(a.daysPerWeek) days/week")
+        if !a.workoutDuration.isEmpty { parts.append("time per session: \(a.workoutDuration)") }
+        if !a.exercisePreferences.isEmpty {
+            parts.append("prefers: \(a.exercisePreferences.joined(separator: ", "))")
         }
         if !a.limitations.isEmpty {
             parts.append("limitations: \(a.limitations.joined(separator: ", "))")
         }
-        if !a.exercisePreferences.isEmpty {
-            parts.append("prefers: \(a.exercisePreferences.joined(separator: ", "))")
-        }
         if !a.diet.isEmpty { parts.append("diet \(a.diet)") }
+        if !a.supplementFrequency.isEmpty {
+            parts.append("supplements: \(a.supplementFrequency)")
+        }
+        if !a.supplements.isEmpty {
+            parts.append("takes: \(a.supplements.joined(separator: ", "))")
+        }
+        if !a.sleepHours.isEmpty {
+            parts.append("sleep \(a.sleepHours)")
+        } else if !a.sleepQuality.isEmpty {
+            parts.append("sleep \(a.sleepQuality)")
+        }
+        if !a.waterIntake.isEmpty { parts.append("water \(a.waterIntake)") }
+        if !a.improvementAreas.isEmpty {
+            parts.append("wants to improve: \(a.improvementAreas.joined(separator: ", "))")
+        }
         parts.append("calorie target \(a.calorieGoal)")
-        if !a.sleepQuality.isEmpty { parts.append("sleep \(a.sleepQuality)") }
         if !a.concerns.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             parts.append("concerns: \(a.concerns)")
         }

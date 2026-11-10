@@ -10,6 +10,14 @@ struct HumanPeerChatView: View {
     var preferredThreadId: String? = nil
     /// When set (e.g. Home "Message"), open the thread with this peer user; back closes the chat.
     var preferredPeerUserId: String? = nil
+    /// Hosted as a root tab (Trainer "Chat"): no close button, dark list header, tab bar hides inside a thread.
+    var isEmbedded: Bool = false
+    /// Embedded only — false while another tab is showing, so the inbox refreshes when the tab opens.
+    var isActive: Bool = true
+    /// When set, an "AI Coach" row is pinned above the people list and calls this on tap.
+    var onOpenAICoach: (() -> Void)? = nil
+    /// Embedded only — opens roster management (invite code, join requests, trainee profiles).
+    var onOpenRoster: (() -> Void)? = nil
 
     @Environment(AppStore.self) private var appStore
     @Environment(\.dismiss) private var dismiss
@@ -102,7 +110,12 @@ struct HumanPeerChatView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: fullscreenImage != nil)
         .animation(.easeInOut(duration: 0.2), value: videoPlayerURL != nil)
-        .task {
+        // Thread open inside the tab → full-height composer, tab bar out of the way.
+        .ttRootTabBarVisible(isEmbedded ? selectedPeer == nil : true)
+        // Edge swipe = the header's back button (thread → list; list → close when presented as a cover).
+        .ttEdgeSwipeBack(enabled: !isEmbedded || selectedPeer != nil) { goBack() }
+        .task(id: isActive) {
+            guard isActive else { return }
             chatStore.lastError = nil
             await chatStore.bootstrap()
             // Mark settled even if follow-up openThread is cancelled — empty vs populated is known.
@@ -244,9 +257,142 @@ struct HumanPeerChatView: View {
         }
     }
 
+    /// One back action for the header button and the edge swipe.
+    private func goBack() {
+        composerFocused = false
+        TTKeyboard.dismiss()
+        if selectedPeer == nil {
+            if !isEmbedded { dismiss() }
+            return
+        }
+        if isEmbedded {
+            chatStore.closeThread()
+            selectedPeerId = nil
+        } else if preferredPeerUserId != nil {
+            // Opened for one person from elsewhere → back returns there.
+            dismiss()
+        } else if audience == .trainer || peers.count > 1 {
+            chatStore.closeThread()
+            selectedPeerId = nil
+        } else {
+            dismiss()
+        }
+    }
+
     // MARK: - Inbox
 
+    @ViewBuilder
     private var inboxColumn: some View {
+        if isEmbedded { embeddedInbox } else { standardInbox }
+    }
+
+    /// Tab layout: AI Coach pinned on top, then everyone you can message.
+    private var embeddedInbox: some View {
+        VStack(spacing: 0) {
+            trainerListHeader(
+                title: "Chat",
+                subtitle: "AI Coach and your athletes",
+                trailingIcon: .userPlus,
+                accessibilityLabel: "Invite and manage trainees"
+            ) {
+                onOpenRoster?()
+            }
+
+            VStack(alignment: .leading, spacing: 12) {
+                if let onOpenAICoach {
+                    aiCoachRow(action: onOpenAICoach)
+                }
+
+                HStack {
+                    Text("TRAINEES")
+                        .font(TTFont.workSans(12, weight: .semibold))
+                        .tracking(1.2)
+                        .foregroundStyle(TTColor.inkMuted)
+                    Spacer()
+                    if let onOpenRoster {
+                        Button("Roster", action: onOpenRoster)
+                            .font(TTFont.workSans(14, weight: .semibold))
+                            .foregroundStyle(orange)
+                            .frame(minHeight: 44)
+                    }
+                }
+                .padding(.top, 4)
+
+                inboxBody
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: Color(white: 0.97))
+        }
+        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+    }
+
+    private func aiCoachRow(action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle().fill(Color.black)
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                .frame(width: 50, height: 50)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI Coach")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(ink)
+                    Text("Ask about plans, form and training")
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                TTChevronForward(size: 12)
+            }
+            .padding(14)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+            )
+            .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("AI Coach")
+    }
+
+    /// Loading / empty / people list, shared by both layouts.
+    @ViewBuilder
+    private var inboxBody: some View {
+        if peers.isEmpty {
+            if hasFinishedInitialLoad {
+                emptyInbox
+            } else {
+                inboxLoading
+            }
+        } else {
+            ScrollView(showsIndicators: false) {
+                LazyVStack(spacing: 10) {
+                    ForEach(peers) { peer in
+                        Button {
+                            selectedPeerId = peer.id
+                            Task { await chatStore.openThread(peer) }
+                        } label: {
+                            inboxRow(peer)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.bottom, 16)
+            }
+            .refreshable { await chatStore.refreshInbox(quiet: true) }
+        }
+    }
+
+    private var standardInbox: some View {
         VStack(spacing: 0) {
             headerBar(
                 title: audience == .trainer ? "Trainee chat" : "Coach chat",
@@ -367,19 +513,7 @@ struct HumanPeerChatView: View {
             HumanChatContactHeader(
                 name: peer.name,
                 subtitle: threadSubtitle,
-                onBack: {
-                    composerFocused = false
-                    TTKeyboard.dismiss()
-                    if preferredPeerUserId != nil {
-                        // Opened for one person from elsewhere → back returns there.
-                        dismiss()
-                    } else if audience == .trainer || peers.count > 1 {
-                        chatStore.closeThread()
-                        selectedPeerId = nil
-                    } else {
-                        dismiss()
-                    }
-                },
+                onBack: { goBack() },
                 onVideo: {
                     composerFocused = false
                     TTKeyboard.dismiss()
@@ -646,7 +780,7 @@ struct HumanPeerChatView: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-            } else {
+            } else if !isEmbedded {
                 Button {
                     dismiss()
                 } label: {

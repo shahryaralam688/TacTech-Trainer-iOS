@@ -1213,7 +1213,21 @@ struct ExercisePrescriptionCard: View {
     }
 }
 
-// Shared trainer list header (Plans / Trainees) — shrinks on scroll like home.
+/// Applies a VoiceOver label only when one was supplied (keeps existing callers untouched).
+private struct TTOptionalAccessibilityLabel: ViewModifier {
+    let label: String?
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if let label {
+            content.accessibilityLabel(label)
+        } else {
+            content
+        }
+    }
+}
+
+// Shared trainer list header (Plans / Chat) — shrinks on scroll like home.
 @ViewBuilder
 func trainerListHeader(
     title: String,
@@ -1221,6 +1235,7 @@ func trainerListHeader(
     trailingIcon: SandowIcon,
     collapseProgress: CGFloat = 0,
     isMenuOpen: Bool = false,
+    accessibilityLabel: String? = nil,
     action: @escaping () -> Void
 ) -> some View {
     let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
@@ -1258,6 +1273,7 @@ func trainerListHeader(
                     .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isMenuOpen)
             }
             .buttonStyle(.plain)
+            .modifier(TTOptionalAccessibilityLabel(label: accessibilityLabel))
             .opacity(isMenuOpen ? 0 : 1)
             .allowsHitTesting(!isMenuOpen)
         }

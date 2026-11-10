@@ -39,7 +39,7 @@ struct TraineeRootView: View {
                     ZStack {
                         if mounted.contains(.home) {
                             TraineeDashboardView()
-                                .opacity(tab == .home ? 1 : 0)
+                                .ttTabFade(tab: .home, selection: tab, order: [.home, .workout, .nutrition, .progress])
                                 .allowsHitTesting(tab == .home)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .home { visible = true }
@@ -47,7 +47,7 @@ struct TraineeRootView: View {
                         }
                         if mounted.contains(.workout) {
                             WorkoutHubView()
-                                .opacity(tab == .workout ? 1 : 0)
+                                .ttTabFade(tab: .workout, selection: tab, order: [.home, .workout, .nutrition, .progress])
                                 .allowsHitTesting(tab == .workout)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .workout { visible = true }
@@ -55,7 +55,7 @@ struct TraineeRootView: View {
                         }
                         if mounted.contains(.nutrition) {
                             NutritionView()
-                                .opacity(tab == .nutrition ? 1 : 0)
+                                .ttTabFade(tab: .nutrition, selection: tab, order: [.home, .workout, .nutrition, .progress])
                                 .allowsHitTesting(tab == .nutrition)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .nutrition { visible = true }
@@ -63,7 +63,7 @@ struct TraineeRootView: View {
                         }
                         if mounted.contains(.progress) {
                             TraineeProgressView()
-                                .opacity(tab == .progress ? 1 : 0)
+                                .ttTabFade(tab: .progress, selection: tab, order: [.home, .workout, .nutrition, .progress])
                                 .allowsHitTesting(tab == .progress)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .progress { visible = true }
@@ -72,6 +72,11 @@ struct TraineeRootView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(edges: .bottom)
+                    .ttSwipeBetweenTabs(
+                        order: [.home, .workout, .nutrition, .progress],
+                        selection: $tab,
+                        enabled: rootTabBarVisible && !showLiquidMenu
+                    )
                     .contentMargins(.bottom, tabClearance, for: .scrollContent)
                     .environment(\.ttRootTabBarClearance, rootTabBarVisible ? TTFloatingTabBar<TraineeTab>.barBodyHeight : 0)
                     .onPreferenceChange(TTRootTabBarVisibleKey.self) { visible in

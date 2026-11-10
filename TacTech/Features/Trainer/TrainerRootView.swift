@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum TrainerTab: Hashable {
-    case dashboard, plans, trainees, profile
+    case dashboard, plans, chat, profile
 }
 
 private struct TrainerTabRouterKey: EnvironmentKey {
@@ -9,7 +9,7 @@ private struct TrainerTabRouterKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
-    /// Switch the trainer root tab (Home / Plans / Trainees / Profile).
+    /// Switch the trainer root tab (Home / Plans / Chat / Profile).
     var selectTrainerTab: (TrainerTab) -> Void {
         get { self[TrainerTabRouterKey.self] }
         set { self[TrainerTabRouterKey.self] = newValue }
@@ -27,6 +27,7 @@ struct TrainerRootView: View {
     @State private var showAssignmentsList = false
     @State private var showTraineeChat = false
     @State private var showJoinRequests = false
+    @State private var showRoster = false
     @State private var pendingChatThreadId: String?
     @State private var rootTabBarVisible = true
     @State private var relationshipToast: TTToastMessage?
@@ -38,7 +39,7 @@ struct TrainerRootView: View {
         return [
             TTTabBarItem(.dashboard, icon: .house1, label: String(localized: "tab.home", locale: locale)),
             TTTabBarItem(.plans, icon: .barbellDiagonal, label: String(localized: "tab.plans", locale: locale)),
-            TTTabBarItem(.trainees, icon: .usersTwo, label: String(localized: "tab.trainees", locale: locale)),
+            TTTabBarItem(.chat, icon: .chat, label: String(localized: "tab.chat", locale: locale)),
             TTTabBarItem(.profile, icon: .user, label: String(localized: "tab.profile", locale: locale))
         ]
     }
@@ -54,7 +55,7 @@ struct TrainerRootView: View {
                     ZStack {
                         if mounted.contains(.dashboard) {
                             TrainerDashboardView()
-                                .opacity(tab == .dashboard ? 1 : 0)
+                                .ttTabFade(tab: .dashboard, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .dashboard)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .dashboard { visible = true }
@@ -62,23 +63,30 @@ struct TrainerRootView: View {
                         }
                         if mounted.contains(.plans) {
                             WorkoutPlansView()
-                                .opacity(tab == .plans ? 1 : 0)
+                                .ttTabFade(tab: .plans, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .plans)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .plans { visible = true }
                                 }
                         }
-                        if mounted.contains(.trainees) {
-                            MyTraineesView()
-                                .opacity(tab == .trainees ? 1 : 0)
-                                .allowsHitTesting(tab == .trainees)
-                                .transformPreference(TTRootTabBarVisibleKey.self) { visible in
-                                    if tab != .trainees { visible = true }
-                                }
+                        if mounted.contains(.chat) {
+                            // Same chat screen as everywhere else; AI Coach pinned on top.
+                            HumanPeerChatView(
+                                audience: .trainer,
+                                isEmbedded: true,
+                                isActive: tab == .chat,
+                                onOpenAICoach: openAIChat,
+                                onOpenRoster: { showRoster = true }
+                            )
+                            .ttTabFade(tab: .chat, selection: tab, order: [.dashboard, .plans, .chat, .profile])
+                            .allowsHitTesting(tab == .chat)
+                            .transformPreference(TTRootTabBarVisibleKey.self) { visible in
+                                if tab != .chat { visible = true }
+                            }
                         }
                         if mounted.contains(.profile) {
                             TrainerProfileView()
-                                .opacity(tab == .profile ? 1 : 0)
+                                .ttTabFade(tab: .profile, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .profile)
                                 .transformPreference(TTRootTabBarVisibleKey.self) { visible in
                                     if tab != .profile { visible = true }
@@ -87,6 +95,11 @@ struct TrainerRootView: View {
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .ignoresSafeArea(edges: .bottom)
+                    .ttSwipeBetweenTabs(
+                        order: [.dashboard, .plans, .chat, .profile],
+                        selection: $tab,
+                        enabled: rootTabBarVisible && !showLiquidMenu
+                    )
                     .contentMargins(.bottom, tabClearance, for: .scrollContent)
                     .environment(\.ttRootTabBarClearance, rootTabBarVisible ? TTFloatingTabBar<TrainerTab>.barBodyHeight : 0)
                     .onPreferenceChange(TTRootTabBarVisibleKey.self) { visible in
@@ -170,8 +183,13 @@ struct TrainerRootView: View {
             JoinRequestsView()
                 .ttModalSheetPresentation()
         }
+        .sheet(isPresented: $showRoster) {
+            // Invite code, join requests, search and trainee profiles live here now.
+            MyTraineesView()
+                .ttModalSheetPresentation()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenJoinRequests)) { _ in
-            selectTab(.trainees)
+            selectTab(.dashboard)
             showJoinRequests = true
             Task { await store.fetchTrainerJoinRequests() }
         }
@@ -190,7 +208,7 @@ struct TrainerRootView: View {
             )
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
-            selectTab(.trainees)
+            selectTab(.dashboard)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
             // Trainer 2nd device: soft refresh plans/roster (actor device already updated via REST).
@@ -237,7 +255,7 @@ struct TrainerRootView: View {
             openAIChat()
         case "traineeChat":
             TTKeyboard.dismiss()
-            showTraineeChat = true
+            selectTab(.chat)
         case "create":
             showCreatePlan = true
             selectTab(.plans)

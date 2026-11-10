@@ -60,6 +60,7 @@ struct TTAICoachChatOverlay: View {
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white.ignoresSafeArea())
+        .ttEdgeSwipeBack { close() }
         .opacity(appeared ? 1 : 0)
         .offset(y: appeared ? 0 : (reduceMotion ? 0 : 18))
         .onAppear {

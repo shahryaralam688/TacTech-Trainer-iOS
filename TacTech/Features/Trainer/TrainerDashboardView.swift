@@ -529,53 +529,86 @@ struct TrainerDashboardView: View {
         return checkIns + actionQueue.filter { $0.priority == 2 }
     }
 
+    private func todayStatus(_ trainee: TraineeProfile, today: Date) -> TraineeTodayStatus {
+        TraineeTodayStatus.make(
+            plan: store.assignedPlan(for: trainee),
+            logs: store.logs(for: trainee.id),
+            today: today
+        )
+    }
+
     /// Trainees with a session today or who already trained today.
     private var trainingToday: [(trainee: TraineeProfile, title: String, done: Bool)] {
         let today = Date()
         return clients.compactMap { trainee in
+            let status = todayStatus(trainee, today: today)
+            guard status.isTrainingToday else { return nil }
             let plan = store.assignedPlan(for: trainee)
-            let session = plan?.session(on: today)
-            let done = didTrain(trainee, on: today)
-            guard session != nil || done else { return nil }
-            return (trainee, session?.title ?? plan?.title ?? "Workout", done)
+            return (trainee, plan?.session(on: today)?.title ?? plan?.title ?? "Workout", status == .doneToday)
         }
     }
 
     private var actionQueue: [QueueItem] {
         let today = Date()
         return clients.compactMap { trainee -> QueueItem? in
-            let plan    = store.assignedPlan(for: trainee)
-            let session = plan?.session(on: today)
-            let trained = didTrain(trainee, on: today)
-            let days    = daysSinceLastWorkout(trainee)
-
-            if trained {
+            switch todayStatus(trainee, today: today) {
+            case .doneToday:
                 return QueueItem(trainee: trainee, detail: "Completed today's session", tint: green, priority: 3)
-            }
-            if session != nil {
-                return QueueItem(trainee: trainee, detail: session?.title ?? plan?.title ?? "Session scheduled", tint: orange, priority: 1)
-            }
-            if plan == nil {
+            case .sessionToday(let title):
+                return QueueItem(trainee: trainee, detail: title, tint: orange, priority: 1)
+            case .noPlan:
                 return QueueItem(trainee: trainee, detail: "No workout plan assigned", tint: Color(white: 0.25), priority: 2)
-            }
-            if days == nil || (days ?? 0) >= 3 {
+            case .inactive(let days):
                 let wait = days.map { "\($0) days without a log" } ?? "No logs yet"
                 return QueueItem(trainee: trainee, detail: wait, tint: amber, priority: 0, inactiveDays: days)
+            case .none:
+                return nil
             }
-            return nil
         }
         .sorted { $0.priority < $1.priority }
     }
+}
 
-    private func didTrain(_ trainee: TraineeProfile, on day: Date) -> Bool {
-        store.logs(for: trainee.id).contains {
-            Calendar.current.isDate($0.completedAt, inSameDayAs: day)
+// MARK: - Trainee status for today (shared by Home and the roster)
+
+/// One definition of "where is this trainee today". Pure: no store access.
+/// Precedence matches Home's action queue: done today > session today > no plan > check-in > none.
+enum TraineeTodayStatus: Equatable {
+    case doneToday
+    /// Only when the assigned plan has a day scheduled for today's weekday; `title` is that day's title.
+    case sessionToday(title: String)
+    /// Has a plan, nothing today, and no log for 3+ days (`days == nil` → never logged).
+    case inactive(days: Int?)
+    case noPlan
+    case none
+
+    /// Home's "Training today" count and the roster's Today filter both use this.
+    var isTrainingToday: Bool {
+        switch self {
+        case .doneToday, .sessionToday: return true
+        default: return false
         }
     }
 
-    private func daysSinceLastWorkout(_ trainee: TraineeProfile) -> Int? {
-        guard let last = store.logs(for: trainee.id).map(\.completedAt).max() else { return nil }
-        return Calendar.current.dateComponents([.day], from: last, to: Date()).day
+    /// Days without a log that make a trainee a check-in.
+    static let checkInThresholdDays = 3
+
+    static func make(plan: WorkoutPlan?, logs: [WorkoutLog], today: Date) -> TraineeTodayStatus {
+        let calendar = Calendar.current
+        if logs.contains(where: { calendar.isDate($0.completedAt, inSameDayAs: today) }) {
+            return .doneToday
+        }
+        if let session = plan?.session(on: today) {
+            return .sessionToday(title: session.title)
+        }
+        if plan == nil { return .noPlan }
+        let days: Int? = logs.map(\.completedAt).max().flatMap {
+            calendar.dateComponents([.day], from: $0, to: today).day
+        }
+        if days == nil || (days ?? 0) >= checkInThresholdDays {
+            return .inactive(days: days)
+        }
+        return .none
     }
 }
 

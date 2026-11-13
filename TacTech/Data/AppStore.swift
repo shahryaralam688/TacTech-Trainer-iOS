@@ -1196,7 +1196,13 @@ final class AppStore {
         guard !isLoadingSession else { return }
         isLoadingSession = true
         defer { isLoadingSession = false }
-        activeWorkoutSession = try? await api.activeSession()
+        // On a thrown error keep the current session; clear only when the server answered "none".
+        // (do/catch, not `try?`: `try?` would flatten "none" and "failed" into the same nil.)
+        let result: WorkoutSession?
+        do { result = try await api.activeSessionThrowing() } catch { return }
+        // A Finish that completed while this request was in flight must not be undone by a stale answer.
+        if completeWorkoutTask != nil { return }
+        activeWorkoutSession = result
     }
 
     /// Starts a new session for the given plan/day. Throws if a session is already active.

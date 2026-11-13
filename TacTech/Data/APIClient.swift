@@ -1275,6 +1275,21 @@ actor APIClient {
         try? await send(path: "/trainee/sessions/active", method: .get)
     }
 
+    /// Same request as `activeSession()`, but failures are thrown instead of becoming `nil`.
+    /// Returns `nil` only when the server answered and says there is no active session
+    /// (404, empty body, or JSON `null`). Network/server/decoding errors throw.
+    func activeSessionThrowing() async throws -> WorkoutSession? {
+        let data: Data
+        do {
+            data = try await raw(path: "/trainee/sessions/active", method: .get, body: Optional<EmptyBody>.none, authorized: true)
+        } catch let error as AppError where error.isNotFound {
+            return nil
+        }
+        let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if data.isEmpty || text == "null" { return nil }
+        return try decode(WorkoutSession.self, from: data)
+    }
+
     func logSessionSet(sessionId: String, _ body: SessionSetBody) async throws -> WorkoutSetLog? {
         try await sendOptional(path: "/trainee/sessions/\(sessionId)/sets", method: .post, body: body)
     }

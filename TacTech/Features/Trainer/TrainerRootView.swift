@@ -225,6 +225,7 @@ struct TrainerRootView: View {
             store.softToast = nil
         }
         .ttToast($relationshipToast)
+        .ttTrainerLiveSync()
         .onChange(of: showTraineeChat) { _, open in
             if !open { pendingChatThreadId = nil }
         }
@@ -277,4 +278,67 @@ struct TrainerRootView: View {
 #Preview("Trainer Root") {
     TrainerRootView()
         .ttPreviewTrainer()
+}
+
+// MARK: - Live sync (trainee activity → trainer screens)
+
+/// Keeps the trainer's view of trainee activity (workout logs + analytics) fresh.
+///
+/// Why this exists: the trainer workspace was loaded once at launch, and the socket has no
+/// "workout completed" event. Trainee logs therefore only reached the trainer after opening a
+/// trainee or pulling to refresh. This reuses the existing `refreshTraineePerformance` call.
+@MainActor
+enum TrainerLiveSync {
+    private static var lastRun: Date = .distantPast
+    private static var inFlight = false
+
+    /// Refreshes logs + analytics for every trainee on the roster (or one trainee).
+    /// Throttled so foreground/notification bursts don't hammer the API. Errors are swallowed:
+    /// stale data stays on screen rather than blanking it.
+    static func refresh(store: AppStore, traineeId: String? = nil, force: Bool = false) async {
+        guard store.session?.role == .trainer, !inFlight else { return }
+        if !force, Date().timeIntervalSince(lastRun) < 5 { return }
+        inFlight = true
+        defer { inFlight = false; lastRun = Date() }
+
+        let ids: [String]
+        if let traineeId {
+            ids = [traineeId]
+        } else {
+            ids = store.currentTrainer.map { store.trainees(for: $0).map(\.id) } ?? []
+        }
+        await withTaskGroup(of: Void.self) { group in
+            for id in ids {
+                group.addTask { try? await store.refreshTraineePerformance(traineeId: id) }
+            }
+        }
+    }
+}
+
+private struct TrainerLiveSyncModifier: ViewModifier {
+    @Environment(AppStore.self) private var store
+    @Environment(\.scenePhase) private var scenePhase
+    private let notifications = NotificationStore.shared
+
+    func body(content: Content) -> some View {
+        content
+            // Coming back to the app: trainee may have trained while the app was in background.
+            .onChange(of: scenePhase) { _, phase in
+                guard phase == .active else { return }
+                Task { await TrainerLiveSync.refresh(store: store) }
+            }
+            // A new inbox item about a workout/metrics → refresh that trainee right away.
+            .onChange(of: notifications.items.first?.id) { _, _ in
+                guard let note = notifications.items.first else { return }
+                let type = note.type.lowercased()
+                guard type == "workout" || type == "metrics" || type.hasPrefix("workout_") else { return }
+                let profileId = note.data["traineeProfileId"] ?? note.data["trainee_profile_id"] ?? note.data["traineeId"]
+                Task { await TrainerLiveSync.refresh(store: store, traineeId: profileId, force: true) }
+            }
+    }
+}
+
+extension View {
+    /// Trainer roots: refresh trainee activity on foreground and on workout notifications.
+    func ttTrainerLiveSync() -> some View { modifier(TrainerLiveSyncModifier()) }
 }

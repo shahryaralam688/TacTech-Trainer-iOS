@@ -1074,27 +1074,27 @@ struct ActiveWorkoutView: View {
                 exercisesCount: completedExerciseCount,
                 setsCount: logs.count
             ) {
-                Task {
-                    if let sid = sessionId {
-                        // Session API path: complete via backend, which saves the log server-side.
-                        try? await store.completeWorkoutSession(sessionId: sid, durationMinutes: max(guidedElapsed / 60, 1))
-                        sessionId = nil
-                    } else {
-                        // Fallback: save a local log when session API was unavailable.
-                        guard let trainee = store.currentTrainee else { dismiss(); return }
-                        try? await store.saveWorkoutLog(
-                            WorkoutLog(
-                                id: UUID().uuidString,
-                                traineeId: trainee.id,
-                                planId: plan.id,
-                                completedAt: .now,
-                                durationMinutes: max(guidedElapsed / 60, 1),
-                                sets: logs
-                            )
+                // Throws on failure: sessionId, `logs` and the store session stay exactly as they are,
+                // so the sheet can offer Try again. Only clear/dismiss after the server confirmed.
+                if let sid = sessionId {
+                    // Session API path: complete via backend, which saves the log server-side.
+                    try await store.completeWorkoutSession(sessionId: sid, durationMinutes: max(guidedElapsed / 60, 1))
+                    sessionId = nil
+                } else {
+                    // Fallback: save a local log when session API was unavailable.
+                    guard let trainee = store.currentTrainee else { dismiss(); return }
+                    try await store.saveWorkoutLog(
+                        WorkoutLog(
+                            id: UUID().uuidString,
+                            traineeId: trainee.id,
+                            planId: plan.id,
+                            completedAt: .now,
+                            durationMinutes: max(guidedElapsed / 60, 1),
+                            sets: logs
                         )
-                    }
-                    dismiss()
+                    )
                 }
+                dismiss()
             }
         }
     }
@@ -1605,10 +1605,34 @@ private struct WorkoutCompleteSheet: View {
     let duration: Int
     let exercisesCount: Int
     let setsCount: Int
-    let onDone: () -> Void
+    /// Saves the workout. Throws if the server did not confirm.
+    let onDone: () async throws -> Void
 
     @Environment(\.dismiss) private var sheetDismiss
+    @State private var isSaving = false
+    @State private var saveFailed = false
     private let orange = TTColor.actionOrange
+
+    private func finish() {
+        guard !isSaving else { return }
+        isSaving = true
+        saveFailed = false
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Saving your workout…"))
+        Task {
+            do {
+                try await onDone()
+                isSaving = false
+                sheetDismiss()
+            } catch {
+                isSaving = false
+                saveFailed = true
+                UIAccessibility.post(
+                    notification: .announcement,
+                    argument: String(localized: "Couldn't save your workout. Your sets are safe.")
+                )
+            }
+        }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1648,19 +1672,43 @@ private struct WorkoutCompleteSheet: View {
                 .background(Color(white: 0.97))
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
 
-                Button {
-                    sheetDismiss()
-                    onDone()
-                } label: {
-                    Text("Done — back to home")
-                        .font(TTFont.workSans(16, weight: .bold))
+                VStack(spacing: 10) {
+                    if saveFailed {
+                        Text("Couldn't save your workout. Your sets are safe.")
+                            .font(TTFont.workSans(13, weight: .medium))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .accessibilityAddTraits(.isStaticText)
+                    }
+
+                    Button { finish() } label: {
+                        ZStack {
+                            if isSaving {
+                                ProgressView()
+                                    .tint(.white)
+                                    .accessibilityLabel(Text("Saving your workout…"))
+                            } else {
+                                Text(saveFailed ? "Try again" : "Done — back to home")
+                                    .font(TTFont.workSans(16, weight: .bold))
+                            }
+                        }
                         .foregroundStyle(.white)
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
-                        .background(orange)
+                        .background(orange.opacity(isSaving ? 0.6 : 1))
                         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isSaving)
+
+                    if saveFailed && !isSaving {
+                        // Closes the sheet only; the session and every logged set stay in place.
+                        Button("Not now") { sheetDismiss() }
+                            .font(TTFont.workSans(15, weight: .semibold))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .frame(minWidth: 44, minHeight: 44)
+                    }
                 }
-                .buttonStyle(.plain)
                 .padding(.bottom, 32)
             }
             .padding(.horizontal, 24)

@@ -59,6 +59,8 @@ final class AppStore {
     var activeWorkoutSession: WorkoutSession?
     /// True while fetching or mutating the active session.
     var isLoadingSession = false
+    /// In-flight Finish call (guards against double finish).
+    @ObservationIgnored private var completeWorkoutTask: Task<Void, Error>?
 
     /// Live Sandow Score chart (`GET /me/sandow-score` or local compose fallback).
     var sandowScore: SandowScoreResponse?
@@ -1225,13 +1227,28 @@ final class AppStore {
     }
 
     /// Completes the active session, saves the resulting WorkoutLog, and clears `activeWorkoutSession`.
+    /// Throws if the server did not confirm; in that case the active session and its sets are untouched.
+    /// Uses its own flag (not `isLoadingSession`) so a Home refresh can never block Finish. A second
+    /// call while one is running waits for that run and shares its outcome — it never returns silently.
     func completeWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
-        guard !isLoadingSession else { return }
-        isLoadingSession = true
-        defer { isLoadingSession = false }
+        if let running = completeWorkoutTask {
+            try await running.value
+            return
+        }
+        let task = Task { @MainActor in
+            try await self.performCompleteWorkoutSession(sessionId: sessionId, durationMinutes: durationMinutes)
+        }
+        completeWorkoutTask = task
+        defer { completeWorkoutTask = nil }
+        try await task.value
+    }
+
+    private func performCompleteWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
         let log = try await api.completeSession(sessionId: sessionId, CompleteSessionBody(durationMinutes: durationMinutes))
+        // Server confirmed: the workout is finished from here on.
         activeWorkoutSession = nil
         if let log { upsert(log) }
+        // A failed refetch is not a failed workout — keep what we have and carry on.
         if let trainee = currentTrainee, let logs = try? await api.traineeLogs() {
             replaceLogs(logs, traineeId: trainee.id)
         }

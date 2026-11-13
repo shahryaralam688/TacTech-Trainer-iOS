@@ -15,6 +15,7 @@ struct TrainerDashboardView: View {
     @State private var showChat = false
     @State private var chatPeerUserId: String?
     @State private var showCreate = false
+    @State private var showRoster = false
     @Bindable private var notificationStore = NotificationStore.shared
     @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
         let model = TTHomeScrollCollapseModel()
@@ -75,6 +76,11 @@ struct TrainerDashboardView: View {
             }
             .sheet(isPresented: $showAssignSheet) {
                 PlanQuickAssignSheet()
+                    .ttModalSheetPresentation()
+            }
+            .sheet(isPresented: $showRoster) {
+                // Roster pre-filtered to Today; closing returns to Home.
+                MyTraineesView(initialFilter: .today)
                     .ttModalSheetPresentation()
             }
             .navigationDestination(item: $detailTrainee) { trainee in
@@ -171,32 +177,12 @@ struct TrainerDashboardView: View {
                     }
                 }
 
+                // One summary card instead of a second roster; the list lives in My Trainees (Today filter).
                 if !training.isEmpty {
-                    sectionHeader(
-                        "Training today",
-                        subtitle: "\(training.filter(\.done).count) of \(training.count) done"
-                    )
-                    ForEach(training, id: \.trainee.id) { row in
-                        trainingRow(row.trainee, title: row.title, done: row.done)
-                    }
+                    trainingSummaryCard(training)
                 }
             }
         }
-    }
-
-    private func sectionHeader(_ title: String, subtitle: String?) -> some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(title)
-                .font(TTFont.workSans(17, weight: .bold))
-                .foregroundStyle(.black)
-            Spacer()
-            if let subtitle {
-                Text(subtitle)
-                    .font(TTFont.workSans(13, weight: .medium))
-                    .foregroundStyle(Color(white: 0.5))
-            }
-        }
-        .padding(.top, 12)
     }
 
     // MARK: - Action card (ONE button, ONE job)
@@ -339,39 +325,59 @@ struct TrainerDashboardView: View {
 
     // MARK: - Training today / You did today rows
 
-    private func trainingRow(_ trainee: TraineeProfile, title: String, done: Bool) -> some View {
-        Button {
-            detailTrainee = trainee
+    private func trainingSummaryCard(_ rows: [(trainee: TraineeProfile, title: String, done: Bool)]) -> some View {
+        let total = rows.count
+        let done = rows.filter(\.done).count
+        let progress = total == 0 ? 0 : CGFloat(done) / CGFloat(total)
+
+        return Button {
+            TTHomeHaptics.light()
+            showRoster = true
         } label: {
-            HStack(spacing: 12) {
-                TTAvatar(name: store.user(forTrainee: trainee)?.name ?? "T", size: 38)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(store.user(forTrainee: trainee)?.name ?? "Trainee")
-                        .font(TTFont.textMD(.semibold))
-                        .foregroundStyle(.black)
-                    Text(title)
-                        .font(TTFont.textSM(.medium))
-                        .foregroundStyle(Color(white: 0.45))
-                        .lineLimit(1)
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("Training today")
+                        .textCase(.uppercase)
+                        .font(TTFont.workSans(11, weight: .bold))
+                        .kerning(0.8)
+                        .foregroundStyle(Color(white: 0.5))
+                    Spacer(minLength: 8)
+                    TTIcon(icon: .chevronRight, size: 14)
+                        .foregroundStyle(Color(white: 0.55))
                 }
-                Spacer(minLength: 0)
-                // Only "Done" is knowable from logs; never show "In progress".
-                if done {
-                    Text("Done")
-                        .font(TTFont.textXS(.bold))
-                        .foregroundStyle(green)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(green.opacity(0.12))
-                        .clipShape(Capsule())
+
+                Text("\(done) of \(total) done")
+                    .font(TTFont.workSans(20, weight: .bold))
+                    .foregroundStyle(.black)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color(white: 0.90))
+                        Capsule().fill(green).frame(width: geo.size.width * progress)
+                    }
+                }
+                .frame(height: 6)
+
+                HStack(spacing: -8) {
+                    ForEach(Array(rows.prefix(4)), id: \.trainee.id) { row in
+                        TTAvatar(name: store.user(forTrainee: row.trainee)?.name ?? "T", size: 34)
+                            .overlay(Circle().stroke(Color(white: 0.97), lineWidth: 2))
+                            .opacity(row.done ? 1 : 0.55)
+                    }
                 }
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color(white: 0.97))
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(TTHomeCardPressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Training today, \(done) of \(total) done"))
+        .accessibilityHint(Text("Opens your trainees."))
+        .accessibilityAddTraits(.isButton)
+        .padding(.top, 12)
     }
 
     // MARK: - Empty states

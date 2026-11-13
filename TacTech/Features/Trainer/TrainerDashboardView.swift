@@ -48,6 +48,10 @@ struct TrainerDashboardView: View {
                         .padding(.bottom, 48)
                     }
                 }
+                .refreshable {
+                    await TrainerLiveSync.refresh(store: store, force: true)
+                    await store.fetchTrainerJoinRequests()
+                }
                 .ttTopRoundedSheet(
                     radius: TTSheetChrome.homeTopRadius(collapseProgress: scrollCollapse.progress),
                     fill: canvas
@@ -94,6 +98,8 @@ struct TrainerDashboardView: View {
                 isLoadingJoinRequests = true
                 await store.fetchTrainerJoinRequests()
                 isLoadingJoinRequests = false
+                // Home shows "Completed today" per trainee — don't rely on launch-time logs.
+                await TrainerLiveSync.refresh(store: store)
             }
             .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
                 let type = (note.userInfo?["type"] as? String) ?? ""

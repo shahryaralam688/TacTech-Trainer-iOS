@@ -2,12 +2,27 @@ import SwiftUI
 
 // MARK: - My Trainees (Sandow / TacTech system design)
 
+/// Roster filter chips. `.today` uses `TraineeTodayStatus.isTrainingToday` (same definition as Home).
+enum TraineeRosterFilter: String, CaseIterable, Identifiable {
+    case all, today, noPlan
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .all: return "All"
+        case .today: return "Today"
+        case .noPlan: return "No plan"
+        }
+    }
+}
+
 struct MyTraineesView: View {
     @Environment(AppStore.self) private var store
     @Namespace private var searchNS
     @State private var showSearch = false
     @State private var query = ""
     @State private var goalFilter: String?
+    @State private var rosterFilter: TraineeRosterFilter
     @State private var selectedTrainee: TraineeProfile?
     @State private var showJoinRequests = false
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
@@ -15,6 +30,10 @@ struct MyTraineesView: View {
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "myTrainees"
+
+    init(initialFilter: TraineeRosterFilter = .all) {
+        _rosterFilter = State(initialValue: initialFilter)
+    }
 
     var body: some View {
         NavigationStack {
@@ -51,6 +70,8 @@ struct MyTraineesView: View {
                             ) {
                                 showSearch = true
                             }
+
+                            filterChips
 
                             if filtered.isEmpty {
                                 emptyCard
@@ -187,10 +208,46 @@ struct MyTraineesView: View {
         if let goalFilter {
             result = result.filter { $0.goal.lowercased() == goalFilter.lowercased() }
         }
+        switch rosterFilter {
+        case .all: break
+        case .today: result = result.filter { status(for: $0).isTrainingToday }
+        case .noPlan: result = result.filter { status(for: $0) == .noPlan }
+        }
         guard !query.isEmpty else { return result }
         return result.filter {
             store.user(forTrainee: $0)?.name.localizedCaseInsensitiveContains(query) == true
                 || $0.goal.localizedCaseInsensitiveContains(query)
+        }
+    }
+
+    /// Same inputs and same helper as Trainer Home — never a second definition of "today".
+    private func status(for trainee: TraineeProfile) -> TraineeTodayStatus {
+        TraineeTodayStatus.make(
+            plan: store.assignedPlan(for: trainee),
+            logs: store.logs(for: trainee.id),
+            today: Date()
+        )
+    }
+
+    private var filterChips: some View {
+        HStack(spacing: 8) {
+            ForEach(TraineeRosterFilter.allCases) { option in
+                let selected = rosterFilter == option
+                Button { rosterFilter = option } label: {
+                    Text(option.title)
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(selected ? .white : TTColor.ink)
+                        .padding(.horizontal, 14)
+                        .frame(height: 40)
+                        .background(selected ? Color.black : cardFill)
+                        .clipShape(Capsule())
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+            Spacer(minLength: 0)
         }
     }
 
@@ -257,8 +314,6 @@ struct MyTraineesView: View {
     private func traineeRow(_ trainee: TraineeProfile) -> some View {
         let user = store.user(forTrainee: trainee)
         let plan = store.assignedPlan(for: trainee)
-        let last = store.logs(for: trainee.id).first
-        let active = last != nil
 
         return HStack(spacing: TTCardTokens.listSpacing) {
             TTAvatar(name: user?.name ?? "T", size: TTCardTokens.thumbSize)
@@ -267,9 +322,13 @@ struct MyTraineesView: View {
                 Text(user?.name ?? "Trainee")
                     .font(TTFont.workSans(TTCardTokens.titleSize, weight: .bold))
                     .foregroundStyle(TTColor.ink)
-                Text(plan?.title ?? "No plan assigned")
-                    .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
-                    .foregroundStyle(TTColor.inkMuted)
+                statusLine(for: trainee)
+                if let plan {
+                    Text(plan.title)
+                        .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .lineLimit(1)
+                }
                 Text(trainee.goal)
                     .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .medium))
                     .foregroundStyle(TTColor.inkSubtle)
@@ -278,24 +337,99 @@ struct MyTraineesView: View {
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 8) {
-                Text(active ? "Active" : "Idle")
-                    .font(TTFont.caption(11))
-                    .fontWeight(.bold)
-                    .foregroundStyle(active ? TTColor.success : TTColor.inkMuted)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background((active ? TTColor.success : TTColor.inkMuted).opacity(0.12))
-                    .clipShape(Capsule())
-
-                TTIcon(icon: .chevronRight, size: 14)
-                    .foregroundStyle(TTColor.inkSubtle)
-            }
+            TTIcon(icon: .chevronRight, size: 14)
+                .foregroundStyle(TTColor.inkSubtle)
         }
         .ttListSurface()
     }
 
+    private let statusGreen = Color(red: 34 / 255, green: 197 / 255, blue: 94 / 255)
+    private let statusAmber = Color(red: 217 / 255, green: 119 / 255, blue: 6 / 255)
+
+    /// ONE status line per row. Words always accompany colour.
+    @ViewBuilder
+    private func statusLine(for trainee: TraineeProfile) -> some View {
+        switch status(for: trainee) {
+        case .doneToday:
+            statusLabel(icon: "checkmark.circle.fill", color: statusGreen) { Text("Done today") }
+        case .sessionToday(let title):
+            statusLabel(icon: "calendar", color: TTColor.actionOrange) {
+                title.isEmpty ? Text("Session today") : Text("Session today: \(title)")
+            }
+        case .inactive(let days):
+            statusLabel(icon: "clock.badge.exclamationmark", color: statusAmber) {
+                if days != nil, let when = lastWorkoutRelative(trainee) {
+                    Text("Last workout: \(when)")
+                } else {
+                    Text("No workouts yet")
+                }
+            }
+        case .noPlan:
+            statusLabel(icon: "minus.circle", color: TTColor.inkMuted) { Text("No plan yet") }
+        case .none:
+            // Has a plan and trained 1–2 days ago: informational, not a concern (neutral colour).
+            if let when = lastWorkoutRelative(trainee) {
+                statusLabel(icon: "clock", color: TTColor.inkMuted) { Text("Last workout: \(when)") }
+            }
+        }
+    }
+
+    private func statusLabel(icon: String, color: Color, @ViewBuilder text: () -> some View) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .accessibilityHidden(true)
+            text()
+                .font(TTFont.workSans(TTCardTokens.subtitleSize, weight: .semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(color)
+    }
+
+    /// "yesterday" / "3 days ago" from the system formatter, so plurals and word order follow the app language.
+    /// Display only; the status itself comes from `TraineeTodayStatus`.
+    private func lastWorkoutRelative(_ trainee: TraineeProfile) -> String? {
+        guard let last = store.logs(for: trainee.id).map(\.completedAt).max() else { return nil }
+        let cal = Calendar.current
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        formatter.unitsStyle = .full
+        formatter.locale = LocalizationController.shared.locale
+        return formatter.localizedString(for: cal.startOfDay(for: last), relativeTo: cal.startOfDay(for: Date()))
+    }
+
     private var emptyCard: some View {
+        if rosterFilter != .all && !allTrainees.isEmpty {
+            return AnyView(filterEmptyCard)
+        }
+        return AnyView(plainEmptyCard)
+    }
+
+    private var filterEmptyCard: some View {
+        VStack(spacing: 12) {
+            TTIcon(icon: .usersTwo, filled: true, size: 28)
+                .foregroundStyle(TTColor.actionOrange)
+            Text("No trainees match this filter")
+                .font(TTFont.workSans(17, weight: .bold))
+                .multilineTextAlignment(.center)
+            Button { rosterFilter = .all } label: {
+                Text("Show all")
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 20)
+                    .frame(minHeight: 44)
+                    .background(Color.black)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(28)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private var plainEmptyCard: some View {
         VStack(spacing: 12) {
             TTIcon(icon: .usersTwo, filled: true, size: 28)
                 .foregroundStyle(TTColor.actionOrange)

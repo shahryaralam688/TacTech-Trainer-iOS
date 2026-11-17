@@ -18,6 +18,7 @@ enum TraineeRosterFilter: String, CaseIterable, Identifiable {
 
 struct MyTraineesView: View {
     @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
     @Namespace private var searchNS
     @State private var showSearch = false
     @State private var query = ""
@@ -25,6 +26,7 @@ struct MyTraineesView: View {
     @State private var rosterFilter: TraineeRosterFilter
     @State private var selectedTrainee: TraineeProfile?
     @State private var showJoinRequests = false
+    @State private var showShareSheet = false
     @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
@@ -40,11 +42,17 @@ struct MyTraineesView: View {
             VStack(spacing: 0) {
                 trainerListHeader(
                     title: "My Trainees",
-                    subtitle: "\(filtered.count) athletes",
+                    // No "0 trainees" line on an empty roster.
+                    subtitle: allTrainees.isEmpty ? "" : String(localized: "\(allTrainees.count) in total"),
                     trailingIcon: .userPlus,
-                    collapseProgress: scrollCollapse.progress
+                    collapseProgress: scrollCollapse.progress,
+                    accessibilityLabel: String(localized: "Invite a trainee"),
+                    trailingTitle: "Invite",
+                    onClose: { dismiss() }
                 ) {
-                    UIPasteboard.general.string = store.currentTrainer?.inviteCode
+                    // Was: copy the code silently. Now the same share action as the invite card.
+                    // TODO: no invite code on the trainer profile → nothing to share, button does nothing.
+                    if inviteCode != nil { showShareSheet = true }
                 }
 
                 ScrollView(showsIndicators: false) {
@@ -52,26 +60,33 @@ struct MyTraineesView: View {
                         TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
 
                         VStack(alignment: .leading, spacing: 12) {
-                            if let code = store.currentTrainer?.inviteCode {
+                            if let code = inviteCode {
                                 inviteBanner(code: code)
                             }
 
-                            Button {
-                                showJoinRequests = true
-                            } label: {
-                                joinRequestsEntry
-                            }
-                            .buttonStyle(.plain)
-
-                            TTSearchEntryPill(
-                                placeholder: TTSearchCopy.trainees.pillPlaceholder,
-                                query: displayQuery,
-                                namespace: searchNS
-                            ) {
-                                showSearch = true
+                            // Hidden at 0 pending; Home's join-requests card still opens the same screen.
+                            if pendingRequestCount > 0 {
+                                Button {
+                                    showJoinRequests = true
+                                } label: {
+                                    joinRequestsEntry
+                                }
+                                .buttonStyle(.plain)
                             }
 
-                            filterChips
+                            if allTrainees.count > 6 {
+                                TTSearchEntryPill(
+                                    placeholder: TTSearchCopy.trainees.pillPlaceholder,
+                                    query: displayQuery,
+                                    namespace: searchNS
+                                ) {
+                                    showSearch = true
+                                }
+                            }
+
+                            if allTrainees.count >= 2 {
+                                filterChips
+                            }
 
                             if filtered.isEmpty {
                                 emptyCard
@@ -103,6 +118,12 @@ struct MyTraineesView: View {
             .navigationDestination(isPresented: $showJoinRequests) {
                 JoinRequestsView()
             }
+            .sheet(isPresented: $showShareSheet) {
+                if let code = inviteCode {
+                    TTInviteActivitySheet(text: inviteMessage(code: code))
+                        .presentationDetents([.medium, .large])
+                }
+            }
             .ttSearchOverlay(
                 isPresented: $showSearch,
                 catalog: searchCatalog,
@@ -120,6 +141,15 @@ struct MyTraineesView: View {
                 // Navigation is available from this tab; dashboard may also present sheet.
             }
         }
+    }
+
+    private var inviteCode: String? {
+        guard let code = store.currentTrainer?.inviteCode, !code.isEmpty else { return nil }
+        return code
+    }
+
+    private func inviteMessage(code: String) -> String {
+        String(localized: "Join me on TacTech. Use my invite code \(code) (Profile, then Join a coach).")
     }
 
     private var pendingRequestCount: Int {
@@ -141,11 +171,7 @@ struct MyTraineesView: View {
                 Text("Requests")
                     .font(TTFont.workSans(16, weight: .bold))
                     .foregroundStyle(TTColor.ink)
-                Text(
-                    pendingRequestCount == 0
-                        ? "No pending join requests"
-                        : "\(pendingRequestCount) waiting for approval"
-                )
+                Text("\(pendingRequestCount) waiting")
                 .font(TTFont.caption(12))
                 .foregroundStyle(TTColor.inkMuted)
             }
@@ -178,7 +204,7 @@ struct MyTraineesView: View {
 
     private var searchCatalog: TTSearchCatalog {
         let names = Dictionary(uniqueKeysWithValues: allTrainees.map {
-            ($0.id, store.user(forTrainee: $0)?.name ?? "Athlete")
+            ($0.id, store.user(forTrainee: $0)?.name ?? "Trainee")
         })
         let plansByTrainee = Dictionary(uniqueKeysWithValues: allTrainees.compactMap { trainee -> (String, String)? in
             guard let title = store.assignedPlan(for: trainee)?.title else { return nil }
@@ -273,40 +299,54 @@ struct MyTraineesView: View {
     }
 
     private func inviteBanner(code: String) -> some View {
-        HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(TTColor.actionOrange.opacity(0.12))
-                TTIcon(icon: .link4, filled: true, size: 18)
-                    .foregroundStyle(TTColor.actionOrange)
-            }
-            .frame(width: 44, height: 44)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Invite code")
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Your invite code")
                     .font(TTFont.caption(12))
                     .foregroundStyle(TTColor.inkMuted)
                 Text(code)
-                    .font(TTFont.workSans(18, weight: .bold))
+                    .font(TTFont.workSans(30, weight: .bold))
                     .foregroundStyle(TTColor.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                    .textSelection(.enabled)
             }
+            .accessibilityElement(children: .combine)
 
-            Spacer()
-
-            Button {
-                UIPasteboard.general.string = code
-            } label: {
-                Text("Copy")
-                    .font(TTFont.workSans(13, weight: .semibold))
+            HStack(spacing: 10) {
+                ShareLink(item: inviteMessage(code: code)) {
+                    HStack(spacing: 8) {
+                        Text("Share invite")
+                            .font(TTFont.workSans(15, weight: .semibold))
+                        Spacer(minLength: 4)
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 48)
                     .background(Color.black)
-                    .clipShape(Capsule())
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.plain)
+
+                TTCopyCodeButton(code: code) { copied in
+                    TTCopyCodeLabel(copied: copied, font: TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 48)
+                        .background(Color.white)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(TTColor.ink.opacity(0.1), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
-        .padding(14)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
@@ -399,7 +439,10 @@ struct MyTraineesView: View {
     }
 
     private var emptyCard: some View {
-        if rosterFilter != .all && !allTrainees.isEmpty {
+        if allTrainees.isEmpty {
+            return AnyView(howItWorksCard)
+        }
+        if rosterFilter != .all {
             return AnyView(filterEmptyCard)
         }
         return AnyView(plainEmptyCard)
@@ -429,17 +472,50 @@ struct MyTraineesView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
+    private var howItWorksCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("How it works")
+                .font(TTFont.workSans(17, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            howItWorksStep(1, title: "Send them your code", detail: "Text it, or share it from the button above.")
+            howItWorksStep(2, title: "They enter it in the app", detail: "Profile, then Join a coach.")
+            howItWorksStep(3, title: "You accept the request", detail: "It appears here and on Home.")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func howItWorksStep(_ number: Int, title: LocalizedStringKey, detail: LocalizedStringKey) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Text("\(number)")
+                .font(TTFont.workSans(15, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(Color.black)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(TTFont.workSans(16, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                Text(detail)
+                    .font(TTFont.workSans(14, weight: .regular))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
     private var plainEmptyCard: some View {
         VStack(spacing: 12) {
             TTIcon(icon: .usersTwo, filled: true, size: 28)
                 .foregroundStyle(TTColor.actionOrange)
-            Text(query.isEmpty && goalFilter == nil ? "No trainees yet" : "No matches")
+            Text("No matches")
                 .font(TTFont.workSans(17, weight: .bold))
-            Text(
-                query.isEmpty && goalFilter == nil
-                    ? "Share your invite code so athletes can join your roster."
-                    : "Try a different name."
-            )
+            Text("Try a different name.")
             .font(TTFont.body(14))
             .foregroundStyle(TTColor.inkMuted)
             .multilineTextAlignment(.center)
@@ -449,6 +525,17 @@ struct MyTraineesView: View {
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
+}
+
+/// System share sheet for the header "Invite" button (the card uses `ShareLink`; same text).
+private struct TTInviteActivitySheet: UIViewControllerRepresentable {
+    let text: String
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: [text], applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ controller: UIActivityViewController, context: Context) {}
 }
 
 #Preview("My Trainees") {

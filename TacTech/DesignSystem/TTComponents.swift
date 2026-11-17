@@ -154,6 +154,62 @@ struct TTDarkPageHeader: View {
     }
 }
 
+/// One shared "Copy invite code" button: copies, shows "Copied" with a checkmark for 2 s,
+/// plays a success haptic and announces it for VoiceOver. Each caller supplies its own look.
+struct TTCopyCodeButton<Label: View>: View {
+    let code: String
+    @ViewBuilder var label: (_ copied: Bool) -> Label
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var copied = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        Button {
+            UIPasteboard.general.string = code
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            UIAccessibility.post(notification: .announcement, argument: String(localized: "Invite code copied"))
+            setCopied(true)
+            // Tapping again restarts the 2 seconds.
+            resetTask?.cancel()
+            resetTask = Task {
+                try? await Task.sleep(nanoseconds: 2_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run { setCopied(false) }
+            }
+        } label: {
+            label(copied)
+        }
+        .onDisappear { resetTask?.cancel() }
+    }
+
+    private func setCopied(_ value: Bool) {
+        if reduceMotion {
+            copied = value
+        } else {
+            withAnimation(.easeInOut(duration: 0.15)) { copied = value }
+        }
+    }
+}
+
+/// "Copy" ↔ "Copied" with a checkmark. Font and colour come from the caller's styling.
+struct TTCopyCodeLabel: View {
+    let copied: Bool
+    var font: Font
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if copied {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .accessibilityHidden(true)
+            }
+            Text(copied ? "Copied" : "Copy")
+                .font(font)
+        }
+    }
+}
+
 struct TTButton: View {
     enum Style { case primary, secondary, ghost }
 
@@ -750,6 +806,8 @@ private struct TTModalSheetPresentationModifier: ViewModifier {
         let styled = content
             .presentationDragIndicator(dragIndicator)
             .presentationCornerRadius(TTModalSheetChrome.cornerRadius)
+            .onAppear { PerfTemp.interval("sheet.present", seconds: 0.5) } // PERF-TEMP
+            .onDisappear { PerfTemp.event("sheet.dismiss") } // PERF-TEMP
         if let detents {
             styled.presentationDetents(detents)
         } else {
@@ -1119,3 +1177,147 @@ struct TTAssignSuccessButton: View {
     .padding()
     .ttPreviewTrainee()
 }
+
+// MARK: - PERF-TEMP measuring layer (remove in Phase 3)
+
+/// PERF-TEMP: one switch per suspect. `defaultValue` is today's behaviour, so a fresh install is unchanged.
+enum PerfTempKey: String, CaseIterable, Identifiable { // PERF-TEMP
+    case homeShadow, homeEars, homeCopies // PERF-TEMP
+    case fabBlur, fabLoops // PERF-TEMP
+    case plansHeaderOnly // PERF-TEMP
+    case avatarDownsample // PERF-TEMP
+    case liveSync // PERF-TEMP
+    case homeScrollObserver // PERF-TEMP
+    case realtime // PERF-TEMP
+    case compactNetLogs // PERF-TEMP
+    case printChanges // PERF-TEMP
+
+    var id: String { rawValue }
+
+    /// Today's behaviour (the "baseline").
+    var defaultValue: Bool {
+        switch self {
+        case .plansHeaderOnly, .avatarDownsample, .printChanges, .compactNetLogs: return false
+        default: return true
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .homeShadow: return "Header extra shadow"
+        case .homeEars: return "Header corner mask (ears)"
+        case .homeCopies: return "Hidden header copies (measuring)"
+        case .fabBlur: return "+ menu blur + contrast"
+        case .fabLoops: return "+ menu repeatForever loops"
+        case .plansHeaderOnly: return "Plans: header-only progress (OFF = whole body)"
+        case .avatarDownsample: return "Avatars downsampled (OFF = original)"
+        case .liveSync: return "TrainerLiveSync refresh"
+        case .homeScrollObserver: return "Home scroll observer (collapse progress)"
+        case .realtime: return "Realtime clients (OFF = don't connect)"
+        case .compactNetLogs: return "Compact network error logs"
+        case .printChanges: return "Print redraws (_printChanges)"
+        }
+    }
+}
+
+#if DEBUG || PERF_TEMP
+import os
+
+/// PERF-TEMP: bumps when a switch changes so views that read a switch redraw.
+@MainActor @Observable
+final class PerfTempState { // PERF-TEMP
+    static let shared = PerfTempState()
+    var revision = 0
+}
+
+enum PerfTemp { // PERF-TEMP
+    static let signposter = OSSignposter(subsystem: "com.tactech.trainer.perf", category: "PerfTemp")
+
+    /// Any thread. Not observed.
+    nonisolated static func raw(_ key: PerfTempKey) -> Bool {
+        (UserDefaults.standard.object(forKey: "perftemp." + key.rawValue) as? Bool) ?? key.defaultValue
+    }
+
+    /// Main actor (views). Reading it makes the view redraw when a switch flips.
+    @MainActor static func on(_ key: PerfTempKey) -> Bool {
+        _ = PerfTempState.shared.revision
+        return raw(key)
+    }
+
+    @MainActor static func set(_ key: PerfTempKey, _ value: Bool) {
+        UserDefaults.standard.set(value, forKey: "perftemp." + key.rawValue)
+        PerfTempState.shared.revision += 1
+    }
+
+    @MainActor static func resetAll() {
+        for key in PerfTempKey.allCases { UserDefaults.standard.removeObject(forKey: "perftemp." + key.rawValue) }
+        PerfTempState.shared.revision += 1
+    }
+
+    /// Signpost interval that starts now and ends after `seconds` (the animation's nominal length).
+    nonisolated static func interval(_ name: StaticString, seconds: TimeInterval) {
+        let state = signposter.beginInterval(name, id: signposter.makeSignpostID())
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+            signposter.endInterval(name, state)
+        }
+    }
+
+    nonisolated static func event(_ name: StaticString) {
+        signposter.emitEvent(name)
+    }
+
+    /// Body-run counter (Instruments shows these as events) and optional `_printChanges`.
+    @MainActor static func trace(_ name: String, _ printChanges: () -> Void) {
+        signposter.emitEvent("body", "\(name)")
+        if raw(.printChanges) {
+            print("PERF-TEMP body: \(name)")
+            printChanges()
+        }
+    }
+}
+
+struct PerfTempSheet: View { // PERF-TEMP
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                section("1 · Home header", [.homeShadow, .homeEars, .homeCopies])
+                section("2 · + menu", [.fabBlur, .fabLoops])
+                section("3 · Plans screen", [.plansHeaderOnly])
+                section("4 · Avatars", [.avatarDownsample])
+                section("5 · Refresh", [.liveSync])
+                section("Diagnostics", [.homeScrollObserver, .realtime, .compactNetLogs])
+                section("Logging", [.printChanges])
+                Section {
+                    Button("Reset all to baseline") { PerfTemp.resetAll() }
+                } footer: {
+                    Text("Baseline = today's behaviour. Switches change performance only. Debug sheet: long-press the date at the top of Home.")
+                }
+            }
+            .navigationTitle("PERF-TEMP")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+    }
+
+    private func section(_ title: String, _ keys: [PerfTempKey]) -> some View {
+        Section(title) {
+            ForEach(keys) { key in
+                Toggle(key.title, isOn: Binding(
+                    get: { PerfTemp.on(key) },
+                    set: { PerfTemp.set(key, $0) }
+                ))
+            }
+        }
+    }
+}
+#else
+/// PERF-TEMP: release stub — every switch returns today's behaviour, every probe is a no-op.
+enum PerfTemp { // PERF-TEMP
+    nonisolated static func raw(_ key: PerfTempKey) -> Bool { key.defaultValue }
+    @MainActor static func on(_ key: PerfTempKey) -> Bool { key.defaultValue }
+    nonisolated static func interval(_ name: StaticString, seconds: TimeInterval) {}
+    nonisolated static func event(_ name: StaticString) {}
+    @MainActor static func trace(_ name: String, _ printChanges: () -> Void) {}
+}
+#endif

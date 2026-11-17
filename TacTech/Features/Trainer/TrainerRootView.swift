@@ -37,14 +37,17 @@ struct TrainerRootView: View {
     private var tabs: [TTTabBarItem<TrainerTab>] {
         let locale = LocalizationController.shared.locale
         return [
-            TTTabBarItem(.dashboard, icon: .house1, label: String(localized: "tab.home", locale: locale)),
-            TTTabBarItem(.plans, icon: .barbellDiagonal, label: String(localized: "tab.plans", locale: locale)),
-            TTTabBarItem(.chat, icon: .chat, label: String(localized: "tab.chat", locale: locale)),
-            TTTabBarItem(.profile, icon: .user, label: String(localized: "tab.profile", locale: locale))
+            TTTabBarItem(.dashboard, icon: .house1, label: String(localized: "tab.home", locale: locale), title: String(localized: "tab.home", locale: locale)),
+            TTTabBarItem(.plans, icon: .barbellDiagonal, label: String(localized: "tab.plans", locale: locale), title: String(localized: "tab.plans", locale: locale)),
+            TTTabBarItem(.chat, icon: .chat, label: String(localized: "tab.chat", locale: locale), title: String(localized: "tab.chat", locale: locale)),
+            TTTabBarItem(.profile, icon: .user, label: String(localized: "tab.profile", locale: locale), title: String(localized: "tab.profile", locale: locale))
         ]
     }
 
     var body: some View {
+        #if DEBUG || PERF_TEMP
+        let _ = PerfTemp.trace("TrainerRootView") { Self._printChanges() } // PERF-TEMP
+        #endif
         ZStack {
             GeometryReader { geo in
                 let tabClearance = rootTabBarVisible
@@ -154,6 +157,7 @@ struct TrainerRootView: View {
             }
         }
         .onChange(of: tab) { _, newTab in
+            PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
             mounted.insert(newTab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
@@ -296,6 +300,7 @@ enum TrainerLiveSync {
     /// Throttled so foreground/notification bursts don't hammer the API. Errors are swallowed:
     /// stale data stays on screen rather than blanking it.
     static func refresh(store: AppStore, traineeId: String? = nil, force: Bool = false) async {
+        guard PerfTemp.raw(.liveSync) else { return } // PERF-TEMP
         guard store.session?.role == .trainer, !inFlight else { return }
         if !force, Date().timeIntervalSince(lastRun) < 5 { return }
         inFlight = true

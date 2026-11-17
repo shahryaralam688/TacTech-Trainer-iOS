@@ -59,7 +59,8 @@ struct LoginView: View {
                     isFocused: focused == .email,
                     field: .email,
                     focus: $focused,
-                    keyboard: .emailAddress
+                    keyboard: .emailAddress,
+                    contentType: .username
                 )
 
                 AuthLabeledField(
@@ -68,8 +69,10 @@ struct LoginView: View {
                     text: $password,
                     isSecure: !showPassword,
                     isFocused: focused == .password,
+                    isError: error != nil,
                     field: .password,
-                    focus: $focused
+                    focus: $focused,
+                    contentType: .password
                 ) {
                     AuthEyeButton(isVisible: $showPassword)
                 }
@@ -82,10 +85,8 @@ struct LoginView: View {
                     Task { await signIn() }
                 }
 
-                AuthSocialRow()
-
                 VStack(spacing: 10) {
-                    AuthFooterLink(prompt: "Don't have an account?", actionTitle: "Sign Up.") {
+                    AuthFooterLink(prompt: "Don't have an account?", actionTitle: "Sign Up") {
                         onSignUp()
                     }
                     Button("Forgot Password") { onForgot(email) }
@@ -98,6 +99,8 @@ struct LoginView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onChange(of: email) { _, _ in error = nil }
+        .onChange(of: password) { _, _ in error = nil }
     }
 
     private func signIn() async {
@@ -107,8 +110,35 @@ struct LoginView: View {
         do {
             try await store.login(email: email, password: password)
         } catch {
-            self.error = error.localizedDescription
+            let message = Self.message(for: error)
+            self.error = message
+            // The email stays as typed; send the user back to the password.
+            // TODO: SwiftUI can't select-all in a SecureField, so the text is kept, not selected.
+            focused = .password
+            UIAccessibility.post(notification: .announcement, argument: message)
         }
+    }
+
+    /// Maps a failed sign-in to wording at the call site only (APIClient/AppStore are unchanged).
+    /// - `.unauthorized` is what APIClient throws for the login 401, so here it means wrong credentials.
+    /// - `URLError` reaches the call site unmapped, so offline/timeouts can be told apart.
+    /// - 429, 5xx and other server errors all arrive as `AppError.api(detail)` and can't be
+    ///   told apart from each other here, so they share the neutral fallback.
+    private static func message(for error: Error) -> String {
+        if let appError = error as? AppError {
+            switch appError {
+            case .unauthorized, .invalidCredentials:
+                return String(localized: "Incorrect email or password. Try again.")
+            case .validation(let text):
+                return text
+            default:
+                break
+            }
+        }
+        if error is URLError {
+            return String(localized: "Can't connect. Check your internet and try again.")
+        }
+        return String(localized: "Couldn't sign in. Try again.")
     }
 }
 
@@ -505,6 +535,7 @@ private struct AuthLabeledField<Trailing: View>: View {
     var field: AuthField?
     var focus: FocusState<AuthField?>.Binding?
     var keyboard: UIKeyboardType = .default
+    var contentType: UITextContentType?
     var trailing: Trailing
 
     init(
@@ -517,6 +548,7 @@ private struct AuthLabeledField<Trailing: View>: View {
         field: AuthField? = nil,
         focus: FocusState<AuthField?>.Binding? = nil,
         keyboard: UIKeyboardType = .default,
+        contentType: UITextContentType? = nil,
         @ViewBuilder trailing: () -> Trailing
     ) {
         self.title = title
@@ -528,6 +560,7 @@ private struct AuthLabeledField<Trailing: View>: View {
         self.field = field
         self.focus = focus
         self.keyboard = keyboard
+        self.contentType = contentType
         self.trailing = trailing()
     }
 
@@ -551,8 +584,9 @@ private struct AuthLabeledField<Trailing: View>: View {
                 .font(TTFont.workSans(16, weight: .regular))
                 .foregroundStyle(AuthPalette.ink)
                 .keyboardType(keyboard)
-                .textInputAutocapitalization(keyboard == .emailAddress ? .never : .sentences)
-                .textContentType(keyboard == .emailAddress ? .emailAddress : (isSecure ? .password : nil))
+                .textInputAutocapitalization(keyboard == .emailAddress || field == .password || field == .confirm ? .never : .sentences)
+                .autocorrectionDisabled(keyboard == .emailAddress || field == .password || field == .confirm)
+                .textContentType(contentType ?? (keyboard == .emailAddress ? .emailAddress : (isSecure ? .password : nil)))
                 .tint(AuthPalette.accent)
                 .modifier(AuthFocusModifier(field: field, focus: focus))
                 trailing
@@ -599,7 +633,8 @@ extension AuthLabeledField where Trailing == EmptyView {
         isError: Bool = false,
         field: AuthField? = nil,
         focus: FocusState<AuthField?>.Binding? = nil,
-        keyboard: UIKeyboardType = .default
+        keyboard: UIKeyboardType = .default,
+        contentType: UITextContentType? = nil
     ) {
         self.init(
             title: title,
@@ -610,7 +645,8 @@ extension AuthLabeledField where Trailing == EmptyView {
             isError: isError,
             field: field,
             focus: focus,
-            keyboard: keyboard
+            keyboard: keyboard,
+            contentType: contentType
         ) { EmptyView() }
     }
 }
@@ -697,66 +733,6 @@ private struct AuthFooterLink: View {
                 .underline()
         }
         .font(TTFont.workSans(15, weight: .regular))
-    }
-}
-
-private struct AuthSocialRow: View {
-    var body: some View {
-        HStack(spacing: 16) {
-            AuthSocialButton { InstagramMark() }
-            AuthSocialButton { FacebookMark() }
-            AuthSocialButton { LinkedInMark() }
-        }
-        .frame(maxWidth: .infinity)
-    }
-}
-
-private struct AuthSocialButton<Icon: View>: View {
-    @ViewBuilder var icon: () -> Icon
-
-    var body: some View {
-        icon()
-            .frame(width: 54, height: 54)
-            .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(AuthPalette.line, lineWidth: 1)
-            )
-    }
-}
-
-private struct InstagramMark: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(AuthPalette.ink, lineWidth: 1.6)
-                .frame(width: 22, height: 22)
-            Circle()
-                .stroke(AuthPalette.ink, lineWidth: 1.4)
-                .frame(width: 9, height: 9)
-            Circle()
-                .fill(AuthPalette.ink)
-                .frame(width: 2.4, height: 2.4)
-                .offset(x: 6.5, y: -6.5)
-        }
-    }
-}
-
-private struct FacebookMark: View {
-    var body: some View {
-        Text("f")
-            .font(.system(size: 26, weight: .bold, design: .serif))
-            .foregroundStyle(AuthPalette.ink)
-            .offset(x: 1, y: -1)
-    }
-}
-
-private struct LinkedInMark: View {
-    var body: some View {
-        Text("in")
-            .font(TTFont.workSans(18, weight: .bold))
-            .foregroundStyle(AuthPalette.ink)
     }
 }
 

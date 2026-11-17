@@ -17,12 +17,6 @@ struct TrainerDashboardView: View {
     @State private var showCreate = false
     @State private var showRoster = false
     @Bindable private var notificationStore = NotificationStore.shared
-    @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
-        let model = TTHomeScrollCollapseModel()
-        model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
-        return model
-    }()
-
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let blue   = Color(red: 37  / 255, green: 99  / 255, blue: 235 / 255)
     private let amber  = Color(red: 217 / 255, green: 119 / 255, blue: 6 / 255)
@@ -30,34 +24,28 @@ struct TrainerDashboardView: View {
     private let canvas = Color.white
 
     var body: some View {
+        #if DEBUG || PERF_TEMP
+        let _ = PerfTemp.trace("TrainerDashboardView") { Self._printChanges() } // PERF-TEMP
+        #endif
         NavigationStack {
-            VStack(spacing: 0) {
-                darkHeader
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: "trainerHome")
-
-                        VStack(alignment: .leading, spacing: 16) {
-
-                            // What needs doing right now — the only thing on Home
-                            actionList
-                                .ttHomeAppear(index: 0)
-                        }
-                        .padding(.horizontal, TTSpace.screen)
-                        .padding(.top, 20)
-                        .padding(.bottom, 48)
-                    }
-                }
-                .refreshable {
+            // Header is drawn over the scroll view; content size never depends on its collapse.
+            TTCollapsingHeaderScreen(
+                sheetFill: canvas,
+                onRefresh: {
                     await TrainerLiveSync.refresh(store: store, force: true)
                     await store.fetchTrainerJoinRequests()
+                },
+                header: { progress in darkHeader(progress: progress) }
+            ) {
+                VStack(alignment: .leading, spacing: 16) {
+
+                    // What needs doing right now — the only thing on Home
+                    actionList
+                        .ttHomeAppear(index: 0)
                 }
-                .ttTopRoundedSheet(
-                    radius: TTSheetChrome.homeTopRadius(collapseProgress: scrollCollapse.progress),
-                    fill: canvas
-                )
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: "trainerHome")
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 20)
+                .padding(.bottom, 48)
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
@@ -119,7 +107,7 @@ struct TrainerDashboardView: View {
 
     // MARK: - Header
 
-    private var darkHeader: some View {
+    private func darkHeader(progress: CGFloat) -> some View {
         TTHomeProfileHeader(
             name: firstName,
             avatarSymbol: store.displayAvatarAsset,
@@ -128,7 +116,7 @@ struct TrainerDashboardView: View {
             badgeCount: notificationStore.unreadCount,
             showsAIPro: store.aiEntitlement?.active == true,
             metrics: [],
-            collapseProgress: scrollCollapse.progress,
+            collapseProgress: progress,
             onProfileTap: {
                 TTHomeHaptics.light()
                 showProfile = true
@@ -329,55 +317,132 @@ struct TrainerDashboardView: View {
         let total = rows.count
         let done = rows.filter(\.done).count
         let progress = total == 0 ? 0 : CGFloat(done) / CGFloat(total)
+        // Not done first, done last, otherwise the existing order; at most 4 rows.
+        let ordered = rows.filter { !$0.done } + rows.filter(\.done)
+        let visible = Array(ordered.prefix(4))
+        let today = Date()
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // Header: tapping it opens the roster on Today.
+            Button {
+                TTHomeHaptics.light()
+                showRoster = true
+            } label: {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        Text("Training today")
+                            .textCase(.uppercase)
+                            .font(TTFont.workSans(11, weight: .bold))
+                            .kerning(0.8)
+                            .foregroundStyle(Color(white: 0.5))
+                        Spacer(minLength: 8)
+                        TTIcon(icon: .chevronRight, size: 14)
+                            .foregroundStyle(Color(white: 0.55))
+                    }
+
+                    Text("\(done) of \(total) done")
+                        .font(TTFont.workSans(20, weight: .bold))
+                        .foregroundStyle(.black)
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color(white: 0.90))
+                            Capsule().fill(green).frame(width: geo.size.width * progress)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(TTHomeCardPressStyle())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Training today, \(done) of \(total) done"))
+            .accessibilityHint(Text("Opens your trainees."))
+            .accessibilityAddTraits(.isButton)
+
+            ForEach(visible, id: \.trainee.id) { row in
+                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
+                todayTraineeRow(row, today: today)
+            }
+
+            if rows.count > 4 {
+                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
+                Button {
+                    TTHomeHaptics.light()
+                    showRoster = true
+                } label: {
+                    HStack {
+                        Text("See all trainees")
+                            .font(TTFont.workSans(15, weight: .semibold))
+                        Spacer(minLength: 8)
+                        TTIcon(icon: .chevronRight, size: 14)
+                    }
+                    .foregroundStyle(TTColor.actionOrange)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color(white: 0.97))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .padding(.top, 12)
+    }
+
+    /// One trainee training today: name, session title (only what the status helper gives), done indicator.
+    private func todayTraineeRow(_ row: (trainee: TraineeProfile, title: String, done: Bool), today: Date) -> some View {
+        let name = store.user(forTrainee: row.trainee)?.name ?? String(localized: "Trainee")
+        // TODO: done rows have no session title from the status helper, so they show none.
+        var session = ""
+        if case .sessionToday(let title) = todayStatus(row.trainee, today: today) { session = title }
 
         return Button {
-            TTHomeHaptics.light()
-            showRoster = true
+            detailTrainee = row.trainee
         } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text("Training today")
-                        .textCase(.uppercase)
-                        .font(TTFont.workSans(11, weight: .bold))
-                        .kerning(0.8)
-                        .foregroundStyle(Color(white: 0.5))
-                    Spacer(minLength: 8)
-                    TTIcon(icon: .chevronRight, size: 14)
-                        .foregroundStyle(Color(white: 0.55))
-                }
+            HStack(spacing: 12) {
+                TTAvatar(name: name, size: 40)
 
-                Text("\(done) of \(total) done")
-                    .font(TTFont.workSans(20, weight: .bold))
-                    .foregroundStyle(.black)
-
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(Color(white: 0.90))
-                        Capsule().fill(green).frame(width: geo.size.width * progress)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(name)
+                        .font(TTFont.workSans(16, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .lineLimit(1)
+                    if !session.isEmpty {
+                        Text(session)
+                            .font(TTFont.workSans(13, weight: .regular))
+                            .foregroundStyle(Color(white: 0.45))
+                            .lineLimit(1)
                     }
                 }
-                .frame(height: 6)
 
-                HStack(spacing: -8) {
-                    ForEach(Array(rows.prefix(4)), id: \.trainee.id) { row in
-                        TTAvatar(name: store.user(forTrainee: row.trainee)?.name ?? "T", size: 34)
-                            .overlay(Circle().stroke(Color(white: 0.97), lineWidth: 2))
-                            .opacity(row.done ? 1 : 0.55)
+                Spacer(minLength: 8)
+
+                // Done = green filled circle with a white check; not yet = empty grey ring.
+                ZStack {
+                    if row.done {
+                        Circle().fill(green)
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Circle().strokeBorder(Color(white: 0.78), lineWidth: 2)
                     }
                 }
+                .frame(width: 26, height: 26)
+                .accessibilityHidden(true)
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(white: 0.97))
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(TTHomeCardPressStyle())
+        .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(Text("Training today, \(done) of \(total) done"))
-        .accessibilityHint(Text("Opens your trainees."))
+        .accessibilityLabel(session.isEmpty ? name : "\(name), \(session)")
+        .accessibilityValue(row.done ? Text("Done") : Text("Not done yet"))
         .accessibilityAddTraits(.isButton)
-        .padding(.top, 12)
     }
 
     // MARK: - Empty states
@@ -387,7 +452,7 @@ struct TrainerDashboardView: View {
             Text("No trainees yet")
                 .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(.black)
-            Text("Share your invite code so athletes can join. Once they link to you, they'll appear here every day.")
+            Text("Share your invite code so trainees can join. Once they join, they appear here.")
                 .font(TTFont.workSans(14, weight: .medium))
                 .foregroundStyle(Color(white: 0.45))
                 .fixedSize(horizontal: false, vertical: true)
@@ -398,13 +463,10 @@ struct TrainerDashboardView: View {
                         .font(TTFont.workSans(15, weight: .bold))
                         .monospacedDigit()
                         .foregroundStyle(.black)
+                        .textSelection(.enabled)
                     Spacer()
-                    Button {
-                        UIPasteboard.general.string = code
-                        TTHomeHaptics.success()
-                    } label: {
-                        Text("Copy")
-                            .font(TTFont.textSM(.semibold))
+                    TTCopyCodeButton(code: code) { copied in
+                        TTCopyCodeLabel(copied: copied, font: TTFont.textSM(.semibold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 8)

@@ -64,6 +64,7 @@ struct TTHomeProfileHeader: View {
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
 
+    @State private var showPerfTemp = false // PERF-TEMP
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let dateGrey = Color.white.opacity(0.55)
     private let bellBG = Color(white: 0.22)
@@ -104,7 +105,14 @@ struct TTHomeProfileHeader: View {
             .ignoresSafeArea(edges: .top)
         }
         // Soft lift into compact — reads as chrome morph, not a hard cut.
-        .shadow(color: .black.opacity(0.18 * Double(p)), radius: 10 * p, y: 4 * p)
+        .shadow(
+            color: .black.opacity(PerfTemp.on(.homeShadow) ? 0.18 * Double(p) : 0), // PERF-TEMP
+            radius: PerfTemp.on(.homeShadow) ? 10 * p : 0, // PERF-TEMP
+            y: PerfTemp.on(.homeShadow) ? 4 * p : 0 // PERF-TEMP
+        )
+        #if DEBUG || PERF_TEMP
+        .sheet(isPresented: $showPerfTemp) { PerfTempSheet() } // PERF-TEMP
+        #endif
         .contentShape(Rectangle())
         .allowsHitTesting(true)
         // No spring on scroll-driven `p` — collapse tracks finger 1:1; settle spring is in the model.
@@ -122,6 +130,9 @@ struct TTHomeProfileHeader: View {
                     .textCase(.uppercase)
             }
             .foregroundStyle(dateGrey)
+            #if DEBUG || PERF_TEMP
+            .onLongPressGesture(minimumDuration: 0.8) { showPerfTemp = true } // PERF-TEMP: opens the debug sheet
+            #endif
 
             Spacer()
 
@@ -749,6 +760,263 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
                 }
                 .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
                 .onReceive(model.$bottomFillHeight) { bottomFillHeight = $0 }
+        }
+    }
+}
+
+// MARK: - Collapsing header screen (content never depends on header progress)
+
+/// Scroll progress for `TTCollapsingHeaderScreen`. Only the header, its corner "ears" and the sheet
+/// background observe this object, so a scroll tick never rebuilds the screen's content.
+@MainActor
+final class TTHeaderCollapseState: ObservableObject {
+    @Published private(set) var progress: CGFloat = 0
+    /// iOS 17 path: first sample is taken as "at rest".
+    private var restMinY: CGFloat?
+
+    /// `offset` is 0 at rest. `maxOffset` is the furthest the content can scroll.
+    /// Collapse is decided from `maxOffset` vs. the travel `d`; both are independent of the header's
+    /// current height (the content inset is constant), so there is no feedback loop.
+    func update(offset: CGFloat, maxOffset: CGFloat, travel: CGFloat, enabled: Bool) {
+        let canCollapse = enabled && travel > 1 && maxOffset >= travel
+        let next = canCollapse ? min(1, max(0, offset / travel)) : 0
+        if abs(next - progress) > 0.001 { progress = next }
+    }
+
+    /// iOS 18 path: the scroll callback delivers an already clamped 1%-step progress. Writes only on change.
+    func apply(step: Int, enabled: Bool) {
+        let next = enabled ? CGFloat(min(100, max(0, step))) / 100 : 0
+        if abs(next - progress) > 0.004 { progress = next }
+    }
+
+    /// iOS 17: position of the content's top edge in the scroll view's space.
+    func updateLegacy(minY: CGFloat, travel: CGFloat, enabled: Bool) {
+        if restMinY == nil { restMinY = minY }
+        update(offset: (restMinY ?? minY) - minY, maxOffset: .infinity, travel: travel, enabled: enabled)
+    }
+
+    func resetBaseline() { restMinY = nil }
+}
+
+/// What the iOS 18 scroll callback reports: a clamped progress in 1% steps plus "can collapse".
+/// Layout thrash that doesn't move these two values (insets, margins, bounce) produces no callback at all.
+private struct TTCollapseSignal: Equatable {
+    var step: Int
+    var canCollapse: Bool
+}
+
+private struct TTCollapseLegacyKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct TTHeaderExpandedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+private struct TTHeaderCollapsedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
+/// Dark header over a white, top-rounded content sheet that collapses with the scroll.
+///
+/// - The header is drawn **over** the scroll view; the scroll view reserves a constant top inset equal
+///   to the *expanded* header height. The content area therefore never changes size with progress.
+/// - Expanded and collapsed heights are **measured** from two hidden copies of the header
+///   (`header(0)`, `header(1)`), so Dynamic Type is handled. `d = expanded - collapsed`.
+/// - `progress = clamp(offset / d)`, driven continuously by the scroll offset. If the content can't
+///   scroll at least `d`, the header stays expanded. Overscroll (negative offset) gives 0.
+/// - Reduce Motion: the header stays expanded.
+/// - No snapping to the nearest end: that needs programmatic scrolling, which isn't reliable on iOS 17.
+struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
+    var sheetFill: Color = .white
+    var headerBackground: Color = .black
+    var onRefresh: (() async -> Void)? = nil
+    @ViewBuilder var header: (_ progress: CGFloat) -> Header
+    @ViewBuilder var content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @StateObject private var model = TTHeaderCollapseState()
+    @State private var expandedHeight: CGFloat = 0
+    @State private var collapsedHeight: CGFloat = 0
+
+    private var travel: CGFloat { max(0, expandedHeight - collapsedHeight) }
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            scroll
+
+            TTCollapsingHeaderHost(
+                model: model,
+                background: headerBackground,
+                header: header
+            )
+
+            // Hidden copies measure the two end states once per layout change (not per scroll frame).
+            if PerfTemp.on(.homeCopies) { // PERF-TEMP (OFF keeps the last measured heights)
+            ZStack(alignment: .top) {
+                header(0)
+                    .background(GeometryReader { Color.clear.preference(key: TTHeaderExpandedHeightKey.self, value: $0.size.height) })
+                header(1)
+                    .background(GeometryReader { Color.clear.preference(key: TTHeaderCollapsedHeightKey.self, value: $0.size.height) })
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .opacity(0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            } // PERF-TEMP
+        }
+        .onPreferenceChange(TTHeaderExpandedHeightKey.self) { value in
+            if abs(value - expandedHeight) > 0.5 {
+                expandedHeight = value
+                model.resetBaseline()
+            }
+        }
+        .onPreferenceChange(TTHeaderCollapsedHeightKey.self) { value in
+            if abs(value - collapsedHeight) > 0.5 { collapsedHeight = value }
+        }
+    }
+
+    @ViewBuilder
+    private var scroll: some View {
+        let base = ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 0) {
+                legacyProbe
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(alignment: .top) {
+                TTCollapsingSheetBackground(model: model, fill: sheetFill)
+            }
+        }
+        // Rubber-band always, so pull-to-refresh also works with short content.
+        .scrollBounceBehavior(.always)
+        // Constant reserve for the expanded header: content never moves because the header shrinks.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: expandedHeight)
+        }
+        .modifier(TTCollapseObserver(model: model, travel: travel, enabled: !reduceMotion))
+
+        if let onRefresh {
+            base.refreshable { await onRefresh() }
+        } else {
+            base
+        }
+    }
+
+    /// iOS 17 only: reports the content's top edge. Zero height, so it never affects layout.
+    @ViewBuilder
+    private var legacyProbe: some View {
+        if #available(iOS 18.0, *) {
+            EmptyView()
+        } else {
+            GeometryReader { geo in
+                Color.clear.preference(key: TTCollapseLegacyKey.self, value: geo.frame(in: .scrollView).minY)
+            }
+            .frame(height: 0)
+            .accessibilityHidden(true)
+        }
+    }
+}
+
+/// Header host: the only view (with the ears) that re-renders on each progress change.
+private struct TTCollapsingHeaderHost<Header: View>: View {
+    @ObservedObject var model: TTHeaderCollapseState
+    let background: Color
+    let header: (CGFloat) -> Header
+
+    var body: some View {
+        #if DEBUG || PERF_TEMP
+        let _ = PerfTemp.trace("HomeHeaderHost") { Self._printChanges() } // PERF-TEMP
+        #endif
+        let radius = TTSheetChrome.homeTopRadius(collapseProgress: model.progress)
+        header(model.progress)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            // Concave corners under the header keep the content sheet's rounded top, at every progress.
+            .overlay(alignment: .bottom) {
+                if PerfTemp.on(.homeEars) { // PERF-TEMP
+                TTHeaderEars(radius: radius, color: background)
+                    .offset(y: radius)
+                    .allowsHitTesting(false)
+                } // PERF-TEMP
+            }
+    }
+}
+
+private struct TTHeaderEars: View {
+    let radius: CGFloat
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ear
+            Spacer(minLength: 0)
+            ear.scaleEffect(x: -1, y: 1)
+        }
+        .frame(height: radius)
+        .accessibilityHidden(true)
+    }
+
+    private var ear: some View {
+        color
+            .frame(width: radius, height: radius)
+            .mask {
+                Rectangle()
+                    .overlay(alignment: .bottomTrailing) {
+                        Circle()
+                            .frame(width: radius * 2, height: radius * 2)
+                            .offset(x: radius, y: radius)
+                            .blendMode(.destinationOut)
+                    }
+                    .compositingGroup()
+            }
+    }
+}
+
+private struct TTCollapsingSheetBackground: View {
+    @ObservedObject var model: TTHeaderCollapseState
+    let fill: Color
+
+    var body: some View {
+        let r = TTSheetChrome.homeTopRadius(collapseProgress: model.progress)
+        UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: r, style: .continuous)
+            .fill(fill)
+            // Extends below the content so a short page (or a bounce) still shows a full sheet.
+            .padding(.bottom, -3000)
+    }
+}
+
+private struct TTCollapseObserver: ViewModifier {
+    let model: TTHeaderCollapseState
+    let travel: CGFloat
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if !PerfTemp.on(.homeScrollObserver) { // PERF-TEMP: pinpoints the "update multiple times per frame" warning
+            content
+        } else if #available(iOS 18.0, *) {
+            content
+                .onScrollGeometryChange(for: TTCollapseSignal.self) { geo in
+                    // Small Equatable value only: clamped progress (1% steps) + whether collapse is possible.
+                    let offset = geo.contentOffset.y + geo.contentInsets.top
+                    let maxOffset = geo.contentSize.height + geo.contentInsets.top + geo.contentInsets.bottom - geo.containerSize.height
+                    let canCollapse = travel > 1 && maxOffset >= travel
+                    let progress = canCollapse ? min(1, max(0, offset / travel)) : 0
+                    return TTCollapseSignal(step: Int((progress * 100).rounded()), canCollapse: canCollapse)
+                } action: { _, new in
+                    model.apply(step: new.step, enabled: enabled)
+                }
+                .onChange(of: travel) { _, _ in
+                    model.update(offset: 0, maxOffset: 0, travel: travel, enabled: enabled)
+                }
+        } else {
+            content
+                .onPreferenceChange(TTCollapseLegacyKey.self) { minY in
+                    model.updateLegacy(minY: minY, travel: travel, enabled: enabled)
+                }
         }
     }
 }

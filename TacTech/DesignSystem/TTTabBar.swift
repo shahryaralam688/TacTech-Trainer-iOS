@@ -16,11 +16,14 @@ struct TTTabBarItem<Tab: Hashable>: Identifiable {
     let id: Tab
     let icon: SandowIcon
     var accessibilityLabel: String
+    /// Optional visible title under the icon. nil (default) keeps the icon-only look.
+    var title: String?
 
-    init(_ id: Tab, icon: SandowIcon, label: String) {
+    init(_ id: Tab, icon: SandowIcon, label: String, title: String? = nil) {
         self.id = id
         self.icon = icon
         self.accessibilityLabel = label
+        self.title = title
     }
 }
 
@@ -218,6 +221,16 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
                     TTIcon(icon: item.icon, filled: isActive, size: iconSize)
                         .foregroundStyle(isActive ? activeIconColor : inactiveIconColor)
+                }
+
+                if let title = item.title {
+                    // Fixed 11pt so the bar height never changes with Dynamic Type; VoiceOver uses the label.
+                    Text(title)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundStyle(isActive ? activeIconColor : inactiveIconColor)
+                        .accessibilityHidden(true)
                 }
 
                 Capsule()

@@ -1,5 +1,54 @@
 import SwiftUI
 
+// MARK: - Morph state (refined search only)
+
+private struct TTSearchMorphedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private struct TTSearchFrameBoxKey: EnvironmentKey {
+    static let defaultValue: TTSearchFrameBox? = nil
+}
+
+extension EnvironmentValues {
+    /// `true` while the refined search is open: the entry pill hides (the open bar sits exactly on it).
+    fileprivate var ttSearchMorphed: Bool {
+        get { self[TTSearchMorphedKey.self] }
+        set { self[TTSearchMorphedKey.self] = newValue }
+    }
+
+    fileprivate var ttSearchFrameBox: TTSearchFrameBox? {
+        get { self[TTSearchFrameBoxKey.self] }
+        set { self[TTSearchFrameBoxKey.self] = newValue }
+    }
+}
+
+/// Reads the entry pill's on-screen frame once, on demand (no per-frame geometry tracking).
+final class TTSearchFrameBox {
+    fileprivate weak var view: UIView?
+
+    func globalFrame() -> CGRect? {
+        guard let view, view.window != nil else { return nil }
+        let rect = view.convert(view.bounds, to: nil)
+        return rect.isEmpty ? nil : rect
+    }
+}
+
+private struct TTSearchFrameProbe: UIViewRepresentable {
+    let box: TTSearchFrameBox
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        box.view = view
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        box.view = uiView
+    }
+}
+
 // MARK: - Entry pill (morph source)
 
 struct TTSearchEntryPill: View {
@@ -10,11 +59,26 @@ struct TTSearchEntryPill: View {
     var matchedID: String = "ttSearchMorph"
     var onTap: () -> Void
 
+    @Environment(\.ttSearchMorphed) private var morphed
+    @Environment(\.ttSearchFrameBox) private var frameBox
+
     enum Style {
         case light, onDark
     }
 
     var body: some View {
+        // While the refined search is open, the open bar sits exactly on this pill, so it hides but
+        // keeps its layout slot (and its frame, which the host reads once when opening).
+        pillButton
+            .background {
+                if let frameBox { TTSearchFrameProbe(box: frameBox) }
+            }
+            .opacity(morphed ? 0 : 1)
+            .allowsHitTesting(!morphed)
+            .accessibilityHidden(morphed)
+    }
+
+    private var pillButton: some View {
         Button(action: onTap) {
             HStack(spacing: 10) {
                 TTIcon(icon: .magnifyingGlass, size: 16)
@@ -73,9 +137,18 @@ struct TTSearchOverlay: View {
     var namespace: Namespace.ID
     var matchedID: String = "ttSearchMorph"
     var onOutcome: (TTSearchOutcome) -> Void
+    /// Refined mode (Plans): the bar expands in place, the options panel unfolds below it.
+    var refined: Bool = false
+    /// Where the entry pill sits on screen (global coordinates) when the search opens.
+    var barFrame: CGRect = .zero
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
+    @State private var isClosing = false
+    @State private var barNarrow = false
+    @State private var showCancel = false
+    @State private var panelOpen = false
+    @State private var keyboardTop: CGFloat?
 
     @State private var query = ""
     @State private var debouncedQuery = ""
@@ -94,7 +167,32 @@ struct TTSearchOverlay: View {
     private let cardFill = Color.white
     private let canvas = Color(white: 0.97)
 
+    init(
+        catalog: TTSearchCatalog,
+        namespace: Namespace.ID,
+        matchedID: String = "ttSearchMorph",
+        refined: Bool = false,
+        barFrame: CGRect = .zero,
+        onOutcome: @escaping (TTSearchOutcome) -> Void
+    ) {
+        self.catalog = catalog
+        self.namespace = namespace
+        self.matchedID = matchedID
+        self.refined = refined
+        self.barFrame = barFrame
+        self.onOutcome = onOutcome
+    }
+
+    @ViewBuilder
     var body: some View {
+        if refined {
+            refinedBody
+        } else {
+            classicBody
+        }
+    }
+
+    private var classicBody: some View {
         GeometryReader { geo in
             let topInset = max(geo.safeAreaInsets.top, 54)
 
@@ -145,10 +243,256 @@ struct TTSearchOverlay: View {
         }
     }
 
+    // MARK: Refined layout (Plans): bar expands in place, panel unfolds under it
+
+    private static let cancelWidth: CGFloat = 76
+    private static let barGap: CGFloat = 8
+
+    private var refinedBody: some View {
+        GeometryReader { geo in
+            let origin = geo.frame(in: .global).origin
+            // Standard bar height (same as the list's search pill). The measured frame only decides where
+            // the bar sits; a collapsed measurement must never make the bar thin.
+            let standardHeight: CGFloat = 48
+            let bar = CGRect(
+                x: barFrame.minX - origin.x,
+                y: barFrame.midY - origin.y - standardHeight / 2,
+                width: barFrame.width,
+                height: standardHeight
+            )
+            // Panel ends just above the keyboard (estimated until the keyboard reports its frame).
+            let kbTop = (keyboardTop ?? (UIScreen.main.bounds.height - 336)) - origin.y
+            let panelTop = bar.maxY + Self.barGap
+            let panelFull = max(140, kbTop - Self.barGap - panelTop)
+            let barWidth = (barNarrow && !reduceMotion) ? bar.width - Self.cancelWidth : bar.width
+
+            ZStack(alignment: .topLeading) {
+                backdrop
+                    .opacity(showBackdrop ? 1 : 0)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { dismiss(.dismissed) }
+                    .accessibilityHidden(true)
+
+                // Options panel: a top-to-bottom reveal (frame height), not a scale.
+                optionsPanel(width: bar.width, fullHeight: panelFull)
+                    .frame(height: panelOpen ? panelFull : 0, alignment: .top)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(cardFill)
+                            .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .opacity(panelOpen ? 1 : 0)
+                    .offset(x: bar.minX, y: panelTop)
+
+                openBar
+                    .frame(width: barWidth, height: bar.height)
+                    .offset(x: bar.minX, y: bar.minY)
+
+                if !reduceMotion {
+                    Button { dismiss(.dismissed) } label: {
+                        Text("Cancel")
+                            .font(TTFont.workSans(16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: Self.cancelWidth - Self.barGap, height: max(bar.height, 44))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(showCancel ? 1 : 0)
+                    .allowsHitTesting(showCancel)
+                    .offset(x: bar.maxX - (Self.cancelWidth - Self.barGap), y: bar.minY - max(0, (44 - bar.height) / 2))
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+        }
+        .ignoresSafeArea(.container)
+        .onAppear(perform: present)
+        .onDisappear { debounceTask?.cancel() }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let top = frame.minY >= UIScreen.main.bounds.height ? UIScreen.main.bounds.height : frame.minY
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { keyboardTop = top }
+        }
+        .onChange(of: query) { _, newValue in scheduleDebounce(newValue) }
+    }
+
+    /// The bar itself: same look as the Plans list's search field, now editable.
+    private var openBar: some View {
+        HStack(spacing: 10) {
+            TTIcon(icon: .magnifyingGlass, size: 16)
+                .foregroundStyle(TTColor.inkMuted)
+                .accessibilityHidden(true)
+
+            TextField("", text: $query, prompt: Text(catalog.copy.pillPlaceholder))
+                .font(TTFont.body(15))
+                .focused($fieldFocused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .onSubmit { performSearch() }
+                .accessibilityLabel("Search plans")
+
+            if !query.isEmpty {
+                Button {
+                    // Empty the text, keep focus, stay open; suggestions fade back in 150 ms.
+                    fieldFocused = true
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.15)) {
+                        query = ""
+                        debouncedQuery = ""
+                    }
+                } label: {
+                    TTIcon(icon: .closeXCircle, filled: true, size: 18)
+                        .foregroundStyle(TTColor.inkSubtle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear text")
+            }
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, query.isEmpty ? 14 : 2)
+        .frame(maxWidth: .infinity, minHeight: 48, maxHeight: 48, alignment: .leading)
+        .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(fieldFocused ? TTColor.actionOrange : Color.clear, lineWidth: 1.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    private func optionsPanel(width: CGFloat, fullHeight: CGFloat) -> some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 12) {
+                if reduceMotion {
+                    HStack {
+                        Spacer()
+                        Button { dismiss(.dismissed) } label: {
+                            Text("Cancel")
+                                .font(TTFont.workSans(15, weight: .semibold))
+                                .foregroundStyle(TTColor.actionOrange)
+                                .frame(minWidth: 44, minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                optionChips
+
+                if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    showResultsButton
+                }
+
+                refinedList
+            }
+            .padding(16)
+            .frame(width: width, alignment: .topLeading)
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .frame(width: width, height: fullHeight, alignment: .top)
+        .opacity(showContent ? 1 : 0)
+    }
+
+    /// Focus and Popular as small chips at the top of the panel (tap again to go back to "Your plans").
+    private var optionChips: some View {
+        HStack(spacing: 8) {
+            optionChip(.categories, title: catalog.copy.categoriesTab, icon: .folder)
+            optionChip(.popular, title: catalog.copy.popularTab, icon: .fire1)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func optionChip(_ tab: TTSearchTopTab, title: String, icon: SandowIcon) -> some View {
+        let on = topTab == tab
+        return Button {
+            withAnimation(.easeOut(duration: 0.15)) { topTab = on ? .items : tab }
+        } label: {
+            HStack(spacing: 5) {
+                TTIcon(icon: icon, filled: on, size: 13)
+                Text(LocalizedStringKey(title))
+                    .font(TTFont.textSM(.semibold))
+            }
+            .foregroundStyle(on ? Color.white : TTColor.ink)
+            .padding(.horizontal, 12)
+            .frame(height: 36)
+            .background(on ? Color.black : canvas)
+            .clipShape(Capsule())
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    /// Panel list: chip lists, recents, "Your plans", live results while typing.
+    @ViewBuilder
+    private var refinedList: some View {
+        let q = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        if q.isEmpty {
+            switch topTab {
+            case .categories:
+                sectionLabel(catalog.copy.categoriesSection)
+                ForEach(Array(catalog.categories.enumerated()), id: \.element.id) { index, category in
+                    categoryRow(category, query: "")
+                        .modifier(TTSearchRowStagger(index: index, refined: true, reduceMotion: reduceMotion, shown: showContent))
+                }
+            case .popular:
+                sectionLabel(catalog.copy.popularSection)
+                ForEach(Array(catalog.popularItems.prefix(8).enumerated()), id: \.element.id) { index, item in
+                    itemRow(item, query: "")
+                        .modifier(TTSearchRowStagger(index: index, refined: true, reduceMotion: reduceMotion, shown: showContent))
+                }
+            case .items:
+                if !recents.isEmpty {
+                    recentHeader
+                    ForEach(Array(recents.prefix(5).enumerated()), id: \.offset) { index, recent in
+                        recentRow(recent)
+                            .modifier(TTSearchRowStagger(index: index, refined: true, reduceMotion: reduceMotion, shown: showContent))
+                    }
+                }
+                sectionLabel(catalog.copy.suggestedSection)
+                ForEach(Array(catalog.suggestedItems.prefix(5).enumerated()), id: \.element.id) { index, item in
+                    itemRow(item, query: "")
+                        .modifier(TTSearchRowStagger(index: index, refined: true, reduceMotion: reduceMotion, shown: showContent))
+                }
+                if catalog.hasOffer {
+                    sectionLabel(catalog.copy.offerTitle)
+                    offerContent
+                }
+            }
+        } else {
+            let cats = TTSearchEngine.filteredCategories(catalog.categories, query: q)
+            let items = TTSearchEngine.filteredItems(catalog.items, query: q)
+            if cats.isEmpty && items.isEmpty {
+                emptyResults
+            } else {
+                if !cats.isEmpty {
+                    sectionLabel(catalog.copy.categoriesSection)
+                    ForEach(cats) { category in
+                        categoryRow(category, query: q)
+                    }
+                }
+                if !items.isEmpty {
+                    sectionLabel(catalog.copy.suggestedSection)
+                    ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                        itemRow(item, query: q)
+                            .modifier(TTSearchRowStagger(index: index, refined: true, reduceMotion: reduceMotion, shown: showContent))
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: Present / dismiss motion
 
     private func present() {
         recents = Array(TTSearchRecentsStore.load(scopeId: catalog.scopeId).prefix(5))
+        if refined {
+            presentRefined()
+            return
+        }
         let present = reduceMotion ? Animation.easeOut(duration: 0.12) : TTMotion.searchPresent
         let chrome = reduceMotion ? Animation.easeOut(duration: 0.1) : TTMotion.searchChrome
         withAnimation(present) { showBackdrop = true }
@@ -162,7 +506,77 @@ struct TTSearchOverlay: View {
         }
     }
 
+    // MARK: Refined motion (Plans)
+
+    /// Open: everything starts together on tap.
+    private static let barCurve = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.32)
+    private static let panelCurve = Animation.timingCurve(0.16, 1, 0.3, 1, duration: 0.36)
+    private static let cancelIn = Animation.easeOut(duration: 0.18).delay(0.14)
+    private static let dimIn = Animation.easeOut(duration: 0.26)
+    /// Close: faster and accelerating, everything together.
+    private static let foldCurve = Animation.timingCurve(0.5, 0, 1, 0.6, duration: 0.24)
+    private static let rowsOut = Animation.easeOut(duration: 0.08)
+    private static let dimOut = Animation.easeOut(duration: 0.22)
+
+    private func presentRefined() {
+        PerfTemp.interval("search.open", seconds: 0.5) // PERF-TEMP
+        isFocusedPhase = true
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Search opened"))
+        if reduceMotion {
+            // 160 ms fade: no width change, no unfolding, no stagger.
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { barNarrow = false; panelOpen = true }
+            withAnimation(.easeOut(duration: 0.16)) {
+                showBackdrop = true
+                showContent = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { fieldFocused = true }
+            return
+        }
+        withAnimation(Self.barCurve) { barNarrow = true }
+        withAnimation(Self.cancelIn) { showCancel = true }
+        withAnimation(Self.panelCurve) {
+            panelOpen = true
+            showContent = true
+        }
+        withAnimation(Self.dimIn) { showBackdrop = true }
+        // Focus a moment after the animation starts so the keyboard doesn't cause a jump.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.10) { fieldFocused = true }
+    }
+
+    private func dismissRefined(_ outcome: TTSearchOutcome) {
+        guard !isClosing else { return }
+        isClosing = true
+        PerfTemp.interval("search.close", seconds: 0.35) // PERF-TEMP
+        // The keyboard leaves together with the panel, not after it.
+        fieldFocused = false
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Search closed"))
+        if reduceMotion {
+            var t = Transaction(); t.disablesAnimations = true
+            withTransaction(t) { panelOpen = false }
+            withAnimation(.easeOut(duration: 0.12)) {
+                showContent = false
+                showBackdrop = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.13) { onOutcome(outcome) }
+            return
+        }
+        withAnimation(Self.rowsOut) { showContent = false }
+        withAnimation(Self.foldCurve) {
+            panelOpen = false
+            barNarrow = false
+        }
+        withAnimation(.easeOut(duration: 0.12)) { showCancel = false }
+        withAnimation(Self.dimOut) { showBackdrop = false }
+        // The panel stays in the hierarchy until the fold has finished.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.27) { onOutcome(outcome) }
+    }
+
     private func dismiss(_ outcome: TTSearchOutcome) {
+        if refined {
+            dismissRefined(outcome)
+            return
+        }
         fieldFocused = false
         let anim = reduceMotion ? Animation.easeOut(duration: 0.12) : TTMotion.searchPresent
         withAnimation(anim) {
@@ -215,10 +629,11 @@ struct TTSearchOverlay: View {
 
     private var backdrop: some View {
         ZStack {
-            Color.black.opacity(0.22)
+            // Refined: a darker dim so white tab labels stay readable on it.
+            Color.black.opacity(refined ? 0.35 : 0.22)
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .opacity(0.55)
+                .opacity(refined ? 0.5 : 0.55)
         }
         .ignoresSafeArea()
     }
@@ -240,6 +655,8 @@ struct TTSearchOverlay: View {
                     .background(Color.white.opacity(0.92))
                     .clipShape(Circle())
                     .shadow(color: .black.opacity(0.06), radius: 8, y: 2)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(TTSearchPressStyle())
             .accessibilityLabel("Close search")
@@ -251,18 +668,20 @@ struct TTSearchOverlay: View {
     private func tabButton(_ tab: TTSearchTopTab, title: String, icon: SandowIcon) -> some View {
         let on = topTab == tab
         return Button {
+            if refined { fieldFocused = false }
             withAnimation(reduceMotion ? .easeOut(duration: 0.12) : TTMotion.searchChrome) {
                 topTab = tab
+                if refined { isFocusedPhase = false }
                 if isFocusedPhase == false { step = .what }
             }
         } label: {
             VStack(spacing: 6) {
                 HStack(spacing: 5) {
                     TTIcon(icon: icon, filled: on, size: 13)
-                    Text(title)
+                    Text(LocalizedStringKey(title))
                         .font(TTFont.textSM(.semibold))
                 }
-                .foregroundStyle(on ? TTColor.actionOrange : TTColor.inkMuted)
+                .foregroundStyle(on ? TTColor.actionOrange : (refined ? Color.white.opacity(0.85) : TTColor.inkMuted))
                 Capsule()
                     .fill(on ? TTColor.actionOrange : Color.clear)
                     .frame(width: on ? 28 : 0, height: 3)
@@ -329,9 +748,12 @@ struct TTSearchOverlay: View {
 
     private func expandedCard(_ target: TTSearchAccordionStep) -> some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(stepTitle(target))
-                .font(TTFont.workSans(18, weight: .bold))
-                .foregroundStyle(TTColor.ink)
+            // Refined search drops the redundant "What" heading above the field.
+            if !(refined && target == .what) {
+                Text(stepTitle(target))
+                    .font(TTFont.workSans(18, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+            }
 
             switch target {
             case .what:
@@ -407,6 +829,7 @@ struct TTSearchOverlay: View {
             .buttonStyle(TTSearchPressStyle())
 
             TextField(catalog.copy.whatPlaceholder, text: $query)
+                .accessibilityLabel(catalog.copy.whatPlaceholder)
                 .font(TTFont.body(16))
                 .focused($fieldFocused)
                 .textInputAutocapitalization(.never)
@@ -416,18 +839,29 @@ struct TTSearchOverlay: View {
 
             if !query.isEmpty {
                 Button {
-                    var t = Transaction()
-                    t.disablesAnimations = true
-                    withTransaction(t) {
-                        query = ""
-                        debouncedQuery = ""
+                    if refined {
+                        // Empty the text, keep focus, stay open; suggestions fade back in 150 ms.
+                        fieldFocused = true
+                        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.15)) {
+                            query = ""
+                            debouncedQuery = ""
+                        }
+                    } else {
+                        var t = Transaction()
+                        t.disablesAnimations = true
+                        withTransaction(t) {
+                            query = ""
+                            debouncedQuery = ""
+                        }
                     }
                 } label: {
                     TTIcon(icon: .closeXCircle, filled: true, size: 18)
                         .foregroundStyle(TTColor.inkSubtle)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(TTSearchPressStyle())
-                .accessibilityLabel("Clear")
+                .accessibilityLabel(refined ? "Clear text" : "Clear")
             }
         }
         .padding(.horizontal, 14)
@@ -446,33 +880,54 @@ struct TTSearchOverlay: View {
         .onTapGesture { enterFocusedPhase(focusField: true) }
     }
 
+    private var showResultsButton: some View {
+        Button {
+            performSearch()
+        } label: {
+            HStack {
+                Text("Show results")
+                    .font(TTFont.workSans(16, weight: .semibold))
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .frame(maxWidth: .infinity, minHeight: 52)
+            .background(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(TTSearchPressStyle(scale: 0.98))
+        .transition(.opacity)
+    }
+
     @ViewBuilder
     private var browseBody: some View {
         switch topTab {
         case .items:
             if !recents.isEmpty {
-                sectionLabel(catalog.copy.recentSection)
+                recentHeader
                 ForEach(Array(recents.prefix(3).enumerated()), id: \.offset) { index, recent in
                     recentRow(recent)
-                        .opacity(rowOpacity(index))
+                        .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
                 }
             }
             sectionLabel(catalog.copy.suggestedSection)
             ForEach(Array(catalog.suggestedItems.prefix(5).enumerated()), id: \.element.id) { index, item in
                 itemRow(item, query: "")
-                    .opacity(rowOpacity(index))
+                    .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
             }
         case .categories:
             sectionLabel(catalog.copy.categoriesSection)
             ForEach(Array(catalog.categories.enumerated()), id: \.element.id) { index, category in
                 categoryRow(category, query: "")
-                    .opacity(rowOpacity(index))
+                    .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
             }
         case .popular:
             sectionLabel(catalog.copy.popularSection)
             ForEach(Array(catalog.popularItems.prefix(8).enumerated()), id: \.element.id) { index, item in
                 itemRow(item, query: "")
-                    .opacity(rowOpacity(index))
+                    .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
             }
         }
     }
@@ -482,7 +937,7 @@ struct TTSearchOverlay: View {
         let q = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         if q.isEmpty {
             if !recents.isEmpty {
-                sectionLabel(catalog.copy.recentSection)
+                recentHeader
                 ForEach(Array(recents.prefix(5).enumerated()), id: \.offset) { _, recent in
                     recentRow(recent)
                 }
@@ -519,7 +974,7 @@ struct TTSearchOverlay: View {
                     sectionLabel(catalog.copy.suggestedSection)
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         itemRow(item, query: q)
-                            .opacity(rowOpacity(index))
+                            .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
                     }
                 }
             }
@@ -527,8 +982,9 @@ struct TTSearchOverlay: View {
     }
 
     private var emptyResults: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(catalog.copy.emptyTitle)
+        let typed = debouncedQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        return VStack(alignment: .leading, spacing: 6) {
+            Text(refined && catalog.scopeId.hasPrefix("plans.") ? String(localized: "No plans match “\(typed)”") : catalog.copy.emptyTitle)
                 .font(TTFont.workSans(16, weight: .bold))
                 .foregroundStyle(TTColor.ink)
             Text(catalog.copy.emptySubtitle)
@@ -584,7 +1040,7 @@ struct TTSearchOverlay: View {
             } else {
                 ForEach(Array(items.prefix(8).enumerated()), id: \.element.id) { index, item in
                     itemRow(item, query: "")
-                        .opacity(rowOpacity(index))
+                        .modifier(TTSearchRowStagger(index: index, refined: refined, reduceMotion: reduceMotion, shown: showContent))
                 }
             }
         }
@@ -592,8 +1048,33 @@ struct TTSearchOverlay: View {
 
     // MARK: Rows
 
+    /// "Recent searches" with a small Clear in refined mode (replaces the footer's "Clear all").
+    @ViewBuilder
+    private var recentHeader: some View {
+        if refined {
+            HStack {
+                sectionLabel(catalog.copy.recentSection)
+                Spacer(minLength: 8)
+                Button {
+                    TTSearchRecentsStore.clear(scopeId: catalog.scopeId)
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .easeOut(duration: 0.15)) { recents = [] }
+                } label: {
+                    Text("Clear")
+                        .font(TTFont.textSM(.semibold))
+                        .foregroundStyle(TTColor.actionOrange)
+                        .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Clear recent searches"))
+            }
+        } else {
+            sectionLabel(catalog.copy.recentSection)
+        }
+    }
+
     private func sectionLabel(_ title: String) -> some View {
-        Text(title)
+        Text(LocalizedStringKey(title))
             .font(TTFont.textSM(.semibold))
             .foregroundStyle(TTColor.inkMuted)
             .padding(.top, 4)
@@ -678,12 +1159,6 @@ struct TTSearchOverlay: View {
                 .foregroundStyle(tint)
         }
         .frame(width: 48, height: 48)
-    }
-
-    private func rowOpacity(_ index: Int) -> Double {
-        // Light stagger cue for first rows only — static opacity ladder, no continuous springs.
-        guard index < 8 else { return 1 }
-        return showContent ? 1 : 0
     }
 
     // MARK: Footer
@@ -781,6 +1256,31 @@ struct TTSearchOverlay: View {
     }
 }
 
+// MARK: - Refined-mode helpers
+
+/// First five rows fade in with a 30 ms stagger; classic mode keeps the old static ladder.
+private struct TTSearchRowStagger: ViewModifier {
+    let index: Int
+    let refined: Bool
+    let reduceMotion: Bool
+    let shown: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if refined {
+            if reduceMotion || index >= 5 {
+                content
+            } else {
+                content
+                    .opacity(shown ? 1 : 0)
+                    .animation(.easeOut(duration: 0.2).delay(Double(index) * 0.03), value: shown)
+            }
+        } else {
+            content.opacity(index < 8 ? (shown ? 1 : 0) : 1)
+        }
+    }
+}
+
 // MARK: - Host helper
 
 struct TTSearchHostModifier: ViewModifier {
@@ -788,29 +1288,75 @@ struct TTSearchHostModifier: ViewModifier {
     let catalog: TTSearchCatalog
     var namespace: Namespace.ID
     var matchedID: String = "ttSearchMorph"
+    /// Refined search renders in the view hierarchy (matched-geometry morph from the entry pill)
+    /// instead of a full-screen cover, so open and close share one choreography.
+    var refined: Bool = false
     var onOutcome: (TTSearchOutcome) -> Void
 
+    @State private var visible = false
+    @State private var barFrame: CGRect = .zero
+    @State private var frameBox = TTSearchFrameBox()
+
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .fullScreenCover(isPresented: $isPresented) {
-                TTSearchOverlay(
-                    catalog: catalog,
-                    namespace: namespace,
-                    matchedID: matchedID
-                ) { outcome in
-                    isPresented = false
-                    DispatchQueue.main.async {
-                        onOutcome(outcome)
+        if refined {
+            content
+                .environment(\.ttSearchMorphed, visible)
+                .environment(\.ttSearchFrameBox, frameBox)
+                .overlay {
+                    if visible {
+                        TTSearchOverlay(
+                            catalog: catalog,
+                            namespace: namespace,
+                            matchedID: matchedID,
+                            refined: true,
+                            barFrame: barFrame
+                        ) { outcome in
+                            var t = Transaction()
+                            t.disablesAnimations = true
+                            withTransaction(t) {
+                                visible = false
+                                isPresented = false
+                            }
+                            DispatchQueue.main.async { onOutcome(outcome) }
+                        }
+                        .transition(.identity)
                     }
                 }
-                .presentationBackground(.clear)
-            }
-            .transaction(value: isPresented) { transaction in
-                // Soft custom springs own the open/close — suppress the system slide.
-                if isPresented {
-                    transaction.disablesAnimations = true
+                // The floating tab bar (and its + button) stays out of the way while search is open.
+                .ttRootTabBarVisible(!visible)
+                .onChange(of: isPresented, initial: true) { _, presented in
+                    guard presented, !visible else { return }
+                    // Read the bar's place once, right now; fall back to a plausible slot if it isn't on screen.
+                    let screen = UIScreen.main.bounds
+                    barFrame = frameBox.globalFrame()
+                        ?? CGRect(x: 16, y: 150, width: screen.width - 32, height: 48)
+                    var t = Transaction()
+                    t.disablesAnimations = true
+                    withTransaction(t) { visible = true }
                 }
-            }
+        } else {
+            content
+                .fullScreenCover(isPresented: $isPresented) {
+                    TTSearchOverlay(
+                        catalog: catalog,
+                        namespace: namespace,
+                        matchedID: matchedID
+                    ) { outcome in
+                        isPresented = false
+                        DispatchQueue.main.async {
+                            onOutcome(outcome)
+                        }
+                    }
+                    .presentationBackground(.clear)
+                }
+                .transaction(value: isPresented) { transaction in
+                    // Soft custom springs own the open/close — suppress the system slide.
+                    if isPresented {
+                        transaction.disablesAnimations = true
+                    }
+                }
+        }
     }
 }
 
@@ -820,6 +1366,7 @@ extension View {
         catalog: TTSearchCatalog,
         namespace: Namespace.ID,
         matchedID: String = "ttSearchMorph",
+        refined: Bool = false,
         onOutcome: @escaping (TTSearchOutcome) -> Void
     ) -> some View {
         modifier(
@@ -828,6 +1375,7 @@ extension View {
                 catalog: catalog,
                 namespace: namespace,
                 matchedID: matchedID,
+                refined: refined,
                 onOutcome: onOutcome
             )
         )

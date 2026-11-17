@@ -12,6 +12,8 @@ struct TTLiquidFABAction: Identifiable, Hashable {
     let icon: SandowIcon
     /// Orange icon plate (AI / primary).
     var highlighted: Bool = false
+    /// Starts a new visual group (adds extra space above this row). Layout only.
+    var startsGroup: Bool = false
 }
 
 extension Notification.Name {
@@ -29,32 +31,33 @@ extension TTLiquidFABAction {
         TTLiquidFABAction(
             id: "ai",
             title: "AI Assistant",
-            subtitle: "Chat · draft plans · cues",
+            subtitle: "Draft plans, get ideas",
             icon: .sparkle2,
             highlighted: true
         ),
         TTLiquidFABAction(
             id: "traineeChat",
             title: "Trainee chat",
-            subtitle: "Message · media · video call",
+            subtitle: "Message or call a trainee",
             icon: .chat
         ),
         TTLiquidFABAction(
             id: "create",
             title: "Create workout plan",
-            subtitle: "Build manually",
-            icon: .clipboard
+            subtitle: "Build one from scratch",
+            icon: .filePlus,
+            startsGroup: true
         ),
         TTLiquidFABAction(
             id: "assign",
             title: "Assign to trainee",
-            subtitle: "Attach an existing plan",
+            subtitle: "Give a trainee a plan",
             icon: .userCheck
         ),
         TTLiquidFABAction(
             id: "assignments",
             title: "Plan assignments",
-            subtitle: "Who has which plan",
+            subtitle: "See who has which plan",
             icon: .listThreeCheck
         )
     ]
@@ -94,6 +97,7 @@ struct TTLiquidFABOverlay: View {
     var namespace: Namespace.ID? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @State private var expanded = false
     @State private var scrimVisible = false
     @State private var fabBoost = false
@@ -116,6 +120,9 @@ struct TTLiquidFABOverlay: View {
     }
 
     var body: some View {
+        #if DEBUG || PERF_TEMP
+        let _ = PerfTemp.trace("LiquidFABOverlay") { Self._printChanges() } // PERF-TEMP
+        #endif
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
                 scrim
@@ -124,12 +131,15 @@ struct TTLiquidFABOverlay: View {
                     liquidColumn
                         .allowsHitTesting(false)
 
-                    VStack(spacing: 14) {
+                    VStack(spacing: 10) {
                         ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
                             actionPill(action, index: index)
+                                // 10pt inside a group, 22pt between groups (10 + 12).
+                                .padding(.top, action.startsGroup && index > 0 ? 12 : 0)
                         }
 
                         fabButton
+                            .padding(.top, 4)
                     }
                 }
                 .padding(.bottom, geo.safeAreaInsets.bottom + bottomReserve)
@@ -152,12 +162,14 @@ struct TTLiquidFABOverlay: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
             fabBoost = true
         }
+        PerfTemp.interval("fab.open", seconds: 0.7) // PERF-TEMP
         withAnimation(openSpring.delay(0.04)) {
             expanded = true
             scrimVisible = true
             liquidWave = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            guard PerfTemp.on(.fabLoops) else { return } // PERF-TEMP
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                 // Keep a gentle liquid breathe while open.
                 liquidWave = true
@@ -166,6 +178,7 @@ struct TTLiquidFABOverlay: View {
     }
 
     private func dismiss(completion: (() -> Void)? = nil) {
+        PerfTemp.interval("fab.close", seconds: 0.45) // PERF-TEMP
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
@@ -199,16 +212,10 @@ struct TTLiquidFABOverlay: View {
 
     private var scrim: some View {
         Rectangle()
-            .fill(.ultraThinMaterial)
+            .fill(reduceTransparency ? AnyShapeStyle(Color.black) : AnyShapeStyle(.ultraThinMaterial))
             .overlay(
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(scrimVisible ? 0.22 : 0),
-                        Color.black.opacity(scrimVisible ? 0.5 : 0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                // Dark scrim; solid-ish when Reduce Transparency is on (no blur then).
+                Color.black.opacity(scrimVisible ? (reduceTransparency ? 0.92 : 0.58) : 0)
             )
             .ignoresSafeArea()
             .opacity(scrimVisible ? 1 : 0)
@@ -240,7 +247,7 @@ struct TTLiquidFABOverlay: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(expanded ? Color.black : orange)
                     .frame(width: fabSize, height: fabSize)
-                    .shadow(color: orange.opacity(expanded ? 0.55 : 0.4), radius: expanded ? 18 : 10, y: 8)
+                    .shadow(color: Color.black.opacity(expanded ? 0.4 : 0.28), radius: expanded ? 11 : 6, y: 8)
                     .scaleEffect(fabBoost && expanded ? 1.06 : 1)
 
                 TTIcon(icon: .plus, filled: true, size: 20)
@@ -250,7 +257,7 @@ struct TTLiquidFABOverlay: View {
             }
             .frame(width: fabSize, height: fabSize)
             .animation(reduceMotion ? .easeOut(duration: 0.12) : openSpring, value: expanded)
-            .animation(reduceMotion ? nil : .easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: liquidWave)
+            .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : .easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: liquidWave) // PERF-TEMP
         }
         .buttonStyle(.plain)
         .modifier(TTLiquidFABMatched(
@@ -273,7 +280,7 @@ struct TTLiquidFABOverlay: View {
             Capsule(style: .continuous)
                 .fill(orange.opacity(0.35))
                 .frame(width: 64 * breathe, height: expanded ? openHeight + 24 : fabSize)
-                .blur(radius: 28)
+                .blur(radius: PerfTemp.on(.fabBlur) ? 28 : 0) // PERF-TEMP
                 .opacity(expanded ? 1 : 0)
 
             // Gooey stack — blur + contrast merges blobs into liquid.
@@ -297,23 +304,23 @@ struct TTLiquidFABOverlay: View {
                     .frame(width: fabSize * 0.85, height: fabSize * 0.85)
             }
             .frame(width: 90, height: expanded ? openHeight + 40 : fabSize)
-            .blur(radius: expanded ? 16 : 4)
+            .blur(radius: PerfTemp.on(.fabBlur) ? (expanded ? 16 : 4) : 0) // PERF-TEMP
             .opacity(expanded ? 1 : 0)
             // High contrast after blur ≈ metaball / liquid merge.
-            .contrast(expanded ? 1.35 : 1)
-            .brightness(expanded ? 0.02 : 0)
+            .contrast(PerfTemp.on(.fabBlur) && expanded ? 1.35 : 1) // PERF-TEMP
+            .brightness(PerfTemp.on(.fabBlur) && expanded ? 0.02 : 0) // PERF-TEMP
 
             // Sharp highlight rim so liquid reads premium, not muddy.
             Capsule(style: .continuous)
                 .stroke(Color.white.opacity(0.22), lineWidth: 1)
                 .frame(width: 22, height: expanded ? openHeight * 0.72 : 12)
-                .blur(radius: 1)
+                .blur(radius: PerfTemp.on(.fabBlur) ? 1 : 0) // PERF-TEMP
                 .opacity(expanded ? 0.7 : 0)
                 .offset(y: -fabSize * 0.15)
         }
         .scaleEffect(x: breathe, y: 1, anchor: .bottom)
         .animation(reduceMotion ? .easeOut(duration: 0.14) : openSpring, value: expanded)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 1.55).repeatForever(autoreverses: true), value: liquidWave)
+        .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : .easeInOut(duration: 1.55).repeatForever(autoreverses: true), value: liquidWave) // PERF-TEMP
     }
 
     // MARK: - Pills
@@ -328,57 +335,49 @@ struct TTLiquidFABOverlay: View {
         } label: {
             HStack(spacing: 12) {
                 ZStack {
-                    Circle()
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .fill(action.highlighted ? orange : Color.black)
-                        .shadow(
-                            color: (action.highlighted ? orange : Color.black).opacity(0.25),
-                            radius: 8,
-                            y: 3
-                        )
-                    TTIcon(icon: action.icon, filled: true, size: 16)
+                    TTIcon(icon: action.icon, filled: false, size: 24)
                         .foregroundStyle(.white)
                         .symbolEffect(.bounce, value: expanded && action.highlighted)
                 }
-                .frame(width: 44, height: 44)
+                .frame(width: 52, height: 52)
                 .scaleEffect(expanded ? 1 : 0.5)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(action.title)
-                        .font(TTFont.workSans(15, weight: .bold))
+                    Text(LocalizedStringKey(action.title))
+                        .font(TTFont.workSans(17, weight: .medium))
                         .foregroundStyle(TTColor.ink)
                         .lineLimit(1)
-                    Text(action.subtitle)
-                        .font(TTFont.caption(12))
+                    Text(LocalizedStringKey(action.subtitle))
+                        .font(TTFont.workSans(14, weight: .regular))
                         .foregroundStyle(TTColor.inkMuted)
                         .lineLimit(1)
                 }
 
                 Spacer(minLength: 4)
-
-                TTIcon(icon: .chevronRight, size: 12)
-                    .foregroundStyle(TTColor.inkSubtle)
-                    .opacity(expanded ? 0.7 : 0)
             }
-            .padding(.leading, 10)
+            .padding(.leading, 12)
             .padding(.trailing, 16)
-            .padding(.vertical, 12)
-            .frame(width: 308, alignment: .leading)
+            .frame(width: 308, height: 76, alignment: .leading)
             .background {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color.white)
-                    .shadow(color: Color.black.opacity(0.12), radius: 22, y: 12)
-                    .shadow(color: orange.opacity(action.highlighted ? 0.18 : 0), radius: 16, y: 6)
+                    .fill(TTColor.surface)
+                    .shadow(color: Color.black.opacity(0.18), radius: 13, y: 10)
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(
-                        action.highlighted ? orange.opacity(0.45) : Color.white.opacity(0.8),
-                        lineWidth: action.highlighted ? 1.4 : 0.5
-                    )
+                    .strokeBorder(TTColor.ink.opacity(0.06), lineWidth: 1)
             }
+            .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .scaleEffect(isHot ? 0.96 : 1)
         }
         .buttonStyle(TTLiquidFABPillPressStyle())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(String(localized: String.LocalizationValue(action.title))), \(String(localized: String.LocalizationValue(action.subtitle)))"
+        )
+        .accessibilityAddTraits(.isButton)
         .opacity(expanded ? 1 : 0)
         .offset(y: expanded ? 0 : CGFloat(fromBottom + 1) * 28 + 48)
         .scaleEffect(expanded ? 1 : 0.42, anchor: .bottom)
@@ -388,7 +387,7 @@ struct TTLiquidFABOverlay: View {
             anchor: .bottom,
             perspective: 0.7
         )
-        .blur(radius: expanded ? 0 : 6)
+        .blur(radius: PerfTemp.on(.fabBlur) ? (expanded ? 0 : 6) : 0) // PERF-TEMP
         .animation(
             reduceMotion
                 ? .easeOut(duration: 0.12)
@@ -420,7 +419,7 @@ private struct TTLiquidFABPillPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.95 : 1)
-            .brightness(configuration.isPressed ? -0.02 : 0)
+            .brightness(configuration.isPressed ? -0.06 : 0)
             .animation(.spring(response: 0.22, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }

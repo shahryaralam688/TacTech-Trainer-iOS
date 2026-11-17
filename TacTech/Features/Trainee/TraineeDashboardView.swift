@@ -16,32 +16,26 @@ struct TraineeDashboardView: View {
     @State private var overviewTarget: OverviewTarget?
     @Bindable private var notificationStore = NotificationStore.shared
 
-    @StateObject private var scrollCollapse: TTHomeScrollCollapseModel = {
-        let model = TTHomeScrollCollapseModel()
-        model.layoutTravel = TTHomeHeaderCollapse.homeLayoutTravel
-        return model
-    }()
-
     private let canvas = Color(white: 0.98)
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                HomeHeader(
-                    name: firstName,
-                    avatarAsset: store.displayAvatarAsset,
-                    avatarUrl: store.remoteAvatarURL,
-                    avatarUserId: store.session?.userId,
-                    unreadCount: notificationStore.unreadCount,
-                    collapseProgress: scrollCollapse.progress,
-                    onProfile: { TTHomeHaptics.light(); showProfile = true },
-                    onNotifications: { TTHomeHaptics.light(); showNotifications = true }
-                )
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: "traineeHome")
-
+            TTCollapsingHeaderScreen(
+                sheetFill: canvas,
+                onRefresh: { await refreshAll() },
+                header: { progress in
+                    HomeHeader(
+                        name: firstName,
+                        avatarAsset: store.displayAvatarAsset,
+                        avatarUrl: store.remoteAvatarURL,
+                        avatarUserId: store.session?.userId,
+                        unreadCount: notificationStore.unreadCount,
+                        collapseProgress: progress,
+                        onProfile: { TTHomeHaptics.light(); showProfile = true },
+                        onNotifications: { TTHomeHaptics.light(); showNotifications = true }
+                    )
+                }
+            ) {
                         VStack(alignment: .leading, spacing: HomeTheme.gap) {
                             if isOffline {
                                 OfflineBanner(onRetry: { Task { await refreshAll() } })
@@ -68,14 +62,6 @@ struct TraineeDashboardView: View {
                         .padding(.horizontal, 16)
                         .padding(.top, 16)
                         .padding(.bottom, 24)   // base; root adds tab-bar clearance via contentMargins
-                    }
-                }
-                .refreshable { await refreshAll() }
-                .ttTopRoundedSheet(
-                    radius: TTSheetChrome.homeTopRadius(collapseProgress: scrollCollapse.progress),
-                    fill: canvas
-                )
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: "traineeHome")
             }
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)

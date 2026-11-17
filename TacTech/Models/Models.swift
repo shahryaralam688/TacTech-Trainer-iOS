@@ -163,9 +163,31 @@ enum Weekday: String, Codable, CaseIterable, Identifiable {
     }
 
     init(from decoder: Decoder) throws {
-        let raw = try decoder.singleValueContainer().decode(String.self).lowercased()
-        self = Weekday(rawValue: raw) ?? .monday
+        let raw = try decoder.singleValueContainer().decode(String.self)
+        // Full names ("monday") and the three-letter forms AI-generated plans store ("Mon").
+        var key = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if key.hasSuffix(".") { key.removeLast() }
+        switch key {
+        case "monday", "mon": self = .monday
+        case "tuesday", "tue", "tues": self = .tuesday
+        case "wednesday", "wed": self = .wednesday
+        case "thursday", "thu", "thur", "thurs": self = .thursday
+        case "friday", "fri": self = .friday
+        case "saturday", "sat": self = .saturday
+        case "sunday", "sun": self = .sunday
+        default:
+            // TODO: this invents data — an unknown value silently becomes Monday. Weekday should become
+            // optional or gain an `unknown` case so the UI can show a neutral placeholder instead.
+            #if DEBUG
+            if Weekday.reportedUnknown.insert(raw).inserted { print("Weekday: unknown value \"\(raw)\" decoded as monday") }
+            #endif
+            self = .monday
+        }
     }
+
+    #if DEBUG
+    private static var reportedUnknown = Set<String>()
+    #endif
 
     static func from(date: Date, calendar: Calendar = .current) -> Weekday {
         switch calendar.component(.weekday, from: date) {

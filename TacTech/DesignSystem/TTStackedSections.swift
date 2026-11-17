@@ -2,6 +2,11 @@ import SwiftUI
 
 // MARK: - Stacked Sections (Cards & Lists)
 
+/// `.stacked` = sticky overlapping deck (default). `.plain` = normal list; cards leaving the top fade/shrink slightly.
+enum TTStackedStyle {
+    case stacked, plain
+}
+
 /// Sticky chapter-style deck — Animata `StackedSections` pattern, TacTech tokens.
 ///
 /// Cards keep normal list spacing until they hit the pin line; then each sticks with a
@@ -18,6 +23,7 @@ where Data.Element: Identifiable {
     var maxPinnedDepth: Int = TTStackedTokens.maxPinnedDepth
     /// Prefer the named space already on your ScrollView (e.g. home-collapse space).
     var coordinateSpaceName: String? = nil
+    var style: TTStackedStyle = .stacked
     @ViewBuilder var content: (Data.Element) -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,13 +40,14 @@ where Data.Element: Identifiable {
                     stackOffset: stackOffset,
                     maxPinnedDepth: maxPinnedDepth,
                     withDramaEffect: withDramaEffect && !reduceMotion,
-                    coordinateSpaceName: coordinateSpaceName
+                    coordinateSpaceName: coordinateSpaceName,
+                    style: style
                 ) {
                     content(item)
                 }
             }
 
-            if scrollRunway > 0, total > 1 {
+            if style == .stacked, scrollRunway > 0, total > 1 {
                 Color.clear
                     .frame(height: scrollRunway)
                     .accessibilityHidden(true)
@@ -109,6 +116,7 @@ private struct TTStackedPane<Content: View>: View {
     let maxPinnedDepth: Int
     let withDramaEffect: Bool
     let coordinateSpaceName: String?
+    var style: TTStackedStyle = .stacked
     @ViewBuilder var content: () -> Content
 
     private var pinnedTop: CGFloat {
@@ -120,7 +128,33 @@ private struct TTStackedPane<Content: View>: View {
         return max(0.92, 1.0 - 0.025 * depthFromFront)
     }
 
+    @ViewBuilder
     var body: some View {
+        if style == .plain {
+            plainBody
+        } else {
+            stackedBody
+        }
+    }
+
+    /// Normal flow, no overlap, no per-frame geometry reads: only a light fade/scale as a card leaves the top.
+    @ViewBuilder
+    private var plainBody: some View {
+        if withDramaEffect {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .scrollTransition(.animated(.easeOut(duration: 0.2)), axis: .vertical) { view, phase in
+                    view
+                        .opacity(phase.value < 0 ? 0.55 : 1)
+                        .scaleEffect(phase.value < 0 ? 0.96 : 1, anchor: .top)
+                }
+        } else {
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var stackedBody: some View {
         content()
             .frame(maxWidth: .infinity, alignment: .leading)
             .zIndex(Double(index + 1))

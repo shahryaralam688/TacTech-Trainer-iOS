@@ -177,7 +177,8 @@ struct TTUserAvatarView: View {
             if let url = resolvedURL, remoteImage == nil {
                 Task {
                     if let hit = await TTRemoteImageCache.shared.cachedImage(for: url) {
-                        await MainActor.run { remoteImage = hit }
+                        let shown = await perfPrepared(hit) // PERF-TEMP
+                        await MainActor.run { remoteImage = shown }
                     }
                 }
             }
@@ -194,7 +195,7 @@ struct TTUserAvatarView: View {
             return
         }
         if let hit = await TTRemoteImageCache.shared.cachedImage(for: url) {
-            remoteImage = hit
+            remoteImage = await perfPrepared(hit) // PERF-TEMP
             return
         }
         // No cache → initials placeholder (not blank), then fade image in once.
@@ -202,9 +203,18 @@ struct TTUserAvatarView: View {
         let image = await TTRemoteImageCache.shared.image(for: url)
         guard token == loadToken else { return }
         if let image {
+            let shown = await perfPrepared(image) // PERF-TEMP
             withAnimation(.easeIn(duration: 0.18)) {
-                remoteImage = image
+                remoteImage = shown
             }
         }
+    }
+
+    /// PERF-TEMP: switch "Avatars downsampled" decodes a display-sized thumbnail instead of the original.
+    private func perfPrepared(_ image: UIImage) async -> UIImage { // PERF-TEMP
+        guard PerfTemp.raw(.avatarDownsample) else { return image }
+        let scale = UIScreen.main.scale
+        let target = CGSize(width: size * scale, height: size * scale)
+        return await image.byPreparingThumbnail(ofSize: target) ?? image
     }
 }

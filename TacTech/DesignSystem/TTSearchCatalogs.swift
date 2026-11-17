@@ -25,7 +25,7 @@ extension TTSearchCatalog {
                 meta: "\(plan.durationMinutes) min",
                 tags: [plan.level, plan.focus] + plan.scheduledDays.map(\.title),
                 icon: .barbellDiagonal,
-                tint: tints[index % tints.count]
+                tint: TTColor.actionOrange
             )
         }
 
@@ -50,7 +50,7 @@ extension TTSearchCatalog {
                 meta: "\(plan.daysPerWeek)×/wk",
                 tags: [plan.level, plan.focus],
                 icon: .fire1,
-                tint: tints[index % tints.count]
+                tint: TTColor.actionOrange
             )
         }
 
@@ -63,7 +63,7 @@ extension TTSearchCatalog {
                 meta: plan.level,
                 tags: [plan.focus],
                 icon: .trophy1,
-                tint: tints[index % tints.count]
+                tint: TTColor.actionOrange
             )
         }
 
@@ -77,7 +77,7 @@ extension TTSearchCatalog {
                 meta: "\(plan.durationMinutes) min",
                 tags: [plan.level],
                 icon: .starFull,
-                tint: tints[index % tints.count]
+                tint: TTColor.actionOrange
             )
         }
 

@@ -273,6 +273,7 @@ struct TrainerProfileView: View {
             Text(store.currentTrainer?.inviteCode ?? "—")
                 .font(TTFont.display(28))
                 .foregroundStyle(TTColor.actionOrange)
+                .textSelection(.enabled)
             Text("Share this code so a trainee can join your roster from signup or Profile.")
                 .font(TTFont.body(13))
                 .foregroundStyle(TTColor.inkMuted)

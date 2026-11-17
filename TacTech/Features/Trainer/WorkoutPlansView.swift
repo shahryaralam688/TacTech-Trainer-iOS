@@ -2,6 +2,13 @@ import SwiftUI
 
 // MARK: - Workout Plans (Sandow / TacTech system design)
 
+/// PERF-TEMP: only this small view observes the collapse model (header-only mode).
+private struct PerfTempObservedProgress<Content: View>: View { // PERF-TEMP
+    @ObservedObject var model: TTHomeScrollCollapseModel // PERF-TEMP
+    @ViewBuilder var content: (CGFloat) -> Content // PERF-TEMP
+    var body: some View { content(model.progress) } // PERF-TEMP
+} // PERF-TEMP
+
 struct WorkoutPlansView: View {
     @Environment(AppStore.self) private var store
     @Namespace private var searchNS
@@ -10,7 +17,12 @@ struct WorkoutPlansView: View {
     @State private var query = ""
     @State private var focusFilter: String?
     @State private var selectedPlan: WorkoutPlan?
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    // PERF-TEMP: was `@StateObject private var scrollCollapse = TTHomeScrollCollapseModel()`.
+    // A plain @State reference does not invalidate the body on every progress tick; `perfProgress`
+    // below re-creates that behaviour when "header-only" is OFF.
+    @State private var scrollCollapse = TTHomeScrollCollapseModel() // PERF-TEMP
+    @State private var perfProgress: CGFloat = 0 // PERF-TEMP
+    @Environment(\.ttRootTabBarClearance) private var tabBarClearance
 
     // Sort / filter / delete
     @AppStorage("trainer.plans.sort") private var sortRaw = PlanSort.newest.rawValue
@@ -21,6 +33,9 @@ struct WorkoutPlansView: View {
     @State private var showDeleteConfirm = false
     @State private var isDeleting = false
     @State private var toast: TTToastMessage?
+    @State private var searchVisible = true
+    @State private var bulkDelete = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let levels = ["Beginner", "Intermediate", "Advanced"]
 
@@ -28,23 +43,42 @@ struct WorkoutPlansView: View {
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let scrollSpace = "workoutPlans"
 
+    // PERF-TEMP: header split out so the progress can be read by the header only (switch) or the whole body.
+    @ViewBuilder
+    private func plansHeader(progress: CGFloat) -> some View { // PERF-TEMP
+        trainerListHeader(
+            title: "Workout Plans",
+            subtitle: String(localized: "\(plans.count) in total"),
+            trailingIcon: .plus,
+            collapseProgress: progress,
+            isMenuOpen: isSelecting, // hides the "+ New plan" pill while selecting
+            accessibilityLabel: String(localized: "New plan"),
+            trailingTitle: "New plan"
+        ) {
+            showCreate = true
+        }
+    }
+
     var body: some View {
+        #if DEBUG || PERF_TEMP
+        let _ = PerfTemp.trace("WorkoutPlansView") { Self._printChanges() } // PERF-TEMP
+        #endif
         NavigationStack {
             VStack(spacing: 0) {
-                trainerListHeader(
-                    title: "Workout Plans",
-                    subtitle: plans.count == 1 ? "1 plan" : "\(plans.count) plans",
-                    trailingIcon: .plus,
-                    collapseProgress: scrollCollapse.progress
-                ) {
-                    showCreate = true
+                if PerfTemp.on(.plansHeaderOnly) { // PERF-TEMP
+                    PerfTempObservedProgress(model: scrollCollapse) { progress in plansHeader(progress: progress) }
+                } else {
+                    plansHeader(progress: perfProgress) // whole body reads the progress
                 }
 
+                ScrollViewReader { proxy in
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
                         TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
+                            .id("plansTop")
 
-                        VStack(alignment: .leading, spacing: 12) {
+                        // Section header pins the controls row; the search field scrolls away with the list.
+                        LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
                             TTSearchEntryPill(
                                 placeholder: TTSearchCopy.plans.pillPlaceholder,
                                 query: displayQuery,
@@ -52,15 +86,91 @@ struct WorkoutPlansView: View {
                             ) {
                                 showSearch = true
                             }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 16)
+                            .onAppear { searchVisible = true }
+                            .onDisappear { searchVisible = false }
 
                             if plans.count > 1 {
-                                listControls
+                                Section {
+                                    plansListContent
+                                        .padding(.horizontal, 16)
+                                        // Last card scrolls fully above the tab bar and the centre + button.
+                                        .padding(.bottom, tabBarClearance + 32)
+                                } header: {
+                                    pinnedControls(proxy: proxy)
+                                }
+                            } else {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    statusLine
+                                    plansListContent
+                                }
+                                .padding(.horizontal, 16)
+                                .padding(.bottom, tabBarClearance + 32)
                             }
+                        }
+                    }
+                }
+                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+                .safeAreaInset(edge: .bottom) {
+                    if isSelecting { selectionBar }
+                }
+                }
+            }
+            .onChange(of: plans.count) { _, count in
+                if count < 2 && isSelecting { exitSelection() }
+            }
+            .onReceive(scrollCollapse.$progress) { value in // PERF-TEMP
+                if !PerfTemp.raw(.plansHeaderOnly) { perfProgress = value }
+            }
+            // Search / filter / sort changes: drop selected plans that are no longer visible.
+            .onChange(of: filtered.map(\.id)) { _, ids in
+                if isSelecting { selection.formIntersection(ids) }
+            }
+            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+            .ttHideSystemNavigationBar()
+            .ttSyncRootTabBarWithNavigationDepth()
+            // Select mode hides the floating tab bar and its centre + button; the preference is
+            // derived from `isSelecting`, so every way out of the mode (Done, delete, view gone)
+            // brings them back. Other tabs force `true` in TrainerRootView.
+            .ttRootTabBarVisible(!isSelecting)
+            .sheet(isPresented: $showCreate) {
+                CreatePlanView()
+                    .ttModalSheetPresentation()
+            }
+            .navigationDestination(item: $selectedPlan) { plan in
+                WorkoutPlanDetailView(plan: plan)
+            }
+            .ttSearchOverlay(
+                isPresented: $showSearch,
+                catalog: searchCatalog,
+                namespace: searchNS,
+                refined: true,
+                onOutcome: handleSearchOutcome
+            )
+            .confirmationDialog(
+                deleteTitle,
+                isPresented: $showDeleteConfirm,
+                titleVisibility: .visible
+            ) {
+                Button(
+                    bulkDelete
+                        ? String(localized: "Delete")
+                        : (pendingDelete.count == 1 ? "Delete plan" : "Delete \(pendingDelete.count) plans"),
+                    role: .destructive
+                ) {
+                    Task { await performDelete() }
+                }
+                Button("Cancel", role: .cancel) { pendingDelete = []; bulkDelete = false }
+            } message: {
+                Text(deleteMessage)
+            }
+            .ttToast($toast)
+        }
+    }
 
-                            if isFiltering && !isSelecting {
-                                filterSummary
-                            }
-
+    @ViewBuilder private var plansListContent: some View {
                             if plans.isEmpty {
                                 emptyCard(
                                     icon: .clipboard,
@@ -88,8 +198,9 @@ struct WorkoutPlansView: View {
                                     stackOffset: TTStackedTokens.stackOffset,
                                     withDramaEffect: true,
                                     paneGap: TTSpace.md,
-                                    scrollRunway: TTStackedTokens.defaultRunway,
-                                    coordinateSpaceName: scrollSpace
+                                    scrollRunway: 0,
+                                    coordinateSpaceName: scrollSpace,
+                                    style: .plain
                                 ) { plan in
                                     // Single push style: the stack's navigationDestination(item:) owns the push.
                                     Button {
@@ -113,52 +224,6 @@ struct WorkoutPlansView: View {
                                     }
                                 }
                             }
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 24)
-                    }
-                }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
-                .safeAreaInset(edge: .bottom) {
-                    if isSelecting { selectionBar }
-                }
-            }
-            .onChange(of: plans.count) { _, count in
-                if count < 2 && isSelecting { exitSelection() }
-            }
-            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
-            .ttHideSystemNavigationBar()
-            .ttSyncRootTabBarWithNavigationDepth()
-            .sheet(isPresented: $showCreate) {
-                CreatePlanView()
-                    .ttModalSheetPresentation()
-            }
-            .navigationDestination(item: $selectedPlan) { plan in
-                WorkoutPlanDetailView(plan: plan)
-            }
-            .ttSearchOverlay(
-                isPresented: $showSearch,
-                catalog: searchCatalog,
-                namespace: searchNS,
-                onOutcome: handleSearchOutcome
-            )
-            .confirmationDialog(
-                deleteTitle,
-                isPresented: $showDeleteConfirm,
-                titleVisibility: .visible
-            ) {
-                Button(pendingDelete.count == 1 ? "Delete plan" : "Delete \(pendingDelete.count) plans",
-                       role: .destructive) {
-                    Task { await performDelete() }
-                }
-                Button("Cancel", role: .cancel) { pendingDelete = [] }
-            } message: {
-                Text(deleteMessage)
-            }
-            .ttToast($toast)
-        }
     }
 
     // MARK: - Sort / filter / select
@@ -194,29 +259,63 @@ struct WorkoutPlansView: View {
         levels.filter { level in plans.contains { $0.level.caseInsensitiveCompare(level) == .orderedSame } }
     }
 
-    /// One calm row: Sort · Level on the left, Select on the right. Hidden while selecting.
-    @ViewBuilder private var listControls: some View {
+    /// Pinned row (one line): [search] [Sort] [Level] … [Select / Done]. The search button only shows once
+    /// the full search field has scrolled away.
+    private func pinnedControls(proxy: ScrollViewProxy) -> some View {
+        let scrolledUnder = !searchVisible
+        return VStack(alignment: .leading, spacing: 0) {
+            controlsRow(proxy: proxy)
+            statusLine
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TTColor.ink.opacity(0.08))
+                .frame(height: 1)
+                .opacity(scrolledUnder ? 1 : 0)
+        }
+        .shadow(color: Color.black.opacity(scrolledUnder ? 0.05 : 0), radius: 6, y: 3)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: scrolledUnder)
+    }
+
+    @ViewBuilder private func controlsRow(proxy: ScrollViewProxy) -> some View {
         if isSelecting {
-            HStack(spacing: 10) {
-                Button("Done") { exitSelection() }
-                    .font(TTFont.workSans(15, weight: .semibold))
-                    .foregroundStyle(TTColor.actionOrange)
-                    .frame(minHeight: 44)
-
-                Text(selection.isEmpty ? "Tap plans to select" : "\(selection.count) selected")
-                    .font(TTFont.workSans(15, weight: .bold))
-                    .foregroundStyle(TTColor.ink)
-                    .frame(maxWidth: .infinity)
-
+            HStack(spacing: 8) {
                 Button(allFilteredSelected ? "Deselect All" : "Select All") {
                     selection = allFilteredSelected ? [] : Set(filtered.map(\.id))
                 }
                 .font(TTFont.workSans(15, weight: .semibold))
                 .foregroundStyle(TTColor.actionOrange)
                 .frame(minHeight: 44)
+
+                Spacer(minLength: 0)
+
+                Button("Done") { exitSelection() }
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(minWidth: 44, minHeight: 44)
             }
         } else {
             HStack(spacing: 8) {
+                if !searchVisible {
+                    Button {
+                        // Bring the search bar back to its place first, then open from there.
+                        proxy.scrollTo("plansTop", anchor: .top)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { showSearch = true }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Search plans")
+                }
+
                 Menu {
                     Picker("Sort by", selection: $sortRaw) {
                         ForEach(PlanSort.allCases) { option in
@@ -224,9 +323,9 @@ struct WorkoutPlansView: View {
                         }
                     }
                 } label: {
-                    controlPill(icon: "arrow.up.arrow.down", text: sort.short, active: false)
+                    controlPill(icon: "arrow.up.arrow.down", text: sort.short, active: sort != .newest)
                 }
-                .accessibilityLabel("Sort plans, currently \(sort.title)")
+                .accessibilityLabel(String(localized: "Sort: \(sort.title)"))
 
                 if availableLevels.count > 1 {
                     Menu {
@@ -239,11 +338,11 @@ struct WorkoutPlansView: View {
                     } label: {
                         controlPill(
                             icon: "line.3.horizontal.decrease",
-                            text: levelFilter ?? "All levels",
+                            text: levelFilter ?? String(localized: "All levels"),
                             active: levelFilter != nil
                         )
                     }
-                    .accessibilityLabel("Filter by level, currently \(levelFilter ?? "all levels")")
+                    .accessibilityLabel(String(localized: "Level: \(levelFilter ?? String(localized: "All levels"))"))
                 }
 
                 Spacer(minLength: 0)
@@ -254,7 +353,7 @@ struct WorkoutPlansView: View {
                     Text("Select")
                         .font(TTFont.workSans(15, weight: .semibold))
                         .foregroundStyle(TTColor.actionOrange)
-                        .frame(minHeight: 44)
+                        .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -263,34 +362,92 @@ struct WorkoutPlansView: View {
         }
     }
 
-    /// iOS-style bottom action bar for bulk actions — destructive action lives here, away from Select All.
+    /// Only when something is active: selection count, active filters, or a changed sort.
+    @ViewBuilder private var statusLine: some View {
+        if isSelecting {
+            Text(visibleSelection.isEmpty ? "Tap plans to select" : "\(visibleSelection.count) selected")
+                .font(TTFont.workSans(13, weight: .medium))
+                .foregroundStyle(TTColor.inkMuted)
+                .frame(minHeight: 32, alignment: .leading)
+        } else if isFiltering {
+            HStack(spacing: 8) {
+                // Only a search is active → "Search: <query>"; otherwise the combined filter summary.
+                Text(
+                    levelFilter == nil && focusFilter == nil && !query.isEmpty
+                        ? String(localized: "Search: \(query)")
+                        : String(localized: "\(activeFilterText) · \(filtered.count) of \(plans.count) plans")
+                )
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer(minLength: 8)
+                Button("Clear") {
+                    clearFilters()
+                    sortRaw = PlanSort.newest.rawValue
+                }
+                .font(TTFont.workSans(14, weight: .semibold))
+                .foregroundStyle(TTColor.actionOrange)
+                .frame(minWidth: 44, minHeight: 44)
+            }
+        } else if sort != .newest {
+            HStack(spacing: 8) {
+                Text("Sorted by \(sort.short)")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Button("Clear") { sortRaw = PlanSort.newest.rawValue }
+                    .font(TTFont.workSans(14, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+        }
+    }
+
+    /// Selected plans that are also visible right now (filter / search can hide some).
+    private var visibleSelection: Set<String> {
+        selection.intersection(filtered.map(\.id))
+    }
+
+    private var windowBottomInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first?.keyWindow?.safeAreaInsets.bottom ?? 0
+    }
+
+    /// Bottom action bar for bulk delete. Solid, with a hairline on top; the tab bar is hidden in this mode.
     private var selectionBar: some View {
-        Button {
-            requestDelete(filtered.filter { selection.contains($0.id) })
+        let count = visibleSelection.count
+        return Button {
+            bulkDelete = true
+            requestDelete(filtered.filter { visibleSelection.contains($0.id) }, bulk: true)
         } label: {
             HStack(spacing: 8) {
                 if isDeleting {
                     ProgressView().tint(.white)
                 } else {
-                    Image(systemName: "trash")
-                    Text(selection.isEmpty
-                         ? "Delete"
-                         : selection.count == 1 ? "Delete 1 plan" : "Delete \(selection.count) plans")
+                    Text("Delete (\(count))")
                 }
             }
-            .font(TTFont.workSans(16, weight: .bold))
+            .font(TTFont.workSans(17, weight: .bold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .frame(height: 52)
-            .background(selection.isEmpty ? Color(white: 0.75) : TTColor.danger)
-            .clipShape(Capsule())
+            .frame(height: 56)
+            .background(count == 0 ? Color(white: 0.75) : TTColor.danger)
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         }
         .buttonStyle(.plain)
-        .disabled(selection.isEmpty || isDeleting)
+        .disabled(count == 0 || isDeleting)
+        .accessibilityLabel("Delete")
+        .accessibilityValue(Text("\(count) selected"))
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .padding(.top, 12)
+        .padding(.bottom, 12 + windowBottomInset)
+        .background(TTColor.surface)
+        .overlay(alignment: .top) {
+            Rectangle().fill(TTColor.ink.opacity(0.08)).frame(height: 1)
+        }
     }
 
     // MARK: - Filter state
@@ -303,22 +460,6 @@ struct WorkoutPlansView: View {
         if let focusFilter { parts.append(focusFilter) }
         if let levelFilter { parts.append(levelFilter) }
         return parts.joined(separator: " · ")
-    }
-
-    /// Always tells the trainer when part of the list is hidden, with a one-tap way back.
-    private var filterSummary: some View {
-        HStack(spacing: 8) {
-            Text("Showing \(filtered.count) of \(plans.count) · \(activeFilterText)")
-                .font(TTFont.workSans(13, weight: .medium))
-                .foregroundStyle(TTColor.inkMuted)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer(minLength: 8)
-            Button("Clear") { clearFilters() }
-                .font(TTFont.workSans(14, weight: .semibold))
-                .foregroundStyle(TTColor.actionOrange)
-                .frame(minHeight: 44)
-        }
     }
 
     private func clearFilters() {
@@ -335,38 +476,46 @@ struct WorkoutPlansView: View {
                 .font(.system(size: 12, weight: .semibold))
             Text(text)
                 .font(TTFont.workSans(14, weight: .semibold))
-            Image(systemName: "chevron.down")
-                .font(.system(size: 10, weight: .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
         .foregroundStyle(active ? .white : TTColor.ink)
-        .padding(.horizontal, 14)
-        .frame(height: 40)
+        .padding(.horizontal, 10)
+        .frame(height: 36)
         .background(active ? Color.black : cardFill)
         .clipShape(Capsule())
-        .contentShape(Capsule())
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
     }
 
     private func selectableCard(_ plan: WorkoutPlan) -> some View {
         let isOn = selection.contains(plan.id)
-        return Button {
+        let toggle = {
             if isOn { selection.remove(plan.id) } else { selection.insert(plan.id) }
-        } label: {
-            HStack(spacing: 12) {
+        }
+        return HStack(spacing: 4) {
+            // The circle is the accessible control; the card itself is a convenience tap target.
+            Button(action: toggle) {
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 24, weight: .regular))
                     .foregroundStyle(isOn ? TTColor.actionOrange : Color(white: 0.7))
-                    .frame(width: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Select \(plan.title)"))
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+
+            Button(action: toggle) {
                 planCard(plan)
                     .overlay(
-                        RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous)
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
                             .strokeBorder(isOn ? TTColor.actionOrange : .clear, lineWidth: 2)
                     )
             }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(isOn ? .isSelected : [])
-        .accessibilityHint("Double-tap to \(isOn ? "deselect" : "select")")
     }
 
     private var allFilteredSelected: Bool {
@@ -382,18 +531,26 @@ struct WorkoutPlansView: View {
 
     // MARK: - Delete
 
-    private func requestDelete(_ targets: [WorkoutPlan]) {
+    private func requestDelete(_ targets: [WorkoutPlan], bulk: Bool = false) {
         guard !targets.isEmpty else { return }
+        bulkDelete = bulk
         pendingDelete = targets
         showDeleteConfirm = true
     }
 
     private var deleteTitle: String {
-        pendingDelete.count == 1 ? "Delete “\(pendingDelete[0].title)”?" : "Delete \(pendingDelete.count) plans?"
+        if bulkDelete { return String(localized: "Delete selected plans?") }
+        return pendingDelete.count == 1 ? "Delete “\(pendingDelete[0].title)”?" : "Delete \(pendingDelete.count) plans?"
     }
 
     private var deleteMessage: String {
         let ids = Set(pendingDelete.map(\.id))
+        if bulkDelete {
+            let anyAssigned = store.assignments.contains { ids.contains($0.planId) }
+            return anyAssigned
+                ? String(localized: "This can’t be undone. Trainees who have them will lose them.")
+                : String(localized: "This can’t be undone.")
+        }
         let affected = Set(store.assignments.filter { ids.contains($0.planId) }.map(\.traineeId)).count
         let base = "This can’t be undone."
         switch affected {
@@ -412,16 +569,21 @@ struct WorkoutPlansView: View {
         for plan in targets {
             do { try await store.deletePlan(id: plan.id) } catch { failed += 1 }
         }
-        let deleted = targets.count - failed
-        selection.subtract(targets.map(\.id))
+        let remaining = Set(store.plans.map(\.id))
+        let failedIds = Set(targets.map(\.id)).intersection(remaining)
+        let wasBulk = bulkDelete
+        bulkDelete = false
+        // Deleted plans leave the selection; failed ones stay selected so the trainer can retry.
+        selection.subtract(Set(targets.map(\.id)).subtracting(failedIds))
         if failed == 0 {
-            toast = TTToastMessage(text: deleted == 1 ? "Plan deleted" : "\(deleted) plans deleted")
+            toast = TTToastMessage(text: targets.count == 1 && !wasBulk ? "Plan deleted" : String(localized: "Plans deleted"))
             exitSelection()
         } else {
             toast = TTToastMessage(
-                text: deleted == 0 ? "Couldn’t delete" : "Deleted \(deleted) of \(targets.count)",
-                style: .error,
-                subtitle: "\(failed) plan\(failed == 1 ? "" : "s") couldn’t be deleted. Try again."
+                text: targets.count == 1
+                    ? String(localized: "This plan couldn’t be deleted. Try again.")
+                    : String(localized: "Some plans couldn’t be deleted. Try again."),
+                style: .error
             )
         }
     }
@@ -507,85 +669,114 @@ struct WorkoutPlansView: View {
     }
 
     private func planCard(_ plan: WorkoutPlan) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
+        let count = assignedCount(plan)
+        let trainingDays = Set(plan.scheduledDays.map(\.weekday))
+        let minutesText = String(localized: "\(plan.durationMinutes) min")
+        let exercisesText = String(localized: "\(plan.allExercises.count) exercises") // plural variations in the catalog
+        let info = Text(verbatim: "\(plan.level) · \(minutesText) · \(exercisesText)")
+            .font(TTFont.workSans(13, weight: .medium))
+            .foregroundStyle(TTColor.ink)
+
+        return VStack(alignment: .leading, spacing: 10) {
+            // Row 1: tile, title, chevron
+            HStack(alignment: .center, spacing: 12) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .fill(TTColor.actionOrange.opacity(0.12))
                     TTIcon(icon: .barbellDiagonal, filled: true, size: 20)
                         .foregroundStyle(TTColor.actionOrange)
                 }
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(plan.title)
-                        .font(TTFont.workSans(17, weight: .bold))
-                        .foregroundStyle(TTColor.ink)
-                        .multilineTextAlignment(.leading)
-                    Text(plan.focus)
-                        .font(TTFont.textSM(.medium))
-                        .foregroundStyle(TTColor.inkMuted)
-                        .lineLimit(2)
-                }
+                Text(plan.title)
+                    .font(TTFont.workSans(17, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                Spacer(minLength: 8)
-
-                Text(plan.level)
-                    .font(TTFont.caption(11))
-                    .fontWeight(.bold)
-                    .foregroundStyle(TTColor.actionOrange)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(TTColor.actionOrange.opacity(0.12))
-                    .clipShape(Capsule())
-            }
-
-            // Shape of the plan in one scannable line (schedule days already say how many per week).
-            HStack(spacing: 14) {
-                metaChip(
-                    icon: .calendar1,
-                    text: plan.scheduledDays.isEmpty
-                        ? "\(plan.daysPerWeek) days / week"
-                        : plan.scheduledDays.map { $0.weekday.short }.joined(separator: " · ")
-                )
-                metaChip(icon: .alarm, text: "\(plan.durationMinutes) min")
-                metaChip(icon: .kettlebell, text: "\(plan.allExercises.count) exercises")
-                Spacer(minLength: 0)
-            }
-            .lineLimit(1)
-
-            Divider().opacity(0.6)
-
-            // What a trainer most needs to know at a glance: is this plan in use?
-            HStack(spacing: 6) {
-                let count = assignedCount(plan)
-                Circle()
-                    .fill(count > 0 ? TTColor.success : Color(white: 0.7))
-                    .frame(width: 7, height: 7)
-                Text(count == 0 ? "Not assigned yet" : count == 1 ? "Assigned to 1 trainee" : "Assigned to \(count) trainees")
-                    .font(TTFont.workSans(13, weight: .semibold))
-                    .foregroundStyle(count > 0 ? TTColor.ink : TTColor.inkMuted)
-                Spacer(minLength: 0)
                 if !isSelecting {
                     TTIcon(icon: .chevronRight, size: 16)
                         .foregroundStyle(TTColor.inkSubtle)
                 }
             }
+
+            // Row 2: focus
+            if !plan.focus.isEmpty {
+                Text(plan.focus)
+                    .font(TTFont.textSM(.medium))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+
+            // Row 3: level · minutes · exercises, with the week at a glance.
+            // TODO: plans without scheduled days show no week dots (nothing to draw, nothing invented).
+            if trainingDays.isEmpty {
+                info.lineLimit(1)
+            } else {
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        info.lineLimit(1).fixedSize()
+                        Spacer(minLength: 8)
+                        weekDots(trainingDays)
+                    }
+                    VStack(alignment: .leading, spacing: 8) {
+                        info.lineLimit(1)
+                        weekDots(trainingDays)
+                    }
+                }
+            }
+
+            // Footer only when the plan is in use.
+            if count > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(TTColor.success)
+                        .accessibilityHidden(true)
+                    Text("Assigned to \(count)")
+                        .font(TTFont.workSans(13, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                    Spacer(minLength: 0)
+                }
+            }
         }
-        .padding(14)
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(cardFill)
-        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
-        .shadow(color: Color.black.opacity(0.06), radius: 8, y: 3)
+        .background(TTColor.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(TTColor.ink.opacity(0.06), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.04), radius: 8, y: 3)
     }
 
-    private func metaChip(icon: SandowIcon, text: String) -> some View {
-        HStack(spacing: 5) {
-            TTIcon(icon: icon, size: 12)
-            Text(text)
+    /// Seven small circles Mon…Sun using the app language's very-short weekday symbols
+    /// (an HStack, so it mirrors in right-to-left languages). Filled = training day.
+    private func weekDots(_ trainingDays: Set<Weekday>) -> some View {
+        var calendar = Calendar.current
+        calendar.locale = LocalizationController.shared.locale
+        let symbols = calendar.veryShortStandaloneWeekdaySymbols // index 0 = Sunday
+        return HStack(spacing: 4) {
+            ForEach(Weekday.allCases) { day in
+                let on = trainingDays.contains(day)
+                let symbol = symbols.indices.contains((day.sortIndex + 1) % 7) ? symbols[(day.sortIndex + 1) % 7] : ""
+                Text(symbol)
+                    .font(TTFont.workSans(10, weight: .bold))
+                    .foregroundStyle(on ? Color.white : TTColor.inkSubtle)
+                    .frame(width: 20, height: 20)
+                    .background(Circle().fill(on ? Color.black : Color.clear))
+                    .overlay(Circle().strokeBorder(on ? Color.clear : TTColor.ink.opacity(0.15), lineWidth: 1))
+            }
         }
-        .font(TTFont.caption(12))
-        .foregroundStyle(TTColor.inkMuted)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            Weekday.allCases.filter { trainingDays.contains($0) }
+                .map { calendar.standaloneWeekdaySymbols[($0.sortIndex + 1) % 7] }
+                .joined(separator: ", ")
+        )
     }
 
     private func assignedCount(_ plan: WorkoutPlan) -> Int {
@@ -1236,6 +1427,8 @@ func trainerListHeader(
     collapseProgress: CGFloat = 0,
     isMenuOpen: Bool = false,
     accessibilityLabel: String? = nil,
+    trailingTitle: String? = nil,
+    onClose: (() -> Void)? = nil,
     action: @escaping () -> Void
 ) -> some View {
     let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
@@ -1246,6 +1439,12 @@ func trainerListHeader(
 
     VStack(alignment: .leading, spacing: 10 * expand) {
         HStack(alignment: .center) {
+            // Optional close control for sheets (same control as TTModalSheetHeader's back button).
+            if let onClose {
+                TTBackButton(style: .onDark, size: 40, action: onClose)
+                    .frame(minWidth: 44, minHeight: 44)
+                    .padding(.trailing, 4)
+            }
             VStack(alignment: .leading, spacing: 4 * expand) {
                 Text(title)
                     .font(TTFont.workSans(28 - 8 * p, weight: .bold))
@@ -1264,10 +1463,19 @@ func trainerListHeader(
             Spacer(minLength: 8)
 
             Button(action: action) {
-                TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
+                HStack(spacing: 6) {
+                    TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
+                    if let trailingTitle {
+                        Text(LocalizedStringKey(trailingTitle))
+                            .font(TTFont.workSans(15, weight: .semibold))
+                            .lineLimit(1)
+                    }
+                }
                     .foregroundStyle(.white)
                     .rotationEffect(.degrees(isMenuOpen ? 45 : 0))
-                    .frame(width: 44 - 4 * p, height: 44 - 4 * p)
+                    .padding(.horizontal, trailingTitle == nil ? 0 : 14)
+                    .frame(minWidth: 44 - 4 * p, minHeight: 44 - 4 * p)
+                    .frame(width: trailingTitle == nil ? 44 - 4 * p : nil, height: 44 - 4 * p)
                     .background(isMenuOpen ? Color.black : TTColor.actionOrange)
                     .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
                     .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isMenuOpen)
@@ -1276,6 +1484,7 @@ func trainerListHeader(
             .modifier(TTOptionalAccessibilityLabel(label: accessibilityLabel))
             .opacity(isMenuOpen ? 0 : 1)
             .allowsHitTesting(!isMenuOpen)
+            .accessibilityHidden(isMenuOpen)
         }
     }
     .padding(.horizontal, TTSpace.screen)
@@ -1793,8 +2002,16 @@ struct PlanAssignmentsListSheet: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showCreatePlan = false
+    @State private var toast: TTToastMessage?
+
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+
+    /// Same filter the assign sheet uses for "this trainer's plans".
+    private var trainerHasPlans: Bool {
+        store.plans.contains { $0.trainerId == store.currentTrainer?.id }
+    }
 
     private struct Row: Identifiable {
         let id: String
@@ -1857,18 +2074,40 @@ struct PlanAssignmentsListSheet: View {
                     VStack(spacing: 12) {
                         TTIcon(icon: .usersTwo, filled: true, size: 28)
                             .foregroundStyle(TTColor.actionOrange)
+                            .accessibilityHidden(true)
                         Text("No trainees yet")
                             .font(TTFont.workSans(17, weight: .bold))
-                        Text("When athletes join your roster, their assigned plans show up here.")
+                            .accessibilityAddTraits(.isHeader)
+                        Text("Invite a trainee with your code. Once they join, their plans show up here.")
                             .font(TTFont.body(14))
                             .foregroundStyle(TTColor.inkMuted)
                             .multilineTextAlignment(.center)
-                            .padding(.horizontal, 28)
+                            .padding(.horizontal, 12)
+                        VStack(spacing: 10) {
+                            // TODO: no invite code on the trainer profile → button hidden (nothing to copy).
+                            if let code = store.currentTrainer?.inviteCode, !code.isEmpty {
+                                TTButton(title: "Invite a trainee", icon: "person.badge.plus") {
+                                    UIPasteboard.general.string = code
+                                    toast = TTToastMessage(text: "Invite code copied")
+                                }
+                                .accessibilityLabel("Invite a trainee")
+                                .accessibilityHint("Copies your invite code")
+                            }
+                            TTButton(title: "Create a plan", style: .secondary) {
+                                showCreatePlan = true
+                            }
+                            .accessibilityLabel("Create a plan")
+                        }
+                        .padding(.top, 12)
                     }
+                    .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     ScrollView(showsIndicators: false) {
                         LazyVStack(spacing: 10) {
+                            if !trainerHasPlans {
+                                noPlansCard
+                            }
                             ForEach(rows) { row in
                                 assignmentRow(row)
                             }
@@ -1882,6 +2121,30 @@ struct PlanAssignmentsListSheet: View {
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
+        .ttToast($toast)
+        .sheet(isPresented: $showCreatePlan) {
+            CreatePlanView(onCreate: { _ in
+                toast = TTToastMessage(text: "Plan created")
+            }, returnAfterCreate: true)
+            .ttModalSheetPresentation()
+        }
+    }
+
+    private var noPlansCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("You have no plans yet")
+                .font(TTFont.workSans(16, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            TTButton(title: "Create a plan") {
+                showCreatePlan = true
+            }
+            .accessibilityLabel("Create a plan")
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func assignmentRow(_ row: Row) -> some View {

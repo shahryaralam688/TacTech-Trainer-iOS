@@ -21,10 +21,10 @@ struct TraineeRootView: View {
     private var tabs: [TTTabBarItem<TraineeTab>] {
         let locale = LocalizationController.shared.locale
         return [
-            TTTabBarItem(.home, icon: .house1, label: String(localized: "tab.home", locale: locale)),
-            TTTabBarItem(.workout, icon: .barbellDiagonal, label: String(localized: "tab.workout", locale: locale)),
-            TTTabBarItem(.nutrition, icon: .forkKnife, label: String(localized: "tab.nutrition", locale: locale)),
-            TTTabBarItem(.progress, icon: .chartAxisArea, label: String(localized: "tab.progress", defaultValue: "Progress", locale: locale))
+            TTTabBarItem(.home, icon: .house1, label: String(localized: "tab.home", locale: locale), title: String(localized: "tab.home", locale: locale)),
+            TTTabBarItem(.workout, icon: .barbellDiagonal, label: String(localized: "tab.workout", locale: locale), title: String(localized: "tab.workout", locale: locale)),
+            TTTabBarItem(.nutrition, icon: .forkKnife, label: String(localized: "tab.nutrition", locale: locale), title: String(localized: "tab.nutrition", locale: locale)),
+            TTTabBarItem(.progress, icon: .chartAxisArea, label: String(localized: "tab.progress", defaultValue: "Progress", locale: locale), title: String(localized: "tab.progress", defaultValue: "Progress", locale: locale))
         ]
     }
 
@@ -133,6 +133,7 @@ struct TraineeRootView: View {
             HumanPeerChatView(audience: .trainee, preferredThreadId: pendingChatThreadId)
         }
         .onChange(of: tab) { _, newTab in
+            PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
             mounted.insert(newTab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in

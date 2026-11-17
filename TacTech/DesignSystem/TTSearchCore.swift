@@ -108,7 +108,8 @@ struct TTSearchCopy: Hashable {
         itemsTab: "Plans",
         categoriesTab: "Focus",
         popularTab: "Popular",
-        suggestedSection: "Suggested for you",
+        // Not personalised (it is the first plans in store order), so it is named for what it is.
+        suggestedSection: "Your plans",
         categoriesSection: "Training focus",
         popularSection: "Popular plans",
         recentSection: "Recent searches",

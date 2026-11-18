@@ -27,87 +27,87 @@ struct MyTraineesView: View {
     @State private var selectedTrainee: TraineeProfile?
     @State private var showJoinRequests = false
     @State private var showShareSheet = false
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
-    private let scrollSpace = "myTrainees"
 
     init(initialFilter: TraineeRosterFilter = .all) {
         _rosterFilter = State(initialValue: initialFilter)
     }
 
+    /// The dark list header for a given collapse progress (0 = expanded, 1 = compact).
+    @ViewBuilder
+    private func rosterHeader(progress: CGFloat) -> some View {
+        trainerListHeader(
+            title: "My Trainees",
+            // No "0 trainees" line on an empty roster.
+            subtitle: allTrainees.isEmpty ? "" : String(localized: "\(allTrainees.count) in total"),
+            trailingIcon: .userPlus,
+            collapseProgress: progress,
+            accessibilityLabel: String(localized: "Invite a trainee"),
+            trailingTitle: "Invite",
+            onClose: { dismiss() }
+        ) {
+            // Was: copy the code silently. Now the same share action as the invite card.
+            // TODO: no invite code on the trainer profile → nothing to share, button does nothing.
+            if inviteCode != nil { showShareSheet = true }
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                trainerListHeader(
-                    title: "My Trainees",
-                    // No "0 trainees" line on an empty roster.
-                    subtitle: allTrainees.isEmpty ? "" : String(localized: "\(allTrainees.count) in total"),
-                    trailingIcon: .userPlus,
-                    collapseProgress: scrollCollapse.progress,
-                    accessibilityLabel: String(localized: "Invite a trainee"),
-                    trailingTitle: "Invite",
-                    onClose: { dismiss() }
-                ) {
-                    // Was: copy the code silently. Now the same share action as the invite card.
-                    // TODO: no invite code on the trainer profile → nothing to share, button does nothing.
-                    if inviteCode != nil { showShareSheet = true }
-                }
+            // Header is drawn over the scroll view; the content size never depends on its collapse.
+            TTCollapsingHeaderScreen(
+                sheetFill: canvas,
+                headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+                topRadius: { _ in TTSheetChrome.pageTopRadius },
+                header: { progress in rosterHeader(progress: progress) }
+            ) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let code = inviteCode {
+                        inviteBanner(code: code)
+                    }
 
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-
-                        VStack(alignment: .leading, spacing: 12) {
-                            if let code = inviteCode {
-                                inviteBanner(code: code)
-                            }
-
-                            // Hidden at 0 pending; Home's join-requests card still opens the same screen.
-                            if pendingRequestCount > 0 {
-                                Button {
-                                    showJoinRequests = true
-                                } label: {
-                                    joinRequestsEntry
-                                }
-                                .buttonStyle(.plain)
-                            }
-
-                            if allTrainees.count > 6 {
-                                TTSearchEntryPill(
-                                    placeholder: TTSearchCopy.trainees.pillPlaceholder,
-                                    query: displayQuery,
-                                    namespace: searchNS
-                                ) {
-                                    showSearch = true
-                                }
-                            }
-
-                            if allTrainees.count >= 2 {
-                                filterChips
-                            }
-
-                            if filtered.isEmpty {
-                                emptyCard
-                            } else {
-                                ForEach(filtered) { trainee in
-                                    Button {
-                                        selectedTrainee = trainee
-                                    } label: {
-                                        traineeRow(trainee)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
+                    // Hidden at 0 pending; Home's join-requests card still opens the same screen.
+                    if pendingRequestCount > 0 {
+                        Button {
+                            showJoinRequests = true
+                        } label: {
+                            joinRequestsEntry
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 16)
-                        .padding(.bottom, 24)
+                        .buttonStyle(.plain)
+                    }
+
+                    if allTrainees.count > 6 {
+                        TTSearchEntryPill(
+                            placeholder: TTSearchCopy.trainees.pillPlaceholder,
+                            query: displayQuery,
+                            namespace: searchNS
+                        ) {
+                            showSearch = true
+                        }
+                    }
+
+                    if allTrainees.count >= 2 {
+                        filterChips
+                    }
+
+                    if filtered.isEmpty {
+                        emptyCard
+                    } else {
+                        ForEach(filtered) { trainee in
+                            Button {
+                                selectedTrainee = trainee
+                            } label: {
+                                traineeRow(trainee)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 24)
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()

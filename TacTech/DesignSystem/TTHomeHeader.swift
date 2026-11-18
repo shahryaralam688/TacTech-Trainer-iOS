@@ -663,9 +663,11 @@ extension View {
     /// Short pages receive an invisible bottom fill so collapse can complete without locking scroll.
     func ttObserveHomeScrollCollapse(
         _ model: TTHomeScrollCollapseModel,
-        space: String
+        space: String,
+        perfFile: String = #fileID, // PERF-TEMP
+        perfLine: Int = #line // PERF-TEMP
     ) -> some View {
-        modifier(TTHomeScrollCollapseObserver(model: model, space: space))
+        modifier(TTHomeScrollCollapseObserver(model: model, space: space, perfFile: perfFile, perfLine: perfLine))
     }
 }
 
@@ -714,6 +716,9 @@ private struct TTHomeScrollCollapseMetrics: Equatable {
 private struct TTHomeScrollCollapseObserver: ViewModifier {
     let model: TTHomeScrollCollapseModel
     let space: String
+    let perfFile: String // PERF-TEMP
+    let perfLine: Int // PERF-TEMP
+    @State private var perfPrinted = false // PERF-TEMP
     @State private var allowsScrolling = true
     @State private var bottomFillHeight: CGFloat = 0
 
@@ -735,6 +740,7 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
                         overflow: geometry.contentSize.height - geometry.containerSize.height
                     )
                 } action: { _, newValue in
+                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("old-model " + perfFile, perfLine) } // PERF-TEMP
                     // Never mutate header layout synchronously here — that re-enters
                     // OnScrollGeometryChange / NavigationRequestObserver in-frame.
                     model.ingestScrollMetrics(offset: newValue.offset, overflow: newValue.overflow)
@@ -752,6 +758,7 @@ private struct TTHomeScrollCollapseObserver: ViewModifier {
             gated
                 .coordinateSpace(name: space)
                 .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
+                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("old-model(iOS17) " + perfFile, perfLine) } // PERF-TEMP
                     model.ingestScrollMetrics(offset: value, overflow: .infinity)
                 }
                 .onAppear {
@@ -789,10 +796,20 @@ final class TTHeaderCollapseState: ObservableObject {
         if abs(next - progress) > 0.004 { progress = next }
     }
 
-    /// iOS 17: position of the content's top edge in the scroll view's space.
-    func updateLegacy(minY: CGFloat, travel: CGFloat, enabled: Bool) {
+    private var lastLegacyMinY: CGFloat?
+
+    /// iOS 17: position of the content's top edge in the scroll view's space. `maxOffset` is an estimate from the
+    /// content and viewport heights (measured on size changes only), since iOS 17 can't report the scroll range.
+    func updateLegacy(minY: CGFloat, maxOffset: CGFloat, travel: CGFloat, enabled: Bool) {
         if restMinY == nil { restMinY = minY }
-        update(offset: (restMinY ?? minY) - minY, maxOffset: .infinity, travel: travel, enabled: enabled)
+        lastLegacyMinY = minY
+        update(offset: (restMinY ?? minY) - minY, maxOffset: maxOffset, travel: travel, enabled: enabled)
+    }
+
+    /// iOS 17: the content or viewport size changed — re-apply the short-content rule with the last known offset.
+    func refreshLegacy(maxOffset: CGFloat, travel: CGFloat, enabled: Bool) {
+        guard let minY = lastLegacyMinY else { return }
+        update(offset: (restMinY ?? minY) - minY, maxOffset: maxOffset, travel: travel, enabled: enabled)
     }
 
     func resetBaseline() { restMinY = nil }
@@ -803,6 +820,17 @@ final class TTHeaderCollapseState: ObservableObject {
 private struct TTCollapseSignal: Equatable {
     var step: Int
     var canCollapse: Bool
+}
+
+/// iOS 17 only: the scrolled content's height and the scroll view's height, each reported only when it changes.
+private struct TTLegacyContentHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private struct TTLegacyViewportHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }
 
 private struct TTCollapseLegacyKey: PreferenceKey {
@@ -844,13 +872,50 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
     var onRefresh: (() async -> Void)? = nil
     @ViewBuilder var header: (_ progress: CGFloat) -> Header
     @ViewBuilder var content: () -> Content
+    private let perfFile: String // PERF-TEMP
+    private let perfLine: Int // PERF-TEMP
+
+    init(
+        sheetFill: Color = .white,
+        headerBackground: Color = .black,
+        topRadius: @escaping (CGFloat) -> CGFloat = { TTSheetChrome.homeTopRadius(collapseProgress: $0) },
+        pinsBelowCollapsedHeader: Bool = false,
+        topAnchorID: String? = nil,
+        onRefresh: (() async -> Void)? = nil,
+        perfFile: String = #fileID, // PERF-TEMP: names the screen in the scroll-reader log
+        perfLine: Int = #line, // PERF-TEMP
+        @ViewBuilder header: @escaping (_ progress: CGFloat) -> Header,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.sheetFill = sheetFill
+        self.headerBackground = headerBackground
+        self.topRadius = topRadius
+        self.pinsBelowCollapsedHeader = pinsBelowCollapsedHeader
+        self.topAnchorID = topAnchorID
+        self.onRefresh = onRefresh
+        self.header = header
+        self.content = content
+        self.perfFile = perfFile
+        self.perfLine = perfLine
+    }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @StateObject private var model = TTHeaderCollapseState()
     @State private var expandedHeight: CGFloat = 0
     @State private var collapsedHeight: CGFloat = 0
+    @State private var legacyContentHeight: CGFloat = 0
+    @State private var legacyViewportHeight: CGFloat = 0
 
     private var travel: CGFloat { max(0, expandedHeight - collapsedHeight) }
+
+    /// iOS 17 estimate of how far the content can scroll: content + top inset − viewport. (Safe areas cancel out;
+    /// bottom margins are already part of the content's own bottom padding.) 0 until both sizes are known, so the
+    /// header stays expanded until then.
+    private var legacyMaxOffset: CGFloat {
+        guard legacyContentHeight > 0, legacyViewportHeight > 0 else { return 0 }
+        let topInset = pinsBelowCollapsedHeader ? collapsedHeight : expandedHeight
+        return legacyContentHeight + topInset - legacyViewportHeight
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -902,6 +967,14 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             .background(alignment: .top) {
                 TTCollapsingSheetBackground(model: model, fill: sheetFill, topRadius: topRadius)
             }
+            .background { legacyContentMeasure }
+        }
+        .background { legacyViewportMeasure }
+        .onPreferenceChange(TTLegacyContentHeightKey.self) { value in
+            if abs(value - legacyContentHeight) > 0.5 { legacyContentHeight = value }
+        }
+        .onPreferenceChange(TTLegacyViewportHeightKey.self) { value in
+            if abs(value - legacyViewportHeight) > 0.5 { legacyViewportHeight = value }
         }
         // Rubber-band always, so pull-to-refresh also works with short content.
         .scrollBounceBehavior(.always)
@@ -909,7 +982,10 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: pinsBelowCollapsedHeader ? collapsedHeight : expandedHeight)
         }
-        .modifier(TTCollapseObserver(model: model, travel: travel, enabled: !reduceMotion))
+        .modifier(TTCollapseObserver(
+            model: model, travel: travel, enabled: !reduceMotion,
+            legacyMaxOffset: legacyMaxOffset, perfFile: perfFile, perfLine: perfLine
+        ))
 
         if let onRefresh {
             base.refreshable { await onRefresh() }
@@ -924,6 +1000,24 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             Color.clear.frame(height: travel).id(topAnchorID)
         } else {
             Color.clear.frame(height: travel)
+        }
+    }
+
+    @ViewBuilder
+    private var legacyContentMeasure: some View {
+        if #unavailable(iOS 18.0) {
+            GeometryReader { geo in
+                Color.clear.preference(key: TTLegacyContentHeightKey.self, value: geo.size.height)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var legacyViewportMeasure: some View {
+        if #unavailable(iOS 18.0) {
+            GeometryReader { geo in
+                Color.clear.preference(key: TTLegacyViewportHeightKey.self, value: geo.size.height)
+            }
         }
     }
 
@@ -1015,6 +1109,10 @@ private struct TTCollapseObserver: ViewModifier {
     let model: TTHeaderCollapseState
     let travel: CGFloat
     let enabled: Bool
+    let legacyMaxOffset: CGFloat
+    let perfFile: String // PERF-TEMP
+    let perfLine: Int // PERF-TEMP
+    @State private var perfPrinted = false // PERF-TEMP
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -1030,6 +1128,7 @@ private struct TTCollapseObserver: ViewModifier {
                     let progress = canCollapse ? min(1, max(0, offset / travel)) : 0
                     return TTCollapseSignal(step: Int((progress * 100).rounded()), canCollapse: canCollapse)
                 } action: { _, new in
+                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("new-container " + perfFile, perfLine) } // PERF-TEMP
                     model.apply(step: new.step, enabled: enabled)
                 }
                 .onChange(of: travel) { _, _ in
@@ -1038,7 +1137,11 @@ private struct TTCollapseObserver: ViewModifier {
         } else {
             content
                 .onPreferenceChange(TTCollapseLegacyKey.self) { minY in
-                    model.updateLegacy(minY: minY, travel: travel, enabled: enabled)
+                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("new-container(iOS17) " + perfFile, perfLine) } // PERF-TEMP
+                    model.updateLegacy(minY: minY, maxOffset: legacyMaxOffset, travel: travel, enabled: enabled)
+                }
+                .onChange(of: legacyMaxOffset) { _, newValue in
+                    model.refreshLegacy(maxOffset: newValue, travel: travel, enabled: enabled)
                 }
         }
     }

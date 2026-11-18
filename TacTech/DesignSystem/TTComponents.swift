@@ -1262,6 +1262,12 @@ enum PerfTemp { // PERF-TEMP
         signposter.emitEvent(name)
     }
 
+    /// PERF-TEMP: printed once per screen visit by each scroll reader, to find the one behind the
+    /// "<OnScrollGeometryChange Modifier> tried to update multiple times per frame" warning.
+    nonisolated static func scrollReaderFired(_ file: String, _ line: Int) { // PERF-TEMP
+        print("PERF-TEMP scroll-reader: \(file):\(line)")
+    }
+
     /// Body-run counter (Instruments shows these as events) and optional `_printChanges`.
     @MainActor static func trace(_ name: String, _ printChanges: () -> Void) {
         signposter.emitEvent("body", "\(name)")
@@ -1269,6 +1275,28 @@ enum PerfTemp { // PERF-TEMP
             print("PERF-TEMP body: \(name)")
             printChanges()
         }
+    }
+}
+
+/// PERF-TEMP: prints `scrollReaderFired` the first time `value` changes (e.g. a `scrollPosition` binding).
+private struct PerfTempFirstChange<V: Equatable>: ViewModifier { // PERF-TEMP
+    let value: V
+    let file: String
+    let line: Int
+    @State private var printed = false
+
+    func body(content: Content) -> some View {
+        content.onChange(of: value) { _, _ in
+            guard !printed else { return }
+            printed = true
+            PerfTemp.scrollReaderFired(file, line)
+        }
+    }
+}
+
+extension View {
+    func perfTempFirstChange<V: Equatable>(of value: V, file: String, line: Int) -> some View { // PERF-TEMP
+        modifier(PerfTempFirstChange(value: value, file: file, line: line))
     }
 }
 
@@ -1312,6 +1340,11 @@ enum PerfTemp { // PERF-TEMP
     @MainActor static func on(_ key: PerfTempKey) -> Bool { key.defaultValue }
     nonisolated static func interval(_ name: StaticString, seconds: TimeInterval) {}
     nonisolated static func event(_ name: StaticString) {}
+    nonisolated static func scrollReaderFired(_ file: String, _ line: Int) {} // PERF-TEMP
     @MainActor static func trace(_ name: String, _ printChanges: () -> Void) {}
+}
+
+extension View {
+    func perfTempFirstChange<V: Equatable>(of value: V, file: String, line: Int) -> some View { self } // PERF-TEMP
 }
 #endif

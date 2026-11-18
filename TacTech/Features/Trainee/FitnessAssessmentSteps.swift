@@ -351,6 +351,7 @@ struct AssessmentAgeWheel: View {
             .contentMargins(.vertical, rowHeight * sideFadeRows, for: .scrollContent)
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $positionedID)
+            .perfTempFirstChange(of: positionedID, file: "scrollPosition Assessment picker", line: 353) // PERF-TEMP
             .mask(edgeFadeMask)
 
             edgeFadeOverlays
@@ -2721,6 +2722,7 @@ struct AssessmentRuler: View {
             }
             .scrollTargetBehavior(.viewAligned)
             .scrollPosition(id: $scrollID)
+            .perfTempFirstChange(of: scrollID, file: "scrollPosition Assessment slider", line: 2723) // PERF-TEMP
             .onAppear { scrollID = key(clamped(value)) }
             .onChange(of: scrollID) { _, newValue in
                 guard let newValue else { return }

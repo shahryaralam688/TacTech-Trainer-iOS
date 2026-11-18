@@ -2,26 +2,28 @@ import SwiftUI
 
 // MARK: - Workout Plans (Sandow / TacTech system design)
 
-/// PERF-TEMP: only this small view observes the collapse model (header-only mode).
-private struct PerfTempObservedProgress<Content: View>: View { // PERF-TEMP
-    @ObservedObject var model: TTHomeScrollCollapseModel // PERF-TEMP
-    @ViewBuilder var content: (CGFloat) -> Content // PERF-TEMP
-    var body: some View { content(model.progress) } // PERF-TEMP
-} // PERF-TEMP
+/// The expensive, derived data the Plans screen needs, worked out ONCE per redraw (see `refreshSnapshot`).
+private struct PlansSnapshot {
+    var plans: [WorkoutPlan] = []
+    var filtered: [WorkoutPlan] = []
+    /// plan id → number of distinct trainees it is assigned to.
+    var assignedCounts: [String: Int] = [:]
+}
+
+/// Plain reference holder: written at the start of `body`, read by everything that renders. Not observed.
+private final class PlansSnapshotBox {
+    var value = PlansSnapshot()
+}
 
 struct WorkoutPlansView: View {
     @Environment(AppStore.self) private var store
+    @State private var snapshotBox = PlansSnapshotBox()
     @Namespace private var searchNS
     @State private var showCreate = false
     @State private var showSearch = false
     @State private var query = ""
     @State private var focusFilter: String?
     @State private var selectedPlan: WorkoutPlan?
-    // PERF-TEMP: was `@StateObject private var scrollCollapse = TTHomeScrollCollapseModel()`.
-    // A plain @State reference does not invalidate the body on every progress tick; `perfProgress`
-    // below re-creates that behaviour when "header-only" is OFF.
-    @State private var scrollCollapse = TTHomeScrollCollapseModel() // PERF-TEMP
-    @State private var perfProgress: CGFloat = 0 // PERF-TEMP
     @Environment(\.ttRootTabBarClearance) private var tabBarClearance
 
     // Sort / filter / delete
@@ -41,11 +43,11 @@ struct WorkoutPlansView: View {
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
-    private let scrollSpace = "workoutPlans"
+    private let scrollSpace = "workoutPlans" // only passed to the `.plain` stacked list, which ignores it
 
-    // PERF-TEMP: header split out so the progress can be read by the header only (switch) or the whole body.
+    /// The dark list header, drawn for a given collapse progress (0 = expanded, 1 = compact).
     @ViewBuilder
-    private func plansHeader(progress: CGFloat) -> some View { // PERF-TEMP
+    private func plansHeader(progress: CGFloat) -> some View {
         trainerListHeader(
             title: "Workout Plans",
             subtitle: String(localized: "\(plans.count) in total"),
@@ -63,66 +65,59 @@ struct WorkoutPlansView: View {
         #if DEBUG || PERF_TEMP
         let _ = PerfTemp.trace("WorkoutPlansView") { Self._printChanges() } // PERF-TEMP
         #endif
+        // Filter + sort + assigned counts once for this redraw (was: once per use, ~10 times).
+        let _ = refreshSnapshot()
         NavigationStack {
-            VStack(spacing: 0) {
-                if PerfTemp.on(.plansHeaderOnly) { // PERF-TEMP
-                    PerfTempObservedProgress(model: scrollCollapse) { progress in plansHeader(progress: progress) }
-                } else {
-                    plansHeader(progress: perfProgress) // whole body reads the progress
-                }
+            ScrollViewReader { proxy in
+                // Header is drawn over the scroll view; the content size never depends on its collapse.
+                // The pinned controls row sticks directly under the *collapsed* header.
+                TTCollapsingHeaderScreen(
+                    sheetFill: canvas,
+                    headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+                    topRadius: { _ in TTSheetChrome.pageTopRadius },
+                    pinsBelowCollapsedHeader: true,
+                    topAnchorID: "plansTop",
+                    header: { progress in plansHeader(progress: progress) }
+                ) {
+                    // Section header pins the controls row; the search field scrolls away with the list.
+                    LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
+                        TTSearchEntryPill(
+                            placeholder: TTSearchCopy.plans.pillPlaceholder,
+                            query: displayQuery,
+                            namespace: searchNS
+                        ) {
+                            showSearch = true
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 16)
+                        .onAppear { searchVisible = true }
+                        .onDisappear { searchVisible = false }
 
-                ScrollViewReader { proxy in
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-                            .id("plansTop")
-
-                        // Section header pins the controls row; the search field scrolls away with the list.
-                        LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
-                            TTSearchEntryPill(
-                                placeholder: TTSearchCopy.plans.pillPlaceholder,
-                                query: displayQuery,
-                                namespace: searchNS
-                            ) {
-                                showSearch = true
+                        if plans.count > 1 {
+                            Section {
+                                plansListContent
+                                    .padding(.horizontal, 16)
+                                    // Last card scrolls fully above the tab bar and the centre + button.
+                                    .padding(.bottom, tabBarClearance + 32)
+                            } header: {
+                                pinnedControls(proxy: proxy)
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                statusLine
+                                plansListContent
                             }
                             .padding(.horizontal, 16)
-                            .padding(.top, 16)
-                            .onAppear { searchVisible = true }
-                            .onDisappear { searchVisible = false }
-
-                            if plans.count > 1 {
-                                Section {
-                                    plansListContent
-                                        .padding(.horizontal, 16)
-                                        // Last card scrolls fully above the tab bar and the centre + button.
-                                        .padding(.bottom, tabBarClearance + 32)
-                                } header: {
-                                    pinnedControls(proxy: proxy)
-                                }
-                            } else {
-                                VStack(alignment: .leading, spacing: 12) {
-                                    statusLine
-                                    plansListContent
-                                }
-                                .padding(.horizontal, 16)
-                                .padding(.bottom, tabBarClearance + 32)
-                            }
+                            .padding(.bottom, tabBarClearance + 32)
                         }
                     }
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
                 .safeAreaInset(edge: .bottom) {
                     if isSelecting { selectionBar }
-                }
                 }
             }
             .onChange(of: plans.count) { _, count in
                 if count < 2 && isSelecting { exitSelection() }
-            }
-            .onReceive(scrollCollapse.$progress) { value in // PERF-TEMP
-                if !PerfTemp.raw(.plansHeaderOnly) { perfProgress = value }
             }
             // Search / filter / sort changes: drop selected plans that are no longer visible.
             .onChange(of: filtered.map(\.id)) { _, ids in
@@ -588,8 +583,14 @@ struct WorkoutPlansView: View {
         }
     }
 
-    private var plans: [WorkoutPlan] {
-        store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+    private var plans: [WorkoutPlan] { snapshotBox.value.plans }
+
+    /// Reads the store and the filter state exactly once per redraw.
+    private func refreshSnapshot() {
+        let mine = store.plans.filter { $0.trainerId == store.currentTrainer?.id }
+        let counts = Dictionary(grouping: store.assignments, by: \.planId)
+            .mapValues { Set($0.map(\.traineeId)).count }
+        snapshotBox.value = PlansSnapshot(plans: mine, filtered: computeFiltered(from: mine), assignedCounts: counts)
     }
 
     private var searchCatalog: TTSearchCatalog {
@@ -605,8 +606,10 @@ struct WorkoutPlansView: View {
         return ""
     }
 
-    private var filtered: [WorkoutPlan] {
-        var result = plans
+    private var filtered: [WorkoutPlan] { snapshotBox.value.filtered }
+
+    private func computeFiltered(from allPlans: [WorkoutPlan]) -> [WorkoutPlan] {
+        var result = allPlans
         if let focusFilter {
             result = result.filter { $0.focus.lowercased() == focusFilter.lowercased() }
         }
@@ -780,7 +783,7 @@ struct WorkoutPlansView: View {
     }
 
     private func assignedCount(_ plan: WorkoutPlan) -> Int {
-        Set(store.assignments.filter { $0.planId == plan.id }.map(\.traineeId)).count
+        snapshotBox.value.assignedCounts[plan.id] ?? 0
     }
 
     private func emptyCard(

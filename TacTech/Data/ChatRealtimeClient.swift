@@ -1,4 +1,33 @@
 import Foundation
+import Network
+import UIKit
+
+extension Notification.Name {
+    /// Connectivity came back after being lost (posted on the main queue).
+    static let ttNetworkBecameReachable = Notification.Name("ttNetworkBecameReachable")
+}
+
+/// One shared path monitor for all realtime clients.
+enum TTNetworkMonitor {
+    private final class State { var wasSatisfied = true } // touched only on the monitor queue
+    private static let state = State()
+    private static let monitor = NWPathMonitor()
+    private static let queue = DispatchQueue(label: "tt.network.monitor")
+    private static var started = false
+
+    @MainActor static func startIfNeeded() {
+        guard !started else { return }
+        started = true
+        monitor.pathUpdateHandler = { path in
+            let satisfied = path.status == .satisfied
+            if satisfied, !state.wasSatisfied {
+                DispatchQueue.main.async { NotificationCenter.default.post(name: .ttNetworkBecameReachable, object: nil) }
+            }
+            state.wasSatisfied = satisfied
+        }
+        monitor.start(queue: queue)
+    }
+}
 
 /// Socket.IO client for TacTech chat + call events.
 /// Connects Engine.IO, then auth on default `/` and namespace `/chat`
@@ -41,6 +70,34 @@ final class ChatRealtimeClient {
     private var joinedThreadId: String?
     private var pingTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
+    /// Retries so far since the last good connection; picks the next delay (see `nextReconnectDelay`).
+    private var reconnectAttempt = 0
+    private var reconnectPending = false
+    /// Fixed per client, so the three realtime clients don't all retry at the same instant.
+    private let retryStagger = Double.random(in: 0...1.5)
+    private var lastImmediateRetry: Date?
+
+    init() {
+        TTNetworkMonitor.startIfNeeded()
+        // Back in the foreground, or the network is back: skip the waiting and try right now.
+        for name in [UIApplication.didBecomeActiveNotification, Notification.Name.ttNetworkBecameReachable] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.retryNowIfNeeded() }
+            }
+        }
+    }
+
+    /// Resets the backoff and reconnects immediately — only if this client wants a connection and has none.
+    private func retryNowIfNeeded() {
+        guard shouldRun, PerfTemp.raw(.realtime), !isConnected else { return }
+        if let last = lastImmediateRetry, Date().timeIntervalSince(last) < 1 { return }
+        lastImmediateRetry = Date()
+        reconnectAttempt = 0
+        reconnectPending = false
+        reconnectTask?.cancel()
+        connect()
+    }
+    private static let backoffSeconds: [Double] = [2, 4, 8, 16, 30]
     private var shouldRun = false
     private var defaultReady = false
     private var chatReady = false
@@ -50,6 +107,7 @@ final class ChatRealtimeClient {
         guard PerfTemp.raw(.realtime) else { return } // PERF-TEMP: "Realtime clients" OFF = never connect
         shouldRun = true
         reconnectTask?.cancel()
+        reconnectPending = false
         disconnectSocketOnly()
         guard let token = TokenStore.accessToken() else { return }
         authToken = token
@@ -60,6 +118,8 @@ final class ChatRealtimeClient {
         shouldRun = false
         reconnectTask?.cancel()
         reconnectTask = nil
+        reconnectPending = false
+        reconnectAttempt = 0
         disconnectSocketOnly()
     }
 
@@ -160,11 +220,10 @@ final class ChatRealtimeClient {
                     break
                 }
             } catch {
-                #if DEBUG || PERF_TEMP
-                if PerfTemp.raw(.compactNetLogs) { // PERF-TEMP: one short line, no URL, no token
-                    let status = (task.response as? HTTPURLResponse)?.statusCode ?? -1
-                    print("PERF-TEMP ws failed http=\(status) code=\((error as NSError).code)")
-                }
+                #if DEBUG
+                // Status code only — never the URL or the token.
+                let status = (task.response as? HTTPURLResponse)?.statusCode ?? -1
+                print("[TacTech] realtime connection failed (http \(status)); retrying with backoff")
                 #endif
                 receiveLoopRunning = false
                 setConnected(false)
@@ -360,12 +419,23 @@ final class ChatRealtimeClient {
         }
     }
 
+    /// 2, 4, 8, 16, 30 s, then every 60 s — with ±15% jitter and this client's fixed stagger.
+    private func nextReconnectDelay() -> Double {
+        let base = reconnectAttempt < Self.backoffSeconds.count ? Self.backoffSeconds[reconnectAttempt] : 60
+        reconnectAttempt += 1
+        return base * Double.random(in: 0.85...1.15) + retryStagger
+    }
+
     private func scheduleReconnect() {
-        guard shouldRun else { return }
+        // One retry in flight at a time: a failure can be reported by both the receive loop and a packet.
+        guard shouldRun, !reconnectPending else { return }
+        reconnectPending = true
+        let delay = nextReconnectDelay()
         reconnectTask?.cancel()
         reconnectTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2))
-            guard let self, self.shouldRun else { return }
+            try? await Task.sleep(for: .seconds(delay))
+            guard let self, self.shouldRun, !Task.isCancelled else { return }
+            self.reconnectPending = false
             self.connect()
         }
     }
@@ -375,6 +445,7 @@ final class ChatRealtimeClient {
     }
 
     private func setConnected(_ value: Bool) {
+        if value { reconnectAttempt = 0 } // a good connection resets the backoff
         guard isConnected != value else { return }
         isConnected = value
         onConnectionChange?(value)

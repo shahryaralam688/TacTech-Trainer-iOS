@@ -132,12 +132,16 @@ struct TrainerDashboardView: View {
 
     private var actionList: some View {
         VStack(alignment: .leading, spacing: 12) {
-            let attention = attentionItems
-            let training = trainingToday
+            // Each trainee's status is worked out ONCE per redraw; everything below reads this lookup.
+            let roster = clients
+            let today = Date()
+            let statuses = statusLookup(for: roster, today: today)
+            let attention = attentionItems(queue: actionQueue(roster: roster, statuses: statuses))
+            let training = trainingToday(roster: roster, statuses: statuses, today: today)
             let pendingJoins = store.trainerJoinRequests.filter(\.isPending)
             let total = attention.count + (pendingJoins.isEmpty ? 0 : 1)
 
-            if clients.isEmpty {
+            if roster.isEmpty {
                 if !pendingJoins.isEmpty { joinRequestsCard(pendingJoins) }
                 emptyRosterCard
             } else {
@@ -167,7 +171,7 @@ struct TrainerDashboardView: View {
 
                 // One summary card instead of a second roster; the list lives in My Trainees (Today filter).
                 if !training.isEmpty {
-                    trainingSummaryCard(training)
+                    trainingSummaryCard(training, statuses: statuses)
                 }
             }
         }
@@ -313,14 +317,16 @@ struct TrainerDashboardView: View {
 
     // MARK: - Training today / You did today rows
 
-    private func trainingSummaryCard(_ rows: [(trainee: TraineeProfile, title: String, done: Bool)]) -> some View {
+    private func trainingSummaryCard(
+        _ rows: [(trainee: TraineeProfile, title: String, done: Bool)],
+        statuses: [String: TraineeTodayStatus]
+    ) -> some View {
         let total = rows.count
         let done = rows.filter(\.done).count
         let progress = total == 0 ? 0 : CGFloat(done) / CGFloat(total)
         // Not done first, done last, otherwise the existing order; at most 4 rows.
         let ordered = rows.filter { !$0.done } + rows.filter(\.done)
         let visible = Array(ordered.prefix(4))
-        let today = Date()
 
         return VStack(alignment: .leading, spacing: 0) {
             // Header: tapping it opens the roster on Today.
@@ -364,7 +370,7 @@ struct TrainerDashboardView: View {
 
             ForEach(visible, id: \.trainee.id) { row in
                 Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
-                todayTraineeRow(row, today: today)
+                todayTraineeRow(row, status: statuses[row.trainee.id] ?? TraineeTodayStatus.none)
             }
 
             if rows.count > 4 {
@@ -393,11 +399,11 @@ struct TrainerDashboardView: View {
     }
 
     /// One trainee training today: name, session title (only what the status helper gives), done indicator.
-    private func todayTraineeRow(_ row: (trainee: TraineeProfile, title: String, done: Bool), today: Date) -> some View {
+    private func todayTraineeRow(_ row: (trainee: TraineeProfile, title: String, done: Bool), status: TraineeTodayStatus) -> some View {
         let name = store.user(forTrainee: row.trainee)?.name ?? String(localized: "Trainee")
         // TODO: done rows have no session title from the status helper, so they show none.
         var session = ""
-        if case .sessionToday(let title) = todayStatus(row.trainee, today: today) { session = title }
+        if case .sessionToday(let title) = status { session = title }
 
         return Button {
             detailTrainee = row.trainee
@@ -591,10 +597,15 @@ struct TrainerDashboardView: View {
     }
 
     /// Check-ins (longest inactive first, never-logged first of all), then no plan.
-    private var attentionItems: [QueueItem] {
-        let checkIns = actionQueue.filter { $0.priority == 0 }
+    private func attentionItems(queue: [QueueItem]) -> [QueueItem] {
+        let checkIns = queue.filter { $0.priority == 0 }
             .sorted { ($0.inactiveDays ?? .max) > ($1.inactiveDays ?? .max) }
-        return checkIns + actionQueue.filter { $0.priority == 2 }
+        return checkIns + queue.filter { $0.priority == 2 }
+    }
+
+    /// One status per trainee, computed once per redraw.
+    private func statusLookup(for roster: [TraineeProfile], today: Date) -> [String: TraineeTodayStatus] {
+        Dictionary(roster.map { ($0.id, todayStatus($0, today: today)) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func todayStatus(_ trainee: TraineeProfile, today: Date) -> TraineeTodayStatus {
@@ -606,20 +617,24 @@ struct TrainerDashboardView: View {
     }
 
     /// Trainees with a session today or who already trained today.
-    private var trainingToday: [(trainee: TraineeProfile, title: String, done: Bool)] {
-        let today = Date()
-        return clients.compactMap { trainee in
-            let status = todayStatus(trainee, today: today)
+    private func trainingToday(
+        roster: [TraineeProfile],
+        statuses: [String: TraineeTodayStatus],
+        today: Date
+    ) -> [(trainee: TraineeProfile, title: String, done: Bool)] {
+        roster.compactMap { trainee in
+            let status = statuses[trainee.id] ?? TraineeTodayStatus.none
             guard status.isTrainingToday else { return nil }
+            // A session today already carries its title; only "done" rows need the plan lookup.
+            if case .sessionToday(let title) = status { return (trainee, title, false) }
             let plan = store.assignedPlan(for: trainee)
             return (trainee, plan?.session(on: today)?.title ?? plan?.title ?? "Workout", status == .doneToday)
         }
     }
 
-    private var actionQueue: [QueueItem] {
-        let today = Date()
-        return clients.compactMap { trainee -> QueueItem? in
-            switch todayStatus(trainee, today: today) {
+    private func actionQueue(roster: [TraineeProfile], statuses: [String: TraineeTodayStatus]) -> [QueueItem] {
+        roster.compactMap { trainee -> QueueItem? in
+            switch statuses[trainee.id] ?? TraineeTodayStatus.none {
             case .doneToday:
                 return QueueItem(trainee: trainee, detail: "Completed today's session", tint: green, priority: 3)
             case .sessionToday(let title):

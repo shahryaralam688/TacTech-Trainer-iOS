@@ -114,10 +114,12 @@ final class HumanChatStore {
             let threads = try await api.listThreads()
             if Task.isCancelled { return }
             for thread in threads {
-                threadIdByPeer[thread.peerUserId] = thread.id
-                peerByThread[thread.id] = thread.peerUserId
+                if threadIdByPeer[thread.peerUserId] != thread.id { threadIdByPeer[thread.peerUserId] = thread.id }
+                if peerByThread[thread.id] != thread.peerUserId { peerByThread[thread.id] = thread.peerUserId }
             }
-            inbox = threads.map(HumanChatPeer.init(from:))
+            // The 8-second poll must not wake every reader when nothing changed.
+            let nextInbox = threads.map(HumanChatPeer.init(from:))
+            if nextInbox != inbox { inbox = nextInbox }
         } catch {
             // Sync failures stay silent — pull-to-refresh / reopen will retry.
         }
@@ -971,7 +973,8 @@ final class HumanChatStore {
                 if let cid = local.clientId, mapped.contains(where: { $0.clientId == cid }) { continue }
                 byId[local.id] = local
             }
-            messagesByPeer[peerId] = byId.values.sorted { $0.sentAt < $1.sentAt }
+            let nextMessages = byId.values.sorted { $0.sentAt < $1.sentAt }
+            if nextMessages != messagesByPeer[peerId] { messagesByPeer[peerId] = nextMessages }
         } catch {
             // Soft fail — keep UI
         }

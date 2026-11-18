@@ -1184,8 +1184,6 @@ struct TTAssignSuccessButton: View {
 enum PerfTempKey: String, CaseIterable, Identifiable { // PERF-TEMP
     case homeShadow, homeEars, homeCopies // PERF-TEMP
     case fabBlur, fabLoops // PERF-TEMP
-    case plansHeaderOnly // PERF-TEMP
-    case avatarDownsample // PERF-TEMP
     case liveSync // PERF-TEMP
     case homeScrollObserver // PERF-TEMP
     case realtime // PERF-TEMP
@@ -1197,7 +1195,7 @@ enum PerfTempKey: String, CaseIterable, Identifiable { // PERF-TEMP
     /// Today's behaviour (the "baseline").
     var defaultValue: Bool {
         switch self {
-        case .plansHeaderOnly, .avatarDownsample, .printChanges, .compactNetLogs: return false
+        case .printChanges, .compactNetLogs: return false
         default: return true
         }
     }
@@ -1209,8 +1207,6 @@ enum PerfTempKey: String, CaseIterable, Identifiable { // PERF-TEMP
         case .homeCopies: return "Hidden header copies (measuring)"
         case .fabBlur: return "+ menu blur + contrast"
         case .fabLoops: return "+ menu repeatForever loops"
-        case .plansHeaderOnly: return "Plans: header-only progress (OFF = whole body)"
-        case .avatarDownsample: return "Avatars downsampled (OFF = original)"
         case .liveSync: return "TrainerLiveSync refresh"
         case .homeScrollObserver: return "Home scroll observer (collapse progress)"
         case .realtime: return "Realtime clients (OFF = don't connect)"
@@ -1284,8 +1280,6 @@ struct PerfTempSheet: View { // PERF-TEMP
             Form {
                 section("1 · Home header", [.homeShadow, .homeEars, .homeCopies])
                 section("2 · + menu", [.fabBlur, .fabLoops])
-                section("3 · Plans screen", [.plansHeaderOnly])
-                section("4 · Avatars", [.avatarDownsample])
                 section("5 · Refresh", [.liveSync])
                 section("Diagnostics", [.homeScrollObserver, .realtime, .compactNetLogs])
                 section("Logging", [.printChanges])

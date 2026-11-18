@@ -1,3 +1,4 @@
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -8,6 +9,9 @@ actor TTRemoteImageCache {
     static let shared = TTRemoteImageCache()
 
     private let memory = NSCache<NSString, UIImage>()
+    /// Display-sized versions (decoded once, off the main thread), keyed by URL + pixel bucket.
+    private let thumbMemory = NSCache<NSString, UIImage>()
+    private static let thumbBuckets = [64, 96, 128, 192, 256, 384]
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
         config.urlCache = URLCache(
@@ -49,6 +53,7 @@ actor TTRemoteImageCache {
 
     func store(_ image: UIImage, for urlString: String) {
         guard !urlString.isEmpty else { return }
+        removeThumbnails(for: urlString) // a new original invalidates the small versions
         memory.setObject(image, forKey: urlString as NSString)
         if let data = image.jpegData(compressionQuality: 0.9) {
             try? data.write(to: diskURL(for: urlString), options: .atomic)
@@ -57,8 +62,68 @@ actor TTRemoteImageCache {
 
     func remove(for urlString: String?) {
         guard let urlString, !urlString.isEmpty else { return }
+        removeThumbnails(for: urlString)
         memory.removeObject(forKey: urlString as NSString)
         try? FileManager.default.removeItem(at: diskURL(for: urlString))
+    }
+
+    // MARK: Display-sized thumbnails
+
+    /// Smallest bucket that is at least ~2× the shown point size (so avatars share a few small versions).
+    nonisolated static func thumbnailBucket(forPoints points: CGFloat) -> Int {
+        let pixels = Int((points * 2).rounded(.up))
+        return thumbBuckets.first(where: { $0 >= pixels }) ?? (thumbBuckets.last ?? 384)
+    }
+
+    private func thumbDiskURL(for urlString: String, maxPixel: Int) -> URL {
+        let original = diskURL(for: urlString)
+        let base = original.deletingPathExtension().lastPathComponent
+        return diskDirectory.appendingPathComponent("\(base)@\(maxPixel).jpg")
+    }
+
+    private func removeThumbnails(for urlString: String) {
+        for bucket in Self.thumbBuckets {
+            thumbMemory.removeObject(forKey: "\(urlString)|\(bucket)" as NSString)
+            try? FileManager.default.removeItem(at: thumbDiskURL(for: urlString, maxPixel: bucket))
+        }
+    }
+
+    /// Decodes a small, ready-to-draw image. Runs on this actor (never the main thread); `ShouldCacheImmediately`
+    /// means the pixels are decoded here, not lazily on the first draw.
+    private nonisolated static func makeThumbnail(from data: Data, maxPixel: Int) -> UIImage? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel
+        ]
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+        return UIImage(cgImage: cgImage)
+    }
+
+    /// The avatar at display size. Order: memory → small file on disk → shrink the cached original once
+    /// (then cache the small version) → download the original (only if `allowDownload`).
+    func thumbnail(for urlString: String, maxPixel: Int, allowDownload: Bool) async -> UIImage? {
+        let key = "\(urlString)|\(maxPixel)" as NSString
+        if let hit = thumbMemory.object(forKey: key) { return hit }
+
+        let smallFile = thumbDiskURL(for: urlString, maxPixel: maxPixel)
+        if let data = try? Data(contentsOf: smallFile), let image = Self.makeThumbnail(from: data, maxPixel: maxPixel) {
+            thumbMemory.setObject(image, forKey: key)
+            return image
+        }
+
+        var originalData = try? Data(contentsOf: diskURL(for: urlString))
+        if originalData == nil, allowDownload, await image(for: urlString) != nil {
+            originalData = try? Data(contentsOf: diskURL(for: urlString))
+        }
+        guard let originalData, let small = Self.makeThumbnail(from: originalData, maxPixel: maxPixel) else { return nil }
+        thumbMemory.setObject(small, forKey: key)
+        if let jpeg = small.jpegData(compressionQuality: 0.85) {
+            try? jpeg.write(to: smallFile, options: .atomic)
+        }
+        return small
     }
 
     /// Returns memory/disk hit immediately path; otherwise downloads once.
@@ -176,9 +241,8 @@ struct TTUserAvatarView: View {
             // Instant memory/disk paint before async task schedules.
             if let url = resolvedURL, remoteImage == nil {
                 Task {
-                    if let hit = await TTRemoteImageCache.shared.cachedImage(for: url) {
-                        let shown = await perfPrepared(hit) // PERF-TEMP
-                        await MainActor.run { remoteImage = shown }
+                    if let hit = await TTRemoteImageCache.shared.thumbnail(for: url, maxPixel: thumbBucket, allowDownload: false) {
+                        await MainActor.run { remoteImage = hit }
                     }
                 }
             }
@@ -194,27 +258,22 @@ struct TTUserAvatarView: View {
             remoteImage = nil
             return
         }
-        if let hit = await TTRemoteImageCache.shared.cachedImage(for: url) {
-            remoteImage = await perfPrepared(hit) // PERF-TEMP
+        let bucket = thumbBucket
+        if let hit = await TTRemoteImageCache.shared.thumbnail(for: url, maxPixel: bucket, allowDownload: false) {
+            remoteImage = hit
             return
         }
-        // No cache → initials placeholder (not blank), then fade image in once.
+        // No cache → initials placeholder (not blank), then fade the small image in once.
         remoteImage = nil
-        let image = await TTRemoteImageCache.shared.image(for: url)
+        let image = await TTRemoteImageCache.shared.thumbnail(for: url, maxPixel: bucket, allowDownload: true)
         guard token == loadToken else { return }
         if let image {
-            let shown = await perfPrepared(image) // PERF-TEMP
             withAnimation(.easeIn(duration: 0.18)) {
-                remoteImage = shown
+                remoteImage = image
             }
         }
     }
 
-    /// PERF-TEMP: switch "Avatars downsampled" decodes a display-sized thumbnail instead of the original.
-    private func perfPrepared(_ image: UIImage) async -> UIImage { // PERF-TEMP
-        guard PerfTemp.raw(.avatarDownsample) else { return image }
-        let scale = UIScreen.main.scale
-        let target = CGSize(width: size * scale, height: size * scale)
-        return await image.byPreparingThumbnail(ofSize: target) ?? image
-    }
+    /// Pixel size of the small version to load: about 2× the point size.
+    private var thumbBucket: Int { TTRemoteImageCache.thumbnailBucket(forPoints: size) }
 }

@@ -1347,12 +1347,66 @@ final class AppStore {
         async let logsTask = api.trainerLogs(traineeId: traineeId)
         async let analyticsTask = api.trainerTraineeAnalytics(traineeId: traineeId, periodDays: periodDays)
         let (logs, analytics) = try await (logsTask, analyticsTask)
-        replaceLogs(logs, traineeId: traineeId)
-        // Prefer full /logs list; merge any recentLogs that might be newer.
-        if !analytics.recentLogs.isEmpty {
-            mergeLogs(analytics.recentLogs, traineeId: traineeId)
+        applyPerformance([(traineeId, logs, analytics)])
+    }
+
+    /// Reloads logs + analytics for several trainees (trainer live sync). The requests run concurrently and the
+    /// store is written ONCE at the end, and only if something actually changed.
+    func refreshTraineesPerformance(traineeIds: [String], periodDays: Int = 30) async {
+        let api = self.api
+        let results = await withTaskGroup(of: (String, [WorkoutLog], TraineeAnalytics)?.self) { group -> [(String, [WorkoutLog], TraineeAnalytics)] in
+            let load: @Sendable (String) async -> (String, [WorkoutLog], TraineeAnalytics)? = { id in
+                async let logsTask = api.trainerLogs(traineeId: id)
+                async let analyticsTask = api.trainerTraineeAnalytics(traineeId: id, periodDays: periodDays)
+                guard let logs = try? await logsTask, let analytics = try? await analyticsTask else { return nil }
+                return (id, logs, analytics)
+            }
+            // At most 4 trainees are in flight at once; the next one starts as soon as one finishes.
+            let maxInFlight = 4
+            var pending = traineeIds[...]
+            for _ in 0..<min(maxInFlight, pending.count) {
+                let id = pending.removeFirst()
+                group.addTask { await load(id) }
+            }
+            var collected: [(String, [WorkoutLog], TraineeAnalytics)] = []
+            for await item in group {
+                if let item { collected.append(item) }
+                if !pending.isEmpty {
+                    let id = pending.removeFirst()
+                    group.addTask { await load(id) }
+                }
+            }
+            return collected
         }
-        traineeAnalyticsById[traineeId] = analytics
+        applyPerformance(results)
+    }
+
+    /// Same result as the old per-trainee `replaceLogs` + `mergeLogs` + analytics assignment, but built on local
+    /// copies and assigned once — and not at all when nothing differs (an identical assignment still wakes every
+    /// view that reads the property).
+    private func applyPerformance(_ results: [(String, [WorkoutLog], TraineeAnalytics)]) {
+        var nextLogs = workoutLogs
+        var nextAnalytics = traineeAnalyticsById
+        for (traineeId, logs, analytics) in results {
+            // Prefer the full /logs list…
+            if nextLogs.filter({ $0.traineeId == traineeId }) != logs {
+                nextLogs.removeAll { $0.traineeId == traineeId }
+                nextLogs.append(contentsOf: logs)
+            }
+            // …then merge any recentLogs that might be newer.
+            for item in analytics.recentLogs where item.traineeId == traineeId || item.traineeId.isEmpty {
+                var log = item
+                if log.traineeId.isEmpty { log.traineeId = traineeId }
+                if let idx = nextLogs.firstIndex(where: { $0.id == log.id }) {
+                    if nextLogs[idx] != log { nextLogs[idx] = log }
+                } else {
+                    nextLogs.append(log)
+                }
+            }
+            nextAnalytics[traineeId] = analytics
+        }
+        if nextLogs != workoutLogs { workoutLogs = nextLogs }
+        if nextAnalytics != traineeAnalyticsById { traineeAnalyticsById = nextAnalytics }
     }
 
     /// Trainees currently assigned to this plan (latest assignment wins per trainee).

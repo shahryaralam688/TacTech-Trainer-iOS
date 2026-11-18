@@ -833,6 +833,14 @@ private struct TTHeaderCollapsedHeightKey: PreferenceKey {
 struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
     var sheetFill: Color = .white
     var headerBackground: Color = .black
+    /// Sheet corner radius for a given progress. Default is the Home lip (44 → 28).
+    var topRadius: (CGFloat) -> CGFloat = { TTSheetChrome.homeTopRadius(collapseProgress: $0) }
+    /// `true`: the scroll view's top inset is the *collapsed* header height and the content starts with a
+    /// spacer of `d`. Pinned section headers then stick directly under the collapsed header (no gap).
+    /// Both the inset and the spacer are constant, so content size still never depends on progress.
+    var pinsBelowCollapsedHeader: Bool = false
+    /// With `pinsBelowCollapsedHeader`: id of the top spacer, so `ScrollViewProxy.scrollTo(id)` returns to rest.
+    var topAnchorID: String? = nil
     var onRefresh: (() async -> Void)? = nil
     @ViewBuilder var header: (_ progress: CGFloat) -> Header
     @ViewBuilder var content: () -> Content
@@ -851,6 +859,7 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             TTCollapsingHeaderHost(
                 model: model,
                 background: headerBackground,
+                topRadius: topRadius,
                 header: header
             )
 
@@ -884,18 +893,21 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
         let base = ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 legacyProbe
+                if pinsBelowCollapsedHeader {
+                    topSpacer
+                }
                 content()
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(alignment: .top) {
-                TTCollapsingSheetBackground(model: model, fill: sheetFill)
+                TTCollapsingSheetBackground(model: model, fill: sheetFill, topRadius: topRadius)
             }
         }
         // Rubber-band always, so pull-to-refresh also works with short content.
         .scrollBounceBehavior(.always)
         // Constant reserve for the expanded header: content never moves because the header shrinks.
         .safeAreaInset(edge: .top, spacing: 0) {
-            Color.clear.frame(height: expandedHeight)
+            Color.clear.frame(height: pinsBelowCollapsedHeader ? collapsedHeight : expandedHeight)
         }
         .modifier(TTCollapseObserver(model: model, travel: travel, enabled: !reduceMotion))
 
@@ -903,6 +915,15 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             base.refreshable { await onRefresh() }
         } else {
             base
+        }
+    }
+
+    @ViewBuilder
+    private var topSpacer: some View {
+        if let topAnchorID {
+            Color.clear.frame(height: travel).id(topAnchorID)
+        } else {
+            Color.clear.frame(height: travel)
         }
     }
 
@@ -925,13 +946,14 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
 private struct TTCollapsingHeaderHost<Header: View>: View {
     @ObservedObject var model: TTHeaderCollapseState
     let background: Color
+    let topRadius: (CGFloat) -> CGFloat
     let header: (CGFloat) -> Header
 
     var body: some View {
         #if DEBUG || PERF_TEMP
         let _ = PerfTemp.trace("HomeHeaderHost") { Self._printChanges() } // PERF-TEMP
         #endif
-        let radius = TTSheetChrome.homeTopRadius(collapseProgress: model.progress)
+        let radius = topRadius(model.progress)
         header(model.progress)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             // Concave corners under the header keep the content sheet's rounded top, at every progress.
@@ -978,9 +1000,10 @@ private struct TTHeaderEars: View {
 private struct TTCollapsingSheetBackground: View {
     @ObservedObject var model: TTHeaderCollapseState
     let fill: Color
+    let topRadius: (CGFloat) -> CGFloat
 
     var body: some View {
-        let r = TTSheetChrome.homeTopRadius(collapseProgress: model.progress)
+        let r = topRadius(model.progress)
         UnevenRoundedRectangle(topLeadingRadius: r, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: r, style: .continuous)
             .fill(fill)
             // Extends below the content so a short page (or a bounce) still shows a full sheet.

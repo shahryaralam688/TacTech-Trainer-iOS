@@ -98,6 +98,11 @@ struct TTLiquidFABOverlay: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.scenePhase) private var scenePhase
+    /// False once the menu starts closing (or the app leaves the foreground): the breathing loops stop at once,
+    /// not only when the overlay is finally removed.
+    @State private var loopsActive = true
+    @State private var dismissing = false
     @State private var expanded = false
     @State private var scrimVisible = false
     @State private var fabBoost = false
@@ -147,6 +152,17 @@ struct TTLiquidFABOverlay: View {
             .ignoresSafeArea()
         }
         .sensoryFeedback(.selection, trigger: highlightedId)
+        // Nothing keeps animating while the app is in the background.
+        .onChange(of: scenePhase) { _, phase in
+            guard !dismissing else { return }
+            if phase == .active {
+                loopsActive = true
+                if expanded { withAnimation(.easeOut(duration: 0.2)) { liquidWave = true } }
+            } else {
+                loopsActive = false
+                withAnimation(.easeOut(duration: 0.2)) { liquidWave = false }
+            }
+        }
         .onAppear { present() }
     }
 
@@ -169,7 +185,7 @@ struct TTLiquidFABOverlay: View {
             liquidWave = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            guard PerfTemp.on(.fabLoops) else { return } // PERF-TEMP
+            guard loopsActive, PerfTemp.on(.fabLoops) else { return } // PERF-TEMP
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                 // Keep a gentle liquid breathe while open.
                 liquidWave = true
@@ -178,6 +194,8 @@ struct TTLiquidFABOverlay: View {
     }
 
     private func dismiss(completion: (() -> Void)? = nil) {
+        dismissing = true
+        loopsActive = false
         PerfTemp.interval("fab.close", seconds: 0.45) // PERF-TEMP
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
@@ -257,7 +275,7 @@ struct TTLiquidFABOverlay: View {
             }
             .frame(width: fabSize, height: fabSize)
             .animation(reduceMotion ? .easeOut(duration: 0.12) : openSpring, value: expanded)
-            .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : .easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: liquidWave) // PERF-TEMP
+            .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : (loopsActive ? .easeInOut(duration: 1.5).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave) // PERF-TEMP
         }
         .buttonStyle(.plain)
         .modifier(TTLiquidFABMatched(
@@ -320,7 +338,7 @@ struct TTLiquidFABOverlay: View {
         }
         .scaleEffect(x: breathe, y: 1, anchor: .bottom)
         .animation(reduceMotion ? .easeOut(duration: 0.14) : openSpring, value: expanded)
-        .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : .easeInOut(duration: 1.55).repeatForever(autoreverses: true), value: liquidWave) // PERF-TEMP
+        .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : (loopsActive ? .easeInOut(duration: 1.55).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave) // PERF-TEMP
     }
 
     // MARK: - Pills

@@ -160,6 +160,21 @@ struct TrainerRootView: View {
             PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
             mounted.insert(newTab)
         }
+        // Build Plans, Chat and Profile quietly once the app has settled, one at a time, so the first visit
+        // doesn't build a whole screen in the middle of the slide. They stay hidden (opacity 0, no touches).
+        .task {
+            try? await Task.sleep(for: .seconds(1.5))
+            for next in [TrainerTab.plans, .chat, .profile] {
+                if Task.isCancelled { return }
+                // Wait while the user is busy with the + menu or the AI chat.
+                while showLiquidMenu || showAIChat {
+                    try? await Task.sleep(for: .milliseconds(400))
+                    if Task.isCancelled { return }
+                }
+                if !mounted.contains(next) { mounted.insert(next) }
+                try? await Task.sleep(for: .milliseconds(700))
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
             openAIChat()
         }
@@ -312,11 +327,8 @@ enum TrainerLiveSync {
         } else {
             ids = store.currentTrainer.map { store.trainees(for: $0).map(\.id) } ?? []
         }
-        await withTaskGroup(of: Void.self) { group in
-            for id in ids {
-                group.addTask { try? await store.refreshTraineePerformance(traineeId: id) }
-            }
-        }
+        // One batch: requests run concurrently, the store is written once at the end (and only if changed).
+        await store.refreshTraineesPerformance(traineeIds: ids)
     }
 }
 

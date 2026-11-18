@@ -169,16 +169,15 @@ final class NotificationStore {
         do {
             let page = try await api.listNotifications()
             let kept = page.items.filter { Self.shouldKeepInInbox($0, preferences: preferences) }
-            items = kept
-            nextCursor = page.nextCursor
-            if let count = page.unreadCount {
-                unreadCount = count
-            } else {
-                unreadCount = kept.filter(\.isUnread).count
-            }
+            // Write only what changed — an identical assignment still wakes every view that reads it.
+            if kept != items { items = kept }
+            if nextCursor != page.nextCursor { nextCursor = page.nextCursor }
+            let newUnread = page.unreadCount ?? kept.filter(\.isUnread).count
+            let unreadChanged = newUnread != unreadCount
+            if unreadChanged { unreadCount = newUnread }
             rememberDedupeKeys(from: kept)
-            lastError = nil
-            syncAppBadge()
+            if lastError != nil { lastError = nil }
+            if unreadChanged { syncAppBadge() }
         } catch {
             lastError = error.localizedDescription
         }
@@ -186,8 +185,11 @@ final class NotificationStore {
 
     func refreshUnread() async {
         do {
-            unreadCount = try await api.unreadCount()
-            syncAppBadge()
+            let latest = try await api.unreadCount()
+            if latest != unreadCount {
+                unreadCount = latest
+                syncAppBadge()
+            }
         } catch {
             // Soft fail — inbox refresh may still work.
         }

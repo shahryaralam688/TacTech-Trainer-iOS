@@ -66,5 +66,7 @@
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Automatic</string>
+	<key>CADisableMinimumFrameRateDuration</key>
+	<true/>
 </dict>
 </plist>

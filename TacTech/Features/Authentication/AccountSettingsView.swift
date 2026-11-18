@@ -23,7 +23,6 @@ struct AccountSettingsView: View {
     @AppStorage("settings.darkMode") private var darkMode = false
     @AppStorage("settings.biometric") private var biometricEnabled = false
     @AppStorage(LocalizationController.languageLabelKey) private var language = "English"
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
     @State private var isRestoringPurchases = false
     @State private var toast: TTToastMessage?
     @State private var showAIFreemiumInfo = false
@@ -32,32 +31,27 @@ struct AccountSettingsView: View {
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let rowBG = Color(white: 0.96)
-    private let scrollSpace = "accountSettings"
 
     var body: some View {
-        VStack(spacing: 0) {
-            settingsHeader
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-
-                    VStack(alignment: .leading, spacing: 22) {
-                        generalSection
-                        aiCoachProSection
-                        securitySection
-                        helpSection
-                        dangerSection
-                        logoutSection
-                        footer
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.top, 20)
-                    .padding(.bottom, 28)
-                }
+        // Header is drawn over the scroll view; the content size never depends on its collapse.
+        TTCollapsingHeaderScreen(
+            sheetFill: .white,
+            headerBackground: charcoal,
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in settingsHeader(progress: progress) }
+        ) {
+            VStack(alignment: .leading, spacing: 22) {
+                generalSection
+                aiCoachProSection
+                securitySection
+                helpSection
+                dangerSection
+                logoutSection
+                footer
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
-            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+            .padding(.horizontal, 18)
+            .padding(.top, 20)
+            .padding(.bottom, 28)
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
@@ -81,10 +75,10 @@ struct AccountSettingsView: View {
         }
     }
 
-    private var settingsHeader: some View {
+    private func settingsHeader(progress: CGFloat) -> some View {
         TTDarkPageHeader(
             title: "Account Settings",
-            collapseProgress: scrollCollapse.progress
+            collapseProgress: progress
         ) {
             dismiss()
         }

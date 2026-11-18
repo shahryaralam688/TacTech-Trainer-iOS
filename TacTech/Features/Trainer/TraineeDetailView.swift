@@ -19,11 +19,9 @@ struct TraineeDetailView: View {
     @State private var performanceTab: TraineeDetailPerformanceTab = .history
     @State private var isRefreshingPerformance = false
     @State private var performanceError: String?
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
-    private let scrollSpace = "traineeDetail"
 
     private var displayName: String {
         store.user(forTrainee: trainee)?.name ?? "Trainee"
@@ -42,62 +40,57 @@ struct TraineeDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(
-                title: displayName,
-                collapseProgress: scrollCollapse.progress
-            ) {
-                dismiss()
-            }
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        profileCard
-                        sectionLabel("Assigned plan")
-                        assignCard
-                        performancePicker
-
-                        Group {
-                            switch performanceTab {
-                            case .history:
-                                TraineeDetailHistorySection(trainee: trainee, analytics: analytics)
-                            case .analytics:
-                                TraineeDetailAnalyticsSection(
-                                    trainee: trainee,
-                                    analytics: analytics,
-                                    loadError: performanceError
-                                )
-                            case .meals:
-                                nutritionCard
-                            }
-                        }
-
-                        sectionLabel("Form analysis")
-                        formCard
-                        sectionLabel("Feedback")
-                        feedbackCard
-
-                        // Destructive, rarely used → last, with breathing room above.
-                        sectionLabel("Roster")
-                            .padding(.top, 32)
-                        removeFromRosterCard
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
-                }
-            }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
-            .scrollDismissesKeyboard(.interactively)
-            .refreshable {
+        // Header is drawn over the scroll view; the content size never depends on its collapse.
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            onRefresh: {
                 await reloadPerformance(forceErrorSurface: true)
                 await store.refreshDay(for: trainee.id, on: selectedDay)
+            },
+            header: { progress in
+                TTDarkPageHeader(title: displayName, collapseProgress: progress) {
+                    dismiss()
+                }
             }
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                profileCard
+                sectionLabel("Assigned plan")
+                assignCard
+                performancePicker
+
+                Group {
+                    switch performanceTab {
+                    case .history:
+                        TraineeDetailHistorySection(trainee: trainee, analytics: analytics)
+                    case .analytics:
+                        TraineeDetailAnalyticsSection(
+                            trainee: trainee,
+                            analytics: analytics,
+                            loadError: performanceError
+                        )
+                    case .meals:
+                        nutritionCard
+                    }
+                }
+
+                sectionLabel("Form analysis")
+                formCard
+                sectionLabel("Feedback")
+                feedbackCard
+
+                // Destructive, rarely used → last, with breathing room above.
+                sectionLabel("Roster")
+                    .padding(.top, 32)
+                removeFromRosterCard
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
         }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .onChange(of: store.trainees.map(\.id)) { _, ids in

@@ -2,6 +2,11 @@ import SwiftUI
 
 // MARK: - Trainee Workout Hub (Sandow / TacTech system design)
 
+private struct WorkoutHubCollapsedHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 struct WorkoutHubView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -10,7 +15,8 @@ struct WorkoutHubView: View {
     var showsCloseChrome: Bool = false
 
     @State private var selectedDay = Date()
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
+    /// Height of the fully collapsed header — the stacked cards pin directly below it.
+    @State private var collapsedHeaderHeight: CGFloat = 0
     @State private var showEditAIPlan = false
     @State private var showDeleteAIConfirm = false
     @State private var isMutatingAIPlan = false
@@ -26,38 +32,47 @@ struct WorkoutHubView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                header
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-
-                        VStack(alignment: .leading, spacing: 14) {
-                            if let notice = store.planChangeNotice {
-                                planChangeNoticeChip(notice)
-                            }
-                            if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
-                                planOverviewCard(plan)
-                                TTHomeWeekDatePicker(selected: $selectedDay, accent: orange,
-                                                    sessionDayKeys: sessionDayKeySet(plan))
-                                sessionHero(plan)
-                                sessionDetail(plan)
-                                liveFormCard(plan)
-                            } else {
-                                emptyCard
-                            }
-                        }
-                        .padding(.horizontal, TTSpace.screen)
-                        .padding(.top, 16)
-                        .padding(.bottom, 36)
+            // Header is drawn over the scroll view; the content size never depends on its collapse.
+            TTCollapsingHeaderScreen(
+                sheetFill: canvas,
+                headerBackground: charcoal,
+                topRadius: { _ in TTSheetChrome.pageTopRadius },
+                onRefresh: { await store.refreshAssignedPlanForCurrentTrainee() },
+                header: { progress in header(progress: progress) }
+            ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    if let notice = store.planChangeNotice {
+                        planChangeNoticeChip(notice)
+                    }
+                    if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                        planOverviewCard(plan)
+                        TTHomeWeekDatePicker(selected: $selectedDay, accent: orange,
+                                            sessionDayKeys: sessionDayKeySet(plan))
+                        sessionHero(plan)
+                        sessionDetail(plan)
+                        liveFormCard(plan)
+                    } else {
+                        emptyCard
                     }
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-                .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
-                .refreshable {
-                    await store.refreshAssignedPlanForCurrentTrainee()
-                }
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 16)
+                .padding(.bottom, 36)
+            }
+            // The stacked cards measure their position in this space: its top is the screen content's top,
+            // the same place the header is drawn from.
+            .coordinateSpace(name: scrollSpace)
+            .overlay(alignment: .top) {
+                // Hidden copy of the collapsed header, only to measure where the pin line has to be.
+                header(progress: 1)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .background(GeometryReader { Color.clear.preference(key: WorkoutHubCollapsedHeightKey.self, value: $0.size.height) })
+                    .opacity(0)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .onPreferenceChange(WorkoutHubCollapsedHeightKey.self) { value in
+                if abs(value - collapsedHeaderHeight) > 0.5 { collapsedHeaderHeight = value }
             }
             .background(charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
@@ -122,16 +137,16 @@ struct WorkoutHubView: View {
     // MARK: - Header
 
     @ViewBuilder
-    private var header: some View {
+    private func header(progress: CGFloat) -> some View {
         if showsCloseChrome {
             TTDarkPageHeader(
                 title: "Workout",
-                collapseProgress: scrollCollapse.progress
+                collapseProgress: progress
             ) {
                 dismiss()
             }
         } else {
-            workoutTabHeader
+            workoutTabHeader(progress: progress)
         }
     }
 
@@ -142,8 +157,8 @@ struct WorkoutHubView: View {
         return "Follow the plan"
     }
 
-    private var workoutTabHeader: some View {
-        let p = min(1, max(0, scrollCollapse.progress))
+    private func workoutTabHeader(progress: CGFloat) -> some View {
+        let p = min(1, max(0, progress))
         let expand = 1 - p
         let compactHeight: CGFloat = 64
         let headerHeight = compactHeight + (TTDarkPageHeader.cardHeight - compactHeight) * expand
@@ -539,7 +554,8 @@ struct WorkoutHubView: View {
                         withDramaEffect: true,
                         paneGap: TTSpace.md,
                         scrollRunway: TTStackedTokens.defaultRunway,
-                        coordinateSpaceName: scrollSpace
+                        coordinateSpaceName: scrollSpace,
+                        topInset: collapsedHeaderHeight
                     ) { row in
                         NavigationLink {
                             ExerciseDetailView(exercise: row.exercise, prescription: row.prescription)

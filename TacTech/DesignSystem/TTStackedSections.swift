@@ -24,6 +24,9 @@ where Data.Element: Identifiable {
     /// Prefer the named space already on your ScrollView (e.g. home-collapse space).
     var coordinateSpaceName: String? = nil
     var style: TTStackedStyle = .stacked
+    /// Pin line offset from the top of the coordinate space (e.g. below a header drawn over the scroll view).
+    /// 0 keeps every existing user exactly as before.
+    var topInset: CGFloat = 0
     @ViewBuilder var content: (Data.Element) -> Content
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,7 +44,8 @@ where Data.Element: Identifiable {
                     maxPinnedDepth: maxPinnedDepth,
                     withDramaEffect: withDramaEffect && !reduceMotion,
                     coordinateSpaceName: coordinateSpaceName,
-                    style: style
+                    style: style,
+                    topInset: topInset
                 ) {
                     content(item)
                 }
@@ -117,10 +121,11 @@ private struct TTStackedPane<Content: View>: View {
     let withDramaEffect: Bool
     let coordinateSpaceName: String?
     var style: TTStackedStyle = .stacked
+    var topInset: CGFloat = 0
     @ViewBuilder var content: () -> Content
 
     private var pinnedTop: CGFloat {
-        CGFloat(min(index, max(0, maxPinnedDepth - 1))) * stackOffset
+        topInset + CGFloat(min(index, max(0, maxPinnedDepth - 1))) * stackOffset
     }
 
     private var endScale: CGFloat {

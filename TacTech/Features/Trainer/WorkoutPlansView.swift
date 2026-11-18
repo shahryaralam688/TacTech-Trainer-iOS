@@ -837,11 +837,9 @@ struct WorkoutPlanDetailView: View {
     @State private var feedbackToast: TTToastMessage?
     @State private var actionError: String?
     @State private var unassignTraineeId: String?
-    @StateObject private var scrollCollapse = TTHomeScrollCollapseModel()
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
-    private let scrollSpace = "workoutPlanDetail"
 
     init(plan: WorkoutPlan) {
         self.planSeed = plan
@@ -852,54 +850,49 @@ struct WorkoutPlanDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(
-                title: plan.title,
-                collapseProgress: scrollCollapse.progress
-            ) {
-                dismiss()
-            }
-
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    TTHomeScrollCollapseProbe(model: scrollCollapse, space: scrollSpace)
-
-                    VStack(alignment: .leading, spacing: 12) {
-                        overviewCard
-                        managePlanCard
-
-                        sectionLabel("Assigned & status")
-                        assignmentAnalyticsCard
-
-                        if plan.scheduledDays.isEmpty {
-                            sectionLabel("Exercise plan")
-                            ForEach(Array(plan.exercises.enumerated()), id: \.element.id) { index, item in
-                                ExercisePrescriptionCard(index: index + 1, item: item)
-                            }
-                        } else {
-                            ForEach(plan.scheduledDays) { day in
-                                PlanDayDetailCard(day: day)
-                            }
-                        }
-
-                        if let trainer = store.currentTrainer {
-                            sectionLabel("Assign")
-                            assignCard(trainer: trainer)
-                        }
-
-                        if let actionError {
-                            Text(actionError)
-                                .font(TTFont.caption(13))
-                                .foregroundStyle(TTColor.danger)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 24)
+        // Header is drawn over the scroll view; the content size never depends on its collapse.
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: plan.title, collapseProgress: progress) {
+                    dismiss()
                 }
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-            .ttObserveHomeScrollCollapse(scrollCollapse, space: scrollSpace)
+        ) {
+            VStack(alignment: .leading, spacing: 12) {
+                overviewCard
+                managePlanCard
+
+                sectionLabel("Assigned & status")
+                assignmentAnalyticsCard
+
+                if plan.scheduledDays.isEmpty {
+                    sectionLabel("Exercise plan")
+                    ForEach(Array(plan.exercises.enumerated()), id: \.element.id) { index, item in
+                        ExercisePrescriptionCard(index: index + 1, item: item)
+                    }
+                } else {
+                    ForEach(plan.scheduledDays) { day in
+                        PlanDayDetailCard(day: day)
+                    }
+                }
+
+                if let trainer = store.currentTrainer {
+                    sectionLabel("Assign")
+                    assignCard(trainer: trainer)
+                }
+
+                if let actionError {
+                    Text(actionError)
+                        .font(TTFont.caption(13))
+                        .foregroundStyle(TTColor.danger)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 16)
+            .padding(.bottom, 24)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()

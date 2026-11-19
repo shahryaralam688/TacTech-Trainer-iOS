@@ -22,6 +22,9 @@ final class AppStore {
     var formReports: [FormReport] = []
     var foodCatalog: [FoodKnowledge] = SeedData.foodCatalog
     var isRestoringSession = true
+    /// The launch restore failed for a reason that is NOT a rejected sign-in (no connection, timeout, server error).
+    /// The tokens are kept; the splash offers Retry. Only meaningful while `isRestoringSession` is true.
+    var launchConnectionFailed = false
     var assessmentCompleted = false
     var profileSetupCompleted = false
     /// Interactive login/signup in flight — keep auth UI until gates + workspace resolve (no splash replay).
@@ -127,7 +130,21 @@ final class AppStore {
 
     init() {
         pendingBoostCheckout = Self.loadPendingBoost()
-        Task { await restoreIfNeeded() }
+        restoreTask = Task { await restoreIfNeeded() }
+    }
+
+    /// The launch restore currently running (cancelled and replaced by `retryLaunchRestore`).
+    @ObservationIgnored private var restoreTask: Task<Void, Never>?
+
+    /// Retry on the launch error state: drop the stuck request and send the same restore again.
+    func retryLaunchRestore() {
+        restoreTask?.cancel()
+        launchConnectionFailed = false
+        isRestoringSession = true
+        restoreTask = Task {
+            await AuthTokenRefresher.shared.cancelInFlightRefresh()
+            await restoreIfNeeded()
+        }
     }
 
     /// Canvas / Xcode Previews — skips network restore and loads demo data.
@@ -143,8 +160,10 @@ final class AppStore {
     }
 
     func restoreIfNeeded() async {
-        defer { isRestoringSession = false }
-        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else {
+            isRestoringSession = false
+            return
+        }
         do {
             try await AuthTokenRefresher.shared.refreshIfExpiring()
             try await refreshSession()
@@ -152,8 +171,19 @@ final class AppStore {
             scheduleCoachMemorySync()
             await AuthTokenRefresher.shared.scheduleProactiveRefresh()
             await LocalizationController.shared.pullFromServer()
+            launchConnectionFailed = false
+            isRestoringSession = false
         } catch {
-            clearLocalSession()
+            // Superseded by a Retry: the new attempt owns the state.
+            if Task.isCancelled { return }
+            if TokenStore.accessToken() == nil && TokenStore.refreshToken() == nil {
+                // The server really rejected the sign-in (401 after a refresh already cleared the tokens): sign out.
+                clearLocalSession()
+                isRestoringSession = false
+            } else {
+                // No connection, timeout or a server error: NEVER sign the user out and keep the tokens.
+                launchConnectionFailed = true
+            }
         }
     }
 

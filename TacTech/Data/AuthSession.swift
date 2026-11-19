@@ -38,7 +38,7 @@ actor AuthTokenRefresher {
             )
         }
         inFlight = task
-        defer { inFlight = nil }
+        defer { if inFlight == task { inFlight = nil } }
         do {
             try await task.value
             scheduleProactiveRefresh()
@@ -74,6 +74,13 @@ actor AuthTokenRefresher {
         }
     }
 
+    /// Launch Retry: drop a refresh that is stuck on an unreachable server so the retry sends a fresh request.
+    /// Cancelling never touches the stored tokens.
+    func cancelInFlightRefresh() {
+        inFlight?.cancel()
+        inFlight = nil
+    }
+
     func cancelProactiveRefresh() {
         proactiveTask?.cancel()
         proactiveTask = nil
@@ -106,6 +113,8 @@ actor AuthTokenRefresher {
             throw AppError.unauthorized
         }
         guard (200...299).contains(http.statusCode) else {
+            // A server or gateway error says nothing about the refresh token: keep the tokens, report the error.
+            if http.statusCode >= 500 { throw AppError.api("Server error (\(http.statusCode)).") }
             TokenStore.clear()
             throw Self.mapRefreshFailure(data: data)
         }

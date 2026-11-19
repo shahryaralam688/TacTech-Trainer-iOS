@@ -1,8 +1,21 @@
 import SwiftUI
 
+/// How long the splash waits for the backend before it shows "Can't reach the server" with Retry.
+private let launchServerWaitLimit: Duration = .seconds(8)
+
 struct AppRootView: View {
     @Environment(AppStore.self) private var store
     @State private var splashElapsed = false
+    /// The 8 s wait ran out while the launch restore was still pending.
+    @State private var launchWaitedTooLong = false
+    /// Bumped by Retry: restarts the 8 s wait.
+    @State private var launchAttempt = 0
+
+    /// Splash replaced by the calm "Can't reach the server" state. The restore keeps running underneath, so if the
+    /// server answers late the app simply continues.
+    private var showsConnectionError: Bool {
+        store.isRestoringSession && (store.launchConnectionFailed || launchWaitedTooLong)
+    }
 
     /// Cold launch only — never replay splash after interactive login/signup.
     private var showsSplash: Bool {
@@ -36,8 +49,17 @@ struct AppRootView: View {
             .opacity(showsSplash ? 0 : 1)
 
             if showsSplash {
-                SplashView()
+                if showsConnectionError {
+                    LaunchConnectionErrorView {
+                        launchWaitedTooLong = false
+                        launchAttempt += 1
+                        store.retryLaunchRestore()
+                    }
                     .transition(.opacity)
+                } else {
+                    SplashView()
+                        .transition(.opacity)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.32), value: showsSplash)
@@ -58,6 +80,12 @@ struct AppRootView: View {
                 HumanCallStore.shared.startMonitoring()
                 NotificationStore.shared.start()
             }
+        }
+        // Splash look unchanged until the wait limit passes; Retry restarts the wait.
+        .task(id: launchAttempt) {
+            try? await Task.sleep(for: launchServerWaitLimit)
+            guard !Task.isCancelled, store.isRestoringSession else { return }
+            launchWaitedTooLong = true
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))

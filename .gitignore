@@ -29,3 +29,6 @@ Carthage/Build/
 *~
 .idea/
 .design-refs/
+
+# Local backend address for development (see APIConfig.swift) — never committed
+LocalConfig/

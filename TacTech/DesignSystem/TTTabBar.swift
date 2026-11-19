@@ -519,6 +519,13 @@ private struct TTBubbleCenterButton: View {
         .accessibilityLabel("Open quick actions")
         .accessibilityHint("AI assistant, create plan, assign, or view assignments")
         .accessibilityFocused($focused)
+        // Report where this button really is, so the menu's "+" is drawn on exactly the same spot.
+        .onGeometryChange(for: CGPoint.self) { proxy in
+            let f = proxy.frame(in: .global)
+            return CGPoint(x: f.midX, y: f.midY)
+        } action: { p in
+            if engine.buttonCenter != p, !engine.presented { engine.buttonCenter = p }
+        }
         #if canImport(UIKit)
         // Bubble menu closed: VoiceOver focus goes back to the centre button.
         .onChange(of: menuOpen) { old, new in

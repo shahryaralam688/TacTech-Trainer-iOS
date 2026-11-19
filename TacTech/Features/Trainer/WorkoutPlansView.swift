@@ -1426,14 +1426,17 @@ func trainerListHeader(
     isMenuOpen: Bool = false,
     accessibilityLabel: String? = nil,
     trailingTitle: String? = nil,
+    showsCopyFeedback: Bool = false,
     onClose: (() -> Void)? = nil,
     action: @escaping () -> Void
 ) -> some View {
     let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
     let p = min(1, max(0, collapseProgress))
     let expand = 1 - p
-    let compactHeight: CGFloat = 64
-    let headerHeight = compactHeight + (TTDarkPageHeader.cardHeight - compactHeight) * expand
+    /// Same header metrics as Home (TTHomeProfileHeader: 168 expanded, 66 compact) so Home, Plans, and Chat match exactly.
+    let compactHeight: CGFloat = 66
+    let expandedHeight: CGFloat = 168
+    let headerHeight = compactHeight + (expandedHeight - compactHeight) * expand
 
     VStack(alignment: .leading, spacing: 10 * expand) {
         HStack(alignment: .center) {
@@ -1462,7 +1465,13 @@ func trainerListHeader(
 
             Button(action: action) {
                 HStack(spacing: 6) {
-                    TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
+                    if showsCopyFeedback {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 16 - 2 * p, weight: .bold))
+                            .foregroundStyle(.white)
+                    } else {
+                        TTIcon(icon: trailingIcon, filled: true, size: 18 - 2 * p)
+                    }
                     if let trailingTitle {
                         Text(LocalizedStringKey(trailingTitle))
                             .font(TTFont.workSans(15, weight: .semibold))
@@ -1474,9 +1483,10 @@ func trainerListHeader(
                     .padding(.horizontal, trailingTitle == nil ? 0 : 14)
                     .frame(minWidth: 44 - 4 * p, minHeight: 44 - 4 * p)
                     .frame(width: trailingTitle == nil ? 44 - 4 * p : nil, height: 44 - 4 * p)
-                    .background(isMenuOpen ? Color.black : TTColor.actionOrange)
+                    .background(showsCopyFeedback ? TTColor.accent : (isMenuOpen ? Color.black : TTColor.actionOrange))
                     .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
                     .animation(.spring(response: 0.36, dampingFraction: 0.82), value: isMenuOpen)
+                    .animation(.easeInOut(duration: 0.2), value: showsCopyFeedback)
             }
             .buttonStyle(.plain)
             .modifier(TTOptionalAccessibilityLabel(label: accessibilityLabel))

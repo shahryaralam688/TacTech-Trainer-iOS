@@ -27,6 +27,7 @@ struct MyTraineesView: View {
     @State private var selectedTrainee: TraineeProfile?
     @State private var showJoinRequests = false
     @State private var showShareSheet = false
+    @State private var searchVisible = true
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -56,29 +57,36 @@ struct MyTraineesView: View {
 
     var body: some View {
         NavigationStack {
-            // Header is drawn over the scroll view; the content size never depends on its collapse.
-            TTCollapsingHeaderScreen(
-                sheetFill: canvas,
-                headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
-                topRadius: { _ in TTSheetChrome.pageTopRadius },
-                header: { progress in rosterHeader(progress: progress) }
-            ) {
-                VStack(alignment: .leading, spacing: 12) {
-                    if let code = inviteCode {
-                        inviteBanner(code: code)
-                    }
-
-                    // Hidden at 0 pending; Home's join-requests card still opens the same screen.
-                    if pendingRequestCount > 0 {
-                        Button {
-                            showJoinRequests = true
-                        } label: {
-                            joinRequestsEntry
+            ScrollViewReader { proxy in
+                // Header is drawn over the scroll view; the content size never depends on its collapse.
+                // The pinned controls row sticks directly under the *collapsed* header.
+                TTCollapsingHeaderScreen(
+                    sheetFill: canvas,
+                    headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+                    topRadius: { _ in TTSheetChrome.pageTopRadius },
+                    pinsBelowCollapsedHeader: true,
+                    topAnchorID: "traineesTop",
+                    header: { progress in rosterHeader(progress: progress) }
+                ) {
+                    LazyVStack(alignment: .leading, spacing: 12, pinnedViews: [.sectionHeaders]) {
+                        if let code = inviteCode {
+                            inviteBanner(code: code)
+                                .padding(.horizontal, 16)
+                                .padding(.top, 16)
                         }
-                        .buttonStyle(.plain)
-                    }
 
-                    if allTrainees.count > 6 {
+                        // Hidden at 0 pending; Home's join-requests card still opens the same screen.
+                        if pendingRequestCount > 0 {
+                            Button {
+                                showJoinRequests = true
+                            } label: {
+                                joinRequestsEntry
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 16)
+                            .padding(.top, inviteCode == nil ? 16 : 0)
+                        }
+
                         TTSearchEntryPill(
                             placeholder: TTSearchCopy.trainees.pillPlaceholder,
                             query: displayQuery,
@@ -86,28 +94,31 @@ struct MyTraineesView: View {
                         ) {
                             showSearch = true
                         }
-                    }
+                        .padding(.horizontal, 16)
+                        .padding(.top, (inviteCode == nil && pendingRequestCount == 0) ? 16 : 0)
+                        .onAppear { searchVisible = true }
+                        .onDisappear { searchVisible = false }
 
-                    if allTrainees.count >= 2 {
-                        filterChips
-                    }
-
-                    if filtered.isEmpty {
-                        emptyCard
-                    } else {
-                        ForEach(filtered) { trainee in
-                            Button {
-                                selectedTrainee = trainee
-                            } label: {
-                                traineeRow(trainee)
+                        if allTrainees.count >= 2 {
+                            Section {
+                                traineesListContent
+                                    .padding(.horizontal, 16)
+                                    .padding(.bottom, 24)
+                            } header: {
+                                pinnedControls(proxy: proxy)
                             }
-                            .buttonStyle(.plain)
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if isFiltering {
+                                    statusLine
+                                }
+                                traineesListContent
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.bottom, 24)
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 24)
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
@@ -129,6 +140,7 @@ struct MyTraineesView: View {
                 isPresented: $showSearch,
                 catalog: searchCatalog,
                 namespace: searchNS,
+                refined: true,
                 onOutcome: handleSearchOutcome
             )
             .task {
@@ -256,25 +268,109 @@ struct MyTraineesView: View {
         )
     }
 
-    private var filterChips: some View {
+    private var isFiltering: Bool {
+        !query.isEmpty || goalFilter != nil
+    }
+
+    @ViewBuilder
+    private var statusLine: some View {
         HStack(spacing: 8) {
-            ForEach(TraineeRosterFilter.allCases) { option in
-                let selected = rosterFilter == option
-                Button { rosterFilter = option } label: {
-                    Text(option.title)
-                        .font(TTFont.workSans(14, weight: .semibold))
-                        .foregroundStyle(selected ? .white : TTColor.ink)
-                        .padding(.horizontal, 14)
-                        .frame(height: 40)
-                        .background(selected ? Color.black : cardFill)
-                        .clipShape(Capsule())
-                        .frame(minHeight: 44)
-                        .contentShape(Rectangle())
+            Text(
+                goalFilter != nil
+                    ? String(localized: "Goal: \(goalFilter!) · \(filtered.count) of \(allTrainees.count) trainees")
+                    : String(localized: "Search: \(query) · \(filtered.count) of \(allTrainees.count) trainees")
+            )
+            .font(TTFont.workSans(13, weight: .medium))
+            .foregroundStyle(TTColor.inkMuted)
+            .lineLimit(1)
+            .truncationMode(.middle)
+
+            Spacer(minLength: 8)
+
+            Button("Clear") {
+                query = ""
+                goalFilter = nil
+            }
+            .font(TTFont.workSans(14, weight: .semibold))
+            .foregroundStyle(TTColor.actionOrange)
+            .frame(minWidth: 44, minHeight: 44)
+        }
+    }
+
+    private func pinnedControls(proxy: ScrollViewProxy) -> some View {
+        let scrolledUnder = !searchVisible
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                if !searchVisible {
+                    Button {
+                        // Bring the search bar back to its place first, then open from there.
+                        proxy.scrollTo("traineesTop", anchor: .top)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { showSearch = true }
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Search trainees")
+                }
+
+                filterChips
+
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 44)
+
+            if isFiltering {
+                statusLine
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TTColor.ink.opacity(0.08))
+                .frame(height: 1)
+                .opacity(scrolledUnder ? 1 : 0)
+        }
+    }
+
+    private var filterChips: some View {
+        ForEach(TraineeRosterFilter.allCases) { option in
+            let selected = rosterFilter == option
+            Button { rosterFilter = option } label: {
+                Text(option.title)
+                    .font(TTFont.workSans(14, weight: .semibold))
+                    .foregroundStyle(selected ? .white : TTColor.ink)
+                    .padding(.horizontal, 14)
+                    .frame(height: 40)
+                    .background(selected ? Color.black : cardFill)
+                    .clipShape(Capsule())
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(selected ? .isSelected : [])
+        }
+    }
+
+    @ViewBuilder
+    private var traineesListContent: some View {
+        if filtered.isEmpty {
+            emptyCard
+        } else {
+            ForEach(filtered) { trainee in
+                Button {
+                    selectedTrainee = trainee
+                } label: {
+                    traineeRow(trainee)
                 }
                 .buttonStyle(.plain)
-                .accessibilityAddTraits(selected ? .isSelected : [])
             }
-            Spacer(minLength: 0)
         }
     }
 

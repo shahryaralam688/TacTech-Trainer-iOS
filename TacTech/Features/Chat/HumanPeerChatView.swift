@@ -45,6 +45,9 @@ struct HumanPeerChatView: View {
     @State private var hasFinishedInitialLoad = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ttRootTabBarClearance) private var tabBarClearance
+    @State private var codeCopied = false
+    @State private var copyResetTask: Task<Void, Never>?
 
     private let orange = TTColor.actionOrange
     private let ink = Color.black
@@ -291,16 +294,23 @@ struct HumanPeerChatView: View {
 
     /// Tab layout: AI Coach pinned on top, then everyone you can message.
     private var embeddedInbox: some View {
-        VStack(spacing: 0) {
-            trainerListHeader(
-                title: "Chat",
-                subtitle: "AI Coach and your athletes",
-                trailingIcon: .userPlus,
-                accessibilityLabel: "Invite and manage trainees"
-            ) {
-                onOpenRoster?()
+        TTCollapsingHeaderScreen(
+            sheetFill: Color(white: 0.97),
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                trainerListHeader(
+                    title: "Chat",
+                    subtitle: "AI Coach and your athletes",
+                    trailingIcon: .userPlus,
+                    collapseProgress: progress,
+                    accessibilityLabel: "Copy trainer invite code",
+                    showsCopyFeedback: codeCopied
+                ) {
+                    copyTrainerCode()
+                }
             }
-
+        ) {
             VStack(alignment: .leading, spacing: 12) {
                 if let onOpenAICoach {
                     aiCoachRow(action: onOpenAICoach)
@@ -321,14 +331,67 @@ struct HumanPeerChatView: View {
                 }
                 .padding(.top, 4)
 
-                inboxBody
+                inboxEmbeddedList
             }
             .padding(.horizontal, 16)
             .padding(.top, 16)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: Color(white: 0.97))
+            .padding(.bottom, tabBarClearance + 32)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+    }
+
+    private func copyTrainerCode() {
+        guard let code = appStore.currentTrainer?.inviteCode, !code.isEmpty else {
+            // Fallback to opening roster if no code is present
+            onOpenRoster?()
+            return
+        }
+        UIPasteboard.general.string = code
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Invite code copied"))
+        capabilityToast = TTToastMessage(text: "Invite code copied")
+        if reduceMotion {
+            codeCopied = true
+        } else {
+            withAnimation(.easeInOut(duration: 0.15)) { codeCopied = true }
+        }
+        copyResetTask?.cancel()
+        copyResetTask = Task {
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                if reduceMotion {
+                    codeCopied = false
+                } else {
+                    withAnimation(.easeInOut(duration: 0.15)) { codeCopied = false }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var inboxEmbeddedList: some View {
+        if peers.isEmpty {
+            if hasFinishedInitialLoad {
+                emptyInbox
+                    .frame(minHeight: 220)
+            } else {
+                inboxLoading
+                    .frame(minHeight: 180)
+            }
+        } else {
+            LazyVStack(spacing: 10) {
+                ForEach(peers) { peer in
+                    Button {
+                        selectedPeerId = peer.id
+                        Task { await chatStore.openThread(peer) }
+                    } label: {
+                        inboxRow(peer)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     private func aiCoachRow(action: @escaping () -> Void) -> some View {

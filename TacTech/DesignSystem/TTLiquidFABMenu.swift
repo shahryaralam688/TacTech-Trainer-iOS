@@ -494,6 +494,10 @@ enum TTBubbleArt {
     static let bubbleRadius: CGFloat = 27
     static let arcRadius: CGFloat = 104
     static let glowRadius: CGFloat = 86
+    /// "+" grows by this much (14%) when the menu is fully open; position never changes.
+    static func openGrow(_ master: Double) -> CGFloat {
+        1 + 0.14 * CGFloat(min(max(master, 0), 1))
+    }
     /// Counter-clockwise from +x, screen y up: AI upper left, Chat straight up, Workout Plan upper right.
     static let anglesDegrees: [Double] = [155, 90, 25]
 
@@ -682,6 +686,9 @@ final class TTBubbleEngine {
     var frame = 0
     /// True from the moment the menu starts opening until the close has finished.
     var presented = false
+    /// Real on-screen centre of the bar's "+" (global coordinates), measured by the bar button itself.
+    /// The menu draws its "+" exactly here, so there is no second, separately calculated position.
+    var buttonCenter: CGPoint?
 
     // Everything else is plain stored state (not observed).
     @ObservationIgnored private(set) var phase: Phase = .closed
@@ -767,7 +774,7 @@ final class TTBubbleEngine {
         startLink()
         onOpened?()
         #if DEBUG || PERF_TEMP
-        PerfBubbleLog.present(driver: isDriverRunning, phase: "\(phase)", reduceMotion: reduceMotion, isPresented: presented) // PERF-TEMP
+        PerfBubbleLog.present(driver: isDriverRunning, phase: "\(phase)", reduceMotion: reduceMotion, isPresented: presented, barButton: buttonCenter) // PERF-TEMP
         let c = PerfBubbleLog.center
         PerfBubbleLog.scheduleSnapshots { [weak self] in self?.debugSnapshot(center: c) ?? "" } // PERF-TEMP
         #endif
@@ -916,7 +923,8 @@ private struct TTBubbleBaseView: View {
     var body: some View {
         let _ = engine.frame
         TTCenterSquareFace(glyphDegrees: 45 * TTBubbleArt.clamp(engine.masterX, 0, 1.1))
-            .scaleEffect(CGFloat(engine.pressX))
+            // Stays exactly where the bar's "+" is; it only grows a little while the menu is open.
+            .scaleEffect(CGFloat(engine.pressX) * TTBubbleArt.openGrow(engine.masterX))
             .opacity(engine.presented ? 1 : 0)
     }
 }
@@ -991,7 +999,7 @@ private struct TTBubbleCanvas: View {
         let c = center
         let layer = engine.fade
         let mm = TTBubbleArt.clamp(engine.masterX, 0, 1)
-        let r1 = TTBubbleArt.buttonRadius * CGFloat(engine.pressX) // inscribed circle of the rounded square
+        let r1 = TTBubbleArt.buttonRadius * CGFloat(engine.pressX) * TTBubbleArt.openGrow(engine.masterX) // inscribed circle of the rounded square
 
         // Scrim: flat black 45%.
         if engine.scrim > 0.001 {
@@ -1090,8 +1098,9 @@ struct TTBubbleMenuOverlay: View {
             // Same frame source as the old overlay: FAB bottom edge = safe-area bottom + bottomReserve above the screen bottom.
             let bottomOffset = geo.safeAreaInsets.bottom + bottomReserve
             GeometryReader { full in
-                let c = CGPoint(x: full.size.width / 2,
-                                y: full.size.height - bottomOffset - TTBubbleArt.buttonRadius)
+                let calculated = CGPoint(x: full.size.width / 2,
+                                         y: full.size.height - bottomOffset - TTBubbleArt.buttonRadius)
+                let c = engine.buttonCenter ?? calculated
                 #if DEBUG || PERF_TEMP
                 let _ = { PerfBubbleLog.canvasSize = full.size; PerfBubbleLog.center = c }() // PERF-TEMP
                 #endif

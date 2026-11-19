@@ -2019,8 +2019,8 @@ enum PerfBubbleLog { // PERF-TEMP
 
     static func line(_ text: String) { print("PERF-TEMP bubbles: \(text)") }
 
-    static func present(driver: Bool, phase: String, reduceMotion: Bool, isPresented: Bool) {
-        line("present phase=\(phase) driver=\(driver ? "started" : "NOT started") reduceMotion=\(reduceMotion) isPresented=\(isPresented) canvas=\(Int(canvasSize.width))x\(Int(canvasSize.height)) centre=(\(Int(center.x)),\(Int(center.y)))")
+    static func present(driver: Bool, phase: String, reduceMotion: Bool, isPresented: Bool, barButton: CGPoint?) {
+        line("present phase=\(phase) driver=\(driver ? "started" : "NOT started") reduceMotion=\(reduceMotion) isPresented=\(isPresented) canvas=\(Int(canvasSize.width))x\(Int(canvasSize.height)) computedCentre=(\(Int(center.x)),\(Int(center.y))) barButtonCentre=\(barButton.map { "(\(Int($0.x)),\(Int($0.y)))" } ?? "none")")
     }
 
     /// Prints "+100ms / +300ms / +700ms" progress and positions.

@@ -307,6 +307,7 @@ struct TTSearchOverlay: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         .ignoresSafeArea(.container)
+        .perfTempScreen("Plans search") // PERF-TEMP
         .onAppear(perform: present)
         .onDisappear { debounceTask?.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in

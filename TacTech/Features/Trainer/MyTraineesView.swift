@@ -111,6 +111,7 @@ struct MyTraineesView: View {
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
+            .perfTempScreen("My Trainees") // PERF-TEMP
             .ttSyncRootTabBarWithNavigationDepth()
             .navigationDestination(item: $selectedTrainee) { trainee in
                 TraineeDetailView(trainee: trainee)

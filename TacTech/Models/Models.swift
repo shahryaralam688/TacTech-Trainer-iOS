@@ -459,17 +459,20 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
     var setNumber: Int
     var reps: Int
     var weightKg: Double
+    /// Only present on live-session sets (`SessionSetOut.finished_at`); nil for sets of finished logs.
+    var finishedAt: Date?
 
     enum CodingKeys: String, CodingKey {
-        case id, exerciseId, setNumber, reps, weightKg
+        case id, exerciseId, setNumber, reps, weightKg, finishedAt
     }
 
-    init(id: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double) {
+    init(id: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double, finishedAt: Date? = nil) {
         self.id = id
         self.exerciseId = exerciseId
         self.setNumber = setNumber
         self.reps = reps
         self.weightKg = weightKg
+        self.finishedAt = finishedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -478,6 +481,7 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
         setNumber = try c.decode(Int.self, forKey: .setNumber)
         reps = try c.decode(Int.self, forKey: .reps)
         weightKg = try c.decodeIfPresent(Double.self, forKey: .weightKg) ?? 0
+        finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
         id = try c.decodeIfPresent(String.self, forKey: .id)
             ?? "\(exerciseId)-\(setNumber)-\(reps)-\(weightKg)"
     }

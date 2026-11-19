@@ -22,6 +22,9 @@ struct TrainerRootView: View {
     @State private var mounted: Set<TrainerTab> = [.dashboard]
     @State private var showAIChat = false
     @State private var showLiquidMenu = false
+    /// State of the liquid-bubble menu. This view only HOLDS it and never reads its values in `body`, so opening or
+    /// closing the menu re-runs no body here (only the menu's own small views observe it).
+    @State private var bubbleMenu = TTBubbleEngine()
     @State private var showCreatePlan = false
     @State private var showAssignSheet = false
     @State private var showAssignmentsList = false
@@ -48,6 +51,8 @@ struct TrainerRootView: View {
         #if DEBUG || PERF_TEMP
         let _ = PerfTemp.trace("TrainerRootView") { Self._printChanges() } // PERF-TEMP
         #endif
+        // PERF-TEMP switch "Bubble menu (new)": ON = liquid-bubble menu, OFF = the previous pill menu (Release: always ON).
+        let bubbleMenuOn = PerfTemp.on(.bubbleMenu)
         ZStack {
             GeometryReader { geo in
                 let tabClearance = rootTabBarVisible
@@ -120,7 +125,8 @@ struct TrainerRootView: View {
                             aiChatNamespace: aiChatNamespace,
                             isAIChatPresented: showAIChat,
                             isCenterMenuPresented: showLiquidMenu,
-                            liquidFABNamespace: liquidFABNamespace
+                            liquidFABNamespace: bubbleMenuOn ? nil : liquidFABNamespace,
+                            bubbleEngine: bubbleMenuOn ? bubbleMenu : nil
                         )
                         .background(Color.clear)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -131,7 +137,16 @@ struct TrainerRootView: View {
             .ignoresSafeArea(edges: .bottom)
             .modifier(TTRootKeyboardIgnore(enabled: true))
 
-            if showLiquidMenu {
+            if bubbleMenuOn {
+                // Mounted once (never inserted or removed, no transition); draws nothing while closed.
+                TTBubbleMenuOverlay(
+                    engine: bubbleMenu,
+                    actions: TTLiquidFABAction.trainerCenterMenu,
+                    onSelect: handleLiquidAction,
+                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve
+                )
+                .zIndex(50)
+            } else if showLiquidMenu {
                 TTLiquidFABOverlay(
                     isPresented: $showLiquidMenu,
                     actions: TTLiquidFABAction.trainerCenterMenu,
@@ -158,16 +173,18 @@ struct TrainerRootView: View {
         }
         .onChange(of: tab) { _, newTab in
             PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
+            PerfTemp.screenTab("tab: \(newTab)") // PERF-TEMP
             mounted.insert(newTab)
         }
         // Build Plans, Chat and Profile quietly once the app has settled, one at a time, so the first visit
         // doesn't build a whole screen in the middle of the slide. They stay hidden (opacity 0, no touches).
         .task {
+            PerfTemp.screenTab("tab: dashboard") // PERF-TEMP
             try? await Task.sleep(for: .seconds(1.5))
             for next in [TrainerTab.plans, .chat, .profile] {
                 if Task.isCancelled { return }
                 // Wait while the user is busy with the + menu or the AI chat.
-                while showLiquidMenu || showAIChat {
+                while showLiquidMenu || showAIChat || bubbleMenu.presented {
                     try? await Task.sleep(for: .milliseconds(400))
                     if Task.isCancelled { return }
                 }
@@ -229,6 +246,15 @@ struct TrainerRootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
             selectTab(.dashboard)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttWorkoutSessionChanged)) { note in
+            store.handleWorkoutSessionChanged(
+                traineeId: (note.userInfo?["traineeId"] as? String) ?? "",
+                action: (note.userInfo?["action"] as? String) ?? ""
+            )
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .ttRealtimeConnected)) { _ in
+            store.handleRealtimeReconnected()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
             // Trainer 2nd device: soft refresh plans/roster (actor device already updated via REST).
             store.handlePlanAssignmentChanged(
@@ -264,6 +290,13 @@ struct TrainerRootView: View {
     }
 
     private func openLiquidMenu() {
+        if PerfTemp.raw(.bubbleMenu) {
+            // Bubble menu: only its own isolated state changes (no animation transaction, no root state).
+            var transaction = Transaction(animation: nil)
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { bubbleMenu.open() }
+            return
+        }
         withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
             showLiquidMenu = true
         }

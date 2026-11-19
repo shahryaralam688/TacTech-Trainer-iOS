@@ -76,6 +76,7 @@ struct WorkoutHubView: View {
             }
             .background(charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
+            .perfTempScreen("Workout Hub") // PERF-TEMP
             .ttSyncRootTabBarWithNavigationDepth()
             .ttToast($hubToast, bottomInset: 28)
             .task {

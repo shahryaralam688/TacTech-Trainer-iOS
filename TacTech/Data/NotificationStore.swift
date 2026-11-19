@@ -22,6 +22,8 @@ final class NotificationStore {
     private var monitoring = false
     private var seenMessageIds = Set<String>()
     private var seenSessionIds = Set<String>()
+    /// `workout.session.changed` arrives on both socket namespaces; dedupe by sessionId + action + occurredAt.
+    private var seenWorkoutEventKeys: [String] = []
     private let tokenDefaultsKey = "tt.pushDeviceToken"
 
     private(set) var deviceTokenHex: String? {
@@ -119,6 +121,16 @@ final class NotificationStore {
                     traineeUserId: traineeUserId,
                     traineeProfileId: traineeProfileId
                 )
+            case let .workoutSessionChanged(traineeId, sessionId, status, action, occurredAt):
+                let key = "\(sessionId)|\(action)|\(occurredAt)"
+                guard !self.seenWorkoutEventKeys.contains(key) else { break }
+                self.seenWorkoutEventKeys.append(key)
+                if self.seenWorkoutEventKeys.count > 64 { self.seenWorkoutEventKeys.removeFirst(self.seenWorkoutEventKeys.count - 64) }
+                NotificationCenter.default.post(
+                    name: .ttWorkoutSessionChanged,
+                    object: nil,
+                    userInfo: ["traineeId": traineeId, "sessionId": sessionId, "status": status, "action": action]
+                )
             case let .planAssignmentChanged(action, planId, planTitle, _, _, traineeProfileId):
                 Self.postPlanAssignmentChanged(
                     action: action,
@@ -129,6 +141,11 @@ final class NotificationStore {
             default:
                 break
             }
+        }
+        // A reconnect may have missed events — let an open trainee profile refetch (the store decides).
+        realtime.onConnectionChange = { connected in
+            guard connected else { return }
+            NotificationCenter.default.post(name: .ttRealtimeConnected, object: nil)
         }
         realtime.connect()
     }
@@ -717,6 +734,10 @@ extension Notification.Name {
     static let ttOpenRelationshipEnded = Notification.Name("ttOpenRelationshipEnded")
     /// Socket `plan.assignment.changed` / inbox `plan_*` — live assigned-plan sync.
     static let ttPlanAssignmentChanged = Notification.Name("ttPlanAssignmentChanged")
+    /// Socket `workout.session.changed` (deduplicated) — a trainee's live workout changed.
+    static let ttWorkoutSessionChanged = Notification.Name("ttWorkoutSessionChanged")
+    /// The always-on user socket (re)connected.
+    static let ttRealtimeConnected = Notification.Name("ttRealtimeConnected")
     /// Trainee: open Workout tab / hub.
     static let ttOpenWorkoutHub = Notification.Name("ttOpenWorkoutHub")
     /// Boost checkout finished successfully (confirm + refresh done).

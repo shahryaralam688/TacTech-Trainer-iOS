@@ -256,14 +256,7 @@ struct TrainerDashboardView: View {
 
     /// Prefills a friendly opener only when the coach has no draft yet; never sends.
     private func openMessage(_ trainee: TraineeProfile) {
-        let peerId = trainee.userId
-        let name = store.user(forTrainee: trainee)?.name ?? "there"
-        let first = name.split(separator: " ").first.map(String.init) ?? name
-        let existing = HumanChatStore.shared.drafts[peerId] ?? ""
-        if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            HumanChatStore.shared.drafts[peerId] = "Hi \(first), how’s training going?"
-        }
-        chatPeerUserId = peerId
+        chatPeerUserId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
         showChat = true
     }
 
@@ -656,6 +649,23 @@ struct TrainerDashboardView: View {
 
 /// One definition of "where is this trainee today". Pure: no store access.
 /// Precedence matches Home's action queue: done today > session today > no plan > check-in > none.
+/// Shared by Trainer Home and the trainee profile: prepares a chat with a trainee.
+/// Prefills a friendly opener only when the coach has no draft yet; never sends. Returns the peer id —
+/// the trainee's USER id (not the profile id), which is what `HumanPeerChatView(preferredPeerUserId:)` expects.
+@MainActor
+enum TTTraineeChatOpener {
+    static func prepare(for trainee: TraineeProfile, name: String?) -> String {
+        let peerId = trainee.userId
+        let name = name ?? "there"
+        let first = name.split(separator: " ").first.map(String.init) ?? name
+        let existing = HumanChatStore.shared.drafts[peerId] ?? ""
+        if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            HumanChatStore.shared.drafts[peerId] = "Hi \(first), how’s training going?"
+        }
+        return peerId
+    }
+}
+
 enum TraineeTodayStatus: Equatable {
     case doneToday
     /// Only when the assigned plan has a day scheduled for today's weekday; `title` is that day's title.

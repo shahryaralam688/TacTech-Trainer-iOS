@@ -1,23 +1,7 @@
 import Charts
 import SwiftUI
 
-/// History | Analytics | Meals segment content for trainer trainee detail.
-enum TraineeDetailPerformanceTab: String, CaseIterable, Identifiable {
-    case history
-    case analytics
-    case meals
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .history: "History"
-        case .analytics: "Analytics"
-        case .meals: "Meals"
-        }
-    }
-}
-
+/// History and Analytics sections of the trainee profile's Progress tab.
 struct TraineeDetailHistorySection: View {
     @Environment(AppStore.self) private var store
     let trainee: TraineeProfile

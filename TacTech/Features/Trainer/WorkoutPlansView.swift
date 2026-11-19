@@ -125,6 +125,7 @@ struct WorkoutPlansView: View {
             }
             .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
+            .perfTempScreen("Plans list") // PERF-TEMP
             .ttSyncRootTabBarWithNavigationDepth()
             // Select mode hides the floating tab bar and its centre + button; the preference is
             // derived from `isSelecting`, so every way out of the mode (Done, delete, view gone)
@@ -896,6 +897,7 @@ struct WorkoutPlanDetailView: View {
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
+        .perfTempScreen("Plan detail") // PERF-TEMP
         .onAppear {
             if let trainer = store.currentTrainer {
                 selectedTraineeId = store.trainees(for: trainer).first?.id ?? ""

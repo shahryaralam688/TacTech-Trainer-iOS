@@ -134,6 +134,7 @@ struct TraineeRootView: View {
         }
         .onChange(of: tab) { _, newTab in
             PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
+            PerfTemp.screenTab("tab: \(newTab)") // PERF-TEMP
             mounted.insert(newTab)
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in

@@ -2,8 +2,8 @@ import Foundation
 
 enum APIConfig {
     // static let baseURL = URL(string: "https://sheryl-biocellate-sympathizingly.ngrok-free.dev")!
-    static let baseURL = URL(string: "http://192.168.18.32:8000")!
-
+    static let baseURL = URL(string: "http://192.168.100.239:8000")!
+    
     static let skipBrowserWarningHeader = "ngrok-skip-browser-warning"
     static let skipBrowserWarningValue = "true"
 

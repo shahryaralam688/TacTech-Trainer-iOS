@@ -59,6 +59,10 @@ targets:
         NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         UIUserInterfaceStyle: Automatic
         CADisableMinimumFrameRateDuration: true
+        CFBundleURLTypes:
+          - CFBundleURLName: com.tactech.trainer.billing
+            CFBundleURLSchemes:
+              - tactech
         UIAppFonts:
           - WorkSans-Regular.ttf
           - WorkSans-Medium.ttf

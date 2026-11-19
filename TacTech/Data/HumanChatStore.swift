@@ -935,7 +935,7 @@ final class HumanChatStore {
             break
         case .notificationCreated(let note):
             NotificationStore.shared.handleCreated(note)
-        case .relationshipChanged, .planAssignmentChanged:
+        case .relationshipChanged, .planAssignmentChanged, .workoutSessionChanged:
             // NotificationStore keepalive owns relationship / plan sync (separate socket).
             break
         }

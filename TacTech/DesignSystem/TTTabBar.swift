@@ -41,9 +41,16 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     var isAIChatPresented: Bool = false
     var isCenterMenuPresented: Bool = false
     var liquidFABNamespace: Namespace.ID? = nil
+    /// Liquid-bubble menu (trainer). When set, the centre button observes ONLY this small object (not the screen's
+    /// state) to hide itself while the menu is open, so opening the menu re-runs no other body. Default nil = original behaviour.
+    var bubbleEngine: TTBubbleEngine? = nil
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if canImport(UIKit)
+    /// One generator for the centre button (medium), prepared on appear and after each use.
+    @State private var centerHaptic = TTCenterHaptic()
+    #endif
 
     // 8pt grid — base 375×812; outer margin 16; micro 2/4/6; scale 8/16/32/64.
     private let barHeight: CGFloat = TTSpace.s64
@@ -81,15 +88,17 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            GeometryReader { geo in
-                let fabFrame = Self.fabFrameInChrome(
-                    containerWidth: geo.size.width,
-                    fabLift: fabLift,
-                    centerSize: centerSize,
-                    notchDepth: notchDepth,
-                    notchGap: notchGap
-                )
+            // No GeometryReader / .position: the centre button lives in the same layout pass as the bar, so it
+            // moves with the bar (slide-in, tab change) and never lags behind or jumps into place.
+            let fabTop = Self.fabFrameInChrome(
+                containerWidth: 0,
+                fabLift: fabLift,
+                centerSize: centerSize,
+                notchDepth: notchDepth,
+                notchGap: notchGap
+            ).minY
 
+            do {
                 ZStack(alignment: .top) {
                     capsuleBar
                         .padding(.horizontal, horizontalInset)
@@ -112,9 +121,20 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                     .padding(.horizontal, horizontalInset + TTSpace.micro6)
                     .padding(.top, fabLift)
 
-                    centerButton
+                    Group {
+                        if let bubbleEngine {
+                            TTBubbleCenterButton(
+                                engine: bubbleEngine,
+                                isAIChatPresented: isAIChatPresented,
+                                onCenterTap: onCenterTap
+                            )
+                        } else {
+                            centerButton
+                        }
+                    }
                         .frame(width: centerSize, height: centerSize)
-                        .position(x: fabFrame.midX, y: fabFrame.midY)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, fabTop)
                 }
             }
             .frame(height: fabLift + barHeight)
@@ -252,27 +272,25 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
     private var centerButton: some View {
         Button {
+            #if DEBUG || PERF_TEMP
+            PlusTapProbe.shared.action(menu: isCenterMenuPresented, chat: isAIChatPresented) // PERF-TEMP
+            #endif
+            // Already opening/open (or AI chat up): ignore — no second open, no second haptic.
+            guard !isCenterMenuPresented, !isAIChatPresented else { return }
             #if canImport(UIKit)
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            centerHaptic.fire()
             #endif
             onCenterTap()
         } label: {
-            ZStack {
-                RoundedRectangle(cornerRadius: fabCorner, style: .continuous)
-                    .fill(TTColor.actionOrange)
-                    .frame(width: centerSize, height: centerSize)
-                    .shadow(color: TTColor.actionOrange.opacity(0.50), radius: 16, y: 6)
-                    .shadow(color: TTColor.actionOrange.opacity(0.28), radius: 5, y: 2)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: fabCorner, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.28), lineWidth: 0.8)
-                    }
-
-                TTIcon(icon: .plus, filled: false, size: 20)
-                    .foregroundStyle(.white)
-            }
+            TTCenterSquareFace() // the ORIGINAL rounded-square face (same view the bubble overlay draws)
+            // Bigger tap target, no visual change: 64×72 (56×56 + 4 each side + 12 up + 4 down).
+            // 64pt wide = the notch gap exactly, so it never reaches the Plans / Chat buttons.
+            .contentShape(TTCenterHitShape())
         }
         .buttonStyle(TTTabBarCenterPressStyle())
+        #if canImport(UIKit)
+        .onAppear { centerHaptic.prepare() }
+        #endif
         .opacity(isCenterMenuPresented || isAIChatPresented ? 0 : 1)
         .allowsHitTesting(!(isCenterMenuPresented || isAIChatPresented))
         .animation(
@@ -290,6 +308,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
         ))
         .accessibilityLabel("Open quick actions")
         .accessibilityHint("AI assistant, create plan, assign, or view assignments")
+        .perfTempPlusButton(menu: isCenterMenuPresented, chat: isAIChatPresented) // PERF-TEMP
     }
 }
 
@@ -433,6 +452,103 @@ struct TTTabBarNotchShape: Shape {
 }
 
 // MARK: - Center button press
+
+/// The ORIGINAL centre button face (rounded square, orange fill, two shadows, hairline border, "+"), unchanged from the
+/// last commit. Shared by the tab bar and the bubble overlay so the hand-off is identical. `glyphDegrees` turns "+" into "x".
+struct TTCenterSquareFace: View {
+    var glyphDegrees: Double = 0
+    private let side: CGFloat = 56
+    private let corner: CGFloat = TTSpace.s16
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: corner, style: .continuous)
+                .fill(TTColor.actionOrange)
+                .frame(width: side, height: side)
+                .shadow(color: TTColor.actionOrange.opacity(0.50), radius: 16, y: 6)
+                .shadow(color: TTColor.actionOrange.opacity(0.28), radius: 5, y: 2)
+                .overlay {
+                    RoundedRectangle(cornerRadius: corner, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.28), lineWidth: 0.8)
+                }
+
+            TTIcon(icon: .plus, filled: false, size: 20)
+                .foregroundStyle(.white)
+                .rotationEffect(.degrees(glyphDegrees))
+        }
+    }
+}
+
+/// Centre button for the liquid-bubble menu. Same look, hit area, guards and haptic as the bar's own button; the only
+/// difference is that it reads `engine.presented` itself, so the menu opening re-runs just this small view.
+private struct TTBubbleCenterButton: View {
+    let engine: TTBubbleEngine
+    let isAIChatPresented: Bool
+    let onCenterTap: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AccessibilityFocusState private var focused: Bool
+    #if canImport(UIKit)
+    @State private var haptic = TTCenterHaptic()
+    #endif
+
+    var body: some View {
+        let menuOpen = engine.presented // observed: this view only
+        let hidden = menuOpen || isAIChatPresented
+        Button {
+            #if DEBUG || PERF_TEMP
+            PlusTapProbe.shared.action(menu: menuOpen, chat: isAIChatPresented) // PERF-TEMP
+            #endif
+            // Already opening/open (or AI chat up): ignore — no second open, no second haptic.
+            guard !engine.presented, !isAIChatPresented else { return }
+            #if canImport(UIKit)
+            haptic.fire()
+            #endif
+            onCenterTap()
+        } label: {
+            TTCenterSquareFace()
+                // Bigger tap target, no visual change: 64×72 (56×56 + 4 each side + 12 up + 4 down).
+                .contentShape(TTCenterHitShape())
+        }
+        .buttonStyle(TTTabBarCenterPressStyle())
+        #if canImport(UIKit)
+        .onAppear { haptic.prepare() }
+        #endif
+        .opacity(hidden ? 0 : 1)
+        .allowsHitTesting(!hidden)
+        // The menu hand-off is instant (the overlay draws the same square on top); only the AI chat keeps its fade.
+        .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9), value: isAIChatPresented)
+        .accessibilityLabel("Open quick actions")
+        .accessibilityHint("AI assistant, create plan, assign, or view assignments")
+        .accessibilityFocused($focused)
+        #if canImport(UIKit)
+        // Bubble menu closed: VoiceOver focus goes back to the centre button.
+        .onChange(of: menuOpen) { old, new in
+            if old, !new, UIAccessibility.isVoiceOverRunning { focused = true }
+        }
+        #endif
+        .perfTempPlusButton(menu: menuOpen, chat: isAIChatPresented) // PERF-TEMP
+    }
+}
+
+/// Hit-test area of the centre button: the 56pt label plus 4pt left/right, 12pt up, 4pt down.
+private struct TTCenterHitShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX - 4, y: rect.minY - 12, width: rect.width + 8, height: rect.height + 16))
+    }
+}
+
+#if canImport(UIKit)
+/// Holds the single medium impact generator for the centre button.
+final class TTCenterHaptic {
+    private let generator = UIImpactFeedbackGenerator(style: .medium)
+    func prepare() { generator.prepare() }
+    func fire() {
+        generator.impactOccurred()
+        generator.prepare()
+    }
+}
+#endif
 
 private struct TTTabBarCenterPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

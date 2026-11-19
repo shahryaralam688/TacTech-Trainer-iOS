@@ -59,6 +59,16 @@ final class AppStore {
     var activeWorkoutSession: WorkoutSession?
     /// True while fetching or mutating the active session.
     var isLoadingSession = false
+
+    // MARK: Trainer: live "Training now"
+    /// Trainee PROFILE ids with a live workout session (from `workout.session.changed` and fetches).
+    var trainingNowIds: Set<String> = []
+    /// Last known live session per trainee profile id (filled by the trainee profile screen).
+    var liveSessionByTrainee: [String: WorkoutSession] = [:]
+    /// The trainee profile currently open, if any (set by that screen).
+    var openTraineeProfileId: String?
+    @ObservationIgnored private var liveSessionSyncTask: Task<Void, Never>?
+    @ObservationIgnored private var pendingLiveCompletedFor: Set<String> = []
     /// In-flight Finish call (guards against double finish).
     @ObservationIgnored private var completeWorkoutTask: Task<Void, Error>?
 
@@ -906,6 +916,87 @@ final class AppStore {
                 await self.applyPlanAssignmentChanged(action: action, planTitle: title)
             } else if self.session?.role == .trainer {
                 await self.applyTrainerPlanAssignmentChanged(traineeProfileId: profileId)
+            }
+        }
+    }
+
+    // MARK: - Trainer: live workout session
+
+    /// The trainee profile screen tells the store which trainee is open (nil when it closes).
+    @MainActor
+    func setOpenTraineeProfile(_ traineeId: String?) {
+        openTraineeProfileId = traineeId
+    }
+
+    private static func sameSession(_ a: WorkoutSession?, _ b: WorkoutSession?) -> Bool {
+        switch (a, b) {
+        case (nil, nil): return true
+        case let (a?, b?):
+            return a.id == b.id && a.planId == b.planId && a.dayId == b.dayId
+                && a.startedAt == b.startedAt && a.completedAt == b.completedAt && a.sets == b.sets
+        default: return false
+        }
+    }
+
+    /// Fetches and stores one trainee's live session. Writes only when the value changed. A failed fetch
+    /// keeps the last known state (no error surfaced). Never polls — callers trigger it.
+    @MainActor
+    func refreshLiveSession(traineeId: String) async {
+        guard session?.role == .trainer, !traineeId.isEmpty else { return }
+        let fetched: WorkoutSession?
+        do {
+            fetched = try await api.trainerActiveSession(traineeId: traineeId)
+        } catch {
+            return
+        }
+        let live = (fetched?.completedAt == nil) ? fetched : nil
+        if !Self.sameSession(liveSessionByTrainee[traineeId], live) {
+            if let live { liveSessionByTrainee[traineeId] = live } else { liveSessionByTrainee[traineeId] = nil }
+        }
+        if live != nil {
+            if !trainingNowIds.contains(traineeId) { trainingNowIds.insert(traineeId) }
+        } else if trainingNowIds.contains(traineeId) {
+            trainingNowIds.remove(traineeId)
+        }
+    }
+
+    /// `workout.session.changed` (already deduplicated by the socket owner).
+    /// started / set_logged add the trainee to `trainingNowIds`; completed / discarded remove them.
+    /// For the OPEN profile only, bursts within ~400 ms become one refetch; a "completed" event also reloads
+    /// that trainee's logs (existing reload) so the Finished state can appear.
+    @MainActor
+    func handleWorkoutSessionChanged(traineeId: String, action: String) {
+        guard session?.role == .trainer, !traineeId.isEmpty else { return }
+        switch action.lowercased() {
+        case "started", "set_logged":
+            if !trainingNowIds.contains(traineeId) { trainingNowIds.insert(traineeId) }
+        case "completed", "discarded":
+            if trainingNowIds.contains(traineeId) { trainingNowIds.remove(traineeId) }
+            if action.lowercased() == "completed" { pendingLiveCompletedFor.insert(traineeId) }
+        default:
+            break
+        }
+        guard openTraineeProfileId == traineeId else { return }
+        scheduleLiveSessionRefresh(for: traineeId)
+    }
+
+    /// Socket reconnected: an open profile refetches (events may have been missed).
+    @MainActor
+    func handleRealtimeReconnected() {
+        guard session?.role == .trainer, let id = openTraineeProfileId else { return }
+        scheduleLiveSessionRefresh(for: id)
+    }
+
+    @MainActor
+    private func scheduleLiveSessionRefresh(for traineeId: String) {
+        liveSessionSyncTask?.cancel()
+        liveSessionSyncTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
+            await self.refreshLiveSession(traineeId: traineeId)
+            if self.pendingLiveCompletedFor.remove(traineeId) != nil {
+                // Finished state needs the new log.
+                try? await self.refreshTraineePerformance(traineeId: traineeId)
             }
         }
     }

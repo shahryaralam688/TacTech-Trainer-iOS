@@ -456,6 +456,12 @@ struct WorkoutLogBody: Encodable {
 struct WorkoutSessionBody: Encodable {
     var planId: String
     var dayId: String?
+
+    // The backend field is `planDayId` (StartWorkoutSessionRequest.plan_day_id).
+    enum CodingKeys: String, CodingKey {
+        case planId
+        case dayId = "planDayId"
+    }
 }
 
 struct SessionSetBody: Encodable {
@@ -475,7 +481,9 @@ struct WorkoutSession: Decodable, Identifiable {
     var sets: [WorkoutSetLog]
 
     enum CodingKeys: String, CodingKey {
-        case id, planId, dayId, startedAt, completedAt, durationMinutes, sets
+        case id, planId, startedAt, completedAt, durationMinutes, sets
+        // The backend sends `planDayId` (WorkoutSessionOut.plan_day_id).
+        case dayId = "planDayId"
     }
 
     init(from decoder: Decoder) throws {
@@ -1285,6 +1293,21 @@ actor APIClient {
         } catch let error as AppError where error.isNotFound {
             return nil
         }
+        let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if data.isEmpty || text == "null" { return nil }
+        return try decode(WorkoutSession.self, from: data)
+    }
+
+    /// Trainer: the trainee's live workout (`GET /trainer/trainees/{profileId}/sessions/active`).
+    /// `nil` only when the server answers `null` / an empty body (no live session). 403/404 and
+    /// network/decoding errors throw — they are NOT "no session".
+    func trainerActiveSession(traineeId: String) async throws -> WorkoutSession? {
+        let data = try await raw(
+            path: "/trainer/trainees/\(traineeId)/sessions/active",
+            method: .get,
+            body: Optional<EmptyBody>.none,
+            authorized: true
+        )
         let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
         if data.isEmpty || text == "null" { return nil }
         return try decode(WorkoutSession.self, from: data)

@@ -9,6 +9,9 @@ struct TacTechApp: App {
     var body: some Scene {
         WindowGroup {
             AppRootView()
+                #if DEBUG || PERF_TEMP
+                .onAppear { PerfMeter.shared.sync() } // PERF-TEMP: restores the FPS meter if it was left ON
+                #endif
                 .environment(store)
                 .ttAppLocalization()
                 .tint(TTColor.accent)

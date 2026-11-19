@@ -593,6 +593,19 @@ final class TTBubbleEngine {
     static let openMotionScale = 2.0
     static let closeMotionScale = 2.0
 
+    // When the driver stops. The motion is ended as soon as it is VISUALLY settled, not when the last spring has
+    // mathematically come to rest (that tail is invisible but kept the overlay on screen and blocked touches).
+    /// End of the OPEN: every value within 0.5% of its target ...
+    static let openSettleTolerance = 0.005
+    /// ... and nearly stopped (per second). Needed because the open spring overshoots and passes its target at speed.
+    static let openSettleVelocity = 0.05
+    /// End of the CLOSE: every bubble progress below this (a bubble below 0.01 is not drawn, so no neck either) ...
+    static let closeBubbleDoneBelow = 0.01
+    /// ... the scrim opacity below this ...
+    static let closeScrimDoneBelow = 0.02
+    /// ... and the "x" turn / glow (master progress) below this.
+    static let closeMasterDoneBelow = 0.01
+
     /// One damped-spring motion towards `target`, started at `start` (wall-clock) from `x0` with velocity `v0`
     /// (per wall-clock second). `scale` stretches time.
     struct Segment {
@@ -657,6 +670,12 @@ final class TTBubbleEngine {
         mutating func value(at now: CFTimeInterval) -> (x: Double, v: Double) {
             advance(now)
             return cur.eval(at: now)
+        }
+
+        /// Within `tolerance` of the target and slower than `velocity`, with no later motion waiting.
+        mutating func isWithin(_ tolerance: Double, velocity: Double, at now: CFTimeInterval) -> Bool {
+            let s = value(at: now)
+            return next == nil && abs(s.x - cur.target) < tolerance && abs(s.v) < velocity
         }
 
         mutating func settled(at now: CFTimeInterval) -> Bool {
@@ -855,15 +874,29 @@ final class TTBubbleEngine {
         evaluate(at: now)
         frame &+= 1
 
-        var moving = !(scrimTween.done(at: now) && fadeTween.done(at: now)) || reduceClosing
-        if !moving {
-            for i in 0..<3 where !bubbleSprings[i].settled(at: now) { moving = true; break }
-            if !moving, !masterSpring.settled(at: now) || !pressSpring.settled(at: now) { moving = true }
-        }
+        let moving = phase == .closing ? !closeVisuallySettled(now) : !openSettled(now)
         #if DEBUG || PERF_TEMP
         PerfBubbleRecorder.tick(timestamp: link.timestamp, tickMs: (CACurrentMediaTime() - began) * 1000) // PERF-TEMP
         #endif
         if !moving { settle(now) }
+    }
+
+    /// Closing is over when everything is visibly gone: all bubbles, the scrim, and the "x" turn / glow.
+    private func closeVisuallySettled(_ now: CFTimeInterval) -> Bool {
+        if reduceClosing || !fadeTween.done(at: now) { return false }
+        if scrim >= Self.closeScrimDoneBelow || masterX >= Self.closeMasterDoneBelow { return false }
+        for i in 0..<3 where bubbleX[i] >= Self.closeBubbleDoneBelow { return false }
+        return true
+    }
+
+    /// Opening (or resting open) is over when every value is within 0.5% of its target and nearly stopped.
+    private func openSettled(_ now: CFTimeInterval) -> Bool {
+        let tol = Self.openSettleTolerance, vel = Self.openSettleVelocity
+        for i in 0..<3 where !bubbleSprings[i].isWithin(tol, velocity: vel, at: now) { return false }
+        return masterSpring.isWithin(tol, velocity: vel, at: now)
+            && pressSpring.isWithin(tol, velocity: vel, at: now)
+            && abs(scrim - scrimTween.to) < tol
+            && fadeTween.done(at: now)
     }
 
     private func settle(_ now: CFTimeInterval) {
@@ -873,7 +906,7 @@ final class TTBubbleEngine {
         evaluate(at: now)
         stopLink()
         let wasClosing = phase == .closing
-        phase = wasClosing ? .closed : .open
+        if phase != .closed { phase = wasClosing ? .closed : .open }
         #if DEBUG || PERF_TEMP
         PerfBubbleRecorder.end() // PERF-TEMP
         #endif

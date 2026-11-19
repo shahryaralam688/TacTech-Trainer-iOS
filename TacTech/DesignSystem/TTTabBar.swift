@@ -98,8 +98,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                 notchGap: notchGap
             ).minY
 
-            do {
-                ZStack(alignment: .top) {
+            ZStack(alignment: .top) {
                     capsuleBar
                         .padding(.horizontal, horizontalInset)
                         .padding(.top, fabLift)
@@ -135,7 +134,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                         .frame(width: centerSize, height: centerSize)
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.top, fabTop)
-                }
             }
             .frame(height: fabLift + barHeight)
             .frame(maxWidth: .infinity)

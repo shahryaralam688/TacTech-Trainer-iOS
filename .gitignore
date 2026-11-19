@@ -30,5 +30,7 @@ Carthage/Build/
 .idea/
 .design-refs/
 
-# Local backend address for development (see APIConfig.swift) — never committed
-LocalConfig/
+# Local backend address for development (see APIConfig.swift) — never committed.
+# LocalConfig/Shared.xcconfig and LocalConfig/Local.xcconfig.example ARE tracked.
+LocalConfig/Local.xcconfig
+LocalConfig/api-base-url.txt

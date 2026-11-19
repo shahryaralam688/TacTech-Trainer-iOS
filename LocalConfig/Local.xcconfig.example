@@ -1,0 +1,14 @@
+// Copy this file to LocalConfig/Local.xcconfig (git-ignored) and edit the value.
+//
+// TACTECH_API_BASE_URL is baked into the app (Info.plist) so it also works when the app is opened from the
+// iPhone home screen, not only when Xcode launches it. Rebuild after changing it.
+//
+// In an xcconfig, `//` starts a comment, so write the URL as http:/$()/host:8000  (the empty $() keeps the slashes).
+//
+// Use the Mac's Bonjour name (stays the same when the Wi-Fi network changes) or its current LAN IP:
+TACTECH_API_BASE_URL = http:/$()/your-mac-name.local:8000
+//
+// When the Wi-Fi network changes, the Mac gets a new IP address: edit TACTECH_API_BASE_URL in
+// LocalConfig/Local.xcconfig and rebuild. To find the Mac's address, run in Terminal:
+//     ipconfig getifaddr en0      (if that prints nothing, try en1)
+// or open System Settings > Wi-Fi > Details > TCP/IP. The backend must listen on all interfaces (0.0.0.0).

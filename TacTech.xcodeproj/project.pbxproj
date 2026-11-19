@@ -135,6 +135,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		239C589DD9CF55E52580075E /* Shared.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
 		A11A0001A0B1C2D3E4F50617 /* AppLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLanguage.swift; sourceTree = "<group>"; };
 		A11A0002A0B1C2D3E4F50618 /* LocalizationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizationController.swift; sourceTree = "<group>"; };
 		A11A0003A0B1C2D3E4F50619 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
@@ -538,9 +539,18 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		482A29B223A16FFADC24E42B /* LocalConfig */ = {
+			isa = PBXGroup;
+			children = (
+				239C589DD9CF55E52580075E /* Shared.xcconfig */,
+			);
+			path = LocalConfig;
+			sourceTree = "<group>";
+		};
 		FF29E835D8A4CD5D00B3EFF3 = {
 			isa = PBXGroup;
 			children = (
+				482A29B223A16FFADC24E42B /* LocalConfig */,
 				8162B5B3D519838E25B79AEE /* TacTech */,
 				038473BFC514A3ACFC1BE220 /* Products */,
 			);
@@ -754,6 +764,7 @@
 /* Begin XCBuildConfiguration section */
 		117A206FA745D9849ED69ACD /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 239C589DD9CF55E52580075E /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -814,6 +825,7 @@
 		};
 		5370B2799E62706E24B4F932 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 239C589DD9CF55E52580075E /* Shared.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;

@@ -14,10 +14,13 @@ enum APIConfig {
     ///     UNTICK "Shared" (so it stays in git-ignored xcuserdata), then Edit Scheme > Run > Arguments > Environment
     ///     Variables. Works on a device and in the Simulator.
     ///  2. The `TACTECH_API_BASE_URL` user default (for example the launch argument `-TACTECH_API_BASE_URL http://host:8000`).
-    ///  3. Simulator only: the first line of `LocalConfig/api-base-url.txt` in the project folder (git-ignored).
-    ///  4. `fallbackBaseURL`.
+    ///  3. The `TACTECH_API_BASE_URL` value baked into Info.plist at build time from the git-ignored
+    ///     `LocalConfig/Local.xcconfig` (copy `Local.xcconfig.example`). This is the one that also works when the app is
+    ///     opened from the iPhone home screen, because it does not depend on how the app was launched.
+    ///  4. Simulator only: the first line of `LocalConfig/api-base-url.txt` in the project folder (git-ignored).
+    ///  5. `fallbackBaseURL`.
     ///
-    /// TODO(release task): limit 1 to 3 to DEBUG builds before shipping. They are not limited yet so that today's
+    /// TODO(release task): limit 1 to 4 to DEBUG builds before shipping. They are not limited yet so that today's
     /// Release-configuration runs keep working with a local address.
     static let baseURL: URL = resolveBaseURL()
 
@@ -40,6 +43,8 @@ enum APIConfig {
     private static func resolveBaseURL(sourceFile: String = #filePath) -> URL {
         if let value = ProcessInfo.processInfo.environment[overrideKey], let url = validURL(value) { return url }
         if let value = UserDefaults.standard.string(forKey: overrideKey), let url = validURL(value) { return url }
+        // Baked in at build time. Empty (or the unexpanded placeholder) when LocalConfig/Local.xcconfig is missing.
+        if let value = Bundle.main.object(forInfoDictionaryKey: overrideKey) as? String, let url = validURL(value) { return url }
         #if targetEnvironment(simulator)
         // The Simulator can read the Mac's files. `#filePath` is this file's path at build time:
         // <project>/TacTech/Data/APIConfig.swift, so the project folder is three levels up.

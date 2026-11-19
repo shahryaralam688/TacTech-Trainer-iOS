@@ -7,6 +7,10 @@ options:
     iOS: "17.0"
   createIntermediateGroups: true
   defaultConfig: Debug
+# Optional local settings (git-ignored LocalConfig/Local.xcconfig, included with `#include?`): see LocalConfig/Shared.xcconfig.
+configFiles:
+  Debug: LocalConfig/Shared.xcconfig
+  Release: LocalConfig/Shared.xcconfig
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -59,6 +63,9 @@ targets:
         NSPhotoLibraryUsageDescription: TacTech uses your photos for profile pictures and to estimate nutrition from meals.
         UIUserInterfaceStyle: Automatic
         CADisableMinimumFrameRateDuration: true
+        # Development backend address, filled from LocalConfig/Local.xcconfig (empty when that file is missing).
+        TACTECH_API_BASE_URL: $(TACTECH_API_BASE_URL)
+        NSLocalNetworkUsageDescription: TacTech connects to a development server on your local network.
         CFBundleURLTypes:
           - CFBundleURLName: com.tactech.trainer.billing
             CFBundleURLSchemes:

@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameRateDuration</key>
+	<true/>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -18,6 +20,17 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.tactech.trainer.billing</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tactech</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSAppTransportSecurity</key>
@@ -35,21 +48,14 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>TacTech uses the camera for profile photos, body assessment, live form correction, and food scanning.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>TacTech connects to a development server on your local network.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>TacTech uses the microphone for voice notes, live calls, and vocal fitness assessment.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>TacTech uses your photos for profile pictures and to estimate nutrition from meals.</string>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLName</key>
-			<string>com.tactech.trainer.billing</string>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>tactech</string>
-			</array>
-		</dict>
-	</array>
+	<key>TACTECH_API_BASE_URL</key>
+	<string>$(TACTECH_API_BASE_URL)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>WorkSans-Regular.ttf</string>
@@ -66,7 +72,5 @@
 	</array>
 	<key>UIUserInterfaceStyle</key>
 	<string>Automatic</string>
-	<key>CADisableMinimumFrameRateDuration</key>
-	<true/>
 </dict>
 </plist>

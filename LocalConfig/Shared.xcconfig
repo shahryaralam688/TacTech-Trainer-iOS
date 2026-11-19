@@ -1,0 +1,4 @@
+// Shared by the Debug and Release configurations (project.yml > configFiles).
+// Personal settings live in the git-ignored LocalConfig/Local.xcconfig. The `?` makes the include optional,
+// so the project builds when that file does not exist (then TACTECH_API_BASE_URL is empty).
+#include? "Local.xcconfig"

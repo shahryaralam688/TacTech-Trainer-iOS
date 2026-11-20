@@ -476,7 +476,7 @@ private struct TTLiquidFABPillPressStyle: ButtonStyle {
 
 // MARK: - Bubble menu (new presentation: liquid bubbles in an arc above the original rounded-square button)
 //
-// Drawing layer: ONE Canvas (`TTBubbleCanvas`) draws the scrim, glow, necks, bubbles, icons and labels. The button
+// Drawing layer: ONE Canvas (`TTBubbleCanvas`) draws the scrim, glow, necks, bubbles and icons. The button
 // itself is the ORIGINAL rounded square (`TTCenterSquareFace`, the same view the tab bar uses), drawn above the Canvas
 // at exactly the bar button's frame. No blur, no material, no contrast filter, no repeating animation.
 //
@@ -916,17 +916,6 @@ final class TTBubbleEngine {
     }
 }
 
-private extension TTLiquidFABAction {
-    /// Short visible label above the bubble.
-    var bubbleLabel: LocalizedStringKey {
-        switch id {
-        case "ai": return "AI"
-        case "traineeChat": return "Chat"
-        default: return "Workout Plan"
-        }
-    }
-}
-
 /// Reports touch-down / release of the base so the engine can scale it at once.
 private struct TTBubbleBasePressStyle: ButtonStyle {
     let onPress: (Bool) -> Void
@@ -980,9 +969,6 @@ private struct TTBubbleCanvas: View {
             symbolIcon(0).tag(0)
             symbolIcon(1).tag(1)
             symbolIcon(2).tag(2)
-            symbolLabel(0).tag(10)
-            symbolLabel(1).tag(11)
-            symbolLabel(2).tag(12)
         }
         .accessibilityHidden(true)
     }
@@ -991,18 +977,6 @@ private struct TTBubbleCanvas: View {
     private func symbolIcon(_ i: Int) -> some View {
         if bubbles.indices.contains(i) {
             TTIcon(icon: bubbles[i].icon, filled: false, size: 22).foregroundStyle(.white)
-        } else {
-            Color.clear.frame(width: 1, height: 1)
-        }
-    }
-
-    @ViewBuilder
-    private func symbolLabel(_ i: Int) -> some View {
-        if bubbles.indices.contains(i) {
-            Text(bubbles[i].bubbleLabel)
-                .font(TTFont.workSans(13, weight: .semibold))
-                .foregroundStyle(.white)
-                .fixedSize()
         } else {
             Color.clear.frame(width: 1, height: 1)
         }
@@ -1020,11 +994,9 @@ private struct TTBubbleCanvas: View {
         let presented = engine.presented
 
         guard presented || engine.phase != .closed else {
-            // Hidden: resolve the symbols once off-screen so the first open does no icon / text work.
+            // Hidden: resolve the symbols once off-screen so the first open does no icon work.
             for id in 0..<bubbles.count {
-                for tag in [id, 10 + id] {
-                    if let sym = ctx.resolveSymbol(id: tag) { ctx.draw(sym, at: CGPoint(x: -4000, y: -4000)) }
-                }
+                if let sym = ctx.resolveSymbol(id: id) { ctx.draw(sym, at: CGPoint(x: -4000, y: -4000)) }
             }
             return
         }
@@ -1067,7 +1039,7 @@ private struct TTBubbleCanvas: View {
                                             TTBubbleArt.bubbleRadius(progress: p)), with: TTBubbleArt.fill)
         }
 
-        // Icons and labels.
+        // Icons.
         for i in 0..<count {
             let p = engine.bubbleX[i]
             guard p >= 0.01 else { continue }
@@ -1080,12 +1052,6 @@ private struct TTBubbleCanvas: View {
                 g.translateBy(x: pos.x, y: pos.y)
                 g.scaleBy(x: CGFloat(s), y: CGFloat(s))
                 g.draw(sym, at: .zero)
-            }
-            let lo = TTBubbleArt.clamp((p - 0.75) / 0.25, 0, 1)
-            if lo > 0, let sym = ctx.resolveSymbol(id: 10 + i) {
-                var g = ctx
-                g.opacity = lo * layer
-                g.draw(sym, at: CGPoint(x: pos.x, y: pos.y - TTBubbleArt.bubbleRadius(progress: p) - 10), anchor: .bottom)
             }
         }
     }

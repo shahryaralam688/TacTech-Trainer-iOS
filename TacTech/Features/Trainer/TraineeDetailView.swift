@@ -27,6 +27,42 @@ private enum TraineeProgressChip: String, CaseIterable, Identifiable {
     }
 }
 
+/// Three equal-width flexible buttons plus one fixed 44pt button ("...") at the right end.
+/// Its natural width is 3 x the WIDEST button + the fixed one, so `ViewThatFits` only picks a level when every
+/// label really fits in an equal share (a plain HStack let the longest label be squeezed into "Change...").
+private struct TraineeActionRowLayout: Layout {
+    var spacing: CGFloat = 8
+    var fixedWidth: CGFloat = 44
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard subviews.count == 4 else { return .zero }
+        let flexible = subviews.dropLast().map { $0.sizeThatFits(.unspecified) }
+        let widest = flexible.map(\.width).max() ?? 0
+        let height = max(flexible.map(\.height).max() ?? 0, fixedWidth)
+        let natural = widest * 3 + fixedWidth + spacing * 3
+        return CGSize(width: proposal.width ?? natural, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        guard subviews.count == 4 else { return }
+        let share = max(0, (bounds.width - fixedWidth - spacing * 3) / 3)
+        var x = bounds.minX
+        for index in 0..<3 {
+            subviews[index].place(
+                at: CGPoint(x: x, y: bounds.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(width: share, height: bounds.height)
+            )
+            x += share + spacing
+        }
+        subviews[3].place(
+            at: CGPoint(x: bounds.maxX - fixedWidth, y: bounds.midY),
+            anchor: .leading,
+            proposal: ProposedViewSize(width: fixedWidth, height: fixedWidth)
+        )
+    }
+}
+
 struct TraineeDetailView: View {
     @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
@@ -47,8 +83,7 @@ struct TraineeDetailView: View {
     @State private var isRefreshingPerformance = false
     @State private var performanceError: String?
     @State private var selectedTab: TraineeProfileTab = .today
-    @State private var showChat = false
-    @State private var chatPeerUserId: String?
+    @State private var chatTarget: TTChatTarget?
     @State private var expandedDayIds: Set<String> = []
     /// Last live session seen for this trainee, and the one the card keeps showing until the logs reload.
     @State private var lastLiveSession: WorkoutSession?
@@ -120,7 +155,7 @@ struct TraineeDetailView: View {
         // screen must not clear it, so onDisappear only clears when nothing is presented from here.
         .onAppear { store.setOpenTraineeProfile(trainee.id) }
         .onDisappear {
-            if !(showChat || showNoteSheet || showAssignSheet), store.openTraineeProfileId == trainee.id {
+            if !(chatTarget != nil || showNoteSheet || showAssignSheet), store.openTraineeProfileId == trainee.id {
                 store.setOpenTraineeProfile(nil)
             }
         }
@@ -151,8 +186,8 @@ struct TraineeDetailView: View {
             })
             .ttModalSheetPresentation()
         }
-        .fullScreenCover(isPresented: $showChat) {
-            HumanPeerChatView(audience: .trainer, preferredPeerUserId: chatPeerUserId)
+        .fullScreenCover(item: $chatTarget) { target in
+            HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id)
         }
         .sheet(isPresented: $showNoteSheet) {
             noteSheet
@@ -269,42 +304,69 @@ struct TraineeDetailView: View {
         .background(canvas)
     }
 
+    /// How much room the action row has. The first level whose natural width fits is used (no horizontal scrolling,
+    /// so the "..." button can never be pushed off the edge).
+    private enum ActionLevel {
+        /// Icon + label side by side, full labels ("Change plan").
+        case full
+        /// Icon + label side by side, shorter labels ("Plan").
+        case short
+        /// Icon above a small label (Contacts style). Always fits.
+        case stacked
+    }
+
     private var actionRow: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(spacing: 8) { actionButtons }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) { actionButtons }
-            }
+            actionRowLayout(.full)
+            actionRowLayout(.short)
+            actionRowLayout(.stacked)
         }
     }
 
-    @ViewBuilder
-    private var actionButtons: some View {
-        Button {
-            chatPeerUserId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
-            showChat = true
-        } label: {
-            actionLabel("Message", systemImage: "bubble.left.fill", primary: true)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Message \(firstName)")
+    /// Message, Note and Plan share the remaining width equally; "..." is fixed 44 x 44 at the right end.
+    private func actionRowLayout(_ level: ActionLevel) -> some View {
+        TraineeActionRowLayout {
+            Button {
+                let peerId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
+                chatTarget = TTChatTarget(id: peerId)
+            } label: {
+                actionLabel("Message", systemImage: "bubble.left.fill", primary: true, level: level)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Message \(firstName)")
 
-        Button {
-            noteSheetError = nil
-            showNoteSheet = true
-        } label: {
-            actionLabel("Note", systemImage: "square.and.pencil", primary: false)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Write a note for \(firstName)")
+            Button {
+                noteSheetError = nil
+                showNoteSheet = true
+            } label: {
+                actionLabel("Note", systemImage: "square.and.pencil", primary: false, level: level)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Write a note for \(firstName)")
 
-        Button {
-            openAssignSheet()
-        } label: {
-            actionLabel(currentAssignedPlan == nil ? "Assign plan" : "Change plan", systemImage: "calendar.badge.plus", primary: false)
-        }
-        .buttonStyle(.plain)
+            Button {
+                openAssignSheet()
+            } label: {
+                actionLabel(planActionTitle(level), systemImage: "calendar.badge.plus", primary: false, level: level)
+            }
+            .buttonStyle(.plain)
+            // The full name at every level, so VoiceOver never reads the short label.
+            .accessibilityLabel(currentAssignedPlan == nil ? "Assign plan" : "Change plan")
 
+            moreMenu
+        }
+    }
+
+    private func planActionTitle(_ level: ActionLevel) -> LocalizedStringKey {
+        switch (level, currentAssignedPlan == nil) {
+        case (.full, true): "Assign plan"
+        case (.full, false): "Change plan"
+        case (_, true): "Assign"
+        case (_, false): "Plan"
+        }
+    }
+
+    private var moreMenu: some View {
         Menu {
             if let plan = currentAssignedPlan {
                 Button { viewedPlan = plan } label: { Label("View full plan", systemImage: "doc.text") }
@@ -321,21 +383,38 @@ struct TraineeDetailView: View {
                 .background(cardFill)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+        .fixedSize()
         .accessibilityLabel("More actions")
     }
 
-    private func actionLabel(_ title: LocalizedStringKey, systemImage: String, primary: Bool) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .semibold))
-            Text(title)
-                .font(TTFont.workSans(14, weight: .bold))
-                .lineLimit(1)
+    private func actionLabel(_ title: LocalizedStringKey, systemImage: String, primary: Bool, level: ActionLevel) -> some View {
+        Group {
+            if level == .stacked {
+                VStack(spacing: 3) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 15, weight: .semibold))
+                    Text(title)
+                        .font(TTFont.workSans(11, weight: .semibold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                .padding(.horizontal, 4)
+                .frame(minHeight: 48)
+            } else {
+                HStack(spacing: 6) {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(title)
+                        .font(TTFont.workSans(14, weight: .bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                .padding(.horizontal, level == .full ? 14 : 8)
+                .frame(minHeight: 44)
+            }
         }
+        .frame(maxWidth: .infinity)
         .foregroundStyle(primary ? Color.white : TTColor.ink)
-        .padding(.horizontal, 14)
-        .frame(minHeight: 44)
-        .frame(maxWidth: primary ? .infinity : nil)
         .background(primary ? Color.black : cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contentShape(Rectangle())
@@ -447,7 +526,7 @@ struct TraineeDetailView: View {
 
         let rows: [TodayRow] = (session?.exercises ?? []).map { item in
             let name = store.exercise(id: item.exerciseId)?.name ?? String(localized: "Exercise")
-            let prescription = String(localized: "\(item.sets) × \(item.reps) · \(item.restSeconds)s rest")
+            let prescription = Self.prescriptionText(item)
             var logged: (done: Int, total: Int, weight: String?)?
             if todayLog != nil, let sets = loggedByExercise[item.exerciseId], !sets.isEmpty {
                 let top = sets.map(\.weightKg).max() ?? 0
@@ -505,7 +584,7 @@ struct TraineeDetailView: View {
             LiveRow(
                 id: "p-" + item.id,
                 name: name(item.exerciseId),
-                prescription: String(localized: "\(item.sets) × \(item.reps) · \(item.restSeconds)s rest"),
+                prescription: Self.prescriptionText(item),
                 done: Set((setsByExercise[item.exerciseId] ?? []).map(\.setNumber)).count,
                 total: max(item.sets, 1),
                 weight: topWeight(item.exerciseId)
@@ -724,6 +803,14 @@ struct TraineeDetailView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// "3 × 12 · 90s rest". With no rest time it is just "1 × 15" (never "0s rest").
+    private static func prescriptionText(_ item: WorkoutExercise) -> String {
+        if item.restSeconds > 0 {
+            return String(localized: "\(item.sets) × \(item.reps) · \(item.restSeconds)s rest")
+        }
+        return String(localized: "\(item.sets) × \(item.reps)")
     }
 
     private func restDayCard(plan: WorkoutPlan, now: Date) -> some View {
@@ -1216,7 +1303,7 @@ struct TraineeDetailView: View {
                 .font(TTFont.workSans(14, weight: .semibold))
                 .foregroundStyle(TTColor.ink)
             Spacer(minLength: 8)
-            Text(String(localized: "\(item.sets) × \(item.reps) · \(item.restSeconds)s rest"))
+            Text(Self.prescriptionText(item))
                 .font(TTFont.caption(12))
                 .foregroundStyle(TTColor.inkMuted)
                 .multilineTextAlignment(.trailing)

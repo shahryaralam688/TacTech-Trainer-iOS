@@ -3261,16 +3261,20 @@ struct TTIcon: View {
     var size: CGFloat = 24
 
     var body: some View {
-        // Always use the Sandow back-chevron glyph for forward affordances (mirrored).
-        let usesForwardMirror = icon == .chevronRight
-        let resolved = usesForwardMirror ? SandowIcon.chevronLeft : icon
-
-        Image(resolved.asset(filled: filled))
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .scaleEffect(x: usesForwardMirror ? -1 : 1, y: 1)
+        if icon == .chevronLeft || icon == .chevronRight {
+            // The Sandow "chevron-left" artwork is a curved bracket "(" with square ends, not a chevron (and it was
+            // mirrored for .chevronRight, giving ")"). Chevrons are drawn here instead, so every back button and every
+            // row chevron in the app (they all go through TTIcon) is a crisp chevron. Same frame, same template colour.
+            Image(systemName: icon == .chevronLeft ? "chevron.left" : "chevron.right")
+                .font(.system(size: size * 0.7, weight: .semibold))
+                .frame(width: size, height: size)
+        } else {
+            Image(icon.asset(filled: filled))
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+        }
     }
 }
 

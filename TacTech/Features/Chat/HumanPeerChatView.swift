@@ -3,6 +3,11 @@ import PhotosUI
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// Identifiable item for presenting direct chat modal cleanly without flash.
+struct TTChatTarget: Identifiable, Hashable {
+    var id: String
+}
+
 /// Trainer↔trainee messaging — AI chat chrome, WhatsApp-like media + live video call.
 struct HumanPeerChatView: View {
     var audience: HumanChatAudience
@@ -18,6 +23,25 @@ struct HumanPeerChatView: View {
     var onOpenAICoach: (() -> Void)? = nil
     /// Embedded only — opens roster management (invite code, join requests, trainee profiles).
     var onOpenRoster: (() -> Void)? = nil
+
+    init(
+        audience: HumanChatAudience,
+        preferredThreadId: String? = nil,
+        preferredPeerUserId: String? = nil,
+        isEmbedded: Bool = false,
+        isActive: Bool = true,
+        onOpenAICoach: (() -> Void)? = nil,
+        onOpenRoster: (() -> Void)? = nil
+    ) {
+        self.audience = audience
+        self.preferredThreadId = preferredThreadId
+        self.preferredPeerUserId = preferredPeerUserId
+        self.isEmbedded = isEmbedded
+        self.isActive = isActive
+        self.onOpenAICoach = onOpenAICoach
+        self.onOpenRoster = onOpenRoster
+        _selectedPeerId = State(initialValue: preferredPeerUserId)
+    }
 
     @Environment(AppStore.self) private var appStore
     @Environment(\.dismiss) private var dismiss
@@ -87,7 +111,48 @@ struct HumanPeerChatView: View {
     }
 
     private var selectedPeer: HumanChatPeer? {
-        peers.first { $0.id == selectedPeerId }
+        let peerId = selectedPeerId ?? preferredPeerUserId
+        guard let peerId, !peerId.isEmpty else { return nil }
+
+        // 1. Try finding in peers by id or profileId
+        if let match = peers.first(where: { $0.id == peerId || $0.profileId == peerId }) {
+            return match
+        }
+        // 2. Try finding in rosterPeers by id or profileId
+        if let match = rosterPeers.first(where: { $0.id == peerId || $0.profileId == peerId }) {
+            return match
+        }
+        // 3. Directly resolve from appStore trainer roster
+        if let trainer = appStore.currentTrainer {
+            let trainees = appStore.trainees(for: trainer)
+            if let trainee = trainees.first(where: { $0.userId == peerId || $0.id == peerId }) {
+                let name = appStore.user(forTrainee: trainee)?.name ?? "Trainee"
+                let resolvedUserId = trainee.userId.trimmingCharacters(in: .whitespacesAndNewlines)
+                return HumanChatPeer(
+                    id: resolvedUserId.isEmpty ? trainee.id : resolvedUserId,
+                    name: name,
+                    role: .trainee,
+                    profileId: trainee.id
+                )
+            }
+        }
+        if let trainee = appStore.currentTrainee, let trainer = appStore.trainer(for: trainee) {
+            if trainer.userId == peerId || trainer.id == peerId {
+                let name = appStore.user(forTrainer: trainer)?.name ?? "Coach"
+                return HumanChatPeer(
+                    id: trainer.userId,
+                    name: name,
+                    role: .trainer,
+                    profileId: trainer.id
+                )
+            }
+        }
+        return HumanChatPeer(
+            id: peerId,
+            name: "Chat",
+            role: audience == .trainer ? .trainee : .trainer,
+            profileId: nil
+        )
     }
 
     var body: some View {
@@ -98,6 +163,19 @@ struct HumanPeerChatView: View {
             Color(white: 0.98).ignoresSafeArea()
             if let peer = selectedPeer {
                 threadColumn(peer)
+            } else if preferredPeerUserId != nil || preferredThreadId != nil {
+                VStack(spacing: 0) {
+                    HumanChatContactHeader(
+                        name: "Chat",
+                        subtitle: "Loading…",
+                        onBack: { goBack() },
+                        onVideo: {},
+                        onVoice: {}
+                    )
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
             } else {
                 inboxColumn
             }
@@ -120,6 +198,11 @@ struct HumanPeerChatView: View {
         .ttRootTabBarVisible(isEmbedded ? selectedPeer == nil : true)
         // Edge swipe = the header's back button (thread → list; list → close when presented as a cover).
         .ttEdgeSwipeBack(enabled: !isEmbedded || selectedPeer != nil) { goBack() }
+        .onChange(of: preferredPeerUserId) { _, newId in
+            if let newId {
+                selectedPeerId = newId
+            }
+        }
         .task(id: isActive) {
             guard isActive else { return }
             chatStore.lastError = nil
@@ -134,8 +217,7 @@ struct HumanPeerChatView: View {
                 if let peer = peers.first(where: { $0.id == peerId }) {
                     await chatStore.openThread(peer)
                 }
-            } else if let preferredPeerUserId,
-                      let peer = peers.first(where: { $0.id == preferredPeerUserId }) {
+            } else if let peer = selectedPeer {
                 selectedPeerId = peer.id
                 await chatStore.openThread(peer)
             } else if audience == .trainee, peers.count == 1, selectedPeerId == nil {
@@ -274,13 +356,15 @@ struct HumanPeerChatView: View {
         if isEmbedded {
             chatStore.closeThread()
             selectedPeerId = nil
-        } else if preferredPeerUserId != nil {
-            // Opened for one person from elsewhere → back returns there.
+        } else if preferredPeerUserId != nil || preferredThreadId != nil {
+            // Opened for one person from elsewhere (Home, Trainee Detail, push) → back returns directly there.
+            chatStore.closeThread()
             dismiss()
         } else if audience == .trainer || peers.count > 1 {
             chatStore.closeThread()
             selectedPeerId = nil
         } else {
+            chatStore.closeThread()
             dismiss()
         }
     }

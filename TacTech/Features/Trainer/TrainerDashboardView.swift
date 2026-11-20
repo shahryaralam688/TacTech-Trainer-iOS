@@ -12,8 +12,7 @@ struct TrainerDashboardView: View {
     @State private var detailTrainee: TraineeProfile?
     @State private var previousPlanId: String?
     @State private var toast: TTToastMessage?
-    @State private var showChat = false
-    @State private var chatPeerUserId: String?
+    @State private var chatTarget: TTChatTarget?
     @State private var showCreate = false
     @State private var showRoster = false
     @Bindable private var notificationStore = NotificationStore.shared
@@ -81,8 +80,8 @@ struct TrainerDashboardView: View {
                 .ttModalSheetPresentation()
             }
             .ttToast($toast)
-            .fullScreenCover(isPresented: $showChat) {
-                HumanPeerChatView(audience: .trainer, preferredPeerUserId: chatPeerUserId)
+            .fullScreenCover(item: $chatTarget) { target in
+                HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id)
             }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
@@ -256,8 +255,8 @@ struct TrainerDashboardView: View {
 
     /// Prefills a friendly opener only when the coach has no draft yet; never sends.
     private func openMessage(_ trainee: TraineeProfile) {
-        chatPeerUserId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
-        showChat = true
+        let peerId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
+        chatTarget = TTChatTarget(id: peerId)
     }
 
     /// Toast after the assign sheet closes, with Undo back to the previous state.
@@ -655,12 +654,16 @@ struct TrainerDashboardView: View {
 @MainActor
 enum TTTraineeChatOpener {
     static func prepare(for trainee: TraineeProfile, name: String?) -> String {
-        let peerId = trainee.userId
+        let peerId = trainee.userId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? trainee.id : trainee.userId
         let name = name ?? "there"
         let first = name.split(separator: " ").first.map(String.init) ?? name
         let existing = HumanChatStore.shared.drafts[peerId] ?? ""
         if existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            HumanChatStore.shared.drafts[peerId] = "Hi \(first), how’s training going?"
+            let draft = "Hi \(first), how’s training going?"
+            HumanChatStore.shared.drafts[peerId] = draft
+            if !trainee.id.isEmpty {
+                HumanChatStore.shared.drafts[trainee.id] = draft
+            }
         }
         return peerId
     }

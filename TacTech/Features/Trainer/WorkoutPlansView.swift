@@ -297,19 +297,9 @@ struct WorkoutPlansView: View {
         } else {
             HStack(spacing: 8) {
                 if !searchVisible {
-                    Button {
-                        // Bring the search bar back to its place first, then open from there.
-                        proxy.scrollTo("plansTop", anchor: .top)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { showSearch = true }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(TTColor.ink)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Search plans")
+                    // Opens search right here: the field grows out of this icon. No scrolling, so the header and
+                    // the list stay exactly as they are.
+                    TTSearchRowButton(accessibilityLabel: "Search plans") { showSearch = true }
                 }
 
                 Menu {
@@ -322,6 +312,7 @@ struct WorkoutPlansView: View {
                     controlPill(icon: "arrow.up.arrow.down", text: sort.short, active: sort != .newest)
                 }
                 .accessibilityLabel(String(localized: "Sort: \(sort.title)"))
+                .ttSearchRowFade()
 
                 if availableLevels.count > 1 {
                     Menu {
@@ -339,6 +330,7 @@ struct WorkoutPlansView: View {
                         )
                     }
                     .accessibilityLabel(String(localized: "Level: \(levelFilter ?? String(localized: "All levels"))"))
+                    .ttSearchRowFade()
                 }
 
                 Spacer(minLength: 0)
@@ -354,7 +346,9 @@ struct WorkoutPlansView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityHint("Choose plans to delete")
+                .ttSearchRowFade()
             }
+            .ttSearchRowAnchor()
         }
     }
 

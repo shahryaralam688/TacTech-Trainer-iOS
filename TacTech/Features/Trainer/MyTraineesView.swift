@@ -302,19 +302,8 @@ struct MyTraineesView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 8) {
                 if !searchVisible {
-                    Button {
-                        // Bring the search bar back to its place first, then open from there.
-                        proxy.scrollTo("traineesTop", anchor: .top)
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { showSearch = true }
-                    } label: {
-                        Image(systemName: "magnifyingglass")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(TTColor.ink)
-                            .frame(width: 44, height: 44)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Search trainees")
+                    // Opens search right here: the field grows out of this icon. No scrolling.
+                    TTSearchRowButton(accessibilityLabel: "Search trainees") { showSearch = true }
                 }
 
                 filterChips
@@ -322,6 +311,7 @@ struct MyTraineesView: View {
                 Spacer(minLength: 0)
             }
             .frame(minHeight: 44)
+            .ttSearchRowAnchor()
 
             if isFiltering {
                 statusLine
@@ -355,6 +345,7 @@ struct MyTraineesView: View {
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(selected ? .isSelected : [])
+            .ttSearchRowFade()
         }
     }
 

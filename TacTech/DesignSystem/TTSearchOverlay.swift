@@ -10,6 +10,34 @@ private struct TTSearchFrameBoxKey: EnvironmentKey {
     static let defaultValue: TTSearchFrameBox? = nil
 }
 
+private struct TTSearchRowFadedKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+/// Timing of the refined search when it opens from the pinned controls row's search icon (all named, in one place).
+enum TTSearchMotion {
+    /// Open: the field grows out of the icon, the row fades, the panel rises, the dim fades in: one decelerating curve.
+    static let openDuration: Double = 0.25
+    /// Close: faster than open, back into the icon.
+    static let closeDuration: Double = 0.18
+    /// Reduce Motion: a short cross-fade only.
+    static let reduceMotionDuration: Double = 0.15
+    /// The row's other controls (Newest, levels, Select) fade out faster than the field grows, so they are gone
+    /// before "Cancel" arrives at the same end of the row.
+    static var rowFadeDuration: Double { openDuration * 0.6 }
+    /// The suggestions panel rises this far into place.
+    static let panelRise: CGFloat = 12
+    /// The row's other controls slide this far while they fade.
+    static let rowSlide: CGFloat = 8
+    /// The width of the search icon the field grows out of.
+    static let iconWidth: CGFloat = 44
+
+    static var open: Animation { .timingCurve(0.16, 1, 0.3, 1, duration: openDuration) } // decelerating, no bounce
+    static var close: Animation { .timingCurve(0.4, 0, 0.2, 1, duration: closeDuration) }
+    /// "Cancel" fades in a little after the field starts to grow.
+    static var cancelIn: Animation { .easeOut(duration: 0.15).delay(0.08) }
+}
+
 extension EnvironmentValues {
     /// `true` while the refined search is open: the entry pill hides (the open bar sits exactly on it).
     fileprivate var ttSearchMorphed: Bool {
@@ -21,13 +49,32 @@ extension EnvironmentValues {
         get { self[TTSearchFrameBoxKey.self] }
         set { self[TTSearchFrameBoxKey.self] = newValue }
     }
+
+    /// `true` while search is open from the row: the row's other controls (Newest, levels, Select) are faded out.
+    fileprivate var ttSearchRowFaded: Bool {
+        get { self[TTSearchRowFadedKey.self] }
+        set { self[TTSearchRowFadedKey.self] = newValue }
+    }
 }
 
 /// Reads the entry pill's on-screen frame once, on demand (no per-frame geometry tracking).
 final class TTSearchFrameBox {
     fileprivate weak var view: UIView?
+    /// The pinned controls row (set by `.ttSearchRowAnchor()`).
+    fileprivate weak var rowView: UIView?
+    /// Set by the row's search icon just before it opens search: the field then grows out of the icon, in the row,
+    /// instead of out of the entry pill (so the list never has to scroll back to the pill first).
+    fileprivate var opensFromRow = false
 
     func globalFrame() -> CGRect? {
+        Self.frame(of: view)
+    }
+
+    fileprivate func rowFrame() -> CGRect? {
+        Self.frame(of: rowView)
+    }
+
+    private static func frame(of view: UIView?) -> CGRect? {
         guard let view, view.window != nil else { return nil }
         let rect = view.convert(view.bounds, to: nil)
         return rect.isEmpty ? nil : rect
@@ -46,6 +93,87 @@ private struct TTSearchFrameProbe: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {
         box.view = uiView
+    }
+}
+
+private struct TTSearchRowProbe: UIViewRepresentable {
+    let box: TTSearchFrameBox
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.isUserInteractionEnabled = false
+        box.rowView = view
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        box.rowView = uiView
+    }
+}
+
+// MARK: - Pinned controls row (morph source when the pill has scrolled away)
+
+private struct TTSearchRowAnchorModifier: ViewModifier {
+    @Environment(\.ttSearchFrameBox) private var frameBox
+
+    func body(content: Content) -> some View {
+        content.background {
+            if let frameBox { TTSearchRowProbe(box: frameBox) }
+        }
+    }
+}
+
+private struct TTSearchRowFadeModifier: ViewModifier {
+    @Environment(\.ttSearchRowFaded) private var faded
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
+
+    func body(content: Content) -> some View {
+        let slide = layoutDirection == .rightToLeft ? -TTSearchMotion.rowSlide : TTSearchMotion.rowSlide
+        content
+            // Animated by the host's withAnimation: opacity (and a slight slide) only, nothing is re-laid out.
+            .opacity(faded ? 0 : 1)
+            .offset(x: faded && !reduceMotion ? slide : 0)
+            .allowsHitTesting(!faded)
+            .accessibilityHidden(faded)
+    }
+}
+
+extension View {
+    /// Put on the pinned controls row (the row that holds the search icon): its frame is where the field grows from.
+    func ttSearchRowAnchor() -> some View { modifier(TTSearchRowAnchorModifier()) }
+
+    /// Put on each of the row's OTHER controls: they fade out (with a slight slide) while search is open.
+    func ttSearchRowFade() -> some View { modifier(TTSearchRowFadeModifier()) }
+}
+
+/// The row's search icon (44 x 44). Opens search from the row: no scrolling, no header or list change.
+struct TTSearchRowButton: View {
+    let accessibilityLabel: LocalizedStringKey
+    let onOpen: () -> Void
+
+    @Environment(\.ttSearchFrameBox) private var frameBox
+    @Environment(\.ttSearchMorphed) private var searchOpen
+    @AccessibilityFocusState private var focused: Bool
+
+    var body: some View {
+        Button {
+            frameBox?.opensFromRow = true
+            onOpen()
+        } label: {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+                .frame(width: TTSearchMotion.iconWidth, height: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityFocused($focused)
+        // Search closed: VoiceOver focus returns to the icon.
+        .onChange(of: searchOpen) { old, new in
+            if old, !new, UIAccessibility.isVoiceOverRunning { focused = true }
+        }
     }
 }
 
@@ -140,7 +268,12 @@ struct TTSearchOverlay: View {
     /// Refined mode (Plans): the bar expands in place, the options panel unfolds below it.
     var refined: Bool = false
     /// Where the entry pill sits on screen (global coordinates) when the search opens.
+    /// When `anchorIsRow` it is the pinned controls row instead.
     var barFrame: CGRect = .zero
+    /// The field grows out of the row's search icon (see `TTSearchMotion`).
+    var anchorIsRow: Bool = false
+    /// Called when closing starts (the row's controls fade back in together with the field folding).
+    var onWillClose: (() -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @FocusState private var fieldFocused: Bool
@@ -149,6 +282,11 @@ struct TTSearchOverlay: View {
     @State private var showCancel = false
     @State private var panelOpen = false
     @State private var keyboardTop: CGFloat?
+    /// Reduce Motion + row: the field cross-fades instead of growing.
+    @State private var barShown = false
+    /// Row mode: the field itself is only visible while it is wider than the icon (fades in fast, out at the very end).
+    @State private var barVisible = false
+    @AccessibilityFocusState private var fieldA11yFocus: Bool
 
     @State private var query = ""
     @State private var debouncedQuery = ""
@@ -173,6 +311,8 @@ struct TTSearchOverlay: View {
         matchedID: String = "ttSearchMorph",
         refined: Bool = false,
         barFrame: CGRect = .zero,
+        anchorIsRow: Bool = false,
+        onWillClose: (() -> Void)? = nil,
         onOutcome: @escaping (TTSearchOutcome) -> Void
     ) {
         self.catalog = catalog
@@ -180,6 +320,8 @@ struct TTSearchOverlay: View {
         self.matchedID = matchedID
         self.refined = refined
         self.barFrame = barFrame
+        self.anchorIsRow = anchorIsRow
+        self.onWillClose = onWillClose
         self.onOutcome = onOutcome
     }
 
@@ -264,30 +406,68 @@ struct TTSearchOverlay: View {
             let kbTop = (keyboardTop ?? (UIScreen.main.bounds.height - 336)) - origin.y
             let panelTop = bar.maxY + Self.barGap
             let panelFull = max(140, kbTop - Self.barGap - panelTop)
-            let barWidth = (barNarrow && !reduceMotion) ? bar.width - Self.cancelWidth : bar.width
+            // From the row: the field starts as wide as the icon and grows to the Cancel position (leading edge fixed).
+            let barWidth: CGFloat = anchorIsRow
+                ? (reduceMotion ? bar.width : (barNarrow ? bar.width - Self.cancelWidth : TTSearchMotion.iconWidth))
+                : ((barNarrow && !reduceMotion) ? bar.width - Self.cancelWidth : bar.width)
 
             ZStack(alignment: .topLeading) {
-                backdrop
-                    .opacity(showBackdrop ? 1 : 0)
-                    .ignoresSafeArea()
-                    .contentShape(Rectangle())
-                    .onTapGesture { dismiss(.dismissed) }
-                    .accessibilityHidden(true)
+                if anchorIsRow {
+                    // Flat dim from the row down (no blur). The header above stays visible and undimmed.
+                    Color.black.opacity(0.35)
+                        .opacity(showBackdrop ? 1 : 0)
+                        .frame(height: max(0, geo.size.height - (barFrame.minY - origin.y)))
+                        .offset(y: barFrame.minY - origin.y)
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismiss(.dismissed) }
+                        .accessibilityHidden(true)
+                } else {
+                    backdrop
+                        .opacity(showBackdrop ? 1 : 0)
+                        .ignoresSafeArea()
+                        .contentShape(Rectangle())
+                        .onTapGesture { dismiss(.dismissed) }
+                        .accessibilityHidden(true)
+                }
 
-                // Options panel: a top-to-bottom reveal (frame height), not a scale.
-                optionsPanel(width: bar.width, fullHeight: panelFull)
-                    .frame(height: panelOpen ? panelFull : 0, alignment: .top)
-                    .background(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .fill(cardFill)
-                            .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .opacity(panelOpen ? 1 : 0)
-                    .offset(x: bar.minX, y: panelTop)
+                if anchorIsRow {
+                    // From the row: the panel fades in and rises into place. Only opacity and position animate.
+                    optionsPanel(width: bar.width, fullHeight: panelFull)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(cardFill)
+                                .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .opacity(panelOpen ? 1 : 0)
+                        // The white panel arrives quickly (so the list text behind it is hidden early); its content
+                        // fades in over it with the full open curve.
+                        .animation(
+                            reduceMotion
+                                ? .easeOut(duration: TTSearchMotion.reduceMotionDuration)
+                                : (panelOpen ? .easeOut(duration: TTSearchMotion.openDuration * 0.4) : TTSearchMotion.close),
+                            value: panelOpen
+                        )
+                        .offset(x: bar.minX, y: panelTop + ((panelOpen || reduceMotion) ? 0 : TTSearchMotion.panelRise))
+                } else {
+                    // Options panel: a top-to-bottom reveal (frame height), not a scale.
+                    optionsPanel(width: bar.width, fullHeight: panelFull)
+                        .frame(height: panelOpen ? panelFull : 0, alignment: .top)
+                        .background(
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .fill(cardFill)
+                                .shadow(color: .black.opacity(0.12), radius: 18, y: 8)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .opacity(panelOpen ? 1 : 0)
+                        .offset(x: bar.minX, y: panelTop)
+                }
 
                 openBar
                     .frame(width: barWidth, height: bar.height)
+                    // From the row: the field is invisible while it is icon-sized, so the closing fold ends exactly on the
+                    // real icon instead of leaving a gray pill behind it.
+                    .opacity(anchorIsRow ? ((reduceMotion ? barShown : barVisible) ? 1 : 0) : 1)
                     .offset(x: bar.minX, y: bar.minY)
 
                 if !reduceMotion {
@@ -312,6 +492,8 @@ struct TTSearchOverlay: View {
         .onDisappear { debounceTask?.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             guard let frame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            // From the row the panel keeps its size while the keyboard leaves (it is fading out).
+            guard !(anchorIsRow && isClosing) else { return }
             let top = frame.minY >= UIScreen.main.bounds.height ? UIScreen.main.bounds.height : frame.minY
             withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) { keyboardTop = top }
         }
@@ -328,6 +510,7 @@ struct TTSearchOverlay: View {
             TextField("", text: $query, prompt: Text(catalog.copy.pillPlaceholder))
                 .font(TTFont.body(15))
                 .focused($fieldFocused)
+                .accessibilityFocused($fieldA11yFocus)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
                 .submitLabel(.search)
@@ -519,7 +702,75 @@ struct TTSearchOverlay: View {
     private static let rowsOut = Animation.easeOut(duration: 0.08)
     private static let dimOut = Animation.easeOut(duration: 0.22)
 
+    /// Open from the row's search icon: everything starts together on the tap, and the field takes focus at the
+    /// same moment so the keyboard rises with it. Only position, width and opacity animate.
+    private func presentFromRow() {
+        PerfTemp.interval("search.open", seconds: TTSearchMotion.openDuration) // PERF-TEMP
+        isFocusedPhase = true
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Search opened"))
+        if reduceMotion {
+            withAnimation(.easeOut(duration: TTSearchMotion.reduceMotionDuration)) {
+                barShown = true
+                panelOpen = true
+                showContent = true
+                showBackdrop = true
+            }
+        } else {
+            withAnimation(TTSearchMotion.open) {
+                barNarrow = true
+                panelOpen = true
+                showContent = true
+                showBackdrop = true
+            }
+            withAnimation(.easeOut(duration: TTSearchMotion.openDuration * 0.3)) { barVisible = true }
+            withAnimation(TTSearchMotion.cancelIn) { showCancel = true }
+        }
+        // Next turn of the run loop = when the animation starts (not before, not after it ends).
+        DispatchQueue.main.async {
+            fieldFocused = true
+            if UIAccessibility.isVoiceOverRunning { fieldA11yFocus = true }
+        }
+    }
+
+    private func dismissToRow(_ outcome: TTSearchOutcome) {
+        guard !isClosing else { return }
+        isClosing = true
+        PerfTemp.interval("search.close", seconds: TTSearchMotion.closeDuration) // PERF-TEMP
+        // The keyboard leaves together with the field, not after it.
+        fieldFocused = false
+        UIAccessibility.post(notification: .announcement, argument: String(localized: "Search closed"))
+        onWillClose?()
+        if reduceMotion {
+            withAnimation(.easeOut(duration: TTSearchMotion.reduceMotionDuration)) {
+                barShown = false
+                panelOpen = false
+                showContent = false
+                showBackdrop = false
+                showCancel = false
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + TTSearchMotion.reduceMotionDuration + 0.01) { onOutcome(outcome) }
+            return
+        }
+        withAnimation(TTSearchMotion.close) {
+            barNarrow = false
+            panelOpen = false
+            showContent = false
+            showBackdrop = false
+            showCancel = false
+        }
+        // The field stays solid while it folds and fades only when it is back at icon size.
+        withAnimation(.easeIn(duration: TTSearchMotion.closeDuration * 0.4).delay(TTSearchMotion.closeDuration * 0.6)) {
+            barVisible = false
+        }
+        // Removed only after the field is back inside the icon.
+        DispatchQueue.main.asyncAfter(deadline: .now() + TTSearchMotion.closeDuration + 0.02) { onOutcome(outcome) }
+    }
+
     private func presentRefined() {
+        if anchorIsRow {
+            presentFromRow()
+            return
+        }
         PerfTemp.interval("search.open", seconds: 0.5) // PERF-TEMP
         isFocusedPhase = true
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Search opened"))
@@ -546,6 +797,10 @@ struct TTSearchOverlay: View {
     }
 
     private func dismissRefined(_ outcome: TTSearchOutcome) {
+        if anchorIsRow {
+            dismissToRow(outcome)
+            return
+        }
         guard !isClosing else { return }
         isClosing = true
         PerfTemp.interval("search.close", seconds: 0.35) // PERF-TEMP
@@ -1297,6 +1552,13 @@ struct TTSearchHostModifier: ViewModifier {
     @State private var visible = false
     @State private var barFrame: CGRect = .zero
     @State private var frameBox = TTSearchFrameBox()
+    /// Opened from the pinned row's search icon (the field grows out of the icon) instead of the entry pill.
+    @State private var anchorIsRow = false
+    /// The row's other controls are faded out. Changed inside withAnimation, so they fade (and slide) with the field.
+    @State private var rowFaded = false
+    /// Row mode: the close has started, so the floating tab bar may come back together with the fold.
+    @State private var rowClosing = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -1304,6 +1566,7 @@ struct TTSearchHostModifier: ViewModifier {
             content
                 .environment(\.ttSearchMorphed, visible)
                 .environment(\.ttSearchFrameBox, frameBox)
+                .environment(\.ttSearchRowFaded, rowFaded)
                 .overlay {
                     if visible {
                         TTSearchOverlay(
@@ -1311,13 +1574,28 @@ struct TTSearchHostModifier: ViewModifier {
                             namespace: namespace,
                             matchedID: matchedID,
                             refined: true,
-                            barFrame: barFrame
+                            barFrame: barFrame,
+                            anchorIsRow: anchorIsRow,
+                            onWillClose: {
+                                guard anchorIsRow else { return }
+                                rowClosing = true
+                                // The row's controls come back late in the fold, when the field is nearly an icon again.
+                                withAnimation(
+                                    reduceMotion
+                                        ? .easeOut(duration: TTSearchMotion.reduceMotionDuration)
+                                        : .easeOut(duration: TTSearchMotion.closeDuration * 0.5).delay(TTSearchMotion.closeDuration * 0.5)
+                                ) {
+                                    rowFaded = false
+                                }
+                            }
                         ) { outcome in
                             var t = Transaction()
                             t.disablesAnimations = true
                             withTransaction(t) {
                                 visible = false
                                 isPresented = false
+                                rowFaded = false
+                                rowClosing = false
                             }
                             DispatchQueue.main.async { onOutcome(outcome) }
                         }
@@ -1325,16 +1603,34 @@ struct TTSearchHostModifier: ViewModifier {
                     }
                 }
                 // The floating tab bar (and its + button) stays out of the way while search is open.
-                .ttRootTabBarVisible(!visible)
+                .ttRootTabBarVisible(!(visible && !rowClosing))
                 .onChange(of: isPresented, initial: true) { _, presented in
                     guard presented, !visible else { return }
                     // Read the bar's place once, right now; fall back to a plausible slot if it isn't on screen.
                     let screen = UIScreen.main.bounds
-                    barFrame = frameBox.globalFrame()
-                        ?? CGRect(x: 16, y: 150, width: screen.width - 32, height: 48)
+                    let fromRow = frameBox.opensFromRow
+                    frameBox.opensFromRow = false
+                    if fromRow, let row = frameBox.rowFrame() {
+                        // The row is on screen exactly where it is: nothing scrolls, nothing is measured from the header.
+                        barFrame = row
+                        anchorIsRow = true
+                    } else {
+                        barFrame = frameBox.globalFrame()
+                            ?? CGRect(x: 16, y: 150, width: screen.width - 32, height: 48)
+                        anchorIsRow = false
+                    }
                     var t = Transaction()
                     t.disablesAnimations = true
                     withTransaction(t) { visible = true }
+                    if anchorIsRow {
+                        withAnimation(
+                            reduceMotion
+                                ? .easeOut(duration: TTSearchMotion.reduceMotionDuration)
+                                : .timingCurve(0.16, 1, 0.3, 1, duration: TTSearchMotion.rowFadeDuration)
+                        ) {
+                            rowFaded = true
+                        }
+                    }
                 }
         } else {
             content

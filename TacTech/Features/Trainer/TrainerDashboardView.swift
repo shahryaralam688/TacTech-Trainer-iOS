@@ -81,7 +81,7 @@ struct TrainerDashboardView: View {
             }
             .ttToast($toast)
             .fullScreenCover(item: $chatTarget) { target in
-                HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id)
+                HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id, preferredPeerName: target.name)
             }
             .sheet(isPresented: $showCreate) {
                 CreatePlanView()
@@ -255,8 +255,9 @@ struct TrainerDashboardView: View {
 
     /// Prefills a friendly opener only when the coach has no draft yet; never sends.
     private func openMessage(_ trainee: TraineeProfile) {
-        let peerId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
-        chatTarget = TTChatTarget(id: peerId)
+        let name = store.user(forTrainee: trainee)?.name
+        let peerId = TTTraineeChatOpener.prepare(for: trainee, name: name)
+        chatTarget = TTChatTarget(id: peerId, name: name)
     }
 
     /// Toast after the assign sheet closes, with Undo back to the previous state.

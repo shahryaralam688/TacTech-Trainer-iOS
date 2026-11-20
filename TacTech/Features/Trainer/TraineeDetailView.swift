@@ -187,7 +187,7 @@ struct TraineeDetailView: View {
             .ttModalSheetPresentation()
         }
         .fullScreenCover(item: $chatTarget) { target in
-            HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id)
+            HumanPeerChatView(audience: .trainer, preferredPeerUserId: target.id, preferredPeerName: target.name)
         }
         .sheet(isPresented: $showNoteSheet) {
             noteSheet
@@ -327,8 +327,9 @@ struct TraineeDetailView: View {
     private func actionRowLayout(_ level: ActionLevel) -> some View {
         TraineeActionRowLayout {
             Button {
-                let peerId = TTTraineeChatOpener.prepare(for: trainee, name: store.user(forTrainee: trainee)?.name)
-                chatTarget = TTChatTarget(id: peerId)
+                let name = store.user(forTrainee: trainee)?.name
+                let peerId = TTTraineeChatOpener.prepare(for: trainee, name: name)
+                chatTarget = TTChatTarget(id: peerId, name: name)
             } label: {
                 actionLabel("Message", systemImage: "bubble.left.fill", primary: true, level: level)
             }

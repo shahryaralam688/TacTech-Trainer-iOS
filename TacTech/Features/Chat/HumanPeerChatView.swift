@@ -6,6 +6,9 @@ import UniformTypeIdentifiers
 /// Identifiable item for presenting direct chat modal cleanly without flash.
 struct TTChatTarget: Identifiable, Hashable {
     var id: String
+    /// Display name known to the caller. Used only when the chat screen cannot find the person in its own lists.
+    /// TODO: no avatar is passed because the caller's user model has no avatar URL.
+    var name: String? = nil
 }
 
 /// Trainer↔trainee messaging — AI chat chrome, WhatsApp-like media + live video call.
@@ -15,6 +18,8 @@ struct HumanPeerChatView: View {
     var preferredThreadId: String? = nil
     /// When set (e.g. Home "Message"), open the thread with this peer user; back closes the chat.
     var preferredPeerUserId: String? = nil
+    /// Name the caller already knows; shown only if the person is not found in the app's own lists.
+    var preferredPeerName: String? = nil
     /// Hosted as a root tab (Trainer "Chat"): no close button, dark list header, tab bar hides inside a thread.
     var isEmbedded: Bool = false
     /// Embedded only — false while another tab is showing, so the inbox refreshes when the tab opens.
@@ -28,6 +33,7 @@ struct HumanPeerChatView: View {
         audience: HumanChatAudience,
         preferredThreadId: String? = nil,
         preferredPeerUserId: String? = nil,
+        preferredPeerName: String? = nil,
         isEmbedded: Bool = false,
         isActive: Bool = true,
         onOpenAICoach: (() -> Void)? = nil,
@@ -36,6 +42,7 @@ struct HumanPeerChatView: View {
         self.audience = audience
         self.preferredThreadId = preferredThreadId
         self.preferredPeerUserId = preferredPeerUserId
+        self.preferredPeerName = preferredPeerName
         self.isEmbedded = isEmbedded
         self.isActive = isActive
         self.onOpenAICoach = onOpenAICoach
@@ -110,6 +117,12 @@ struct HumanPeerChatView: View {
         chatStore.displayPeers(roster: rosterPeers)
     }
 
+    /// The caller's name if it gave one, otherwise a neutral title. Never a guessed name.
+    private var fallbackPeerName: String {
+        let given = preferredPeerName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return given.isEmpty ? String(localized: "Conversation") : given
+    }
+
     private var selectedPeer: HumanChatPeer? {
         let peerId = selectedPeerId ?? preferredPeerUserId
         guard let peerId, !peerId.isEmpty else { return nil }
@@ -147,9 +160,10 @@ struct HumanPeerChatView: View {
                 )
             }
         }
+        // Nothing in the app's lists matches: use the caller's name, never a guess.
         return HumanChatPeer(
             id: peerId,
-            name: "Chat",
+            name: fallbackPeerName,
             role: audience == .trainer ? .trainee : .trainer,
             profileId: nil
         )
@@ -166,7 +180,7 @@ struct HumanPeerChatView: View {
             } else if preferredPeerUserId != nil || preferredThreadId != nil {
                 VStack(spacing: 0) {
                     HumanChatContactHeader(
-                        name: "Chat",
+                        name: fallbackPeerName,
                         subtitle: "Loading…",
                         onBack: { goBack() },
                         onVideo: {},

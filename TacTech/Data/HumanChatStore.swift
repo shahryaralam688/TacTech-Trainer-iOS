@@ -308,6 +308,7 @@ final class HumanChatStore {
                     let threadId = try await ensureThreadId(peerUserId: peerUserId)
                     let dto = try await api.sendText(threadId: threadId, text: msg.text, clientId: clientId)
                     replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
+                    recordTrainerContact(peerUserId: peerUserId)
                 } catch {
                     markFailed(clientId: clientId, peerUserId: peerUserId)
                 }
@@ -415,6 +416,7 @@ final class HumanChatStore {
                 let threadId = try await ensureThreadId(peerUserId: peerUserId)
                 let dto = try await api.sendText(threadId: threadId, text: trimmed, clientId: clientId)
                 replaceOptimistic(clientId: clientId, with: dto, peerUserId: peerUserId)
+                recordTrainerContact(peerUserId: peerUserId)
                 lastError = nil
             } catch {
                 markFailed(clientId: clientId, peerUserId: peerUserId)
@@ -1107,6 +1109,13 @@ final class HumanChatStore {
         threadIdByPeer[peerUserId] = dto.threadId
         peerByThread[dto.threadId] = peerUserId
         Task { await refreshInbox(quiet: true) }
+    }
+
+    /// Home's follow-up board: remember that the trainer reached this trainee (only after a successful text send).
+    /// Skipped when the peer is known to be a trainer (a trainee messaging their coach).
+    private func recordTrainerContact(peerUserId: String) {
+        if inbox.first(where: { $0.id == peerUserId })?.role == .trainer { return }
+        TTContactLog.shared.record(peerUserId: peerUserId)
     }
 
     private func markFailed(clientId: String, peerUserId: String) {

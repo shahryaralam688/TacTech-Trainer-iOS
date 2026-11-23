@@ -1,20 +1,70 @@
 import SwiftUI
 
-/// How long the splash waits for the backend before it shows "Can't reach the server" with Retry.
-private let launchServerWaitLimit: Duration = .seconds(8)
-
 struct AppRootView: View {
     @Environment(AppStore.self) private var store
     @State private var splashElapsed = false
-    /// The 8 s wait ran out while the launch restore was still pending.
+    /// The wait limit (`TTNetworkTiming.serverWaitLimit`) ran out while the launch restore was still pending.
     @State private var launchWaitedTooLong = false
-    /// Bumped by Retry: restarts the 8 s wait.
+    /// Bumped by every retry: restarts the waits.
     @State private var launchAttempt = 0
+    /// The restore has been pending longer than `TTNetworkTiming.stillConnectingAfter` → quiet "Still connecting…".
+    @State private var stillConnecting = false
+    /// A retry is running → quiet "Connecting…" on the splash (until it fails again or succeeds).
+    @State private var isRetrying = false
+    /// Automatic retries done since the last manual retry (picks the growing pause).
+    @State private var autoRetryCount = 0
+    /// Seconds until the next automatic retry.
+    @State private var retryCountdown: Int?
+    @Environment(\.scenePhase) private var scenePhase
 
     /// Splash replaced by the calm "Can't reach the server" state. The restore keeps running underneath, so if the
     /// server answers late the app simply continues.
     private var showsConnectionError: Bool {
         store.isRestoringSession && (store.launchConnectionFailed || launchWaitedTooLong)
+    }
+
+    /// The quiet line on the splash: "Connecting…" right after a retry, "Still connecting…" when the wait is long.
+    private var splashStatus: LocalizedStringKey? {
+        guard store.isRestoringSession else { return nil }
+        if isRetrying { return "Connecting…" }
+        return stillConnecting ? "Still connecting…" : nil
+    }
+
+    /// Drops the stuck work and sends the same launch restore again (one restore at a time).
+    private func startRetry() {
+        retryCountdown = nil
+        launchWaitedTooLong = false
+        stillConnecting = false
+        isRetrying = true
+        launchAttempt += 1
+        store.retryLaunchRestore()
+    }
+
+    /// Key of the automatic-retry task: it only runs while the failure screen is visible and the app is active, so
+    /// it stops by itself when the screen goes away.
+    private var autoRetryKey: String {
+        guard showsConnectionError, store.launchConnectionFailed, scenePhase == .active else { return "idle" }
+        return "\(store.launchFailure.map { "\($0)" } ?? "?")-\(launchAttempt)-\(autoRetryCount)"
+    }
+
+    /// Server not responding: retry after 3, 6, 12, then every 30 s, with a quiet countdown.
+    /// Offline: no timer — the network monitor (or the app coming back to the foreground) triggers the retry.
+    private func runAutoRetry() async {
+        guard autoRetryKey != "idle", store.launchFailure != .offline else {
+            retryCountdown = nil
+            return
+        }
+        let pauses = TTNetworkTiming.serverRetryPauses
+        var remaining = pauses[min(autoRetryCount, pauses.count - 1)]
+        while remaining > 0 {
+            retryCountdown = remaining
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { retryCountdown = nil; return }
+            remaining -= 1
+        }
+        retryCountdown = nil
+        autoRetryCount += 1
+        startRetry()
     }
 
     /// Cold launch only — never replay splash after interactive login/signup.
@@ -30,6 +80,10 @@ struct AppRootView: View {
     }
 
     var body: some View {
+        withLaunchRecovery(rootStack)
+    }
+
+    private var rootStack: some View {
         ZStack {
             Group {
                 if showsAuthenticatedContent, let session = store.session {
@@ -50,14 +104,16 @@ struct AppRootView: View {
 
             if showsSplash {
                 if showsConnectionError {
-                    LaunchConnectionErrorView {
-                        launchWaitedTooLong = false
-                        launchAttempt += 1
-                        store.retryLaunchRestore()
+                    LaunchConnectionErrorView(
+                        kind: store.launchFailure == .offline ? .offline : .notResponding,
+                        retryCountdown: retryCountdown
+                    ) {
+                        autoRetryCount = 0
+                        startRetry()
                     }
                     .transition(.opacity)
                 } else {
-                    SplashView()
+                    SplashView(status: splashStatus)
                         .transition(.opacity)
                 }
             }
@@ -80,12 +136,6 @@ struct AppRootView: View {
                 HumanCallStore.shared.startMonitoring()
                 NotificationStore.shared.start()
             }
-        }
-        // Splash look unchanged until the wait limit passes; Retry restarts the wait.
-        .task(id: launchAttempt) {
-            try? await Task.sleep(for: launchServerWaitLimit)
-            guard !Task.isCancelled, store.isRestoringSession else { return }
-            launchWaitedTooLong = true
         }
         .task {
             try? await Task.sleep(for: .milliseconds(600))
@@ -117,6 +167,41 @@ struct AppRootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .ttAIPaywallUnlocked)) { _ in
             Task { await store.refreshAIEntitlements() }
+        }
+    }
+
+    /// The launch-recovery timers and retry triggers (kept out of `body` so it type-checks quickly).
+    private func withLaunchRecovery<Content: View>(_ content: Content) -> some View {
+        content
+        // Splash look unchanged until 3 s pass ("Still connecting…"), then the wait limit ("not responding").
+        // Runs for the cold launch and for a slow post-sign-in load; every retry restarts it.
+        .task(id: launchAttempt * 2 + (store.isRestoringSession ? 1 : 0)) {
+            stillConnecting = false
+            launchWaitedTooLong = false
+            guard store.isRestoringSession else { return }
+            try? await Task.sleep(for: TTNetworkTiming.stillConnectingAfter)
+            guard !Task.isCancelled, store.isRestoringSession else { return }
+            stillConnecting = true
+            try? await Task.sleep(for: TTNetworkTiming.serverWaitLimit - TTNetworkTiming.stillConnectingAfter)
+            guard !Task.isCancelled, store.isRestoringSession else { return }
+            launchWaitedTooLong = true
+        }
+        .task(id: autoRetryKey) { await runAutoRetry() }
+        // Back online or back in the foreground while the failure screen is up: retry right away.
+        .onReceive(NotificationCenter.default.publisher(for: .ttNetworkBecameReachable)) { _ in
+            guard showsConnectionError, store.launchConnectionFailed else { return }
+            autoRetryCount = 0
+            startRetry()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .active, showsConnectionError, store.launchConnectionFailed, store.launchFailure == .offline else { return }
+            startRetry()
+        }
+        .onChange(of: store.launchConnectionFailed) { _, failed in
+            if failed { isRetrying = false }
+        }
+        .onChange(of: store.isRestoringSession) { _, restoring in
+            if !restoring { isRetrying = false; autoRetryCount = 0 }
         }
     }
 

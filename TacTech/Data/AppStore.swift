@@ -6,6 +6,8 @@ import UIKit
 @Observable
 final class AppStore {
     private let api = APIClient()
+    /// Launch / sign-in flavour: fails fast instead of waiting for connectivity (limits in `TTNetworkTiming`).
+    private let launchAPI = APIClient(failFast: true)
     private let coachAPI = CoachAPI()
     private var coachMemorySyncTask: Task<Void, Never>?
 
@@ -25,6 +27,8 @@ final class AppStore {
     /// The launch restore failed for a reason that is NOT a rejected sign-in (no connection, timeout, server error).
     /// The tokens are kept; the splash offers Retry. Only meaningful while `isRestoringSession` is true.
     var launchConnectionFailed = false
+    /// Why the launch restore failed (offline / server unreachable / server error). Set together with `launchConnectionFailed`.
+    var launchFailure: LaunchFailure?
     var assessmentCompleted = false
     var profileSetupCompleted = false
     /// Interactive login/signup in flight — keep auth UI until gates + workspace resolve (no splash replay).
@@ -130,21 +134,39 @@ final class AppStore {
 
     init() {
         pendingBoostCheckout = Self.loadPendingBoost()
-        restoreTask = Task { await restoreIfNeeded() }
+        TTNetworkMonitor.startIfNeeded()   // so `LaunchFailure` can tell "offline" from "server unreachable"
+        startRestore()
     }
 
-    /// The launch restore currently running (cancelled and replaced by `retryLaunchRestore`).
+    /// The launch restore currently running (cancelled and replaced by `retryLaunchRestore`), and its watchdog.
     @ObservationIgnored private var restoreTask: Task<Void, Never>?
+    @ObservationIgnored private var restoreWatchdog: Task<Void, Never>?
 
-    /// Retry on the launch error state: drop the stuck request and send the same restore again.
-    func retryLaunchRestore() {
+    /// Starts exactly one restore (any earlier one is cancelled first) with a hard cap on its total time.
+    private func startRestore() {
         restoreTask?.cancel()
-        launchConnectionFailed = false
-        isRestoringSession = true
-        restoreTask = Task {
+        restoreWatchdog?.cancel()
+        let task = Task {
             await AuthTokenRefresher.shared.cancelInFlightRefresh()
             await restoreIfNeeded()
         }
+        restoreTask = task
+        restoreWatchdog = Task { [weak self] in
+            try? await Task.sleep(for: TTNetworkTiming.restoreOverallLimit)
+            guard !Task.isCancelled, let self, self.isRestoringSession, !self.launchConnectionFailed else { return }
+            // Still running after the cap (many calls in a row, each close to its limit): report it as unreachable.
+            task.cancel()
+            self.launchFailure = TTNetworkMonitor.isOnline ? .unreachable : .offline
+            self.launchConnectionFailed = true
+        }
+    }
+
+    /// Retry on the launch error state: drop the stuck request and send the same restore again.
+    func retryLaunchRestore() {
+        launchConnectionFailed = false
+        launchFailure = nil
+        isRestoringSession = true
+        startRestore()
     }
 
     /// Canvas / Xcode Previews — skips network restore and loads demo data.
@@ -167,12 +189,17 @@ final class AppStore {
         do {
             try await AuthTokenRefresher.shared.refreshIfExpiring()
             try await refreshSession()
+            // A superseded (cancelled) attempt must not finish: its failed requests were swallowed on the way.
+            try Task.checkCancellation()
             refreshAssessmentFlag()
             scheduleCoachMemorySync()
             await AuthTokenRefresher.shared.scheduleProactiveRefresh()
             await LocalizationController.shared.pullFromServer()
+            try Task.checkCancellation()
             launchConnectionFailed = false
+            launchFailure = nil
             isRestoringSession = false
+            restoreWatchdog?.cancel()
         } catch {
             // Superseded by a Retry: the new attempt owns the state.
             if Task.isCancelled { return }
@@ -182,7 +209,9 @@ final class AppStore {
                 isRestoringSession = false
             } else {
                 // No connection, timeout or a server error: NEVER sign the user out and keep the tokens.
+                launchFailure = LaunchFailure.classify(error).flatMap { $0 == .unauthorized ? nil : $0 } ?? .unreachable
                 launchConnectionFailed = true
+                restoreWatchdog?.cancel()
             }
         }
     }
@@ -193,12 +222,34 @@ final class AppStore {
         // Stay on auth UI until gates resolve — avoids splash + welcome interstitial.
         isBootstrappingSession = true
         defer { isBootstrappingSession = false }
-        let response = try await api.login(email: normalized, password: password)
+        let response = try await launchAPI.login(email: normalized, password: password)
         apply(auth: response)
-        try await refreshSession()
-        refreshAssessmentFlag()
-        scheduleCoachMemorySync()
-        await LocalizationController.shared.pullFromServer()
+        await finishSignInLoad()
+    }
+
+    /// After a successful sign-in / sign-up: load the workspace. If that fails or runs long, show the launch states
+    /// (offline / not responding / still connecting) with Retry instead of leaving a spinner, and keep the tokens.
+    private func finishSignInLoad() async {
+        let watchdog = Task { [weak self] in
+            try? await Task.sleep(for: TTNetworkTiming.serverWaitLimit)
+            guard !Task.isCancelled else { return }
+            self?.isRestoringSession = true          // hand over to the splash with "Still connecting…"
+        }
+        defer { watchdog.cancel() }
+        do {
+            try await refreshSession()
+            refreshAssessmentFlag()
+            scheduleCoachMemorySync()
+            await LocalizationController.shared.pullFromServer()
+            launchConnectionFailed = false
+            launchFailure = nil
+            isRestoringSession = false
+        } catch {
+            // Signed in, but the workspace could not load: same Retry states as at launch (retry = the launch restore).
+            launchFailure = LaunchFailure.classify(error).flatMap { $0 == .unauthorized ? nil : $0 } ?? .unreachable
+            launchConnectionFailed = true
+            isRestoringSession = true
+        }
     }
 
     func signup(name: String, email: String, password: String, role: UserRole, inviteCode: String?) async throws {
@@ -208,7 +259,7 @@ final class AppStore {
         guard password.count >= 6 else { throw AppError.validation("Password must be at least 6 characters.") }
         isBootstrappingSession = true
         defer { isBootstrappingSession = false }
-        let response = try await api.signup(
+        let response = try await launchAPI.signup(
             SignupBody(
                 name: name,
                 email: normalized,
@@ -218,10 +269,7 @@ final class AppStore {
             )
         )
         apply(auth: response)
-        try await refreshSession()
-        refreshAssessmentFlag()
-        scheduleCoachMemorySync()
-        await LocalizationController.shared.pullFromServer()
+        await finishSignInLoad()
     }
 
     /// Debounced RAG memory sync for AI Coach (login, assessment, plan changes).
@@ -567,7 +615,7 @@ final class AppStore {
     func requestPasswordReset(email: String) async throws {
         let normalized = email.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard normalized.contains("@") else { throw AppError.validation("Enter a valid email.") }
-        try await api.requestPasswordReset(email: normalized)
+        try await launchAPI.requestPasswordReset(email: normalized)
     }
 
     func logout() async {
@@ -1293,7 +1341,7 @@ final class AppStore {
     private func enrichTraineeTrainerFromServer(allowClearOnNotFound: Bool) async {
         guard currentTrainee != nil else { return }
         do {
-            let trainerPayload = try await api.traineeTrainer()
+            let trainerPayload = try await launchAPI.traineeTrainer()
             if let trainer = trainerPayload.profile { upsert(trainer) }
             if let user = trainerPayload.user {
                 upsert(user.asUser())
@@ -2048,7 +2096,8 @@ final class AppStore {
 
     /// Returns whether the day's meals loaded (callers may ignore it). Errors are still swallowed as before.
     @discardableResult
-    func refreshDay(for traineeId: String, on date: Date) async -> Bool {
+    func refreshDay(for traineeId: String, on date: Date, failFast: Bool = false) async -> Bool {
+        let api = failFast ? launchAPI : self.api
         do {
             if session?.role == .trainer {
                 let remoteMeals = try await api.trainerMeals(traineeId: traineeId, on: date)
@@ -2074,7 +2123,7 @@ final class AppStore {
 
     private func refreshSession() async throws {
         do {
-            let me = try await api.me()
+            let me = try await launchAPI.me()
             if let user = me.resolvedUser {
                 upsert(user.asUser())
                 session = Session(userId: user.id, role: user.role)
@@ -2095,7 +2144,7 @@ final class AppStore {
             if session == nil { throw error }
         }
 
-        exercises = try await api.exercises()
+        exercises = try await launchAPI.exercises()
         if session?.role == .trainer {
             try await loadTrainerWorkspace()
         } else {
@@ -2672,11 +2721,11 @@ final class AppStore {
     }
 
     private func loadTrainerWorkspace() async throws {
-        plans = try await api.trainerPlans()
+        plans = try await launchAPI.trainerPlans()
         loadExerciseTemplates()
         loadCustomExercises()
         mergeCustomExercises()
-        let items = try await api.trainerTrainees()
+        let items = try await launchAPI.trainerTrainees()
         if let trainerId = currentTrainer?.id {
             // Replace roster from server so removed trainees disappear on refresh.
             trainees.removeAll { $0.trainerId == trainerId }
@@ -2695,30 +2744,30 @@ final class AppStore {
     }
 
     private func loadTrainerDetail(traineeId: String) async {
-        if let detail = try? await api.trainerTrainee(id: traineeId) {
+        if let detail = try? await launchAPI.trainerTrainee(id: traineeId) {
             apply(traineeItems: [detail])
         }
-        if let logs = try? await api.trainerLogs(traineeId: traineeId) {
+        if let logs = try? await launchAPI.trainerLogs(traineeId: traineeId) {
             replaceLogs(logs, traineeId: traineeId)
         }
-        if let analytics = try? await api.trainerTraineeAnalytics(traineeId: traineeId) {
+        if let analytics = try? await launchAPI.trainerTraineeAnalytics(traineeId: traineeId) {
             traineeAnalyticsById[traineeId] = analytics
             if !analytics.recentLogs.isEmpty {
                 mergeLogs(analytics.recentLogs, traineeId: traineeId)
             }
         }
-        if let reports = try? await api.trainerFormReports(traineeId: traineeId) {
+        if let reports = try? await launchAPI.trainerFormReports(traineeId: traineeId) {
             replaceFormReports(reports, traineeId: traineeId)
         }
-        if let notes = try? await api.trainerFeedback(traineeId: traineeId) {
+        if let notes = try? await launchAPI.trainerFeedback(traineeId: traineeId) {
             replaceFeedback(notes, traineeId: traineeId)
         }
-        await refreshDay(for: traineeId, on: Date())
+        await refreshDay(for: traineeId, on: Date(), failFast: true)
     }
 
     private func loadTraineeWorkspace() async throws {
         await enrichTraineeTrainerFromServer(allowClearOnNotFound: !isSyncingCoachLink)
-        if var plan = try? await api.assignedPlan(), let trainee = currentTrainee {
+        if var plan = try? await launchAPI.assignedPlan(), let trainee = currentTrainee {
             if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 plan.source = plan.resolvedSource
             }
@@ -2728,17 +2777,17 @@ final class AppStore {
         } else if let trainee = currentTrainee {
             clearOrRetainLocalPlanAssignment(for: trainee)
         }
-        if let logs = try? await api.traineeLogs(), let trainee = currentTrainee {
+        if let logs = try? await launchAPI.traineeLogs(), let trainee = currentTrainee {
             replaceLogs(logs, traineeId: trainee.id)
         }
-        if let reports = try? await api.traineeFormReports(), let trainee = currentTrainee {
+        if let reports = try? await launchAPI.traineeFormReports(), let trainee = currentTrainee {
             replaceFormReports(reports, traineeId: trainee.id)
         }
-        if let notes = try? await api.traineeFeedback(), let trainee = currentTrainee {
+        if let notes = try? await launchAPI.traineeFeedback(), let trainee = currentTrainee {
             replaceFeedback(notes, traineeId: trainee.id)
         }
         if let trainee = currentTrainee {
-            await refreshDay(for: trainee.id, on: Date())
+            await refreshDay(for: trainee.id, on: Date(), failFast: true)
         }
     }
 

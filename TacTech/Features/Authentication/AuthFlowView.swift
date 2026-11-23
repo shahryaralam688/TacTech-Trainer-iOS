@@ -427,7 +427,7 @@ struct RoleSelectionView: View {
             )
         } catch {
             withAnimation(selectSpring) {
-                self.error = error.localizedDescription
+                self.error = LaunchFailure.networkMessage(for: error) ?? error.localizedDescription
             }
         }
     }

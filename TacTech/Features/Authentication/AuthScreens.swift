@@ -135,8 +135,8 @@ struct LoginView: View {
                 break
             }
         }
-        if error is URLError {
-            return String(localized: "Can't connect. Check your internet and try again.")
+        if let network = LaunchFailure.networkMessage(for: error) {
+            return network
         }
         return String(localized: "Couldn't sign in. Try again.")
     }
@@ -378,7 +378,7 @@ struct ResetPasswordView: View {
             try await store.requestPasswordReset(email: email)
             showSent = true
         } catch {
-            self.error = error.localizedDescription
+            self.error = LaunchFailure.networkMessage(for: error) ?? error.localizedDescription
         }
     }
 }

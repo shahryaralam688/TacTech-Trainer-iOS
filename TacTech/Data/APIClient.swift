@@ -606,14 +606,22 @@ enum HTTPMethod: String {
 }
 
 actor APIClient {
+    private let failFast: Bool
     private let session: URLSession
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init() {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 30
-        configuration.waitsForConnectivity = true
+    /// `failFast`: the launch / sign-in flavour (no waiting for connectivity, `TTNetworkTiming` limits, 5xx → `LaunchServerError`).
+    init(failFast: Bool = false) {
+        self.failFast = failFast
+        let configuration: URLSessionConfiguration
+        if failFast {
+            configuration = TTNetworkTiming.failFastConfiguration()
+        } else {
+            configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = 30
+            configuration.waitsForConnectivity = true
+        }
         session = URLSession(configuration: configuration)
         decoder = JSONDecoder.tactech
         encoder = JSONEncoder.tactech
@@ -1507,6 +1515,7 @@ actor APIClient {
             TokenStore.clear()
             throw AppError.unauthorized
         }
+        if failFast, http.statusCode >= 500 { throw LaunchServerError(status: http.statusCode) }
         let detail = Self.detail(from: data)
         let code = Self.code(from: data)
         if http.statusCode == 402 || code == "AI_REQUIRED" || code == "AI_QUOTA_EXCEEDED" {

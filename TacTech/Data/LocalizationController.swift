@@ -95,7 +95,7 @@ final class LocalizationController {
     func pullFromServer() async {
         guard TokenStore.accessToken() != nil else { return }
         do {
-            let dto = try await NotificationAPI().getLanguagePreference()
+            let dto = try await NotificationAPI(failFast: true).getLanguagePreference()
             applyServerLanguageCode(dto.languageCode)
         } catch {
             #if DEBUG

@@ -14,12 +14,21 @@ enum TTNetworkMonitor {
     private static let monitor = NWPathMonitor()
     private static let queue = DispatchQueue(label: "tt.network.monitor")
     private static var started = false
+    private static let pathLock = NSLock()
+    private static var pathSatisfied = true
+
+    /// The device currently has a usable network path (true until the first path update says otherwise).
+    static var isOnline: Bool {
+        pathLock.lock(); defer { pathLock.unlock() }
+        return pathSatisfied
+    }
 
     @MainActor static func startIfNeeded() {
         guard !started else { return }
         started = true
         monitor.pathUpdateHandler = { path in
             let satisfied = path.status == .satisfied
+            pathLock.lock(); pathSatisfied = satisfied; pathLock.unlock()
             if satisfied, !state.wasSatisfied {
                 DispatchQueue.main.async { NotificationCenter.default.post(name: .ttNetworkBecameReachable, object: nil) }
             }

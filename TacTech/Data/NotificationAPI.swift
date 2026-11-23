@@ -7,10 +7,15 @@ actor NotificationAPI {
     private let decoder: JSONDecoder
     private let encoder: JSONEncoder
 
-    init() {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 30
-        configuration.waitsForConnectivity = true
+    init(failFast: Bool = false) {
+        let configuration: URLSessionConfiguration
+        if failFast {
+            configuration = TTNetworkTiming.failFastConfiguration()
+        } else {
+            configuration = URLSessionConfiguration.ephemeral
+            configuration.timeoutIntervalForRequest = 30
+            configuration.waitsForConnectivity = true
+        }
         session = URLSession(configuration: configuration)
         decoder = JSONDecoder.tactech
         encoder = JSONEncoder.tactech

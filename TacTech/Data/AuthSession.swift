@@ -1,5 +1,80 @@
 import Foundation
 
+/// Timing rules for the launch and sign-in network calls. Change them here only.
+enum TTNetworkTiming {
+    /// Per-request limit for launch and sign-in calls (a dead or unreachable server fails after this).
+    static let launchRequestTimeout: TimeInterval = 15
+    /// Total limit for one launch / sign-in call, including any waiting for a connection.
+    static let launchResourceTimeout: TimeInterval = 25
+    /// The splash shows a quiet "Still connecting…" after this long.
+    static let stillConnectingAfter: Duration = .seconds(3)
+    /// Splash → "TacTech isn't responding" when the restore is still pending after this long (it keeps running).
+    static let serverWaitLimit: Duration = .seconds(8)
+    /// Hard cap for the whole launch restore (many sequential calls): then it is cancelled and reported as unreachable.
+    static let restoreOverallLimit: Duration = .seconds(30)
+    /// Pauses before the automatic retries when the server is not responding; the last value repeats.
+    static let serverRetryPauses: [Int] = [3, 6, 12, 30]
+
+    /// A session that fails instead of waiting for connectivity (launch, token refresh, sign-in, sign-up).
+    static func failFastConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = launchRequestTimeout
+        configuration.timeoutIntervalForResource = launchResourceTimeout
+        return configuration
+    }
+}
+
+/// An HTTP 5xx answer on a launch / sign-in call.
+struct LaunchServerError: Error, Equatable { let status: Int }
+
+/// What went wrong on a launch / sign-in call, classified in one place.
+enum LaunchFailure: Equatable {
+    /// No internet (the device or the network path is offline).
+    case offline
+    /// The server can't be reached: refused, DNS failure or timeout.
+    case unreachable
+    /// The server answered with a 5xx (or something unusable).
+    case serverError
+    /// The server rejected the sign-in (after a failed refresh). The ONLY case that signs the user out.
+    case unauthorized
+
+    /// nil for a cancelled request (a superseded attempt).
+    static func classify(_ error: Error) -> LaunchFailure? {
+        if error is CancellationError { return nil }
+        if let app = error as? AppError, app == .unauthorized { return .unauthorized }
+        if error is LaunchServerError { return .serverError }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .cancelled:
+                return nil
+            case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff, .callIsActive:
+                return .offline
+            case .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed, .timedOut:
+                // No path at all says "offline" even when the system reports a timeout.
+                return TTNetworkMonitor.isOnline ? .unreachable : .offline
+            default:
+                return TTNetworkMonitor.isOnline ? .unreachable : .offline
+            }
+        }
+        return .serverError
+    }
+}
+
+extension LaunchFailure {
+    /// Inline message for sign-in / sign-up / password reset when the call failed on the network (nil otherwise).
+    @MainActor
+    static func networkMessage(for error: Error) -> String? {
+        guard error is URLError || error is LaunchServerError else { return nil }
+        let locale = LocalizationController.shared.locale
+        switch classify(error) {
+        case .offline: return String(localized: "No internet connection.", locale: locale)
+        case .unreachable, .serverError: return String(localized: "Can’t reach TacTech right now. Try again.", locale: locale)
+        case .unauthorized, nil: return nil
+        }
+    }
+}
+
 /// Process-wide auth refresh — single-flight lock so parallel 401s don't rotate the same refresh twice.
 actor AuthTokenRefresher {
     static let shared = AuthTokenRefresher()
@@ -11,12 +86,8 @@ actor AuthTokenRefresher {
     private var proactiveTask: Task<Void, Never>?
     private let decoder = JSONDecoder.tactech
     private let encoder = JSONEncoder.tactech
-    private let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 30
-        configuration.waitsForConnectivity = true
-        return URLSession(configuration: configuration)
-    }()
+    // Fail fast: this is on the launch path, so an unreachable server must not hold the splash.
+    private let session = URLSession(configuration: TTNetworkTiming.failFastConfiguration())
 
     /// Refresh only when access is missing expiry metadata or expires within `lead` seconds.
     func refreshIfExpiring(within lead: TimeInterval = AuthTokenRefresher.proactiveLeadSeconds) async throws {
@@ -114,7 +185,7 @@ actor AuthTokenRefresher {
         }
         guard (200...299).contains(http.statusCode) else {
             // A server or gateway error says nothing about the refresh token: keep the tokens, report the error.
-            if http.statusCode >= 500 { throw AppError.api("Server error (\(http.statusCode)).") }
+            if http.statusCode >= 500 { throw LaunchServerError(status: http.statusCode) }
             TokenStore.clear()
             throw Self.mapRefreshFailure(data: data)
         }

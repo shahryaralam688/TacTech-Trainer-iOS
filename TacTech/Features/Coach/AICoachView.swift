@@ -745,8 +745,14 @@ struct AICoachView: View {
                             .id("welcome")
                     }
 
-                    if store.isBootstrapping && store.messages.isEmpty {
+                    TTLoadGate(
+                        isLoading: store.isBootstrapping,
+                        hasData: !store.messages.isEmpty,
+                        loadingLabel: "Loading conversation"
+                    ) {
                         skeletonRows
+                    } content: {
+                        EmptyView()
                     }
 
                     ForEach(store.messages) { message in
@@ -869,14 +875,14 @@ struct AICoachView: View {
         VStack(spacing: 10) {
             ForEach(0..<3, id: \.self) { i in
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(Color.black.opacity(0.06))
+                    .fill(Color.ttSkeletonFill)
                     .frame(height: 44)
                     .frame(maxWidth: i == 1 ? 180 : .infinity, alignment: i % 2 == 0 ? .leading : .trailing)
                     .frame(maxWidth: .infinity, alignment: i % 2 == 0 ? .leading : .trailing)
-                    .redacted(reason: .placeholder)
             }
         }
         .padding(.vertical, 8)
+        .ttSkeleton()
     }
 
     private var typingIndicator: some View {

@@ -170,6 +170,8 @@ struct TTUserAvatarView: View {
 
     @State private var remoteImage: UIImage?
     @State private var loadToken = 0
+    /// The remote photo could not be downloaded → show initials instead of the loading placeholder.
+    @State private var remoteFailed = false
 
     private var resolvedURL: String? {
         let trimmed = avatarUrl?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -217,6 +219,9 @@ struct TTUserAvatarView: View {
                 Image(uiImage: custom)
                     .resizable()
                     .scaledToFill()
+            } else if resolvedURL != nil, !remoteFailed {
+                // Photo still loading: a calm neutral shape (no initials, no colour, no sweep).
+                Color.ttSkeletonFill
             } else {
                 Text(initials)
                     .font(TTFont.workSans(size * 0.36, weight: .bold))
@@ -254,6 +259,7 @@ struct TTUserAvatarView: View {
     private func loadRemoteIfNeeded() async {
         loadToken += 1
         let token = loadToken
+        remoteFailed = false
         guard let url = resolvedURL else {
             remoteImage = nil
             return
@@ -271,6 +277,8 @@ struct TTUserAvatarView: View {
             withAnimation(.easeIn(duration: 0.18)) {
                 remoteImage = image
             }
+        } else {
+            remoteFailed = true   // download failed → fall back to initials
         }
     }
 

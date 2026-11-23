@@ -4,6 +4,8 @@ import SwiftUI
 /// Everything else is one tap away (Progress tab, Nutrition tab, Profile via avatar).
 struct TraineeDashboardView: View {
     @Environment(AppStore.self) private var store
+    /// False until the first Sandow score load has finished (skeleton on the score tile only before that).
+    @State private var didLoadScore = false
     @State private var showProfile = false
     @State private var showProgress = false
     @State private var showNutrition = false
@@ -79,7 +81,7 @@ struct TraineeDashboardView: View {
             }
             .task { await store.refreshAICapabilities() }
             .task { await store.refreshActiveSession() }
-            .task { await store.loadSandowScore() }
+            .task { await store.loadSandowScore(); didLoadScore = true }
             .overlay(alignment: .top) { noticeOverlay }
             .sheet(isPresented: $showProfile) {
                 TraineeProfileView(showsBack: true)
@@ -352,7 +354,8 @@ struct TraineeDashboardView: View {
                 subtext = "No change"
             }
         }
-        return .init(id: "score", title: "Score", value: value, subtext: subtext) {
+        let scoreIsLoading = store.sandowScore == nil && (store.isLoadingSandowScore || !didLoadScore)
+        return .init(id: "score", title: "Score", value: value, subtext: subtext, isLoading: scoreIsLoading) {
             TTHomeHaptics.light(); showProgress = true
         }
     }
@@ -972,37 +975,48 @@ struct WeekStatsGrid: View {
         var title: String
         var value: String
         var subtext: String
+        /// True while this tile's data is loading for the first time (shows the shared skeleton).
+        var isLoading: Bool = false
         var onTap: () -> Void
     }
 
     var stats: [Stat]
+
+    private func tile(title: String, value: String, subtext: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(verbatim: title)
+                .font(TTFont.workSans(12, weight: .medium))
+                .foregroundStyle(HomeTheme.muted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(verbatim: value)
+                .font(TTFont.workSans(24, weight: .medium))
+                .foregroundStyle(HomeTheme.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+            Text(verbatim: subtext)
+                .font(TTFont.workSans(11, weight: .regular))
+                .foregroundStyle(HomeTheme.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
+        .padding(12)
+        .background(HomeTheme.card)
+        .clipShape(RoundedRectangle(cornerRadius: HomeTheme.cardCorner, style: .continuous))
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
+    }
 
     var body: some View {
         // Fixed 3-column grid: no horizontal scroll, no cut-off cards.
         HStack(alignment: .top, spacing: 10) {
             ForEach(stats) { stat in
                 Button(action: stat.onTap) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(stat.title)
-                            .font(TTFont.workSans(12, weight: .medium))
-                            .foregroundStyle(HomeTheme.muted)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.8)
-                        Text(stat.value)
-                            .font(TTFont.workSans(24, weight: .medium))
-                            .foregroundStyle(HomeTheme.ink)
-                            .lineLimit(1)
-                            .minimumScaleFactor(0.6)
-                        Text(stat.subtext)
-                            .font(TTFont.workSans(11, weight: .regular))
-                            .foregroundStyle(HomeTheme.muted)
-                            .fixedSize(horizontal: false, vertical: true)
+                    // Same tile with placeholder text while loading, so nothing shifts when the value arrives.
+                    TTLoadGate(isLoading: stat.isLoading, loadingLabel: "Loading score") {
+                        tile(title: stat.title, value: "00", subtext: "This week").ttSkeleton()
+                    } content: {
+                        tile(title: stat.title, value: stat.value, subtext: stat.subtext)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 92, alignment: .topLeading)
-                    .padding(12)
-                    .background(HomeTheme.card)
-                    .clipShape(RoundedRectangle(cornerRadius: HomeTheme.cardCorner, style: .continuous))
-                    .shadow(color: .black.opacity(0.04), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
                 .accessibilityElement(children: .combine)

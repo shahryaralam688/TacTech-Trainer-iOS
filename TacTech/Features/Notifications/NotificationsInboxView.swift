@@ -98,6 +98,7 @@ struct NotificationsInboxView: View {
                     }
                 }
                 .listStyle(.plain)
+                .refreshable { await loadInbox() }
                 .scrollContentBackground(.hidden)
                 .animation(.easeOut(duration: 0.18), value: isSelecting)
             }

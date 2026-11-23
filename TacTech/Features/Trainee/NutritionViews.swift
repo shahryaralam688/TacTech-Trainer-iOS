@@ -41,6 +41,7 @@ struct NutritionView: View {
                     .padding(.top, 20)
                     .padding(.bottom, 36)
                 }
+                .refreshable { await loadSelectedDay() }
                 .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
             }
             .background(charcoal.ignoresSafeArea(edges: .top))

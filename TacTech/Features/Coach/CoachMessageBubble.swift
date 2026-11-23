@@ -70,7 +70,7 @@ struct CoachMessageBubble: View {
                 case .failure:
                     placeholderThumb
                 case .empty:
-                    placeholderThumb.overlay(ProgressView().tint(orange))
+                    placeholderThumb
                 @unknown default:
                     placeholderThumb
                 }
@@ -91,7 +91,7 @@ struct CoachMessageBubble: View {
 
     private var placeholderThumb: some View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .fill(Color.black.opacity(0.06))
+            .fill(Color.ttSkeletonFill)
             .frame(width: 160, height: 120)
     }
 

@@ -18,6 +18,8 @@ final class HumanChatStore {
     var lastError: String?
     var hapticTick = 0
     var isLoadingInbox = false
+    /// True when the last inbox sync failed (cleared on success). Lets the inbox show an error instead of "empty".
+    var inboxLoadFailed = false
     var isLoadingThread = false
     var activePeerUserId: String?
     var peerTyping = false
@@ -120,8 +122,10 @@ final class HumanChatStore {
             // The 8-second poll must not wake every reader when nothing changed.
             let nextInbox = threads.map(HumanChatPeer.init(from:))
             if nextInbox != inbox { inbox = nextInbox }
+            if inboxLoadFailed { inboxLoadFailed = false }
         } catch {
-            // Sync failures stay silent — pull-to-refresh / reopen will retry.
+            // Sync failures stay silent in the UI unless the inbox is empty — pull-to-refresh / reopen will retry.
+            if !inboxLoadFailed { inboxLoadFailed = true }
         }
     }
 

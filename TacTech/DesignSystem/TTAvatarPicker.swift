@@ -145,8 +145,20 @@ struct TTAvatarImage: View {
     var systemName: String? = nil
     var initials: String = "?"
     var size: CGFloat = 120
+    @Environment(\.redactionReasons) private var redaction
 
     var body: some View {
+        if redaction.contains(.placeholder) {
+            // Skeleton: a calm neutral shape instead of the coloured avatar.
+            RoundedRectangle(cornerRadius: size * 0.28, style: .continuous)
+                .fill(Color.ttSkeletonFill)
+                .frame(width: size, height: size)
+        } else {
+            avatar
+        }
+    }
+
+    private var avatar: some View {
         Group {
             if let assetName, TTAvatarCatalog.isCustom(assetName),
                let custom = TTAvatarCatalog.loadCustomImage(for: userId) {

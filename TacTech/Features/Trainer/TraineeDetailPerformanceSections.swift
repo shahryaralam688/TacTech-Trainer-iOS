@@ -107,9 +107,8 @@ struct TraineeDetailAnalyticsSection: View {
                 volumeChart(analytics)
                 topExercises(analytics)
             } else {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 28)
+                // First load is covered by the parent's skeleton; a finished load with no analytics is "empty".
+                emptyCard
             }
         }
     }

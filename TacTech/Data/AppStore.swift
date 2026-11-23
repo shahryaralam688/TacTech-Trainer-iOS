@@ -738,14 +738,18 @@ final class AppStore {
         await refreshTraineeJoinState()
     }
 
-    func fetchTrainerJoinRequests() async {
-        guard session?.role == .trainer else { return }
+    /// Returns whether the list loaded (callers may ignore it). Errors are still swallowed as before.
+    @discardableResult
+    func fetchTrainerJoinRequests() async -> Bool {
+        guard session?.role == .trainer else { return true }
         do {
             trainerJoinRequests = try await api.trainerJoinRequests(status: "pending")
+            return true
         } catch {
             #if DEBUG
             print("[TacTech] fetchTrainerJoinRequests failed: \(error.localizedDescription)")
             #endif
+            return false
         }
     }
 

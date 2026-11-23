@@ -14,6 +14,7 @@ struct FindCoachesView: View {
     @State private var isLoading = false
     @State private var isLoadingMore = false
     @State private var didLoad = false
+    @State private var loadFailed = false
     @State private var toast: TTToastMessage?
     @State private var searchTask: Task<Void, Never>?
 
@@ -51,13 +52,25 @@ struct FindCoachesView: View {
                             filterFields
                         }
 
-                        if isLoading && items.isEmpty {
-                            ProgressView()
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 40)
-                        } else if items.isEmpty, didLoad {
-                            emptyState
-                        } else {
+                        TTLoadGate(
+                            isLoading: !didLoad || isLoading,
+                            hasData: !items.isEmpty,
+                            loadingLabel: "Loading coaches"
+                        ) {
+                            coachSkeleton
+                        } content: {
+                            if loadFailed && items.isEmpty {
+                                TTLoadError(title: "Couldn’t load coaches") {
+                                    Task { await reload(reset: true) }
+                                }
+                                .padding(.vertical, 24)
+                            } else if items.isEmpty {
+                                emptyState
+                            } else {
+                            VStack(spacing: 12) {
+                            if loadFailed {
+                                TTStaleNotice { Task { await reload(reset: true) } }
+                            }
                             LazyVStack(spacing: 12) {
                                 ForEach(items) { coach in
                                     NavigationLink {
@@ -79,6 +92,8 @@ struct FindCoachesView: View {
                                         .frame(maxWidth: .infinity)
                                         .padding(.vertical, 12)
                                 }
+                            }
+                            }
                             }
                         }
 
@@ -110,6 +125,16 @@ struct FindCoachesView: View {
                 dismiss()
             }
         }
+    }
+
+    /// The real card with placeholder data, so layout matches the content exactly.
+    private var coachSkeleton: some View {
+        VStack(spacing: 12) {
+            ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 150), id: \.self) { _ in
+                CoachDiscoveryRow(coach: .placeholder)
+            }
+        }
+        .ttSkeleton()
     }
 
     private var filterFields: some View {
@@ -176,14 +201,12 @@ struct FindCoachesView: View {
             }
             nextCursor = page.nextCursor
             didLoad = true
+            if reset { loadFailed = false }
         } catch let error as AppError where error == .unauthorized {
             toast = TTToastMessage(text: error.localizedDescription, style: .error)
         } catch {
-            toast = TTToastMessage(
-                text: "Couldn’t load coaches",
-                style: .error,
-                subtitle: error.localizedDescription
-            )
+            // Shown as the error state (nothing loaded yet) or a quiet notice above the stale list.
+            if reset { loadFailed = true }
             didLoad = true
         }
         isLoading = false
@@ -391,4 +414,13 @@ struct CoachRatingBadge: View {
 #Preview("Find Coaches") {
     FindCoachesView()
         .ttPreviewTrainee()
+}
+
+private extension CoachListItem {
+    /// Placeholder card data for the skeleton (decoded because the model has only a decoding initialiser).
+    static let placeholder: CoachListItem = {
+        let json = #"{"id":"placeholder","name":"Coach Name","headline":"A short headline about this coach that wraps onto two lines.","city":"City","specialties":["Strength","Mobility"],"ratingAvg":4.8,"ratingCount":12,"packagesCount":2}"#
+        // swiftlint:disable:next force_try
+        return try! JSONDecoder().decode(CoachListItem.self, from: Data(json.utf8))
+    }()
 }

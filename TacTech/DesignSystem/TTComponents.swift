@@ -347,8 +347,17 @@ struct TTAvatar: View {
     let name: String
     var size: CGFloat = 48
     var tint: Color = TTColor.brand
+    @Environment(\.redactionReasons) private var redaction
 
     var body: some View {
+        if redaction.contains(.placeholder) {
+            Circle().fill(Color.ttSkeletonFill).frame(width: size, height: size)
+        } else {
+            avatar
+        }
+    }
+
+    private var avatar: some View {
         Text(initials)
             .font(TTFont.workSans(size * 0.36, weight: .semibold))
             .foregroundStyle(tint)
@@ -2207,6 +2216,15 @@ private struct TTSkeletonPulse: ViewModifier {
     }
 }
 
+extension Color {
+    /// The one neutral fill used for every skeleton shape (adapts to light and dark).
+    static var ttSkeletonFill: Color { Color.primary.opacity(0.10) }
+    /// Neutral card/background tint for a skeleton surface.
+    static var ttSkeletonSurface: Color { Color.primary.opacity(0.04) }
+    /// Neutral hairline for a skeleton surface.
+    static var ttSkeletonLine: Color { Color.primary.opacity(0.08) }
+}
+
 extension View {
     /// Turns a section into a skeleton: the REAL view rendered with placeholder data (so paddings, heights and radii
     /// match the content exactly), redacted, not tappable, hidden from VoiceOver, with one shared calm pulse.
@@ -2261,7 +2279,8 @@ struct TTLoadGate<Skeleton: View, Content: View>: View {
             }
         }
         .animation(reduceMotion ? nil : .easeOut(duration: TTLoadTiming.crossfade), value: phase)
-        .task(id: isLoading) {
+        // Restart when either input changes (data can disappear while a load is running).
+        .task(id: [isLoading, hasData]) {
             if isLoading {
                 guard !hasData else { return }
                 try? await Task.sleep(for: .seconds(TTLoadTiming.showDelay))

@@ -82,6 +82,8 @@ struct TraineeDetailView: View {
     @State private var showAllNotes = false
     @State private var isRefreshingPerformance = false
     @State private var performanceError: String?
+    /// False until the first performance load has finished (skeleton on first load only).
+    @State private var didLoadPerformance = false
     @State private var selectedTab: TraineeProfileTab = .today
     @State private var chatTarget: TTChatTarget?
     @State private var expandedDayIds: Set<String> = []
@@ -441,19 +443,40 @@ struct TraineeDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 progressChips
 
-                switch progressChip {
-                case .overview:
-                    TraineeDetailAnalyticsSection(
-                        trainee: trainee,
-                        analytics: analytics,
-                        loadError: performanceError
-                    )
-                case .history:
-                    TraineeDetailHistorySection(trainee: trainee, analytics: analytics)
-                case .meals:
-                    nutritionCard
-                case .form:
-                    formCard
+                TTLoadGate(
+                    isLoading: isRefreshingPerformance || !didLoadPerformance,
+                    hasData: progressHasData,
+                    loadingLabel: "Loading progress"
+                ) {
+                    progressSkeleton
+                } content: {
+                    if let performanceError, !progressHasData {
+                        TTLoadError(title: "Couldn’t load progress", message: LocalizedStringKey(performanceError)) {
+                            Task { await reloadPerformance(forceErrorSurface: true) }
+                        }
+                        .padding(.vertical, 16)
+                    } else {
+                        VStack(alignment: .leading, spacing: 12) {
+                            if performanceError != nil {
+                                // Stale data stays visible; the failure is a quiet notice.
+                                TTStaleNotice { Task { await reloadPerformance(forceErrorSurface: true) } }
+                            }
+                            switch progressChip {
+                            case .overview:
+                                TraineeDetailAnalyticsSection(
+                                    trainee: trainee,
+                                    analytics: analytics,
+                                    loadError: performanceError
+                                )
+                            case .history:
+                                TraineeDetailHistorySection(trainee: trainee, analytics: analytics)
+                            case .meals:
+                                nutritionCard
+                            case .form:
+                                formCard
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -1045,9 +1068,42 @@ struct TraineeDetailView: View {
         }
     }
 
+    /// The store already has data for the selected Progress chip (then no skeleton; refresh quietly).
+    private var progressHasData: Bool {
+        switch progressChip {
+        case .overview: analytics != nil
+        case .history: !store.logs(for: trainee.id).isEmpty || (analytics?.recentLogs.isEmpty == false)
+        case .meals: !store.meals(for: trainee.id, on: selectedDay).isEmpty
+        case .form: !store.formReports(for: trainee.id).isEmpty
+        }
+    }
+
+    /// Placeholder card (same paddings and radii as the real cards) shown on the first load of a Progress chip.
+    private var progressSkeleton: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(verbatim: "Section title").font(TTFont.workSans(15, weight: .bold))
+            ForEach(0..<3, id: \.self) { _ in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Workout").font(TTFont.workSans(15, weight: .bold))
+                    Text(verbatim: "Nov 23, 2026 at 9:00 AM").font(TTFont.caption(12))
+                    Text(verbatim: "12 sets · 3.4k kg").font(TTFont.caption(12))
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .ttSkeleton()
+    }
+
     private func reloadPerformance(forceErrorSurface: Bool) async {
         isRefreshingPerformance = true
-        defer { isRefreshingPerformance = false }
+        defer { isRefreshingPerformance = false; didLoadPerformance = true }
         do {
             try await store.refreshTraineePerformance(traineeId: trainee.id)
             performanceError = nil

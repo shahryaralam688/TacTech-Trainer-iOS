@@ -470,13 +470,8 @@ struct HumanPeerChatView: View {
     @ViewBuilder
     private var inboxEmbeddedList: some View {
         if peers.isEmpty {
-            if hasFinishedInitialLoad {
-                emptyInbox
+            inboxEmptyOrLoading
                     .frame(minHeight: 220)
-            } else {
-                inboxLoading
-                    .frame(minHeight: 180)
-            }
         } else {
             LazyVStack(spacing: 10) {
                 ForEach(peers) { peer in
@@ -532,11 +527,7 @@ struct HumanPeerChatView: View {
     @ViewBuilder
     private var inboxBody: some View {
         if peers.isEmpty {
-            if hasFinishedInitialLoad {
-                emptyInbox
-            } else {
-                inboxLoading
-            }
+            inboxEmptyOrLoading
         } else {
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 10) {
@@ -565,11 +556,7 @@ struct HumanPeerChatView: View {
             )
 
             if peers.isEmpty {
-                if hasFinishedInitialLoad {
-                    emptyInbox
-                } else {
-                    inboxLoading
-                }
+                inboxEmptyOrLoading
             } else {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 10) {
@@ -590,10 +577,46 @@ struct HumanPeerChatView: View {
         }
     }
 
-    private var inboxLoading: some View {
-        ProgressView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityLabel("Loading")
+    /// Skeleton while the first inbox sync runs; then the error state (sync failed) or the empty state.
+    private var inboxEmptyOrLoading: some View {
+        TTLoadGate(
+            isLoading: !hasFinishedInitialLoad,
+            loadingLabel: "Loading conversations"
+        ) {
+            inboxSkeleton
+        } content: {
+            if chatStore.inboxLoadFailed {
+                TTLoadError(title: "Couldn’t load your chats") {
+                    Task { await chatStore.refreshInbox() }
+                }
+                .padding(.vertical, 24)
+            } else {
+                emptyInbox
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    /// The real row with placeholder data.
+    private var inboxSkeleton: some View {
+        let placeholder = HumanChatPeer(
+            id: "placeholder",
+            name: "Contact Name",
+            role: audience,
+            avatarUrl: nil,
+            profileId: nil,
+            threadId: nil,
+            lastPreview: "Message preview text",
+            lastAt: Date(),
+            unreadCount: 0
+        )
+        return VStack(spacing: 10) {
+            ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 80), id: \.self) { _ in
+                inboxRow(placeholder)
+            }
+        }
+        .padding(16)
+        .ttSkeleton()
     }
 
     private var emptyInbox: some View {

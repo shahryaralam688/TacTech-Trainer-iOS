@@ -13,6 +13,8 @@ struct NotificationsInboxView: View {
     @State private var toast: TTToastMessage?
     /// False until the first inbox load has finished, so the empty state never flashes before it starts.
     @State private var didLoad = false
+    /// Set only by the inbox LOAD (never by a delete), so a failed delete never shows "couldn't load".
+    @State private var loadFailed = false
 
     private let canvas = Color(white: 0.97)
     private let orange = TTColor.actionOrange
@@ -28,12 +30,11 @@ struct NotificationsInboxView: View {
                 ) {
                     skeletonRows
                 } content: {
-                    if store.lastError != nil {
-                        // TODO: `lastError` is shared with delete failures; a load-specific error would be more precise.
+                    if loadFailed {
                         VStack {
                             Spacer()
                             TTLoadError(title: "Couldn’t load notifications") {
-                                Task { await store.refreshInbox() }
+                                Task { await loadInbox() }
                             }
                             Spacer()
                         }
@@ -108,10 +109,7 @@ struct NotificationsInboxView: View {
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
         .ttToast($toast, bottomInset: isSelecting ? 72 : 28)
-        .task {
-            await store.refreshInbox()
-            didLoad = true
-        }
+        .task { await loadInbox() }
         .onChange(of: store.lastError) { _, message in
             guard let message, !message.isEmpty else { return }
             let needsBackend = message.localizedCaseInsensitiveContains("404")
@@ -238,6 +236,13 @@ struct NotificationsInboxView: View {
         }
     }
 
+    /// Loads the inbox and records whether THAT load failed (`lastError` is also written by delete failures).
+    private func loadInbox() async {
+        await store.refreshInbox()
+        loadFailed = store.lastError != nil && store.items.isEmpty
+        didLoad = true
+    }
+
     /// The real row with placeholder data, so paddings, heights and radii match the content exactly.
     private var skeletonRows: some View {
         let placeholder = AppNotificationDTO(
@@ -251,7 +256,7 @@ struct NotificationsInboxView: View {
         )
         return VStack(spacing: 12) {
             ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 100), id: \.self) { _ in
-                row(placeholder)
+                row(placeholder, skeleton: true)
             }
         }
         .padding(.horizontal, TTSpace.screen)
@@ -315,7 +320,7 @@ struct NotificationsInboxView: View {
 
     // MARK: - Row
 
-    private func row(_ note: AppNotificationDTO) -> some View {
+    private func row(_ note: AppNotificationDTO, skeleton: Bool = false) -> some View {
         let tone = TTAlertTone.forNotificationType(note.type)
         let isSelected = selectedIds.contains(note.id)
 
@@ -327,9 +332,10 @@ struct NotificationsInboxView: View {
 
             ZStack {
                 Circle()
-                    .fill(tone.iconFill)
+                    .fill(skeleton ? Color.ttSkeletonFill : tone.iconFill)
                 TTIcon(icon: icon(for: note.type), size: 16)
                     .foregroundStyle(.white)
+                    .opacity(skeleton ? 0 : 1)
             }
             .frame(width: 40, height: 40)
             .accessibilityHidden(true)
@@ -357,9 +363,9 @@ struct NotificationsInboxView: View {
                     pendingSingleDelete = note
                 } label: {
                     TTIcon(icon: .trash1, filled: true, size: 13)
-                        .foregroundStyle(Color.red.opacity(0.75))
+                        .foregroundStyle(skeleton ? Color.clear : Color.red.opacity(0.75))
                         .frame(width: 34, height: 34)
-                        .background(Color.red.opacity(0.08))
+                        .background(skeleton ? Color.ttSkeletonFill : Color.red.opacity(0.08))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.borderless)
@@ -370,7 +376,7 @@ struct NotificationsInboxView: View {
         .background(
             isSelecting && isSelected
                 ? orange.opacity(0.12)
-                : tone.background
+                : (skeleton ? Color.ttSkeletonSurface : tone.background)
         )
         .clipShape(RoundedRectangle(cornerRadius: TTAlertMetrics.corner, style: .continuous))
         .overlay {
@@ -378,7 +384,7 @@ struct NotificationsInboxView: View {
                 .strokeBorder(
                     isSelecting && isSelected
                         ? orange.opacity(0.45)
-                        : tone.stroke.opacity(note.isUnread ? 0.7 : 0.35),
+                        : (skeleton ? Color.ttSkeletonLine : tone.stroke.opacity(note.isUnread ? 0.7 : 0.35)),
                     lineWidth: TTAlertMetrics.borderWidth
                 )
         }

@@ -9,6 +9,9 @@ struct JoinRequestsView: View {
     @State private var decliningId: String?
     @State private var busyId: String?
     @State private var declineConfirm = false
+    /// False until the first load finishes, so the empty state never flashes before it starts.
+    @State private var didLoad = false
+    @State private var loadFailed = false
 
     private let canvas = Color(white: 0.97)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -25,11 +28,29 @@ struct JoinRequestsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 12) {
-                    if pending.isEmpty {
-                        emptyCard
-                    } else {
-                        ForEach(pending) { request in
-                            requestRow(request)
+                    TTLoadGate(
+                        isLoading: !didLoad,
+                        hasData: !pending.isEmpty,
+                        loadingLabel: "Loading join requests"
+                    ) {
+                        requestSkeleton
+                    } content: {
+                        if pending.isEmpty {
+                            if loadFailed {
+                                TTLoadError(title: "Couldn’t load requests") { Task { await load() } }
+                                    .padding(.vertical, 24)
+                            } else {
+                                emptyCard
+                            }
+                        } else {
+                            VStack(alignment: .leading, spacing: 12) {
+                                if loadFailed {
+                                    TTStaleNotice { Task { await load() } }
+                                }
+                                ForEach(pending) { request in
+                                    requestRow(request)
+                                }
+                            }
                         }
                     }
                 }
@@ -42,12 +63,8 @@ struct JoinRequestsView: View {
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($toast)
-        .task {
-            await store.fetchTrainerJoinRequests()
-        }
-        .refreshable {
-            await store.fetchTrainerJoinRequests()
-        }
+        .task { await load() }
+        .refreshable { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
             let type = (note.userInfo?["type"] as? String) ?? ""
             Task { await store.handleJoinRequestRealtime(type: type) }
@@ -69,6 +86,26 @@ struct JoinRequestsView: View {
         }
     }
 
+    private func load() async {
+        loadFailed = !(await store.fetchTrainerJoinRequests())
+        didLoad = true
+    }
+
+    /// The real card with placeholder data.
+    private var requestSkeleton: some View {
+        let placeholder = JoinRequestDTO(
+            id: "placeholder", status: "pending", inviteCode: "", message: "Placeholder message from the trainee.",
+            createdAt: "", updatedAt: nil, trainer: nil,
+            trainee: JoinRequestTraineeSummary(id: "placeholder", name: "Trainee Name", avatarUrl: nil, email: nil)
+        )
+        return VStack(alignment: .leading, spacing: 12) {
+            ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 170), id: \.self) { _ in
+                requestRow(placeholder, skeleton: true)
+            }
+        }
+        .ttSkeleton()
+    }
+
     private var emptyCard: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No pending requests")
@@ -84,7 +121,7 @@ struct JoinRequestsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func requestRow(_ request: JoinRequestDTO) -> some View {
+    private func requestRow(_ request: JoinRequestDTO, skeleton: Bool = false) -> some View {
         let name = request.trainee?.name ?? "Trainee"
         let busy = busyId == request.id
         return VStack(alignment: .leading, spacing: 12) {
@@ -112,10 +149,10 @@ struct JoinRequestsView: View {
                 } label: {
                     Text("Decline")
                         .font(TTFont.workSans(14, weight: .bold))
-                        .foregroundStyle(TTColor.danger)
+                        .foregroundStyle(skeleton ? Color.primary : TTColor.danger)
                         .frame(maxWidth: .infinity)
                         .frame(height: 40)
-                        .background(TTColor.danger.opacity(0.08))
+                        .background(skeleton ? Color.ttSkeletonFill : TTColor.danger.opacity(0.08))
                         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -135,7 +172,7 @@ struct JoinRequestsView: View {
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 40)
-                    .background(TTColor.actionOrange)
+                    .background(skeleton ? Color.ttSkeletonFill : TTColor.actionOrange)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)

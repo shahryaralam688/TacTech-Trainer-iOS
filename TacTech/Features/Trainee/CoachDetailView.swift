@@ -36,6 +36,11 @@ struct CoachDetailView: View {
     // Packages (Phase 8)
     @State private var packages: [CoachPackage] = []
     @State private var isLoadingPackages = false
+    @State private var didLoadPackages = false
+    @State private var packagesFailed = false
+    @State private var didLoadReviews = false
+    @State private var profileLoadFailed = false
+    @State private var reviewsFailed = false
     @State private var inquirePackage: CoachPackage?
     @State private var inquireMessage = ""
     @State private var isInquiring = false
@@ -72,12 +77,18 @@ struct CoachDetailView: View {
                 background: .white
             )
 
-            Group {
-                if isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else if let profile {
+            TTLoadGate(
+                isLoading: isLoading,
+                hasData: profile != nil,
+                loadingLabel: "Loading coach"
+            ) {
+                detailSkeleton
+            } content: {
+                if let profile {
                     detailContent(profile)
+                } else if profileLoadFailed {
+                    TTLoadError(title: "Couldn’t load coach") { Task { await reloadAll() } }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else {
                     VStack(spacing: 12) {
                         Text("Coach not available")
@@ -93,18 +104,12 @@ struct CoachDetailView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         }
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
         .ttToast($toast, bottomInset: 28)
-        .task {
-            await load()
-            await loadReviews(reset: true)
-            if isTrainee {
-                await loadMyReviewEligibility()
-            }
-            await loadPackages()
-        }
+        .task { await reloadAll() }
         .sheet(isPresented: $showMessageSheet) {
             contactMessageSheet
                 .ttModalSheetPresentation(detents: [.medium], dragIndicator: .visible)
@@ -142,6 +147,74 @@ struct CoachDetailView: View {
         } message: {
             Text("This can’t be undone.")
         }
+    }
+
+    /// Loads everything on the screen (first load and pull to refresh).
+    private func reloadAll() async {
+        await load()
+        await loadReviews(reset: true)
+        if isTrainee {
+            await loadMyReviewEligibility()
+        }
+        await loadPackages()
+    }
+
+    /// Header and two section cards with placeholder text, same paddings and radii as the content.
+    private var detailSkeleton: some View {
+        ScrollView(showsIndicators: false) {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .center, spacing: 14) {
+                    TTAvatarImage(assetName: nil, initials: "CN", size: 72)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(verbatim: "Coach Name").font(TTFont.heading(22))
+                        Text(verbatim: "A short headline about this coach").font(TTFont.body(14))
+                        Text(verbatim: "4.8 · 12 reviews").font(TTFont.caption(12))
+                        Text(verbatim: "City, Country").font(TTFont.caption(12))
+                    }
+                }
+                skeletonSectionCard(title: "Packages") { packageSkeleton }
+                skeletonSectionCard(title: "Reviews") { reviewSkeleton }
+            }
+            .padding(.horizontal, TTModalSheetChrome.horizontalPadding)
+            .padding(.top, TTModalSheetChrome.contentTopPadding)
+            .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
+        }
+        .scrollDisabled(true)
+        .ttSkeleton()
+    }
+
+    private func skeletonSectionCard<Inner: View>(title: String, @ViewBuilder _ inner: () -> Inner) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(TTFont.heading(15))
+            inner()
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Same structure, paddings and radius as `packageCard`.
+    private var packageSkeleton: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(verbatim: "Package title").font(TTFont.heading(15))
+            Text(verbatim: "$00 / month").font(TTFont.heading(16))
+            Text(verbatim: "Online").font(TTFont.caption(12))
+            Text(verbatim: "Short description of what this package includes for the client.").font(TTFont.body(13))
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var reviewSkeleton: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(verbatim: "Reviewer name").font(TTFont.heading(13))
+            Text(verbatim: "Placeholder review text that wraps onto two lines for layout.").font(TTFont.body(14))
+        }
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -226,6 +299,7 @@ struct CoachDetailView: View {
             .padding(.top, TTModalSheetChrome.contentTopPadding)
             .padding(.bottom, TTModalSheetChrome.contentBottomPadding)
         }
+        .refreshable { await reloadAll() }
     }
 
     private var packagesSection: some View {
@@ -233,21 +307,34 @@ struct CoachDetailView: View {
             Text("Packages")
                 .font(TTFont.heading(15))
 
-            if isLoadingPackages && packages.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 12)
-            } else if packages.isEmpty {
-                Text("No packages listed yet.")
-                    .font(TTFont.body(14))
-                    .foregroundStyle(TTColor.inkMuted)
-            } else {
-                ForEach(packages) { pkg in
-                    packageCard(pkg)
+            TTLoadGate(
+                isLoading: isLoadingPackages || !didLoadPackages,
+                hasData: !packages.isEmpty,
+                loadingLabel: "Loading packages"
+            ) {
+                packageSkeleton.ttSkeleton()
+            } content: {
+                if packages.isEmpty {
+                    if packagesFailed {
+                        TTLoadError(title: "Couldn’t load packages") { Task { await loadPackages() } }
+                    } else {
+                        Text("No packages listed yet.")
+                            .font(TTFont.body(14))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if packagesFailed {
+                            TTStaleNotice { Task { await loadPackages() } }
+                        }
+                        ForEach(packages) { pkg in
+                            packageCard(pkg)
+                        }
+                        Text("Prices are set by the coach. Inquire to chat — payment is arranged with your coach.")
+                            .font(TTFont.caption(11))
+                            .foregroundStyle(TTColor.inkSubtle)
+                    }
                 }
-                Text("Prices are set by the coach. Inquire to chat — payment is arranged with your coach.")
-                    .font(TTFont.caption(11))
-                    .foregroundStyle(TTColor.inkSubtle)
             }
         }
         .padding(14)
@@ -414,16 +501,23 @@ struct CoachDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if isLoadingReviews && reviews.isEmpty {
-                ProgressView()
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-            } else if reviews.isEmpty {
+            TTLoadGate(
+                isLoading: isLoadingReviews || !didLoadReviews,
+                hasData: !reviews.isEmpty,
+                loadingLabel: "Loading reviews"
+            ) {
+                reviewSkeleton.ttSkeleton()
+            } content: {
+            if reviews.isEmpty {
+                if reviewsFailed {
+                    TTLoadError(title: "Couldn’t load reviews") { Task { await loadReviews(reset: true) } }
+                } else {
                 Text(String(localized: "trainee.no_reviews"))
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 8)
+                }
             } else {
                 LazyVStack(spacing: 10) {
                     ForEach(reviews) { review in
@@ -440,6 +534,7 @@ struct CoachDetailView: View {
                             .padding(.vertical, 8)
                     }
                 }
+            }
             }
         }
         .padding(14)
@@ -673,13 +768,14 @@ struct CoachDetailView: View {
     @MainActor
     private func loadPackages() async {
         isLoadingPackages = true
-        defer { isLoadingPackages = false }
+        defer { isLoadingPackages = false; didLoadPackages = true }
         do {
             let page = try await APIClient().listCoachPackages(coachProfileId: coachProfileId)
             packages = page.items
+            packagesFailed = false
         } catch {
-            // Soft-fail — header teaser may still show count/featured.
-            packages = []
+            // Soft-fail — header teaser may still show count/featured. A refresh failure keeps the stale packages.
+            packagesFailed = true
         }
     }
 
@@ -711,9 +807,11 @@ struct CoachDetailView: View {
         do {
             let dto = try await APIClient().coachDetail(id: coachProfileId)
             profile = dto
+            profileLoadFailed = false
             ratingAvg = dto.ratingAvg
             ratingCount = dto.ratingCount
         } catch let error as AppError where error.isNotFound {
+            profileLoadFailed = false
             profile = nil
             toast = TTToastMessage(
                 text: "Coach not available",
@@ -721,12 +819,8 @@ struct CoachDetailView: View {
                 subtitle: error.localizedDescription
             )
         } catch {
-            profile = nil
-            toast = TTToastMessage(
-                text: "Couldn’t load coach",
-                style: .error,
-                subtitle: error.localizedDescription
-            )
+            // Keep a stale profile on a failed refresh; otherwise show the error state (not "not available").
+            if profile == nil { profileLoadFailed = true }
         }
         isLoading = false
     }
@@ -756,17 +850,14 @@ struct CoachDetailView: View {
                 limit: 20
             )
             applyReviewPage(page, reset: reset)
+            if reset { reviewsFailed = false }
         } catch {
-            if reset {
-                toast = TTToastMessage(
-                    text: "Couldn’t load reviews",
-                    style: .error,
-                    subtitle: error.localizedDescription
-                )
-            }
+            // Error state (nothing loaded) or the stale reviews stay; replaces the old toast.
+            if reset { reviewsFailed = true }
         }
         isLoadingReviews = false
         isLoadingMoreReviews = false
+        didLoadReviews = true
     }
 
     @MainActor

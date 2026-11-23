@@ -148,7 +148,7 @@ struct NutritionView: View {
                         hasData: dayHasData,
                         loadingLabel: "Loading your meals"
                     ) {
-                        dayChips(calories: 0, hunger: "Hungry").ttSkeleton()
+                        dayChips(calories: 0, hunger: "Hungry", skeleton: true).ttSkeleton()
                     } content: {
                         dayChips(calories: caloriesToday, hunger: hungerLabel)
                     }
@@ -226,10 +226,10 @@ struct NutritionView: View {
         )
     }
 
-    private func dayChips(calories: Int, hunger: String) -> some View {
+    private func dayChips(calories: Int, hunger: String, skeleton: Bool = false) -> some View {
         HStack(spacing: 8) {
-            statusChip(icon: .fire1, text: "\(calories)kcal", tint: orange)
-            statusChip(icon: .forkKnife, text: hunger, tint: blue)
+            statusChip(icon: .fire1, text: "\(calories)kcal", tint: skeleton ? Color.ttSkeletonFill : orange)
+            statusChip(icon: .forkKnife, text: hunger, tint: skeleton ? Color.ttSkeletonFill : blue)
         }
     }
 
@@ -303,8 +303,8 @@ struct NutritionView: View {
             ) {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
-                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false)
-                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false)
+                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false, skeleton: true)
+                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false, skeleton: true)
                     }
                 }
                 .scrollDisabled(true)
@@ -359,16 +359,17 @@ struct NutritionView: View {
         isLoadingDay = false
     }
 
-    private func morningCard(title: String, calories: Int, protein: Int, empty: Bool) -> some View {
+    private func morningCard(title: String, calories: Int, protein: Int, empty: Bool, skeleton: Bool = false) -> some View {
         Button { showManual = true } label: {
             HStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 10) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(orange)
+                            .fill(skeleton ? Color.ttSkeletonFill : orange)
                             .frame(width: 36, height: 36)
                         TTIcon(icon: .forkKnife, filled: true, size: 16)
                             .foregroundStyle(.white)
+                            .opacity(skeleton ? 0 : 1)
                     }
 
                     Text(title)
@@ -395,11 +396,15 @@ struct NutritionView: View {
                 .padding(16)
                 .frame(width: 150, alignment: .leading)
 
-                Image("OnboardingNutrition")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 120, height: 140)
-                    .clipped()
+                if skeleton {
+                    Rectangle().fill(Color.ttSkeletonFill).frame(width: 120, height: 140)
+                } else {
+                    Image("OnboardingNutrition")
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 140)
+                        .clipped()
+                }
             }
             .frame(height: 140)
             .background(Color(white: 0.93))

@@ -21,6 +21,7 @@ struct AccountSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage("settings.darkMode") private var darkMode = false
+    private static let showsDarkModeRow = false
     @AppStorage("settings.biometric") private var biometricEnabled = false
     @AppStorage(LocalizationController.languageLabelKey) private var language = "English"
     @State private var isRestoringPurchases = false
@@ -105,7 +106,11 @@ struct AccountSettingsView: View {
                 value: language,
                 route: .language
             )
-            toggleRow("Dark Mode", icon: "moon", isOn: $darkMode)
+            // Hidden: the app is locked to the light appearance (UIUserInterfaceStyle = Light), so this switch did nothing.
+            // Code kept; flip the constant when dark mode is supported.
+            if Self.showsDarkModeRow {
+                toggleRow("Dark Mode", icon: "moon", isOn: $darkMode)
+            }
             valueRow("Linked Devices", icon: "applewatch", value: "Apple Watch", route: .linkedDevices)
         }
     }

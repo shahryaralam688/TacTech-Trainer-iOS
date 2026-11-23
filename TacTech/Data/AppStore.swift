@@ -2042,7 +2042,9 @@ final class AppStore {
         return lookupFood(query: query)
     }
 
-    func refreshDay(for traineeId: String, on date: Date) async {
+    /// Returns whether the day's meals loaded (callers may ignore it). Errors are still swallowed as before.
+    @discardableResult
+    func refreshDay(for traineeId: String, on date: Date) async -> Bool {
         do {
             if session?.role == .trainer {
                 let remoteMeals = try await api.trainerMeals(traineeId: traineeId, on: date)
@@ -2057,10 +2059,12 @@ final class AppStore {
                     macrosByKey[macroKey(traineeId, on: date)] = macros
                 }
             }
+            return true
         } catch {
             if let error = error as? AppError, error == .unauthorized {
                 clearLocalSession()
             }
+            return false
         }
     }
 

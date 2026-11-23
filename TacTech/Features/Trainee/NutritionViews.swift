@@ -14,6 +14,10 @@ struct NutritionView: View {
     @State private var calorieDraft: Double = 2100
     @State private var suggestionMessage: String?
     @State private var pendingFood: FoodSheetItem?
+    /// Day-load state (view-local): a request for `selectedDay` is in flight / failed / has finished once.
+    @State private var isLoadingDay = true
+    @State private var dayLoadFailed = false
+    @State private var loadedDays: Set<Date> = []
 
     private let orange = TTColor.actionOrange
     private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
@@ -53,11 +57,7 @@ struct NutritionView: View {
             .onAppear {
                 calorieDraft = Double(store.currentTrainee?.dailyCalorieTarget ?? 2100)
             }
-            .task(id: selectedDay) {
-                if let trainee = store.currentTrainee {
-                    await store.refreshDay(for: trainee.id, on: selectedDay)
-                }
-            }
+            .task(id: selectedDay) { await loadSelectedDay() }
             .overlay(alignment: .bottom) {
                 if let suggestionMessage {
                     Text(suggestionMessage)
@@ -143,17 +143,14 @@ struct NutritionView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
-                    HStack(spacing: 8) {
-                        statusChip(
-                            icon: .fire1,
-                            text: "\(caloriesToday)kcal",
-                            tint: orange
-                        )
-                        statusChip(
-                            icon: .forkKnife,
-                            text: hungerLabel,
-                            tint: blue
-                        )
+                    TTLoadGate(
+                        isLoading: isLoadingDay,
+                        hasData: dayHasData,
+                        loadingLabel: "Loading your meals"
+                    ) {
+                        dayChips(calories: 0, hunger: "Hungry").ttSkeleton()
+                    } content: {
+                        dayChips(calories: caloriesToday, hunger: hungerLabel)
                     }
                 }
 
@@ -229,6 +226,13 @@ struct NutritionView: View {
         )
     }
 
+    private func dayChips(calories: Int, hunger: String) -> some View {
+        HStack(spacing: 8) {
+            statusChip(icon: .fire1, text: "\(calories)kcal", tint: orange)
+            statusChip(icon: .forkKnife, text: hunger, tint: blue)
+        }
+    }
+
     private func statusChip(icon: SandowIcon, text: String, tint: Color) -> some View {
         HStack(spacing: 5) {
             TTIcon(icon: icon, filled: true, size: 12)
@@ -287,28 +291,72 @@ struct NutritionView: View {
                 showManual = true
             }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    if morningItems.isEmpty {
-                        morningCard(
-                            title: "Log breakfast",
-                            calories: 0,
-                            protein: 0,
-                            empty: true
-                        )
-                    } else {
-                        ForEach(morningItems.prefix(6)) { meal in
-                            morningCard(
-                                title: meal.name,
-                                calories: meal.macros.calories,
-                                protein: Int(meal.macros.protein.rounded()),
-                                empty: false
-                            )
+            if dayLoadFailed, dayHasData {
+                // Stale meals stay visible; the failure is a quiet notice.
+                TTStaleNotice { Task { await loadSelectedDay() } }
+            }
+
+            TTLoadGate(
+                isLoading: isLoadingDay,
+                hasData: dayHasData,
+                loadingLabel: "Loading your meals"
+            ) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false)
+                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false)
+                    }
+                }
+                .scrollDisabled(true)
+                .ttSkeleton()
+            } content: {
+                if dayLoadFailed, !dayHasData {
+                    TTLoadError(title: "Couldn’t load your meals") { Task { await loadSelectedDay() } }
+                        .frame(height: 140)
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 14) {
+                            if morningItems.isEmpty {
+                                morningCard(
+                                    title: "Log breakfast",
+                                    calories: 0,
+                                    protein: 0,
+                                    empty: true
+                                )
+                            } else {
+                                ForEach(morningItems.prefix(6)) { meal in
+                                    morningCard(
+                                        title: meal.name,
+                                        calories: meal.macros.calories,
+                                        protein: Int(meal.macros.protein.rounded()),
+                                        empty: false
+                                    )
+                                }
+                            }
                         }
                     }
                 }
             }
         }
+    }
+
+    private var dayKey: Date { Calendar.current.startOfDay(for: selectedDay) }
+
+    /// The store already has something for this day (meals, or a finished earlier load): no skeleton, refresh quietly.
+    private var dayHasData: Bool { !todayMeals.isEmpty || loadedDays.contains(dayKey) }
+
+    private func loadSelectedDay() async {
+        guard let trainee = store.currentTrainee else {
+            isLoadingDay = false
+            return
+        }
+        isLoadingDay = true
+        dayLoadFailed = false
+        let ok = await store.refreshDay(for: trainee.id, on: selectedDay)
+        if Task.isCancelled { return }
+        dayLoadFailed = !ok
+        if ok { loadedDays.insert(dayKey) }
+        isLoadingDay = false
     }
 
     private func morningCard(title: String, calories: Int, protein: Int, empty: Bool) -> some View {

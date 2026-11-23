@@ -95,3 +95,44 @@ Bundle id `com.tactech.trainer.shahryar`. The simulator can be driven for screen
 
 ### Recommended order
 1. Production URL + ATS cleanup, per-configuration. 2. Full manual pass on a real device against that server. 3. Replace crash points, hide placeholder features. 4. Basic tests for assign and plan CRUD. 5. Native translation review, then release checklist.
+
+## Loading states and skeletons
+
+Reference: the "Skeleton loading rules" prototype. Components live in `TacTech/DesignSystem/TTComponents.swift` (section "Loading states"). They are in an existing file on purpose: a new Swift file is not in the target of the tracked `.xcodeproj` until XcodeGen regenerates it (verified: the build fails with "cannot find in scope").
+
+**Every screen that loads data has four states:** loading (skeleton), content, empty (what the screen is for + ONE action, `TTLoadEmpty`), error (calm text + **Try again**, `TTLoadError`; if stale content exists keep it and show `TTStaleNotice` above it instead).
+
+**Use a skeleton when** the layout is known and the data comes from the network and takes more than ~0.2 s.
+**Do NOT use one for:** data the store already has (show it, refresh quietly), button actions (inline spinner in the button), pull to refresh (system control), instant local content, tiny sections.
+
+**Timing constants** (only in `TTLoadTiming`): `showDelay` 0.2 s, `minVisible` 0.4 s, `crossfade` 0.2 s, `pulsePeriod` 1.4 s, `maxPlaceholderRows` 6, `placeholderRows(rowHeight:)` = rows that fit the screen, at most 6.
+
+**Build one, step by step**
+1. Find the loading flag and whether the store already has data (`hasData`). If the store has no flag, add the smallest one (view `@State` first; a store change only if the failure is otherwise invisible, and say so).
+2. Wrap the section in `TTLoadGate(isLoading:, hasData:, loadingLabel:)`. Skeleton = the REAL row/card rendered with placeholder data + `.ttSkeleton()`. Content = the real view, including its empty and error branches.
+3. The first load must start from `isLoading == true` (for example `!didLoad || store.isLoading`), otherwise the empty state flashes before the load starts.
+```swift
+TTLoadGate(isLoading: !didLoad || store.isLoading, hasData: !store.items.isEmpty,
+           loadingLabel: "Loading notifications") {
+    VStack(spacing: 12) {
+        ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 100), id: \.self) { _ in row(placeholder) }
+    }.ttSkeleton()
+} content: {
+    if store.lastError != nil { TTLoadError(title: "Couldn’t load notifications") { Task { await store.refresh() } } }
+    else { TTLoadEmpty(icon: .bell1, title: "No notifications yet", message: "…") }
+}
+```
+
+**Layout-match rule:** same paddings, heights, radii and structure as the content, so nothing shifts. Prefer the real view with placeholder data. Check with simulator screenshots (skeleton vs content) using a temporary delay hook in a COPY of the project, never in the repo.
+**Accessibility:** placeholders are hidden from VoiceOver; the gate gives one "Loading …" label and posts a layout-change announcement when content arrives. Localize the label and the error text.
+**Performance:** one pulse per section (opacity only), no `GeometryReader` loops or per-frame scroll readers, no heavy work in `body`, never render skeleton rows that are off screen (the 6-row cap).
+**Reduce Motion:** the pulse and the crossfade are off; placeholders are static.
+
+**Review checklist (copy into every new screen)**
+- [ ] Loading, content, empty and error states all exist
+- [ ] No skeleton when the store already has data; no skeleton for loads under 0.2 s
+- [ ] Skeleton is the real layout with placeholder data; screenshots compared
+- [ ] Pull to refresh is the system control; buttons use an inline spinner
+- [ ] Failed refresh keeps stale content with `TTStaleNotice`
+- [ ] VoiceOver: one loading label, placeholders hidden; strings in `Localizable.xcstrings` (6 languages)
+- [ ] Reduce Motion and dark mode checked

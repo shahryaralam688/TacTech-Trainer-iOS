@@ -2159,3 +2159,223 @@ struct PerfBubbleRecorderSection: View { // PERF-TEMP
     }
 }
 #endif
+
+// MARK: - Loading states (skeletons, empty, error)
+// Rules and a how-to live in CLAUDE.md > "Loading states and skeletons". Reference: the published
+// "Skeleton loading rules" prototype.
+
+/// The timing rules, in one place. Change them here only.
+enum TTLoadTiming {
+    /// Nothing is shown for a load shorter than this, so quick loads never flash a skeleton.
+    static let showDelay: TimeInterval = 0.2
+    /// Once shown, the skeleton stays at least this long, so it never blinks.
+    static let minVisible: TimeInterval = 0.4
+    /// Skeleton → content crossfade.
+    static let crossfade: TimeInterval = 0.2
+    /// One full calm opacity pulse for a whole section.
+    static let pulsePeriod: TimeInterval = 1.4
+    /// Never more placeholder rows than this.
+    static let maxPlaceholderRows = 6
+
+    /// Placeholder rows for a list: as many as fit the screen, at most `maxPlaceholderRows`.
+    static func placeholderRows(rowHeight: CGFloat, screenHeight: CGFloat = UIScreen.main.bounds.height) -> Int {
+        guard rowHeight > 0 else { return 1 }
+        return min(maxPlaceholderRows, max(1, Int((screenHeight / rowHeight).rounded(.up))))
+    }
+}
+
+/// One shared pulse for a whole section (not one per block). Opacity only, so it is GPU-cheap; it stops when the
+/// view leaves the screen and is completely off with Reduce Motion (placeholders stay static).
+private struct TTSkeletonPulse: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dimmed = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(reduceMotion || !dimmed ? 1 : 0.55)
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.easeInOut(duration: TTLoadTiming.pulsePeriod / 2).repeatForever(autoreverses: true)) {
+                    dimmed = true
+                }
+            }
+            .onDisappear {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { dimmed = false }
+            }
+    }
+}
+
+extension View {
+    /// Turns a section into a skeleton: the REAL view rendered with placeholder data (so paddings, heights and radii
+    /// match the content exactly), redacted, not tappable, hidden from VoiceOver, with one shared calm pulse.
+    func ttSkeleton() -> some View {
+        self
+            .redacted(reason: .placeholder)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .modifier(TTSkeletonPulse())
+    }
+}
+
+/// Applies the timing rules to one section.
+/// - `isLoading`: a request for this section is in flight (or has not started yet).
+/// - `hasData`: the store already has data for it. Then the content shows at once and refreshes quietly: no skeleton.
+/// While waiting (first `showDelay`) neither skeleton nor content is drawn (the skeleton's space is reserved), so an
+/// empty or error state never flashes.
+struct TTLoadGate<Skeleton: View, Content: View>: View {
+    let isLoading: Bool
+    var hasData: Bool = false
+    /// Spoken once for the whole section while it loads.
+    let loadingLabel: LocalizedStringKey
+    @ViewBuilder var skeleton: () -> Skeleton
+    @ViewBuilder var content: () -> Content
+
+    @State private var showingSkeleton = false
+    @State private var shownAt: Date?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private enum Phase { case waiting, skeleton, content }
+
+    private var phase: Phase {
+        if hasData { return .content }
+        if showingSkeleton { return .skeleton }
+        return isLoading ? .waiting : .content
+    }
+
+    var body: some View {
+        ZStack {
+            switch phase {
+            case .waiting:
+                // Reserve the skeleton's size without drawing it, so nothing shifts when it appears.
+                skeleton().hidden().accessibilityHidden(true)
+            case .skeleton:
+                skeleton()
+                    .transition(.opacity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(loadingLabel))
+            case .content:
+                content()
+                    .transition(.opacity)
+            }
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: TTLoadTiming.crossfade), value: phase)
+        .task(id: isLoading) {
+            if isLoading {
+                guard !hasData else { return }
+                try? await Task.sleep(for: .seconds(TTLoadTiming.showDelay))
+                guard !Task.isCancelled, isLoading else { return }
+                shownAt = Date()
+                showingSkeleton = true
+            } else if showingSkeleton {
+                let elapsed = Date().timeIntervalSince(shownAt ?? Date())
+                let remaining = max(0, TTLoadTiming.minVisible - elapsed)
+                try? await Task.sleep(for: .seconds(remaining))
+                guard !Task.isCancelled else { return }
+                showingSkeleton = false
+                AccessibilityNotification.LayoutChanged().post()
+            }
+        }
+    }
+}
+
+/// Empty state: one sentence about what the screen is for, and at most ONE action.
+struct TTLoadEmpty: View {
+    let icon: SandowIcon
+    let title: LocalizedStringKey
+    let message: LocalizedStringKey
+    var actionTitle: LocalizedStringKey?
+    var action: (() -> Void)?
+
+    var body: some View {
+        VStack(spacing: 10) {
+            TTIcon(icon: icon, size: 28)
+                .foregroundStyle(TTColor.inkMuted)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(TTFont.workSans(16, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text(message)
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+            if let actionTitle, let action {
+                Button(action: action) {
+                    Text(actionTitle)
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .padding(.horizontal, 20)
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(TTColor.actionOrange)
+                .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Error state: calm text and a Try again button. Use `TTStaleNotice` instead when stale content exists.
+struct TTLoadError: View {
+    let title: LocalizedStringKey
+    var message: LocalizedStringKey = "Check your connection and try again."
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            TTIcon(icon: .infoCircle, size: 28)
+                .foregroundStyle(TTColor.inkMuted)
+                .accessibilityHidden(true)
+            Text(title)
+                .font(TTFont.workSans(16, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+            Text(message)
+                .font(TTFont.body(14))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+            Button(action: retry) {
+                Text("Try again")
+                    .font(TTFont.workSans(15, weight: .semibold))
+                    .padding(.horizontal, 20)
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(TTColor.actionOrange)
+            .padding(.top, 4)
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Quiet inline notice shown ABOVE stale content that stays visible after a failed refresh.
+struct TTStaleNotice: View {
+    var message: LocalizedStringKey = "Couldn’t refresh. Showing your last update."
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            TTIcon(icon: .infoCircle, filled: true, size: 14)
+                .foregroundStyle(TTColor.inkMuted)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(TTFont.caption(13))
+                .foregroundStyle(TTColor.inkMuted)
+            Spacer(minLength: 8)
+            Button(action: retry) {
+                Text("Try again")
+                    .font(TTFont.workSans(13, weight: .semibold))
+                    .foregroundStyle(TTColor.ink)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .background(TTColor.surfaceAlt.opacity(0.6))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}

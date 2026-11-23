@@ -11,6 +11,8 @@ struct NotificationsInboxView: View {
     @State private var confirmBulkDelete = false
     @State private var pendingSingleDelete: AppNotificationDTO?
     @State private var toast: TTToastMessage?
+    /// False until the first inbox load has finished, so the empty state never flashes before it starts.
+    @State private var didLoad = false
 
     private let canvas = Color(white: 0.97)
     private let orange = TTColor.actionOrange
@@ -19,12 +21,27 @@ struct NotificationsInboxView: View {
         VStack(spacing: 0) {
             header
 
-            if store.isLoading && store.items.isEmpty {
-                Spacer()
-                ProgressView()
-                Spacer()
-            } else if store.items.isEmpty {
-                emptyState
+            if store.items.isEmpty {
+                TTLoadGate(
+                    isLoading: !didLoad || store.isLoading,
+                    loadingLabel: "Loading notifications"
+                ) {
+                    skeletonRows
+                } content: {
+                    if store.lastError != nil {
+                        // TODO: `lastError` is shared with delete failures; a load-specific error would be more precise.
+                        VStack {
+                            Spacer()
+                            TTLoadError(title: "Couldn’t load notifications") {
+                                Task { await store.refreshInbox() }
+                            }
+                            Spacer()
+                        }
+                    } else {
+                        emptyState
+                    }
+                }
+                .frame(maxHeight: .infinity, alignment: .top)
             } else {
                 List {
                     ForEach(store.items) { note in
@@ -93,6 +110,7 @@ struct NotificationsInboxView: View {
         .ttToast($toast, bottomInset: isSelecting ? 72 : 28)
         .task {
             await store.refreshInbox()
+            didLoad = true
         }
         .onChange(of: store.lastError) { _, message in
             guard let message, !message.isEmpty else { return }
@@ -218,6 +236,28 @@ struct NotificationsInboxView: View {
                 .accessibilityLabel("Notification actions")
             }
         }
+    }
+
+    /// The real row with placeholder data, so paddings, heights and radii match the content exactly.
+    private var skeletonRows: some View {
+        let placeholder = AppNotificationDTO(
+            id: "placeholder",
+            type: "message",
+            title: "Notification title",
+            body: "Placeholder text for a notification message that wraps onto two lines.",
+            data: [:],
+            readAt: Date(),
+            createdAt: Date()
+        )
+        return VStack(spacing: 12) {
+            ForEach(0..<TTLoadTiming.placeholderRows(rowHeight: 100), id: \.self) { _ in
+                row(placeholder)
+            }
+        }
+        .padding(.horizontal, TTSpace.screen)
+        .padding(.vertical, 6)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .ttSkeleton()
     }
 
     private var emptyState: some View {

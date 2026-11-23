@@ -97,7 +97,9 @@ struct CreatePlanView: View {
             !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && !focus.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case .days:
-            !selectedDays.isEmpty && allDaysHaveTitleAndFocus
+            // Edit only: a saved day can have an empty title/focus, and this step has no field to fix them (they are
+            // edited in step 3), so they must not block here. Create keeps the original rule.
+            isEditing ? !selectedDays.isEmpty : (!selectedDays.isEmpty && allDaysHaveTitleAndFocus)
         case .sessions:
             canSave
         }
@@ -507,7 +509,11 @@ struct CreatePlanView: View {
 
                 if !daysMissingTitleOrFocus.isEmpty {
                     let missing = daysMissingTitleOrFocus.map { $0.short }.joined(separator: ", ")
-                    tipRow("Add a title and target muscles for \(missing).")
+                    if isEditing {
+                        tipRow("\(missing): you can add a title and target muscles in the next step.")
+                    } else {
+                        tipRow("Add a title and target muscles for \(missing).")
+                    }
                 }
             }
         }
@@ -752,7 +758,7 @@ struct CreatePlanView: View {
         notes = plan.notes ?? ""
         // De-duplicate by weekday — keep the last entry if the plan has duplicate days
         let uniqueDays = plan.scheduledDays.reduce(into: [Weekday: PlanDay]()) { $0[$1.weekday] = $1 }
-        selectedDays = Array(uniqueDays.keys)
+        selectedDays = uniqueDays.keys.sorted { $0.sortIndex < $1.sortIndex }   // dictionary order is random
         sessions = uniqueDays.mapValues { SessionDraft(from: $0) }
         hasChanges = false
         // onChange handlers fire after this pass — reset again once they've run.

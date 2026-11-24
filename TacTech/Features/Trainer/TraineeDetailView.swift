@@ -79,6 +79,7 @@ struct TraineeDetailView: View {
     @State private var removeConfirm = false
     @State private var isRemoving = false
     @State private var progressChip: TraineeProgressChip = .overview
+    @State private var detailMeal: Meal?
     @State private var showAllNotes = false
     @State private var isRefreshingPerformance = false
     @State private var performanceError: String?
@@ -178,6 +179,20 @@ struct TraineeDetailView: View {
         .task(id: selectedDay) {
             await store.refreshDay(for: trainee.id, on: selectedDay)
         }
+        .sheet(item: $detailMeal) { meal in
+            TTMealDetailSheet(meal: meal)
+                .ttModalSheetPresentation()
+        }
+        // A meal was logged (realtime): refresh this trainee's meals for the day on screen.
+        .onReceive(NotificationCenter.default.publisher(for: .ttMealLogged)) { note in
+            guard (note.userInfo?["traineeId"] as? String) == trainee.id else { return }
+            Task { await store.refreshDay(for: trainee.id, on: selectedDay) }
+        }
+        // Opened from a "meal logged" notification: Progress > Meals on the day of that meal.
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeMeals)) { _ in
+            Task { await consumeMealDeepLink() }
+        }
+        .task { await consumeMealDeepLink() }
         .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
         .navigationDestination(item: $viewedPlan) { plan in
             WorkoutPlanDetailView(plan: plan)
@@ -1470,9 +1485,27 @@ struct TraineeDetailView: View {
         }
     }
 
+    @MainActor
+    private func consumeMealDeepLink() async {
+        guard let target = TTMealDeepLink.pending, target.traineeId == trainee.id else { return }
+        TTMealDeepLink.pending = nil
+        selectedTab = .progress
+        progressChip = .meals
+        // The notification carries the meal id only; find its day once today's list is fresh.
+        // TODO: the event/notification has no meal date; a meal logged for another day opens on today.
+        await store.refreshDay(for: trainee.id, on: Date())
+        if let mealId = target.mealId,
+           let meal = store.meals.first(where: { $0.id == mealId && $0.traineeId == trainee.id }) {
+            selectedDay = meal.eatenAt
+        } else {
+            selectedDay = Date()
+        }
+    }
+
     private var nutritionCard: some View {
         let macros = store.dailyMacros(for: trainee.id, on: selectedDay)
-        let meals = store.meals(for: trainee.id, on: selectedDay)
+        // The trainer sees what was eaten only (planned entries stay private for now).
+        let meals = store.meals(for: trainee.id, on: selectedDay).filter { !$0.isPlanned }
         return VStack(alignment: .leading, spacing: 12) {
             TTWeekStrip(selected: $selectedDay)
             HStack {
@@ -1493,20 +1526,8 @@ struct TraineeDetailView: View {
                     .foregroundStyle(TTColor.inkMuted)
             }
             ForEach(meals) { meal in
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(meal.name)
-                            .font(TTFont.workSans(14, weight: .semibold))
-                            .foregroundStyle(TTColor.ink)
-                        Text(meal.isEstimate ? "Estimate · \(Int(meal.portionGrams)) g" : "\(Int(meal.portionGrams)) g")
-                            .font(TTFont.caption(12))
-                            .foregroundStyle(TTColor.inkMuted)
-                    }
-                    Spacer()
-                    Text("\(meal.macros.calories) kcal")
-                        .font(TTFont.workSans(14, weight: .semibold))
-                        .foregroundStyle(TTColor.ink)
-                }
+                // Same row as the trainee's own list (read-only here); tap opens the detail.
+                TTMealRow(meal: meal, onTap: { detailMeal = meal })
             }
         }
         .padding(14)

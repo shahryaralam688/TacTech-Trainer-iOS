@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Workout Overview (session preview)
 
-/// A single-session preview. Pushed from Home (standard nav bar + back button).
+/// A single-session preview ("View Summary"). Pushed from Home with the shared dark page header + back button.
 /// The guided session itself is started from the sticky bottom bar.
 struct WorkoutOverviewView: View {
     @Environment(AppStore.self) private var store
@@ -12,6 +12,7 @@ struct WorkoutOverviewView: View {
     @State private var expandedExerciseIds: Set<String> = []
 
     private let canvas = Color(white: 0.97)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
 
     private var session: PlanDay? {
         plan.session(on: Date()) ?? plan.nextSession(from: Date())
@@ -22,49 +23,40 @@ struct WorkoutOverviewView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                if let session {
-                    SessionHeader(session: session, level: plan.level)
-                }
+        VStack(spacing: 0) {
+            // Same dark page header as the other pushed Trainee screens (back button + title).
+            TTDarkPageHeader(title: session?.title ?? plan.title, showsBack: true, onBack: { dismiss() })
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    if let session {
+                        SessionHeader(session: session, level: plan.level)
+                    }
 
-                BeforeYouStartCard(
-                    equipment: equipmentList,
-                    formExerciseId: exercises.first?.exerciseId
-                )
+                    BeforeYouStartCard(
+                        equipment: equipmentList,
+                        formExerciseId: exercises.first?.exerciseId
+                    )
 
-                if let warmup = session?.warmup, !warmup.isEmpty {
-                    BlockCard(title: "Warm-up", icon: "figure.flexibility", text: warmup)
-                }
+                    if let warmup = session?.warmup, !warmup.isEmpty {
+                        BlockCard(title: "Warm-up", icon: "figure.flexibility", text: warmup)
+                    }
 
-                if !exercises.isEmpty {
-                    exercisesSection
-                }
+                    if !exercises.isEmpty {
+                        exercisesSection
+                    }
 
-                if let cooldown = session?.cooldown, !cooldown.isEmpty {
-                    BlockCard(title: "Cool-down", icon: "wind", text: cooldown)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 24)   // sticky bar adds its own inset via safeAreaInset
-        }
-        .background(canvas.ignoresSafeArea())
-        .navigationTitle(session?.title ?? plan.title)
-        .navigationBarTitleDisplayMode(.large)
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Button { dismiss() } label: {
-                    HStack(spacing: 2) {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 17, weight: .semibold))
-                        Text("Home")
+                    if let cooldown = session?.cooldown, !cooldown.isEmpty {
+                        BlockCard(title: "Cool-down", icon: "wind", text: cooldown)
                     }
                 }
-                .accessibilityLabel("Back")
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 24)   // sticky bar adds its own inset via safeAreaInset
             }
+            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
         }
+        .background(charcoal.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
         .safeAreaInset(edge: .bottom) {
             if let session {
                 StickyStartBar(summary: summaryLine, plan: plan, day: session)

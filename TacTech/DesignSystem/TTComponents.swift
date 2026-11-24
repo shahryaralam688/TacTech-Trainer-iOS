@@ -2398,3 +2398,324 @@ struct TTStaleNotice: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
+
+// MARK: - Meals (shared by Trainee and Trainer)
+
+/// Meal categories the backend accepts in `mealType`.
+enum TTMealType: String, CaseIterable, Identifiable {
+    case breakfast, lunch, dinner, snack
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .breakfast: "Breakfast"
+        case .lunch: "Lunch"
+        case .dinner: "Dinner"
+        case .snack: "Snack"
+        }
+    }
+
+    /// Default chip by time of day.
+    static func suggested(at date: Date = .now) -> TTMealType {
+        switch Calendar.current.component(.hour, from: date) {
+        case 5..<11: .breakfast
+        case 11..<15: .lunch
+        case 15..<18: .snack
+        case 18..<23: .dinner
+        default: .snack
+        }
+    }
+}
+
+/// Hand-off for "trainer taps a meal notification → that trainee's Progress > Meals".
+/// Set before `.ttOpenTraineeMeals` is posted, because the Home tab may not be mounted yet.
+@MainActor
+enum TTMealDeepLink {
+    struct Target: Equatable {
+        var traineeId: String
+        var mealId: String?
+    }
+    static var pending: Target?
+}
+
+/// Meal photo: remote thumbnail (or full image) with a neutral placeholder when there is no photo.
+struct TTMealPhoto: View {
+    let urlString: String?
+    /// Pixel bucket for the cached thumbnail; ignored when `full` is true.
+    var maxPixel: Int = 192
+    var full = false
+
+    @State private var image: UIImage?
+
+    /// The server returns `/uploads/...` paths; make them absolute against the API host (one cache key everywhere).
+    static func resolvedURL(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
+        if raw.hasPrefix("/") {
+            return URL(string: raw, relativeTo: APIConfig.baseURL)?.absoluteURL.absoluteString ?? raw
+        }
+        return raw
+    }
+
+    var body: some View {
+        ZStack {
+            Color.ttMealPlaceholder
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                TTIcon(icon: .forkKnife, filled: true, size: full ? 34 : 20)
+                    .foregroundStyle(TTColor.actionOrange.opacity(0.7))
+            }
+        }
+        .clipped()
+        .task(id: urlString) { await load() }
+        .accessibilityHidden(true)
+    }
+
+    private func load() async {
+        guard let urlString = Self.resolvedURL(urlString) else { image = nil; return }
+        let loaded: UIImage?
+        if full {
+            loaded = await TTRemoteImageCache.shared.image(for: urlString)
+        } else {
+            loaded = await TTRemoteImageCache.shared.thumbnail(for: urlString, maxPixel: maxPixel, allowDownload: true)
+        }
+        if !Task.isCancelled { image = loaded }
+    }
+}
+
+private extension Color {
+    static let ttMealPlaceholder = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255).opacity(0.10)
+}
+
+/// The one meal row used by the Trainee day list and the Trainer's Progress > Meals.
+/// Pass `onDelete` for the trainee's own list (adds a visible Delete button and a swipe shortcut).
+struct TTMealRow: View {
+    let meal: Meal
+    var onTap: (() -> Void)? = nil
+    var onDelete: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button { onTap?() } label: {
+                HStack(spacing: 12) {
+                    TTMealPhoto(urlString: meal.photoUrl)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(meal.name)
+                            .font(TTFont.workSans(15, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            if let type = TTMealType(rawValue: meal.mealType ?? "") {
+                                Text(type.title)
+                                    .font(TTFont.workSans(11, weight: .semibold))
+                                    .foregroundStyle(Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(TTColor.actionOrange.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+                            Text(meal.eatenAt.formatted(date: .omitted, time: .shortened))
+                                .font(TTFont.caption(12))
+                                .foregroundStyle(TTColor.inkMuted)
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    Group {
+                        if meal.macros.calories > 0 {
+                            Text("\(meal.macros.calories) kcal")
+                        } else {
+                            Text("Pending estimate")
+                                .multilineTextAlignment(.trailing)
+                        }
+                    }
+                    .font(TTFont.workSans(meal.macros.calories > 0 ? 14 : 12, weight: .semibold))
+                    .foregroundStyle(meal.macros.calories > 0 ? TTColor.ink : TTColor.inkMuted)
+                }
+                .frame(minHeight: 56)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(onTap == nil)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilitySummary)
+            .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+
+            if let onDelete {
+                Button(action: onDelete) {
+                    TTIcon(icon: .trash1, size: 16)
+                        .foregroundStyle(TTColor.inkMuted)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Delete meal")
+            }
+        }
+        .padding(12)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .ttSwipeToDelete(onDelete)
+    }
+
+    private var accessibilitySummary: Text {
+        var parts: [Text] = [Text(verbatim: meal.name)]
+        if let type = TTMealType(rawValue: meal.mealType ?? "") { parts.append(Text(type.title)) }
+        parts.append(Text(verbatim: meal.eatenAt.formatted(date: .omitted, time: .shortened)))
+        parts.append(meal.macros.calories > 0 ? Text(verbatim: "\(meal.macros.calories) kcal") : Text("Pending estimate"))
+        return parts.dropFirst().reduce(parts[0]) { $0 + Text(verbatim: ", ") + $1 }
+    }
+}
+
+private extension View {
+    /// Swipe toward the leading edge to delete (mirrors in RTL). A shortcut only: the row also has a visible Delete button.
+    @ViewBuilder
+    func ttSwipeToDelete(_ action: (() -> Void)?) -> some View {
+        if let action {
+            modifier(TTSwipeToDelete(action: action))
+        } else {
+            self
+        }
+    }
+}
+
+private struct TTSwipeToDelete: ViewModifier {
+    let action: () -> Void
+    @Environment(\.layoutDirection) private var layoutDirection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var offset: CGFloat = 0
+
+    private var sign: CGFloat { layoutDirection == .rightToLeft ? 1 : -1 }
+    private let threshold: CGFloat = 90
+
+    func body(content: Content) -> some View {
+        content
+            .offset(x: offset)
+            .background(alignment: layoutDirection == .rightToLeft ? .leading : .trailing) {
+                if abs(offset) > 4 {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.red.opacity(min(1, abs(offset) / threshold)))
+                        .overlay(alignment: layoutDirection == .rightToLeft ? .leading : .trailing) {
+                            TTIcon(icon: .trash1, size: 18)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 20)
+                        }
+                }
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 24)
+                    .onChanged { value in
+                        let dx = value.translation.width
+                        guard abs(dx) > abs(value.translation.height) * 1.5 else { return }
+                        // Only toward the delete direction, with a little resistance.
+                        offset = dx * sign > 0 ? sign * min(abs(dx), 140) * 0.8 : 0
+                    }
+                    .onEnded { value in
+                        let triggered = abs(offset) >= threshold * 0.8 && value.translation.width * sign > 0
+                        withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { offset = 0 }
+                        if triggered { action() }
+                    }
+            )
+            .accessibilityAction(named: Text("Delete meal"), action)
+    }
+}
+
+/// Meal Detail: large photo, type + time, notes, macros and the "Estimate" label. Read-only, for both roles.
+struct TTMealDetailSheet: View {
+    let meal: Meal
+    @Environment(\.dismiss) private var dismiss
+
+    private var typeTitle: LocalizedStringKey? { TTMealType(rawValue: meal.mealType ?? "")?.title }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TTModalSheetHeader(
+                title: meal.name,
+                subtitle: meal.eatenAt.formatted(date: .abbreviated, time: .shortened),
+                background: .white
+            )
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    TTMealPhoto(urlString: meal.photoUrl, full: true)
+                        .frame(maxWidth: .infinity)
+                        .aspectRatio(4 / 3, contentMode: .fit)
+                        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .accessibilityHidden(true)
+
+                    HStack(spacing: 8) {
+                        if let typeTitle {
+                            chip(Text(typeTitle), tint: TTColor.actionOrange)
+                        }
+                        if meal.isEstimate {
+                            chip(Text("Estimate"), tint: TTColor.inkMuted)
+                        }
+                        Text("\(Int(meal.portionGrams)) g")
+                            .font(TTFont.caption(13))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+
+                    if let notes = meal.notes?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Notes")
+                                .font(TTFont.workSans(14, weight: .semibold))
+                                .foregroundStyle(TTColor.ink)
+                            Text(notes)
+                                .font(TTFont.body(15))
+                                .foregroundStyle(TTColor.inkMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+
+                    if meal.macros.calories > 0 {
+                        HStack(spacing: 10) {
+                            macroTile("Calories", "\(meal.macros.calories)", TTColor.calorie)
+                            macroTile("Protein", String(format: "%.0f g", meal.macros.protein), TTColor.protein)
+                            macroTile("Carbs", String(format: "%.0f g", meal.macros.carbs), TTColor.carbs)
+                            macroTile("Fat", String(format: "%.0f g", meal.macros.fat), TTColor.fat)
+                        }
+                    } else {
+                        Text("Pending estimate")
+                            .font(TTFont.workSans(14, weight: .semibold))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+                }
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
+            }
+        }
+        .background(Color(white: 0.97).ignoresSafeArea())
+        .ttHideSystemNavigationBar()
+    }
+
+    private func chip(_ text: Text, tint: Color) -> some View {
+        text
+            .font(TTFont.workSans(12, weight: .semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(tint.opacity(0.12))
+            .clipShape(Capsule())
+    }
+
+    private func macroTile(_ title: LocalizedStringKey, _ value: String, _ tint: Color) -> some View {
+        VStack(spacing: 4) {
+            Text(verbatim: value)
+                .font(TTFont.workSans(15, weight: .bold))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(title)
+                .font(TTFont.caption(11))
+                .foregroundStyle(TTColor.inkMuted)
+        }
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}

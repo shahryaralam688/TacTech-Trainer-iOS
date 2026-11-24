@@ -62,6 +62,8 @@ final class ChatRealtimeClient {
         /// Domain: a trainee's live workout session started / logged a set / completed / was discarded.
         /// IDs and status only — refetch `GET /trainer/trainees/{id}/sessions/active` for details.
         case workoutSessionChanged(traineeId: String, sessionId: String, status: String, action: String, occurredAt: String)
+        /// Domain: a trainee logged a meal (sent to their trainer). Refetch the trainee's meals for details.
+        case mealLogged(traineeId: String, mealId: String, mealName: String?, occurredAt: String)
         /// Domain: assigned plan assign / unassign / update. Prefer over inbox for live Workout sync.
         case planAssignmentChanged(
             action: String,
@@ -386,6 +388,17 @@ final class ChatRealtimeClient {
                     sessionId: sessionId,
                     status: Self.stringField(dict, "status") ?? "",
                     action: action,
+                    occurredAt: Self.stringField(dict, "occurredAt", "occurred_at") ?? ""
+                ))
+            }
+        case "meal.logged":
+            if let dict = Self.unwrapEventDict(body),
+               let traineeId = Self.stringField(dict, "traineeId", "trainee_id"),
+               let mealId = Self.stringField(dict, "mealId", "meal_id") {
+                onEvent?(.mealLogged(
+                    traineeId: traineeId,
+                    mealId: mealId,
+                    mealName: Self.stringField(dict, "mealName", "meal_name"),
                     occurredAt: Self.stringField(dict, "occurredAt", "occurred_at") ?? ""
                 ))
             }

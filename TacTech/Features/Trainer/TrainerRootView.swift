@@ -61,7 +61,7 @@ struct TrainerRootView: View {
 
                 ZStack(alignment: .bottom) {
                     ZStack {
-                        if mounted.contains(.dashboard) {
+                        if isMounted(.dashboard) {
                             TrainerDashboardView()
                                 .ttTabFade(tab: .dashboard, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .dashboard)
@@ -69,7 +69,7 @@ struct TrainerRootView: View {
                                     if tab != .dashboard { visible = true }
                                 }
                         }
-                        if mounted.contains(.plans) {
+                        if isMounted(.plans) {
                             WorkoutPlansView()
                                 .ttTabFade(tab: .plans, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .plans)
@@ -77,7 +77,7 @@ struct TrainerRootView: View {
                                     if tab != .plans { visible = true }
                                 }
                         }
-                        if mounted.contains(.chat) {
+                        if isMounted(.chat) {
                             // Same chat screen as everywhere else; AI Coach pinned on top.
                             HumanPeerChatView(
                                 audience: .trainer,
@@ -92,7 +92,7 @@ struct TrainerRootView: View {
                                 if tab != .chat { visible = true }
                             }
                         }
-                        if mounted.contains(.profile) {
+                        if isMounted(.profile) {
                             TrainerProfileView()
                                 .ttTabFade(tab: .profile, selection: tab, order: [.dashboard, .plans, .chat, .profile])
                                 .allowsHitTesting(tab == .profile)
@@ -105,7 +105,7 @@ struct TrainerRootView: View {
                     .ignoresSafeArea(edges: .bottom)
                     .ttSwipeBetweenTabs(
                         order: [.dashboard, .plans, .chat, .profile],
-                        selection: $tab,
+                        selection: tabSelection,
                         enabled: rootTabBarVisible && !showLiquidMenu
                     )
                     .contentMargins(.bottom, tabClearance, for: .scrollContent)
@@ -119,7 +119,7 @@ struct TrainerRootView: View {
                     if rootTabBarVisible {
                         TTFloatingTabBar(
                             tabs: tabs,
-                            selection: $tab,
+                            selection: tabSelection,
                             onCenterTap: openLiquidMenu,
                             bottomInset: geo.safeAreaInsets.bottom,
                             aiChatNamespace: aiChatNamespace,
@@ -143,7 +143,8 @@ struct TrainerRootView: View {
                     engine: bubbleMenu,
                     actions: TTLiquidFABAction.trainerCenterMenu,
                     onSelect: handleLiquidAction,
-                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve
+                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve,
+                    showLabelsInside: true
                 )
                 .zIndex(50)
             } else if showLiquidMenu {
@@ -243,6 +244,9 @@ struct TrainerRootView: View {
                 traineeProfileId: note.userInfo?["traineeProfileId"] as? String
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeMeals)) { _ in
+            selectTab(.dashboard)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
             selectTab(.dashboard)
         }
@@ -287,6 +291,17 @@ struct TrainerRootView: View {
             tab = newTab
             mounted.insert(newTab)
         }
+    }
+
+    /// A tab is built as soon as it is selected (never one frame later, from an onChange), and kept once built.
+    private func isMounted(_ t: TrainerTab) -> Bool { mounted.contains(t) || tab == t }
+
+    /// Tab bar and swipe write through this: the selected tab is marked as mounted in the same change.
+    private var tabSelection: Binding<TrainerTab> {
+        Binding(get: { tab }, set: { newTab in
+            mounted.insert(newTab)
+            tab = newTab
+        })
     }
 
     private func openLiquidMenu() {

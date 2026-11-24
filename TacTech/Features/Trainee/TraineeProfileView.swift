@@ -10,6 +10,7 @@ struct TraineeProfileView: View {
     @State private var joinMessage = ""
     @State private var message: String?
     @State private var showFindCoaches = false
+    @State private var showProgress = false
     @State private var toast: TTToastMessage?
     @State private var isSendingRequest = false
     @State private var cancelConfirm = false
@@ -34,33 +35,36 @@ struct TraineeProfileView: View {
         store.pendingJoinRequest?.isPending == true ? store.pendingJoinRequest : nil
     }
 
+    /// Goal, weight and height from the trainee's profile; "—" when a value is not set (never invented).
     private var metrics: [TTProfileMetric] {
-        let age = store.savedAssessmentAge() ?? 18
-        let weight = Int(store.currentTrainee?.weightKg ?? 0)
+        let trainee = store.currentTrainee
+        let goal = trainee?.goal.nilIfBlank ?? "—"
+        let weight = (trainee?.weightKg ?? 0) > 0 ? "\(Int(trainee?.weightKg ?? 0))" : "—"
+        let height = (trainee?.heightCm ?? 0) > 0 ? "\(trainee?.heightCm ?? 0)" : "—"
         return [
             TTProfileMetric(
-                id: "age",
-                icon: .calendar1,
+                id: "goal",
+                icon: .flag1,
                 iconColor: Color(hex: 0xEF4444),
-                value: "\(age)",
-                unit: "yr",
-                label: "Current Age"
+                value: goal,
+                unit: "",
+                label: "Goal"
             ),
             TTProfileMetric(
                 id: "weight",
                 icon: .weightScale,
                 iconColor: Color(hex: 0x22C55E),
-                value: "\(weight)",
-                unit: "kg",
+                value: weight,
+                unit: weight == "—" ? "" : "kg",
                 label: "Weight"
             ),
             TTProfileMetric(
-                id: "intake",
-                icon: .fire1,
+                id: "height",
+                icon: .ruler1,
                 iconColor: Color(hex: 0x3B82F6),
-                value: "\(todayIntake)",
-                unit: "kcal",
-                label: "Daily Intake"
+                value: height,
+                unit: height == "—" ? "" : "cm",
+                label: "Height"
             )
         ]
     }
@@ -78,14 +82,19 @@ struct TraineeProfileView: View {
             showsBack: showsBack
         ) {
             VStack(alignment: .leading, spacing: 16) {
-                findCoachesCard
                 myTrainerSection
+                myProgressCard
+                findCoachesCard
             }
         }
         .ttToast($toast)
         .sheet(isPresented: $showFindCoaches) {
             FindCoachesView()
                 .ttModalSheetPresentation(dragIndicator: .hidden)
+        }
+        // "My progress": the existing Progress screen, opened the same way Home opens it.
+        .sheet(isPresented: $showProgress) {
+            TraineeProgressView().ttModalSheetPresentation()
         }
         .task {
             await store.refreshTraineeJoinState()
@@ -140,6 +149,38 @@ struct TraineeProfileView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    private var myProgressCard: some View {
+        Button {
+            showProgress = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(TTColor.actionOrange)
+                    .frame(width: 40, height: 40)
+                    .background(TTColor.actionOrange.opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("My progress")
+                        .font(TTFont.heading(16))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Workouts, scores and trends.")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+            .padding(16)
+            .background(Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255))
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("My progress")
     }
 
     private var findCoachesCard: some View {

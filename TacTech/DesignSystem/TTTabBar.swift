@@ -44,6 +44,8 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
     /// Liquid-bubble menu (trainer). When set, the centre button observes ONLY this small object (not the screen's
     /// state) to hide itself while the menu is open, so opening the menu re-runs no other body. Default nil = original behaviour.
     var bubbleEngine: TTBubbleEngine? = nil
+    /// VoiceOver hint of the centre button when it opens the bubble menu. Default = the Trainer's menu.
+    var centerMenuHint: LocalizedStringKey = "AI assistant, create plan, assign, or view assignments"
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -125,6 +127,7 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
                             TTBubbleCenterButton(
                                 engine: bubbleEngine,
                                 isAIChatPresented: isAIChatPresented,
+                                hint: centerMenuHint,
                                 onCenterTap: onCenterTap
                             )
                         } else {
@@ -482,6 +485,7 @@ struct TTCenterSquareFace: View {
 private struct TTBubbleCenterButton: View {
     let engine: TTBubbleEngine
     let isAIChatPresented: Bool
+    let hint: LocalizedStringKey
     let onCenterTap: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -517,7 +521,7 @@ private struct TTBubbleCenterButton: View {
         // The menu hand-off is instant (the overlay draws the same square on top); only the AI chat keeps its fade.
         .animation(reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.9), value: isAIChatPresented)
         .accessibilityLabel("Open quick actions")
-        .accessibilityHint("AI assistant, create plan, assign, or view assignments")
+        .accessibilityHint(hint)
         .accessibilityFocused($focused)
         // Report where this button really is, so the menu's "+" is drawn on exactly the same spot.
         .onGeometryChange(for: CGPoint.self) { proxy in

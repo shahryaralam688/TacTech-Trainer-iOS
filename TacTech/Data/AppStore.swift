@@ -1458,20 +1458,78 @@ final class AppStore {
         }
     }
 
-    func saveMeal(_ meal: Meal) async throws {
+    /// Saves a meal. With a `photo`, it is resized (JPEG, longest side 1600 px, at most 5 MB) and uploaded first;
+    /// the meal is then saved with the returned `photoUrl`. Any failure is thrown (nothing is saved on upload failure).
+    func saveMeal(_ meal: Meal, photo: UIImage? = nil, sendsEatenAt: Bool = true) async throws {
+        var meal = meal
+        var uploadedURL: String?
+        if let photo {
+            guard let jpeg = CoachImageEncoder.jpegData(from: photo) else {
+                throw AppError.validation(String(localized: "Couldn’t prepare this photo."))
+            }
+            if jpeg.count > 5 * 1024 * 1024 {
+                throw AppError.validation("Photo must be 5 MB or smaller.")
+            }
+            let response = try await api.uploadMealPhoto(fileData: jpeg)
+            uploadedURL = response.photoUrl
+            meal.photoUrl = response.photoUrl
+        }
         let created = try await api.createMeal(
             MealBody(
                 name: meal.name,
-                eatenAt: meal.eatenAt,
+                // Without a time the server uses its own clock (an "eaten now" entry can't be "in the future").
+                eatenAt: sendsEatenAt ? meal.eatenAt : nil,
                 portionGrams: meal.portionGrams,
                 macros: meal.macros,
                 source: meal.source,
-                isEstimate: meal.isEstimate
+                isEstimate: meal.isEstimate,
+                mealType: meal.mealType,
+                notes: meal.notes,
+                photoUrl: meal.photoUrl,
+                status: meal.status,
+                kind: meal.kind,
+                detail: meal.detail
             )
         )
+        if let photo, let uploadedURL, let key = TTMealPhoto.resolvedURL(uploadedURL) {
+            Task { await TTRemoteImageCache.shared.store(photo, for: key) }
+        }
         upsert(created ?? meal)
         if let trainee = currentTrainee {
             await refreshDay(for: trainee.id, on: meal.eatenAt)
+        }
+    }
+
+    /// Deletes one of the trainee's own meals (`DELETE /trainee/meals/{id}`). Throws on failure; the list is untouched then.
+    func deleteMeal(_ meal: Meal) async throws {
+        try await api.deleteMeal(id: meal.id)
+        meals.removeAll { $0.id == meal.id }
+    }
+
+    /// PATCH /trainee/meals/{id}. Throws on failure; the local list is updated from the server's answer.
+    @discardableResult
+    func updateMeal(_ meal: Meal, changes: UpdateMealBody) async throws -> Meal {
+        let updated = try await api.updateMeal(id: meal.id, body: changes)
+        var local = meal
+        if let updated {
+            local = updated
+        } else {
+            if let v = changes.eatenAt { local.eatenAt = v }
+            if let v = changes.portionGrams { local.portionGrams = v }
+            if let v = changes.macros { local.macros = v }
+            if let v = changes.status { local.status = v }
+            if let v = changes.detail { local.detail = v }
+        }
+        upsert(local)
+        return local
+    }
+
+    /// Saves the daily calorie goal on the server (PATCH /me/trainee) and updates the local profile.
+    func saveDailyCalorieTarget(_ value: Int) async throws {
+        let updated = try await api.updateDailyCalorieTarget(value)
+        if var trainee = currentTrainee {
+            trainee.dailyCalorieTarget = updated?.dailyCalorieTarget ?? value
+            upsert(trainee)
         }
     }
 
@@ -2065,7 +2123,8 @@ final class AppStore {
         if let cached = macrosByKey[macroKey(traineeId, on: date)] {
             return cached
         }
-        return meals(for: traineeId, on: date).reduce(MacroEstimate(calories: 0, protein: 0, carbs: 0, fat: 0)) { partial, meal in
+        // Planned entries (later today) are not eaten yet.
+        return meals(for: traineeId, on: date).filter { !$0.isPlanned }.reduce(MacroEstimate(calories: 0, protein: 0, carbs: 0, fat: 0)) { partial, meal in
             MacroEstimate(
                 calories: partial.calories + meal.macros.calories,
                 protein: partial.protein + meal.macros.protein,
@@ -2106,8 +2165,18 @@ final class AppStore {
                     macrosByKey[macroKey(traineeId, on: date)] = macros
                 }
             } else if currentTrainee?.id == traineeId {
-                let remoteMeals = try await api.traineeMeals(on: date)
-                replaceMeals(remoteMeals, traineeId: traineeId, on: date)
+                // The server cuts days at UTC midnight, the app at local midnight. Ask for every UTC day the local
+                // day touches and replace exactly that window (a plain `on=` query dropped the meals logged
+                // after local midnight but before the UTC date changed).
+                let cal = Calendar.current
+                let dayStart = cal.startOfDay(for: date)
+                let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart)?.addingTimeInterval(-1) ?? date
+                var utc = Calendar(identifier: .gregorian)
+                utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+                let windowStart = utc.startOfDay(for: dayStart)
+                let windowEnd = (utc.date(byAdding: .day, value: 1, to: utc.startOfDay(for: dayEnd)) ?? dayEnd).addingTimeInterval(-0.001)
+                let remoteMeals = try await api.traineeMeals(from: dayStart, to: dayEnd)
+                replaceMeals(remoteMeals, traineeId: traineeId, window: windowStart...windowEnd)
                 if let macros = try? await api.traineeMacros(on: date) {
                     macrosByKey[macroKey(traineeId, on: date)] = macros
                 }
@@ -2938,8 +3007,30 @@ final class AppStore {
     }
 
     private func replaceMeals(_ items: [Meal], traineeId: String, on date: Date) {
-        meals.removeAll { $0.traineeId == traineeId && Calendar.current.isDate($0.eatenAt, inSameDayAs: date) }
-        meals.append(contentsOf: items)
+        let incomingIds = Set(items.map(\.id))
+        meals.removeAll {
+            incomingIds.contains($0.id) || ($0.traineeId == traineeId && Calendar.current.isDate($0.eatenAt, inSameDayAs: date))
+        }
+        let normalized = items.map { item -> Meal in
+            var copy = item
+            if copy.traineeId.isEmpty { copy.traineeId = traineeId }
+            return copy
+        }
+        meals.append(contentsOf: normalized)
+    }
+
+    /// Replaces everything the server returned for a time window (same data in, same data out, whatever the time zone).
+    private func replaceMeals(_ items: [Meal], traineeId: String, window: ClosedRange<Date>) {
+        let incomingIds = Set(items.map(\.id))
+        meals.removeAll {
+            incomingIds.contains($0.id) || ($0.traineeId == traineeId && window.contains($0.eatenAt))
+        }
+        let normalized = items.map { item -> Meal in
+            var copy = item
+            if copy.traineeId.isEmpty { copy.traineeId = traineeId }
+            return copy
+        }
+        meals.append(contentsOf: normalized)
     }
 
     private func replaceLogs(_ items: [WorkoutLog], traineeId: String) {

@@ -2,6 +2,18 @@ import SwiftUI
 
 // MARK: - Trainee Workout Hub (Sandow / TacTech system design)
 
+private enum TraineeWorkoutTab: String, CaseIterable, Identifiable {
+    case today, plan, progress
+    var id: String { rawValue }
+    var title: LocalizedStringKey {
+        switch self {
+        case .today: "Today"
+        case .plan: "Plan"
+        case .progress: "Progress"
+        }
+    }
+}
+
 private struct WorkoutHubCollapsedHeightKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
@@ -14,7 +26,9 @@ struct WorkoutHubView: View {
     /// When presented as a sheet from Home, show a back control.
     var showsCloseChrome: Bool = false
 
+    @State private var selectedTab: TraineeWorkoutTab = .today
     @State private var selectedDay = Date()
+    @State private var isWeekExpanded = false
     /// Height of the fully collapsed header — the stacked cards pin directly below it.
     @State private var collapsedHeaderHeight: CGFloat = 0
     @State private var showEditAIPlan = false
@@ -32,32 +46,42 @@ struct WorkoutHubView: View {
 
     var body: some View {
         NavigationStack {
-            // Header is drawn over the scroll view; the content size never depends on its collapse.
-            TTCollapsingHeaderScreen(
-                sheetFill: canvas,
-                headerBackground: charcoal,
-                topRadius: { _ in TTSheetChrome.pageTopRadius },
-                onRefresh: { await store.refreshAssignedPlanForCurrentTrainee() },
-                header: { progress in header(progress: progress) }
-            ) {
-                VStack(alignment: .leading, spacing: 14) {
-                    if let notice = store.planChangeNotice {
-                        planChangeNoticeChip(notice)
-                    }
-                    if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
-                        planOverviewCard(plan)
-                        TTHomeWeekDatePicker(selected: $selectedDay, accent: orange,
-                                            sessionDayKeys: sessionDayKeySet(plan))
-                        sessionHero(plan)
-                        sessionDetail(plan)
-                        liveFormCard(plan)
-                    } else {
-                        emptyCard
+            ScrollViewReader { proxy in
+                // Header is drawn over the scroll view; the content size never depends on its collapse.
+                // Pinned segmented tab bar sticks directly under the collapsed header (same as Trainer's TraineeDetailView).
+                TTCollapsingHeaderScreen(
+                    sheetFill: canvas,
+                    headerBackground: charcoal,
+                    topRadius: { _ in TTSheetChrome.pageTopRadius },
+                    pinsBelowCollapsedHeader: true,
+                    topAnchorID: "workoutTop",
+                    onRefresh: { await store.refreshAssignedPlanForCurrentTrainee() },
+                    header: { progress in header(progress: progress) }
+                ) {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                        if let notice = store.planChangeNotice {
+                            planChangeNoticeChip(notice)
+                                .padding(.horizontal, TTSpace.screen)
+                                .padding(.top, 14)
+                        }
+
+                        if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                            Section {
+                                tabContent(plan: plan, trainee: trainee)
+                                    .padding(.horizontal, TTSpace.screen)
+                                    .padding(.top, 12)
+                                    .padding(.bottom, 36)
+                            } header: {
+                                pinnedTabBar(proxy: proxy)
+                            }
+                        } else {
+                            emptyCard
+                                .padding(.horizontal, TTSpace.screen)
+                                .padding(.top, 16)
+                                .padding(.bottom, 36)
+                        }
                     }
                 }
-                .padding(.horizontal, TTSpace.screen)
-                .padding(.top, 16)
-                .padding(.bottom, 36)
             }
             // The stacked cards measure their position in this space: its top is the screen content's top,
             // the same place the header is drawn from.
@@ -135,6 +159,421 @@ struct WorkoutHubView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
+    // MARK: - Pinned Tabs (Today / Plan / Progress)
+
+    private func pinnedTabBar(proxy: ScrollViewProxy) -> some View {
+        VStack(spacing: 0) {
+            Picker("Workout section", selection: Binding(
+                get: { selectedTab },
+                set: { newValue in
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedTab = newValue
+                        proxy.scrollTo("workoutTop", anchor: .top)
+                    }
+                }
+            )) {
+                ForEach(TraineeWorkoutTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, TTSpace.screen)
+            .padding(.top, 12)
+            .padding(.bottom, 10)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(canvas)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(TTColor.ink.opacity(0.08))
+                .frame(height: 1)
+        }
+    }
+
+    @ViewBuilder
+    private func tabContent(plan: WorkoutPlan, trainee: TraineeProfile) -> some View {
+        switch selectedTab {
+        case .today:
+            todayTab(plan: plan)
+        case .plan:
+            planTab(plan: plan, trainee: trainee)
+        case .progress:
+            progressTab(trainee: trainee, plan: plan)
+        }
+    }
+
+    private func todayTab(plan: WorkoutPlan) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            todayDateBar(plan: plan)
+            sessionHero(plan)
+            sessionDetail(plan)
+            liveFormCard(plan)
+        }
+    }
+
+    private func todayDateBar(plan: WorkoutPlan) -> some View {
+        let isToday = Calendar.current.isDateInToday(selectedDay)
+        let dateText = selectedDay.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+
+        return VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                    isWeekExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(orange)
+                        .frame(width: 30, height: 30)
+                        .background(orange.opacity(0.12))
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(isToday ? "Today" : relativeDayLabel(for: Weekday.from(date: selectedDay)))
+                            .font(TTFont.workSans(14, weight: .bold))
+                            .foregroundStyle(TTColor.ink)
+                        Text(dateText)
+                            .font(TTFont.workSans(12, weight: .medium))
+                            .foregroundStyle(TTColor.inkMuted)
+                    }
+
+                    Spacer(minLength: 8)
+
+                    if !isToday {
+                        Button("Today") {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                                selectedDay = Date()
+                            }
+                        }
+                        .font(TTFont.workSans(12, weight: .bold))
+                        .foregroundStyle(orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(orange.opacity(0.12))
+                        .clipShape(Capsule())
+                    }
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(TTColor.inkSubtle)
+                        .rotationEffect(.degrees(isWeekExpanded ? 180 : 0))
+                        .frame(width: 28, height: 28)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isWeekExpanded ? "Hide week calendar" : "Show week calendar")
+
+            if isWeekExpanded {
+                TTHomeWeekDatePicker(
+                    selected: $selectedDay,
+                    accent: orange,
+                    sessionDayKeys: sessionDayKeySet(plan)
+                )
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .top)).combined(with: .scale(scale: 0.98, anchor: .top)),
+                        removal: .opacity.combined(with: .move(edge: .top))
+                    )
+                )
+            }
+        }
+    }
+
+    private func planTab(plan: WorkoutPlan, trainee: TraineeProfile) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            planOverviewCard(plan)
+            planAdherenceCard(plan: plan, trainee: trainee)
+            planScheduleBreakdown(plan: plan)
+        }
+    }
+
+    private func planAdherenceCard(plan: WorkoutPlan, trainee: TraineeProfile) -> some View {
+        let status = store.planFollowStatus(traineeId: trainee.id, plan: plan)
+        let adherence = store.planAdherencePercent(traineeId: trainee.id, plan: plan)
+        let statusColor = followStatusColor(status)
+        let last = store.lastPlanWorkoutDate(traineeId: trainee.id, planId: plan.id)
+        let trainingDays = Set(plan.scheduledDays.map(\.weekday))
+
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 10) {
+                Text("Plan consistency")
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Spacer(minLength: 8)
+                Text(status.title)
+                    .font(TTFont.caption(11))
+                    .fontWeight(.bold)
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4)
+                    .background(statusColor.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            if !trainingDays.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(Weekday.allCases) { day in
+                        let active = trainingDays.contains(day)
+                        Text(String(day.short.prefix(1)))
+                            .font(TTFont.workSans(12, weight: .bold))
+                            .foregroundStyle(active ? .white : TTColor.inkSubtle)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 32)
+                            .background(active ? orange : Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                    }
+                }
+            }
+
+            HStack(spacing: 8) {
+                Text("\(adherence)% follow")
+                    .font(TTFont.caption(12))
+                    .fontWeight(.semibold)
+                    .foregroundStyle(TTColor.inkMuted)
+                Text("·")
+                    .foregroundStyle(TTColor.inkSubtle)
+                if let last {
+                    Text("Last \(last.formatted(date: .abbreviated, time: .omitted))")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                } else {
+                    Text("No workouts logged yet")
+                        .font(TTFont.caption(12))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func planScheduleBreakdown(plan: WorkoutPlan) -> some View {
+        let days = plan.scheduledDays.sorted { $0.weekday.sortIndex < $1.weekday.sortIndex }
+        if !days.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Weekly schedule (\(days.count) \(days.count == 1 ? "day" : "days"))")
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+
+                ForEach(days) { day in
+                    planDayDetailCard(day)
+                }
+            }
+        } else if !plan.exercises.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Plan exercises (\(plan.exercises.count))")
+                    .font(TTFont.workSans(16, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+
+                ForEach(hubExercises(for: plan.exercises)) { row in
+                    NavigationLink {
+                        ExerciseDetailView(exercise: row.exercise, prescription: row.prescription)
+                    } label: {
+                        exerciseRow(row.exercise, row.prescription)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func planDayDetailCard(_ day: PlanDay) -> some View {
+        let items = hubExercises(for: day.exercises)
+        let isToday = day.weekday == Weekday.from(date: Date())
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(day.weekday.title.uppercased())
+                            .font(TTFont.caption(11))
+                            .fontWeight(.bold)
+                            .tracking(0.6)
+                            .foregroundStyle(isToday ? orange : TTColor.inkSubtle)
+                        if isToday {
+                            Text("TODAY")
+                                .font(TTFont.workSans(9, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(orange)
+                                .clipShape(Capsule())
+                        }
+                    }
+                    Text(day.title)
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("\(day.timeLabel) · \(day.durationMinutes) min · \(day.location ?? "Gym")")
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+                }
+                Spacer(minLength: 8)
+                Text("\(items.count) \(items.count == 1 ? "ex" : "exs")")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.white)
+                    .clipShape(Capsule())
+            }
+
+            if !day.focus.isEmpty {
+                Text(day.focus)
+                    .font(TTFont.body(13))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+
+            if let notes = day.coachNotes, !notes.isEmpty {
+                Text(notes)
+                    .font(TTFont.caption(12))
+                    .foregroundStyle(TTColor.inkSubtle)
+            }
+
+            if !items.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(items) { row in
+                        NavigationLink {
+                            ExerciseDetailView(exercise: row.exercise, prescription: row.prescription)
+                        } label: {
+                            HStack(spacing: 10) {
+                                Circle()
+                                    .fill(orange.opacity(0.16))
+                                    .frame(width: 8, height: 8)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(row.exercise.name)
+                                        .font(TTFont.workSans(14, weight: .semibold))
+                                        .foregroundStyle(TTColor.ink)
+                                    Text(row.prescription.prescriptionLine)
+                                        .font(TTFont.workSans(12, weight: .medium))
+                                        .foregroundStyle(TTColor.inkMuted)
+                                }
+                                Spacer(minLength: 4)
+                                TTIcon(icon: .chevronRight, size: 12)
+                                    .foregroundStyle(TTColor.inkSubtle)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+    }
+
+    private func progressTab(trainee: TraineeProfile, plan: WorkoutPlan) -> some View {
+        let logs = store.logs(for: trainee.id).sorted { $0.completedAt > $1.completedAt }
+        let totalMinutes = logs.reduce(0) { $0 + $1.durationMinutes }
+        let totalVolumeKg = logs.reduce(0.0) { $0 + $1.totalVolumeKg }
+        let volumeText = totalVolumeKg >= 1000
+            ? String(format: "%.1fk", totalVolumeKg / 1000)
+            : "\(Int(totalVolumeKg.rounded()))"
+
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                progressStatTile(value: "\(logs.count)", label: "Sessions")
+                progressStatTile(value: "\(totalMinutes)m", label: "Time")
+                progressStatTile(value: volumeText, label: "Volume kg")
+            }
+
+            if logs.isEmpty {
+                VStack(spacing: 10) {
+                    TTIcon(icon: .barbellDiagonal, filled: true, size: 24)
+                        .foregroundStyle(orange)
+                    Text("No workouts logged yet")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                    Text("Complete your first session in “\(plan.title)” from the Today tab to see your workout history and volume here.")
+                        .font(TTFont.body(13))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(24)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Recent workouts")
+                        .font(TTFont.workSans(16, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+
+                    ForEach(Array(logs.prefix(15))) { log in
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(orange.opacity(0.12))
+                                TTIcon(icon: .kettlebell, filled: true, size: 16)
+                                    .foregroundStyle(orange)
+                            }
+                            .frame(width: 40, height: 40)
+
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(log.completedAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(TTFont.workSans(14, weight: .bold))
+                                    .foregroundStyle(TTColor.ink)
+                                Text("\(log.durationMinutes) min · \(log.setCount) \(log.setCount == 1 ? "set" : "sets")")
+                                    .font(TTFont.workSans(12, weight: .medium))
+                                    .foregroundStyle(TTColor.inkMuted)
+                            }
+
+                            Spacer(minLength: 8)
+
+                            Text("\(Int(log.totalVolumeKg.rounded())) kg")
+                                .font(TTFont.workSans(13, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(cardFill)
+                        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+
+    private func progressStatTile(value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(TTFont.workSans(20, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Text(label)
+                .font(TTFont.workSans(12, weight: .medium))
+                .foregroundStyle(TTColor.inkMuted)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+    }
+
+    private func followStatusColor(_ status: PlanFollowStatus) -> Color {
+        switch status {
+        case .trainedToday: TTColor.success
+        case .following: TTColor.actionOrange
+        case .dueToday: Color(red: 0.95, green: 0.55, blue: 0.15)
+        case .behind: TTColor.danger
+        case .notStarted: TTColor.inkMuted
+        }
+    }
+
     // MARK: - Header
 
     @ViewBuilder
@@ -151,9 +590,10 @@ struct WorkoutHubView: View {
         }
     }
 
-    private var headerSubtitle: String {
-        if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
-            return plan.scheduleLine
+    /// The weekly day selector already shows the schedule, so the subtitle only appears without a plan.
+    private var headerSubtitle: String? {
+        if let trainee = store.currentTrainee, store.assignedPlan(for: trainee) != nil {
+            return nil
         }
         return "Follow the plan"
     }
@@ -173,12 +613,14 @@ struct WorkoutHubView: View {
                         .lineLimit(1)
                         .minimumScaleFactor(0.85)
 
-                    Text(headerSubtitle)
-                        .font(TTFont.textSM(.medium))
-                        .foregroundStyle(.white.opacity(0.65))
-                        .opacity(Double(expand))
-                        .frame(height: 18 * expand, alignment: .top)
-                        .clipped()
+                    if let headerSubtitle {
+                        Text(headerSubtitle)
+                            .font(TTFont.textSM(.medium))
+                            .foregroundStyle(.white.opacity(0.65))
+                            .opacity(Double(expand))
+                            .frame(height: 18 * expand, alignment: .top)
+                            .clipped()
+                    }
                 }
 
                 Spacer(minLength: 8)
@@ -422,7 +864,11 @@ struct WorkoutHubView: View {
     }
 
     private func hubExercises(in plan: WorkoutPlan) -> [HubExerciseItem] {
-        currentExercises(in: plan).compactMap { item in
+        hubExercises(for: currentExercises(in: plan))
+    }
+
+    private func hubExercises(for items: [WorkoutExercise]) -> [HubExerciseItem] {
+        items.compactMap { item in
             guard let exercise = store.exercise(id: item.exerciseId) else { return nil }
             return HubExerciseItem(id: item.id, exercise: exercise, prescription: item)
         }

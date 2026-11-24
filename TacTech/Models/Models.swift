@@ -592,6 +592,19 @@ struct Meal: Identifiable, Codable, Hashable {
     var macros: MacroEstimate
     var source: String
     var isEstimate: Bool
+    /// Optional (older servers / old cached JSON omit them): breakfast, lunch, dinner, snack.
+    var mealType: String? = nil
+    var notes: String? = nil
+    var photoUrl: String? = nil
+    var aiStatus: String? = nil
+    /// "eaten" (default when missing) or "planned" (later today).
+    var status: String? = nil
+    var loggedAt: Date? = nil
+    /// "drink", "piece" or "plate" when known.
+    var kind: String? = nil
+    var detail: String? = nil
+
+    var isPlanned: Bool { status == "planned" }
 }
 
 struct TrainerFeedback: Identifiable, Codable, Hashable {

@@ -189,6 +189,7 @@ struct TraineeDetailAnalyticsSection: View {
 
     private func volumeChart(_ analytics: TraineeAnalytics) -> some View {
         let days = analytics.workoutsByDay.sorted { $0.date < $1.date }
+        let xAxisStride = chartDayStride(for: days.map(\.date))
         return VStack(alignment: .leading, spacing: 12) {
             Text("Volume by day")
                 .font(TTFont.workSans(15, weight: .bold))
@@ -208,9 +209,13 @@ struct TraineeDetailAnalyticsSection: View {
                     .cornerRadius(4)
                 }
                 .chartXAxis {
-                    AxisMarks(values: .stride(by: .day, count: max(1, days.count / 6))) { _ in
+                    AxisMarks(values: .stride(by: .day, count: xAxisStride)) { _ in
                         AxisGridLine()
-                        AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                        AxisValueLabel(
+                            format: .dateTime.month(.abbreviated).day(),
+                            centered: true,
+                            collisionResolution: .greedy
+                        )
                     }
                 }
                 .chartYAxis {
@@ -223,6 +228,17 @@ struct TraineeDetailAnalyticsSection: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(cardFill)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    /// Computes an X-axis day stride from the full calendar date span (not `days.count`),
+    /// so sparse workout logs don't fall back to a 1-day stride and overlap labels.
+    private func chartDayStride(for dates: [Date], maxLabels: Int = 5) -> Int {
+        guard let first = dates.first, let last = dates.last else { return 1 }
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: first)
+        let end = calendar.startOfDay(for: last)
+        let spanDays = max(1, (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1)
+        return max(1, Int(ceil(Double(spanDays) / Double(max(1, maxLabels)))))
     }
 
     private func topExercises(_ analytics: TraineeAnalytics) -> some View {

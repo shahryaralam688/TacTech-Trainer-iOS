@@ -11,6 +11,8 @@ struct TTLiquidFABAction: Identifiable, Hashable {
     let title: String
     let subtitle: String
     let icon: SandowIcon
+    /// Short label shown inside the bubble when `showLabelsInside` is enabled.
+    var bubbleLabel: String? = nil
     /// Orange icon plate (AI / primary).
     var highlighted: Bool = false
     /// Starts a new visual group (adds extra space above this row). Layout only.
@@ -34,19 +36,22 @@ extension TTLiquidFABAction {
             title: "AI Assistant",
             subtitle: "Draft plans, get ideas",
             icon: .sparkle2,
+            bubbleLabel: "AI",
             highlighted: true
         ),
         TTLiquidFABAction(
             id: "traineeChat",
             title: "Trainee chat",
             subtitle: "Message or call a trainee",
-            icon: .chat
+            icon: .chat,
+            bubbleLabel: "Chat"
         ),
         TTLiquidFABAction(
             id: "create",
             title: "Create workout plan",
             subtitle: "Build one from scratch",
             icon: .filePlus,
+            bubbleLabel: "Workout Plan",
             startsGroup: true
         ),
         TTLiquidFABAction(
@@ -63,11 +68,12 @@ extension TTLiquidFABAction {
         )
     ]
 
-    /// Trainee center-tab quick actions — limited to things the tabs don't already cover.
+    /// Trainee center-tab quick actions (bubble menu, left to right): AI, Log a meal, Coach chat.
+    /// `title` is the VoiceOver label (the bubbles are icon-only).
     static let traineeCenterMenu: [TTLiquidFABAction] = [
         TTLiquidFABAction(
             id: "ai",
-            title: "Ask AI coach",
+            title: "AI Assistant",
             subtitle: "Form · nutrition · cues",
             icon: .sparkle2,
             highlighted: true
@@ -79,12 +85,14 @@ extension TTLiquidFABAction {
             icon: .forkKnife
         ),
         TTLiquidFABAction(
-            id: "quickWorkout",
-            title: "Quick workout",
-            subtitle: "Start training now",
-            icon: .barbellDiagonal
+            id: "coachChat",
+            title: "Chat with your coach",
+            subtitle: "Message your trainer",
+            icon: .chat
         )
     ]
+    /// The ids of the Trainee's three bubbles, in arc order.
+    static let traineeBubbleIds = ["ai", "logMeal", "coachChat"]
 }
 
 // MARK: - Overlay (liquid rise from center tab +)
@@ -492,6 +500,7 @@ private struct TTLiquidFABPillPressStyle: ButtonStyle {
 enum TTBubbleArt {
     static let buttonRadius: CGFloat = 28 // inscribed circle of the 56pt square: the necks' anchor
     static let bubbleRadius: CGFloat = 27
+    static let labeledBubbleRadius: CGFloat = 32
     static let arcRadius: CGFloat = 104
     static let glowRadius: CGFloat = 86
     /// "+" grows by this much (14%) when the menu is fully open; position never changes.
@@ -515,9 +524,9 @@ enum TTBubbleArt {
 
     static func smoothstep(_ t: Double) -> Double { t * t * (3 - 2 * t) }
 
-    /// Bubble radius while moving: starts small (inside the button) and grows to 27.
-    static func bubbleRadius(progress p: Double) -> CGFloat {
-        bubbleRadius * CGFloat(0.3 + 0.7 * clamp(p, 0, 1.15))
+    /// Bubble radius while moving: starts small (inside the button) and grows to `baseRadius`.
+    static func bubbleRadius(progress p: Double, baseRadius: CGFloat = bubbleRadius) -> CGFloat {
+        baseRadius * CGFloat(0.3 + 0.7 * clamp(p, 0, 1.15))
     }
 
     static func bubbleCenter(c: CGPoint, index: Int, p: Double) -> CGPoint {
@@ -956,6 +965,11 @@ private struct TTBubbleCanvas: View {
     let engine: TTBubbleEngine
     let center: CGPoint
     let bubbles: [TTLiquidFABAction]
+    var showLabelsInside: Bool = false
+
+    private var targetRadius: CGFloat {
+        showLabelsInside ? TTBubbleArt.labeledBubbleRadius : TTBubbleArt.bubbleRadius
+    }
 
     var body: some View {
         #if DEBUG || PERF_TEMP
@@ -976,7 +990,21 @@ private struct TTBubbleCanvas: View {
     @ViewBuilder
     private func symbolIcon(_ i: Int) -> some View {
         if bubbles.indices.contains(i) {
-            TTIcon(icon: bubbles[i].icon, filled: false, size: 22).foregroundStyle(.white)
+            let action = bubbles[i]
+            if showLabelsInside, let label = action.bubbleLabel {
+                VStack(spacing: 2) {
+                    TTIcon(icon: action.icon, filled: false, size: 17)
+                    Text(LocalizedStringKey(label))
+                        .font(TTFont.workSans(9.5, weight: .semibold))
+                        .multilineTextAlignment(.center)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.75)
+                        .frame(maxWidth: 48)
+                }
+                .foregroundStyle(.white)
+            } else {
+                TTIcon(icon: action.icon, filled: false, size: 22).foregroundStyle(.white)
+            }
         } else {
             Color.clear.frame(width: 1, height: 1)
         }
@@ -1024,7 +1052,7 @@ private struct TTBubbleCanvas: View {
             let p = engine.bubbleX[i]
             guard p >= 0.01 else { continue }
             let pos = TTBubbleArt.bubbleCenter(c: c, index: i, p: p)
-            let r2 = TTBubbleArt.bubbleRadius(progress: p)
+            let r2 = TTBubbleArt.bubbleRadius(progress: p, baseRadius: targetRadius)
             let d = Double(hypot(pos.x - c.x, pos.y - c.y))
             let gap = d - Double(r1 + r2)
             let sm = TTBubbleArt.smoothstep(TTBubbleArt.clamp((gap + 10) / 44, 0, 1))
@@ -1036,7 +1064,7 @@ private struct TTBubbleCanvas: View {
             let p = engine.bubbleX[i]
             guard p >= 0.01 else { continue }
             layered.fill(TTBubbleArt.circle(TTBubbleArt.bubbleCenter(c: c, index: i, p: p),
-                                            TTBubbleArt.bubbleRadius(progress: p)), with: TTBubbleArt.fill)
+                                            TTBubbleArt.bubbleRadius(progress: p, baseRadius: targetRadius)), with: TTBubbleArt.fill)
         }
 
         // Icons.
@@ -1066,13 +1094,17 @@ private final class TTBubbleSelectionHaptic {
 }
 #endif
 
-/// Liquid-bubble quick-actions menu: AI, Chat, Workout Plan. Mounted once (never inserted or removed), draws nothing
+/// Liquid-bubble quick-actions menu (three bubbles; Trainer: AI, Chat, Workout Plan). Mounted once (never inserted or removed), draws nothing
 /// while closed, and holds no state that changes during open / close.
 struct TTBubbleMenuOverlay: View {
     let engine: TTBubbleEngine
     let actions: [TTLiquidFABAction]
     var onSelect: (TTLiquidFABAction) -> Void
     var bottomReserve: CGFloat = TTFloatingTabBar<Int>.liquidMenuFABBottomReserve
+    /// The ids of the actions that get a bubble, in arc order (upper left, straight up, upper right).
+    /// Default = the Trainer's menu; the Trainee passes its own three.
+    var shownIds: [String] = ["ai", "traineeChat", "create"]
+    var showLabelsInside: Bool = false
 
     @AccessibilityFocusState private var focusedBubble: Int?
     #if canImport(UIKit)
@@ -1084,12 +1116,10 @@ struct TTBubbleMenuOverlay: View {
     /// and would close the menu that is just opening. Taps this soon after opening starts are ignored.
     private static let earlyTapGrace: TimeInterval = 0.35
 
-    /// Only these three actions are shown; Assign to trainee and Plan assignments keep their handlers
-    /// (TrainerRootView.handleLiquidAction) but are not in this menu.
-    private static let shownIds = ["ai", "traineeChat", "create"]
-
+    /// Only the actions in `shownIds` are shown (the Trainer's Assign to trainee and Plan assignments keep their
+    /// handlers in TrainerRootView.handleLiquidAction but are not in this menu).
     private var bubbles: [TTLiquidFABAction] {
-        Self.shownIds.compactMap { id in actions.first { $0.id == id } }
+        shownIds.compactMap { id in actions.first { $0.id == id } }
     }
 
     var body: some View {
@@ -1104,7 +1134,7 @@ struct TTBubbleMenuOverlay: View {
                 let _ = { PerfBubbleLog.canvasSize = full.size; PerfBubbleLog.center = c }() // PERF-TEMP
                 #endif
                 ZStack {
-                    TTBubbleCanvas(engine: engine, center: c, bubbles: bubbles)
+                    TTBubbleCanvas(engine: engine, center: c, bubbles: bubbles, showLabelsInside: showLabelsInside)
                         .allowsHitTesting(false)
                     TTBubbleBaseView(engine: engine)
                         .position(c)

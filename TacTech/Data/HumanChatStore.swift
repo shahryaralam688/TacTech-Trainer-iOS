@@ -38,6 +38,10 @@ final class HumanChatStore {
     private var typingClearTask: Task<Void, Never>?
     private var lastTypingEmitAt: Date?
     private var outgoingTypingActive = false
+    /// Per peer: the last incoming message id the server was told about (so each message is reported once).
+    private var lastReadSent: [String: String] = [:]
+    /// An always-on screen (trainee Home) wants the inbox kept live: `teardown()` then keeps the socket and the poll.
+    private var holdsInboxLive = false
 
     private var audioRecorder: AVAudioRecorder?
     private var recordingURL: URL?
@@ -73,6 +77,32 @@ final class HumanChatStore {
         voiceDelegate.onFinish = { [weak self] in
             self?.voiceDidFinishPlaying()
         }
+        // Back in the foreground: report what is on screen as read, and re-sync the inbox (a read on another
+        // device, or messages that arrived meanwhile).
+        NotificationCenter.default.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.appBecameActive() }
+        }
+    }
+
+    private func appBecameActive() {
+        markActiveThreadRead()
+        if holdsInboxLive || activePeerUserId != nil { Task { await refreshInbox(quiet: true) } }
+    }
+
+    /// Keeps the inbox live (socket + poll) for a screen that is always there, e.g. trainee Home's coach row.
+    /// Opening and closing the chat does not tear it down.
+    func startInboxMonitoring() async {
+        holdsInboxLive = true
+        if realtime.isConnected, pollTask != nil {
+            await refreshInbox(quiet: true)
+            return
+        }
+        await bootstrap()
+    }
+
+    func stopInboxMonitoring() {
+        holdsInboxLive = false
+        teardown()
     }
 
     // MARK: - Lifecycle
@@ -92,6 +122,17 @@ final class HumanChatStore {
     }
 
     func teardown() {
+        if holdsInboxLive {
+            // Home still needs the live inbox: only the open conversation goes away.
+            if let peer = activePeerUserId, let threadId = threadIdByPeer[peer] { realtime.leave(threadId: threadId) }
+            cancelRecording()
+            lastError = nil
+            activePeerUserId = nil
+            peerTyping = false
+            replyDraft = nil
+            stopOutgoingTyping()
+            return
+        }
         pollTask?.cancel()
         pollTask = nil
         if let peer = activePeerUserId, let threadId = threadIdByPeer[peer] {
@@ -212,17 +253,46 @@ final class HumanChatStore {
                 nextCursorByPeer.removeValue(forKey: peer.id)
             }
 
-            if let lastIncoming = mapped.last(where: { !$0.isOutgoing }) {
-                _ = try? await api.markRead(threadId: threadId, upToMessageId: lastIncoming.id)
-                if let idx = inbox.firstIndex(where: { $0.id == peer.id }) {
-                    inbox[idx].unreadCount = 0
-                }
-            }
+            // The conversation is open and its messages are on screen: report them as read.
+            markActiveThreadRead()
             await refreshInbox(quiet: true)
         } catch {
             // Opening a conversation must never block with a modal (industry standard).
             // Keep cached messages if any; user can still leave / retry by re-entering.
             _ = error
+        }
+    }
+
+    /// Marks the open conversation read: the local count drops at once (optimistic), the EXISTING read request tells the
+    /// server, and the inbox is then re-fetched so the number is the server's. Called when a conversation opens, when an
+    /// incoming message arrives while it is open and the app is active, and when the app returns to the foreground.
+    /// A failed request is retried on the next trigger (the poll runs every 8 s while a thread is open).
+    func markActiveThreadRead() {
+        guard let peerId = activePeerUserId,
+              let threadId = threadIdByPeer[peerId],
+              UIApplication.shared.applicationState == .active,
+              let last = messagesByPeer[peerId]?.last(where: { !$0.isOutgoing && !$0.id.hasPrefix("local-") }) else { return }
+        markIncomingReadLocally(peerId)
+        guard lastReadSent[peerId] != last.id else { return }
+        lastReadSent[peerId] = last.id
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                _ = try await self.api.markRead(threadId: threadId, upToMessageId: last.id)
+            } catch {
+                self.lastReadSent[peerId] = nil   // not delivered: try again on the next trigger
+            }
+            await self.refreshInbox(quiet: true)  // reconcile with the server's number
+        }
+    }
+
+    private func markIncomingReadLocally(_ peerId: String) {
+        if let idx = inbox.firstIndex(where: { $0.id == peerId }), inbox[idx].unreadCount != 0 {
+            inbox[idx].unreadCount = 0
+        }
+        if var list = messagesByPeer[peerId], list.contains(where: { !$0.isOutgoing && !$0.isRead }) {
+            for i in list.indices where !list[i].isOutgoing { list[i].isRead = true }
+            messagesByPeer[peerId] = list
         }
     }
 
@@ -907,7 +977,12 @@ final class HumanChatStore {
             peerByThread[dto.threadId] = peerId
             threadIdByPeer[peerId] = dto.threadId
             upsertMessage(HumanChatMessage.from(api: dto, currentUserId: uid, peerUserId: peerId), peerUserId: peerId)
-            Task { await refreshInbox(quiet: true) }
+            if peerId == activePeerUserId, dto.senderUserId != uid {
+                // Arrived while this conversation is open: read it at once (the read path re-fetches the inbox).
+                markActiveThreadRead()
+            } else {
+                Task { await refreshInbox(quiet: true) }
+            }
         case .threadUpdated(let thread):
             threadIdByPeer[thread.peerUserId] = thread.id
             peerByThread[thread.id] = thread.peerUserId
@@ -916,9 +991,15 @@ final class HumanChatStore {
             } else {
                 inbox.insert(HumanChatPeer(from: thread), at: 0)
             }
-        case .read(let threadId, _, _):
-            if let peerId = peerByThread[threadId],
-               var list = messagesByPeer[peerId] {
+            // The conversation on screen is read by definition; the next read request makes the server agree.
+            if thread.peerUserId == activePeerUserId { markActiveThreadRead() }
+        case .read(let threadId, _, let readerUserId):
+            guard let peerId = peerByThread[threadId] else { break }
+            if readerUserId == uid {
+                // I read it on another device: clear the badge here too, then take the server's number.
+                markIncomingReadLocally(peerId)
+                Task { await refreshInbox(quiet: true) }
+            } else if var list = messagesByPeer[peerId] {
                 for i in list.indices where list[i].isOutgoing {
                     list[i].isRead = true
                     list[i].deliveryStatus = .read
@@ -941,7 +1022,7 @@ final class HumanChatStore {
             break
         case .notificationCreated(let note):
             NotificationStore.shared.handleCreated(note)
-        case .relationshipChanged, .planAssignmentChanged, .workoutSessionChanged:
+        case .relationshipChanged, .planAssignmentChanged, .workoutSessionChanged, .mealLogged:
             // NotificationStore keepalive owns relationship / plan sync (separate socket).
             break
         }
@@ -981,6 +1062,7 @@ final class HumanChatStore {
             }
             let nextMessages = byId.values.sorted { $0.sentAt < $1.sentAt }
             if nextMessages != messagesByPeer[peerId] { messagesByPeer[peerId] = nextMessages }
+            markActiveThreadRead()   // also retries a read request that failed earlier
         } catch {
             // Soft fail — keep UI
         }

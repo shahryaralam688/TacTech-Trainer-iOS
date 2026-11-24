@@ -435,6 +435,30 @@ struct MealBody: Encodable {
     var macros: MacroEstimate
     var source: String
     var isEstimate: Bool
+    var mealType: String? = nil
+    var notes: String? = nil
+    var photoUrl: String? = nil
+    var status: String? = nil
+    var kind: String? = nil
+    var detail: String? = nil
+}
+
+/// PATCH /trainee/meals/{id}: only the fields that are set are sent.
+struct UpdateMealBody: Encodable {
+    var eatenAt: Date? = nil
+    var portionGrams: Double? = nil
+    var macros: MacroEstimate? = nil
+    var status: String? = nil
+    var kind: String? = nil
+    var detail: String? = nil
+}
+
+struct UpdateTraineeGoalBody: Encodable {
+    var dailyCalorieTarget: Int
+}
+
+struct MealPhotoUploadResponse: Decodable {
+    var photoUrl: String
 }
 
 struct WorkoutSetBody: Encodable {
@@ -1337,8 +1361,34 @@ actor APIClient {
         try await sendArray("/trainee/meals?on=\(APIConfig.dateQuery(date))")
     }
 
+    /// Meals between two UTC dates (the server cuts days at UTC midnight, so a local day can touch two of them).
+    func traineeMeals(from: Date, to: Date) async throws -> [Meal] {
+        try await sendArray("/trainee/meals?from=\(APIConfig.dateQuery(from))&to=\(APIConfig.dateQuery(to))")
+    }
+
     func createMeal(_ body: MealBody) async throws -> Meal? {
         try await sendOptional(path: "/trainee/meals", method: .post, body: body)
+    }
+
+    /// Multipart "file" (JPEG/PNG up to 5 MB) → `{photoUrl}`.
+    func uploadMealPhoto(fileData: Data, filename: String = "meal.jpg", mimeType: String = "image/jpeg") async throws -> MealPhotoUploadResponse {
+        try await sendMultipart(
+            path: "/trainee/meals/photo",
+            fields: [.file(name: "file", filename: filename, mimeType: mimeType, data: fileData)]
+        )
+    }
+
+    func updateMeal(id: String, body: UpdateMealBody) async throws -> Meal? {
+        try await sendOptional(path: "/trainee/meals/\(id)", method: .patch, body: body)
+    }
+
+    /// PATCH /me/trainee (daily calorie target).
+    func updateDailyCalorieTarget(_ value: Int) async throws -> TraineeProfile? {
+        try await sendOptional(path: "/me/trainee", method: .patch, body: UpdateTraineeGoalBody(dailyCalorieTarget: value))
+    }
+
+    func deleteMeal(id: String) async throws {
+        try await sendVoid(path: "/trainee/meals/\(id)", method: .delete, body: EmptyBody())
     }
 
     func traineeMacros(on date: Date) async throws -> MacroEstimate {

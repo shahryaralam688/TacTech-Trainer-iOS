@@ -1,4 +1,10 @@
+import PhotosUI
 import SwiftUI
+
+private struct HomePhotoMealDraft: Identifiable {
+    let id = UUID()
+    let image: UIImage
+}
 
 /// Trainee Home — answers one question: "What should I do right now?"
 /// Everything else is one tap away (Progress tab, Nutrition tab, Profile via avatar).
@@ -9,6 +15,11 @@ struct TraineeDashboardView: View {
     @State private var showProfile = false
     @State private var showProgress = false
     @State private var showNutrition = false
+    @State private var showMealCamera = false
+    @State private var showMealPhotoLibrary = false
+    @State private var capturedMealPhoto: UIImage?
+    @State private var mealLibraryItem: PhotosPickerItem?
+    @State private var photoMealDraft: HomePhotoMealDraft?
     @State private var showWorkouts = false
     @State private var showNotifications = false
     @State private var showFindCoaches = false
@@ -79,6 +90,7 @@ struct TraineeDashboardView: View {
                     await store.refreshDay(for: trainee.id, on: Date())
                 }
             }
+            .task { await HumanChatStore.shared.refreshInbox(quiet: true) }
             .task { await store.refreshAICapabilities() }
             .task { await store.refreshActiveSession() }
             .task { await store.loadSandowScore(); didLoadScore = true }
@@ -92,6 +104,38 @@ struct TraineeDashboardView: View {
             }
             .sheet(isPresented: $showNutrition) {
                 NutritionView().ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+            .sheet(isPresented: $showMealCamera) {
+                CameraImagePicker(image: $capturedMealPhoto)
+                    .ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $showMealPhotoLibrary, selection: $mealLibraryItem, matching: .images)
+            .onChange(of: capturedMealPhoto) { _, newValue in
+                guard let image = newValue else { return }
+                capturedMealPhoto = nil
+                photoMealDraft = HomePhotoMealDraft(image: image)
+            }
+            .onChange(of: mealLibraryItem) { _, item in
+                guard let item else { return }
+                Task {
+                    defer { mealLibraryItem = nil }
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        photoMealDraft = HomePhotoMealDraft(image: image)
+                    }
+                }
+            }
+            .sheet(item: $photoMealDraft) { draft in
+                ManualMealView(day: Date(), initialPhoto: draft.image) { toast in
+                    TTHomeHaptics.light()
+                    flashGenerateNotice(toast.text)
+                    Task {
+                        if let trainee = store.currentTrainee {
+                            await store.refreshDay(for: trainee.id, on: Date())
+                        }
+                    }
+                }
+                .ttModalSheetPresentation(dragIndicator: .hidden)
             }
             .sheet(isPresented: $showWorkouts) {
                 WorkoutHubView(showsCloseChrome: true).ttModalSheetPresentation(dragIndicator: .hidden)
@@ -429,7 +473,7 @@ struct TraineeDashboardView: View {
         if todayMode == .ready {
             return .init(icon: "fork.knife",
                          title: "Fuel today’s session",
-                         message: "Log breakfast or scan a meal so your macros stay on track with your plan.",
+                         message: "Scan or log a meal so your macros stay on track with your plan.",
                          button: "Add a meal", target: .nutrition)
         }
 
@@ -444,8 +488,14 @@ struct TraineeDashboardView: View {
     private func runNextStep(_ step: NextStep) {
         TTHomeHaptics.medium()
         switch step.target {
-        case .nutrition: showNutrition = true
-        case .profile:   showProfile = true
+        case .nutrition:
+            if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                showMealCamera = true
+            } else {
+                showMealPhotoLibrary = true
+            }
+        case .profile:
+            showProfile = true
         }
     }
 
@@ -459,7 +509,10 @@ struct TraineeDashboardView: View {
                 coachName: coachFirstName,
                 avatarUserId: coachUserId,
                 detail: coachNotesDetail(notes),
-                unread: notes.count,   // TODO: no unread/read flag on TrainerFeedback — using total note count
+                // Unread chat messages from the coach: the shared chat inbox (server count), the same source the chat
+                // screen updates. Zero hides the badge. (It used to be the TOTAL number of coaching notes, which never
+                // went down when messages were read.)
+                unread: coachUserId.map { HumanChatStore.shared.unreadCount(for: $0) } ?? 0,
                 action: {
                     TTHomeHaptics.light()
                     NotificationCenter.default.post(name: .ttOpenHumanChat, object: nil)
@@ -1059,7 +1112,7 @@ struct NextStepCard: View {
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .frame(height: 44)
-                    .background(HomeTheme.textOrange)      // text/fill contrast-safe orange
+                    .background(HomeTheme.brandOrange)
                     .clipShape(RoundedRectangle(cornerRadius: HomeTheme.buttonCorner, style: .continuous))
             }
             .buttonStyle(.plain)
@@ -1171,7 +1224,7 @@ struct CoachRow: View {
 
     private var accessibility: String {
         switch mode {
-        case .linked:   "Coach \(coachName). \(detail). \(unread) new. Opens coach chat."
+        case .linked:   "Coach \(coachName). \(detail). \(unread > 0 ? "\(unread) new. " : "")Opens coach chat."
         case .none:     "Train with a coach. Opens coach discovery."
         case .pending:  "Request sent to \(coachName). \(detail)."
         case .declined: "\(coachName) isn’t taking trainees. \(detail). Opens coach discovery."

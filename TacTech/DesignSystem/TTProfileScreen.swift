@@ -60,6 +60,11 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var selectedShort: String?
     @State private var period: SandowScorePeriod = .week
     @State private var path = NavigationPath()
+    // Avatar picker (pencil badge on the avatar)
+    @State private var showAvatarPicker = false
+    @State private var avatarDraft = TTAvatarCatalog.default
+    @State private var isUpdatingPhoto = false
+    @State private var photoToast: TTToastMessage?
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -160,6 +165,8 @@ struct TTProfileScreen<Extra: View>: View {
                     chromeButtons(topSafe: topSafe)
 
                     overlappingAvatar(width: width)
+
+                    avatarEditBadge(width: width)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
@@ -191,7 +198,96 @@ struct TTProfileScreen<Extra: View>: View {
                 selectedDayId = nil
                 selectedShort = nil
             }
+            .ttToast($photoToast)
+            // Pencil badge → same "Choose your avatar" screen as onboarding, with Save/Cancel only.
+            .sheet(isPresented: $showAvatarPicker) {
+                NavigationStack {
+                    AssessmentAvatarStep(
+                        selection: $avatarDraft,
+                        userId: avatarUserId ?? store.session?.userId,
+                        remoteAvatarUrl: avatarUrl ?? store.remoteAvatarURL
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showAvatarPicker = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Save") {
+                                Task { await commitAvatarPicker() }
+                            }
+                            .fontWeight(.semibold)
+                        }
+                    }
+                }
+                .ttModalSheetPresentation()
+            }
         }
+    }
+
+    // MARK: - Avatar Picker
+
+    @MainActor
+    private func commitAvatarPicker() async {
+        guard !isUpdatingPhoto else { return }
+        showAvatarPicker = false
+        isUpdatingPhoto = true
+        defer { isUpdatingPhoto = false }
+
+        do {
+            let uid = avatarUserId ?? store.session?.userId
+            if TTAvatarCatalog.isCustom(avatarDraft),
+               let image = TTAvatarCatalog.loadCustomImage(for: uid),
+               let data = CoachImageEncoder.jpegData(from: image) ?? image.jpegData(compressionQuality: 0.88) {
+                try await store.uploadProfileAvatar(jpegData: data, previewImage: image)
+            } else if TTAvatarCatalog.isAssetName(avatarDraft) {
+                try await store.saveMeProfile(UpdateMeProfileBody(avatarAsset: avatarDraft))
+            }
+            photoToast = TTToastMessage(text: "Avatar updated", style: .success)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            photoToast = TTToastMessage(
+                text: (error as? AppError)?.errorDescription ?? "Couldn’t update avatar",
+                style: .error
+            )
+        }
+    }
+
+    /// Small pencil badge at the avatar's bottom-right; the tap target is 44 × 44 pt. A spinner replaces it while
+    /// the avatar is being saved.
+    private func avatarEditBadge(width: CGFloat) -> some View {
+        let half = avatarSide / 2
+        return Button {
+            guard !isUpdatingPhoto else { return }
+            if !(avatarUrl ?? "").isEmpty {
+                avatarDraft = TTAvatarCatalog.customToken
+            } else if let avatarAsset, TTAvatarCatalog.isAssetName(avatarAsset) {
+                avatarDraft = avatarAsset
+            } else {
+                avatarDraft = TTAvatarCatalog.default
+            }
+            showAvatarPicker = true
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(TTColor.actionOrange)
+                    .frame(width: 30, height: 30)
+                    .overlay(Circle().strokeBorder(Color.white, lineWidth: 2.5))
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+                if isUpdatingPhoto {
+                    ProgressView()
+                        .controlSize(.mini)
+                        .tint(.white)
+                } else {
+                    TTIcon(icon: .pencil1, filled: true, size: 13)
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .position(x: width / 2 + half - 6, y: heroHeight + half - 6)
+        .accessibilityLabel("Edit profile photo")
     }
 
     // MARK: - Hero
@@ -266,6 +362,7 @@ struct TTProfileScreen<Extra: View>: View {
             strokeColor: .white,
             strokeWidth: 3.5
         )
+        .opacity(isUpdatingPhoto ? 0.55 : 1)
         .shadow(color: .black.opacity(0.24), radius: 12, y: 4)
         .position(x: width / 2, y: heroHeight)
         .allowsHitTesting(false)
@@ -467,6 +564,8 @@ struct TTProfileScreen<Extra: View>: View {
                         Text(metric.value)
                             .font(TTFont.workSans(20, weight: .bold))
                             .foregroundStyle(TTColor.ink)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.6)
                         Text(metric.unit)
                             .font(TTFont.caption(12))
                             .foregroundStyle(TTColor.inkMuted)

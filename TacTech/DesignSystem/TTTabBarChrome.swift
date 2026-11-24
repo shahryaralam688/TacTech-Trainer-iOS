@@ -102,94 +102,33 @@ private struct TTNavigationDepthReader: UIViewControllerRepresentable {
 // MARK: - Tab screen transition
 
 extension View {
-    /// Root-tab screen transition — a horizontal page slide. Moving right in the bar, the current
-    /// screen leaves to the left while the next one enters from the right (reversed when going back,
-    /// mirrored in right-to-left layouts). Both move together over one smooth ease, so it reads like
-    /// two adjacent pages. Tabs stay mounted: state, scroll position and navigation stacks are untouched.
+    /// Root-tab screen transition — a quick cross-fade (0.2 s ease-out). Which tab is visible is a pure function of
+    /// `selection`: the selected tab is at opacity 1 and every other tab at 0, whatever animation or timer is running.
+    /// Nothing depends on an animation finishing, so quick taps, swipes or a retarget in the middle of a fade can never
+    /// leave every tab hidden. SwiftUI retargets the running fade from its current value, so it is interruptible.
+    /// Tabs stay mounted: state, scroll position and navigation stacks are untouched.
+    /// (`order` is kept for the call sites; the fade needs no direction.)
     func ttTabFade<Tab: Hashable>(tab: Tab, selection: Tab, order: [Tab]) -> some View {
-        modifier(TTTabSlide(tab: tab, selection: selection, order: order))
+        modifier(TTTabFade(tab: tab, selection: selection))
     }
 }
 
-private struct TTTabSlide<Tab: Hashable>: ViewModifier {
+private struct TTTabFade<Tab: Hashable>: ViewModifier {
     let tab: Tab
     let selection: Tab
-    let order: [Tab]
-    @State private var isShown: Bool
-    @State private var offsetX: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.layoutDirection) private var layoutDirection
 
-    private static var duration: TimeInterval { 0.3 }
-
-    init(tab: Tab, selection: Tab, order: [Tab]) {
-        self.tab = tab
-        self.selection = selection
-        self.order = order
-        _isShown = State(initialValue: tab == selection)
-    }
-
-    private var width: CGFloat { UIScreen.main.bounds.width }
-
-    /// +1 when `to` sits after `from` in the bar (content travels toward the leading side).
-    private func direction(from: Tab, to: Tab) -> CGFloat {
-        let forward = (order.firstIndex(of: to) ?? 0) >= (order.firstIndex(of: from) ?? 0)
-        return (forward ? 1 : -1) * (layoutDirection == .rightToLeft ? -1 : 1)
-    }
+    static var duration: TimeInterval { 0.2 }
 
     func body(content: Content) -> some View {
+        let selected = selection == tab
         content
-            .offset(x: offsetX)
-            .opacity(isShown ? 1 : 0)
-            // Incoming page renders above the outgoing one.
-            .zIndex(selection == tab ? 1 : 0)
-            .onChange(of: selection) { old, new in
-                if new == tab {
-                    enter(from: old)
-                } else if old == tab {
-                    exit(to: new)
-                }
-            }
-    }
-
-    private func enter(from old: Tab) {
-        guard !reduceMotion else {
-            isShown = true
-            offsetX = 0
-            return
-        }
-        // Park on the incoming side without animating, then slide to rest on the next frame.
-        var none = Transaction(animation: nil)
-        none.disablesAnimations = true
-        withTransaction(none) {
-            offsetX = direction(from: old, to: tab) * width
-            isShown = true
-        }
-        Task { @MainActor in
-            await Task.yield()
-            withAnimation(.easeInOut(duration: Self.duration)) { offsetX = 0 }
-        }
-    }
-
-    private func exit(to new: Tab) {
-        guard !reduceMotion else {
-            isShown = false
-            return
-        }
-        withAnimation(.easeInOut(duration: Self.duration)) {
-            offsetX = -direction(from: tab, to: new) * width
-        }
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(Int(Self.duration * 1000) + 40))
-            if selection != tab {
-                var none = Transaction(animation: nil)
-                none.disablesAnimations = true
-                withTransaction(none) {
-                    isShown = false
-                    offsetX = 0
-                }
-            }
-        }
+            .opacity(selected ? 1 : 0)
+            .animation(reduceMotion ? nil : .easeOut(duration: Self.duration), value: selected)
+            // The incoming page renders above the outgoing one.
+            .zIndex(selected ? 1 : 0)
+            // A hidden tab is not read by VoiceOver.
+            .accessibilityHidden(!selected)
     }
 }
 

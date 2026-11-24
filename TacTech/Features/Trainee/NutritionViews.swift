@@ -1,919 +1,2423 @@
+import Charts
+import PhotosUI
 import SwiftUI
 
-// MARK: - Nutrition Home (food database + meal tracker)
+// MARK: - Nutrition (Today · History) — rebuilt from Design/nutrition-prototype.html
+// Phase 1: header, Today | History switch, search row, Today (ring, Planned, Eaten), add/edit sheet,
+// goal sheet, "Food scan" sheet. History body and the camera/analyze flow come in the next phases.
+
+private enum NutTab { case today, history }
+
+private enum NutHistoryRange: Int, CaseIterable, Identifiable {
+    case days = 0
+    case weeks = 1
+    case months = 2
+    var id: Int { rawValue }
+    var title: LocalizedStringKey {
+        switch self {
+        case .days: "Days"
+        case .weeks: "Weeks"
+        case .months: "Months"
+        }
+    }
+    var fetchDays: Int {
+        switch self {
+        case .days: 7
+        case .weeks: 42
+        case .months: 60
+        }
+    }
+}
+
+private struct NutPhotoDraft: Identifiable, Equatable {
+    let id = UUID()
+    let image: UIImage
+
+    static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
+}
+
+/// Bottom panels. Opened with the prototype's timing (0.36 s in, 0.22 s out).
+private enum NutPanelKind: Identifiable, Equatable {
+    case add
+    case addFood(FoodKnowledge)
+    case addQuery(String)
+    case photo(NutPhotoDraft)
+    case edit(Meal)
+    case goal
+    case soon
+
+    var id: String {
+        switch self {
+        case .add: "add"
+        case .addFood(let food): "addFood-\(food.name)"
+        case .addQuery(let q): "addQuery-\(q)"
+        case .photo(let draft): "photo-\(draft.id.uuidString)"
+        case .edit(let meal): "edit-\(meal.id)"
+        case .goal: "goal"
+        case .soon: "soon"
+        }
+    }
+}
+
+private enum NutStyle {
+    static let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    static let field = Color(red: 244 / 255, green: 244 / 255, blue: 245 / 255)      // #F4F4F5
+    static let track = Color(red: 238 / 255, green: 238 / 255, blue: 240 / 255)      // #EEEEF0
+    static let mute = Color(red: 107 / 255, green: 107 / 255, blue: 112 / 255)       // #6B6B70
+    static let line = Color(red: 239 / 255, green: 239 / 255, blue: 241 / 255)       // #EFEFF1
+    static let accentText = Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255)   // #C2410C
+    static let danger = Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255)       // #B91C1C
+    static let orange = TTColor.actionOrange
+    static let ease = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.3)
+    static let sheetOpen = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.36)
+    static let sheetClose = Animation.easeIn(duration: 0.22)
+    /// Prototype: sticky bar block above the list (12 + 50 + 8 + 56 + 8).
+    static let stickyHeight: CGFloat = 134
+}
+
+// MARK: - Scroll probe (search row shrinks on scroll down, returns on scroll up)
+
+private struct NutScrollKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
+}
+
+private final class NutScrollTracker {
+    var rest: CGFloat?
+    var last: CGFloat = 0
+    var lockUntil: Date = .distantPast
+}
+
+/// Reports the scroll distance. iOS 18+ uses the scroll geometry; iOS 17 falls back to a probe on the stack
+/// (a geometry probe stops updating while scrolling from iOS 18 on).
+private struct NutScrollWatcher: ViewModifier {
+    let onChange: (CGFloat) -> Void
+    @State private var rest: CGFloat?
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top
+            } action: { _, y in
+                onChange(y)
+            }
+        } else {
+            content.onPreferenceChange(NutScrollKey.self) { minY in
+                if rest == nil { rest = minY }
+                onChange((rest ?? minY) - minY)
+            }
+        }
+    }
+}
+
+// MARK: - Screen
 
 struct NutritionView: View {
     @Environment(AppStore.self) private var store
-    @Namespace private var searchNS
-    @State private var selectedDay = Date()
-    @State private var showManual = false
-    @State private var showProfile = false
-    @State private var showSearch = false
-    @State private var searchText = ""
-    @State private var selectedCategory: FoodCategory = .meat
-    @State private var calorieDraft: Double = 2100
-    @State private var suggestionMessage: String?
-    @State private var pendingFood: FoodSheetItem?
-    /// Day-load state (view-local): a request for `selectedDay` is in flight / failed / has finished once.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var tab: NutTab = .today
+    @State private var panel: NutPanelKind?
+    @State private var searchMinimized = false
+    @State private var tracker = NutScrollTracker()
+    @State private var toast: TTToastMessage?
+
+    /// Load state for today's list (view-local, see CLAUDE.md loading rules).
     @State private var isLoadingDay = true
     @State private var dayLoadFailed = false
-    @State private var loadedDays: Set<Date> = []
+    @State private var didLoadToday = false
 
-    private let orange = TTColor.actionOrange
-    private let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
-    private let canvas = Color(white: 0.97)
+    @State private var historyRange: NutHistoryRange = .days
+    @State private var selectedBucketIndex: Int? = nil
+    @State private var barsGrown = false
+    @State private var isLoadingHistory = false
+    @State private var loadedHistoryDays = 0
+
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var capturedPhoto: UIImage?
+    @State private var libraryItem: PhotosPickerItem?
+
+    @Namespace private var searchNS
+    @State private var showSearch = false
+
+    private let canvas = Color.white
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                nutritionHeader
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 24) {
-                        browseCategory
-                        morningRoutine
-                        calorieGoal
-                        suggestedMeal
-                        browseMeals
+          ScrollViewReader { proxy in
+            TTCollapsingHeaderScreen(
+                sheetFill: canvas,
+                headerBackground: NutStyle.charcoal,
+                topRadius: { _ in TTSheetChrome.pageTopRadius },
+                pinsBelowCollapsedHeader: true,
+                topAnchorID: "nutTop",
+                onRefresh: { await loadToday() },
+                header: { progress in header(progress: progress) }
+            ) {
+                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    Section {
+                        Group {
+                            switch tab {
+                            case .today: todayBody
+                            case .history: historyBody
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 120)
+                    } header: {
+                        stickyBar
                     }
-                    .padding(.horizontal, TTSpace.screen)
-                    .padding(.top, 20)
-                    .padding(.bottom, 36)
                 }
-                .refreshable { await loadSelectedDay() }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
+                // Measured on the stack itself (a probe inside the lazy content is dropped once it scrolls away).
+                .background(scrollProbe)
             }
-            .background(charcoal.ignoresSafeArea(edges: .top))
+            // Today and History are different lengths: always start the other tab at the top (a kept scroll
+            // position showed only the bottom of the list, which looked like the logs were gone).
+            .onChange(of: tab) { _, _ in
+                searchMinimized = false
+                proxy.scrollTo("nutTop", anchor: .top)
+            }
+          }
+            .modifier(NutScrollWatcher { handleScroll(y: $0) })
+            .background(NutStyle.charcoal.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .ttSyncRootTabBarWithNavigationDepth()
-            .sheet(isPresented: $showManual) {
-                ManualMealView(day: selectedDay)
-                    .ttModalSheetPresentation()
+            .ttToast($toast)
+            .task(id: traineeId) { await loadToday() }
+            .sheet(isPresented: $showCamera) {
+                CameraImagePicker(image: $capturedPhoto)
+                    .ignoresSafeArea()
             }
-            .sheet(isPresented: $showProfile) {
-                TraineeProfileView(showsBack: true)
-                    .ttModalSheetPresentation(dragIndicator: .hidden)
+            .photosPicker(isPresented: $showPhotoLibrary, selection: $libraryItem, matching: .images)
+            .onChange(of: capturedPhoto) { _, newValue in
+                guard let image = newValue else { return }
+                capturedPhoto = nil
+                openPanel(.photo(NutPhotoDraft(image: image)))
             }
-            .onAppear {
-                calorieDraft = Double(store.currentTrainee?.dailyCalorieTarget ?? 2100)
-            }
-            .task(id: selectedDay) { await loadSelectedDay() }
-            .overlay(alignment: .bottom) {
-                if let suggestionMessage {
-                    Text(suggestionMessage)
-                        .font(TTFont.textSM(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.black.opacity(0.85))
-                        .clipShape(Capsule())
-                        .padding(.bottom, 24)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+            .onChange(of: libraryItem) { _, item in
+                guard let item else { return }
+                Task {
+                    defer { libraryItem = nil }
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        openPanel(.photo(NutPhotoDraft(image: image)))
+                    }
                 }
             }
             .ttSearchOverlay(
                 isPresented: $showSearch,
-                catalog: foodSearchCatalog,
+                catalog: searchCatalog,
                 namespace: searchNS,
-                onOutcome: handleFoodSearchOutcome
+                refined: true,
+                onOutcome: handleSearchOutcome
             )
-            .sheet(item: $pendingFood) { food in
-                ManualMealView(day: selectedDay, prefillName: food.name)
-                    .ttModalSheetPresentation()
+            .fullScreenCover(item: $panel) { kind in
+                NutritionPanelHost { close in
+                    panelContent(kind, close: close)
+                }
+                .presentationBackground(.clear)
             }
         }
     }
 
-    private var foodSearchCatalog: TTSearchCatalog {
-        let categories = FoodCategory.allCases.filter { $0 != .all }.map { cat in
-            (
-                id: cat.id,
-                name: cat.title,
-                count: store.foodCatalog.filter { cat.matches($0) }.count,
-                icon: cat.icon
-            )
+    // MARK: Header ("Nutrition" + scanner with Soon badge)
+
+    private func header(progress: CGFloat) -> some View {
+        let p = min(1, max(0, progress))
+        return HStack(alignment: .center) {
+            Text("Nutrition")
+                .font(TTFont.workSans(26 - 7 * p, weight: .medium))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button { openPanel(.soon) } label: {
+                ZStack(alignment: .topTrailing) {
+                    TTIcon(icon: .scan1, size: 22 - 2 * p)
+                        .foregroundStyle(.white)
+                        .frame(width: 44 - 4 * p, height: 44 - 4 * p)
+                        .background(Color(white: 0.17))
+                        .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
+                    Text("Soon")
+                        .font(TTFont.workSans(10, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(NutStyle.charcoal, lineWidth: 2))
+                        .offset(x: 2, y: -2)
+                }
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Food scan, upcoming feature")
         }
+        .padding(.horizontal, TTSpace.screen)
+        .padding(.top, 14 - 4 * p)
+        .padding(.bottom, 20 - 8 * p)
+        .frame(maxWidth: .infinity, minHeight: TTDarkPageHeader.compactHeight + (TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight) * (1 - p), alignment: .bottomLeading)
+        .background {
+            Rectangle().fill(NutStyle.charcoal).ignoresSafeArea(edges: .top)
+        }
+    }
+
+    // MARK: Sticky bar (Today | History + search row)
+
+    private var stickyBar: some View {
+        VStack(spacing: 8) {
+            tabSwitch
+            searchRow
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(Color.white)
+        .frame(maxWidth: .infinity)
+        // The slot keeps its full height so the list below never jumps when the search row shrinks.
+        .frame(height: NutStyle.stickyHeight, alignment: .top)
+    }
+
+    private var tabSwitch: some View {
+        HStack(spacing: 0) {
+            tabButton("Today", .today)
+            tabButton("History", .history)
+        }
+        .padding(3)
+        .background(alignment: .leading) {
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.16), radius: 1.5, y: 1)
+                    .frame(width: (geo.size.width - 6) / 2, height: geo.size.height - 6)
+                    .offset(x: 3 + (tab == .history ? (geo.size.width - 6) / 2 : 0), y: 3)
+                    .animation(reduceMotion ? nil : NutStyle.ease, value: tab)
+            }
+        }
+        .background(NutStyle.track)
+        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func tabButton(_ title: LocalizedStringKey, _ value: NutTab) -> some View {
+        Button {
+            guard tab != value else { return }
+            tab = value
+        } label: {
+            Text(title)
+                .font(TTFont.workSans(15, weight: tab == value ? .semibold : .medium))
+                .foregroundStyle(tab == value ? Color(white: 0.07) : Color(red: 85 / 255, green: 85 / 255, blue: 91 / 255))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(tab == value ? .isSelected : [])
+    }
+
+    private var searchRow: some View {
+        HStack(spacing: 8) {
+            TTSearchEntryPill(
+                placeholder: String(localized: "Add food or drink"),
+                namespace: searchNS
+            ) {
+                showSearch = true
+            }
+
+            Button {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    showCamera = true
+                } else {
+                    showPhotoLibrary = true
+                }
+            } label: {
+                TTIcon(icon: .camera1, size: 20)
+                    .foregroundStyle(.white)
+                    .frame(width: 48, height: 48)
+                    .background(NutStyle.orange)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Add food photo")
+        }
+        .frame(height: searchMinimized ? 0 : 48, alignment: .top)
+        .opacity(searchMinimized ? 0 : 1)
+        .clipped()
+        .allowsHitTesting(!searchMinimized)
+        .accessibilityHidden(searchMinimized)
+        .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28), value: searchMinimized)
+    }
+
+    private var scrollProbe: some View {
+        Color.clear
+            .frame(height: 0)
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: NutScrollKey.self, value: geo.frame(in: .scrollView).minY)
+            })
+            .accessibilityHidden(true)
+    }
+
+    /// `y` = how far the list has scrolled up (0 at rest, negative while pulling down).
+    private func handleScroll(y: CGFloat) {
+        let t = tracker
+        let dy = y - t.last
+        t.last = y
+        guard Date() >= t.lockUntil else { return }
+        if y > 70, dy > 3, !searchMinimized {
+            searchMinimized = true
+            t.lockUntil = Date().addingTimeInterval(0.4)
+        } else if (dy < -6 || y <= 10), searchMinimized {
+            searchMinimized = false
+            t.lockUntil = Date().addingTimeInterval(0.4)
+        }
+    }
+
+    // MARK: Today
+
+    private var traineeId: String? { store.currentTrainee?.id }
+    private var goal: Int { store.currentTrainee?.dailyCalorieTarget ?? 0 }
+
+    private var todaysMeals: [Meal] {
+        guard let traineeId else { return [] }
+        return store.meals(for: traineeId, on: Date())
+    }
+
+    private var planned: [Meal] { todaysMeals.filter(\.isPlanned).sorted { $0.eatenAt < $1.eatenAt } }
+    private var eaten: [Meal] { todaysMeals.filter { !$0.isPlanned }.sorted { $0.eatenAt > $1.eatenAt } }
+
+    private var hasData: Bool { !todaysMeals.isEmpty || didLoadToday }
+
+    private static let placeholder = Meal(
+        id: "placeholder", traineeId: "", name: "Meal name", eatenAt: Date(timeIntervalSince1970: 0),
+        portionGrams: 0, macros: MacroEstimate(calories: 0, protein: 0, carbs: 0, fat: 0),
+        source: "", isEstimate: false
+    )
+
+    @ViewBuilder
+    private var todayBody: some View {
+        if dayLoadFailed, hasData, !todaysMeals.isEmpty {
+            TTStaleNotice { Task { await loadToday() } }
+                .padding(.bottom, 8)
+        }
+        TTLoadGate(
+            isLoading: !didLoadToday || isLoadingDay,
+            hasData: !todaysMeals.isEmpty,
+            loadingLabel: "Loading your meals"
+        ) {
+            VStack(alignment: .leading, spacing: 0) {
+                todayCard(eaten: [], planned: [])
+                listsSection(planned: [Self.placeholder], eaten: [Self.placeholder, Self.placeholder])
+            }
+            .ttSkeleton()
+        } content: {
+            if dayLoadFailed, todaysMeals.isEmpty {
+                TTLoadError(title: "Couldn’t load your meals") { Task { await loadToday() } }
+                    .padding(.top, 24)
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    todayCard(eaten: eaten, planned: planned)
+                    listsSection(planned: planned, eaten: eaten)
+                }
+            }
+        }
+    }
+
+    private func todayCard(eaten: [Meal], planned: [Meal]) -> some View {
+        let e = eaten.reduce(0) { $0 + $1.macros.calories }
+        let pl = planned.reduce(0) { $0 + $1.macros.calories }
+        let prot = eaten.reduce(0.0) { $0 + $1.macros.protein }
+        let carb = eaten.reduce(0.0) { $0 + $1.macros.carbs }
+        let fat = eaten.reduce(0.0) { $0 + $1.macros.fat }
+        let g = goal
+        let pe = g > 0 ? min(1, Double(e) / Double(g)) : 0
+        let pp = g > 0 ? min(1, Double(e + pl) / Double(g)) : 0
+        let left = max(0, g - e)
+        // TODO: the backend has no protein/carbs/fat targets (only the calorie goal). The bars show each macro's
+        // share of the grams eaten instead of "x / target".
+        let macroSum = max(prot + carb + fat, 0.0001)
+
+        return ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("TODAY")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .tracking(1.7)
+                    .opacity(0.9)
+                HStack(spacing: 16) {
+                    NutRing(eaten: pe, planned: pp, reduceMotion: reduceMotion)
+                        .frame(width: 104, height: 104)
+                    VStack(alignment: .leading, spacing: 2) {
+                        if g > 0 {
+                            Text("\(left) kcal left")
+                                .font(TTFont.workSans(26, weight: .semibold))
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(1)
+                        } else {
+                            Text("\(e) kcal eaten")
+                                .font(TTFont.workSans(26, weight: .semibold))
+                                .minimumScaleFactor(0.7)
+                                .lineLimit(1)
+                        }
+                        summaryLine(eaten: e, planned: pl, goal: g)
+                            .font(TTFont.workSans(13, weight: .regular))
+                            .opacity(0.95)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 8)
+                HStack(spacing: 10) {
+                    macroBar("Protein", value: prot, share: prot / macroSum)
+                    macroBar("Carbs", value: carb, share: carb / macroSum)
+                    macroBar("Fat", value: fat, share: fat / macroSum)
+                }
+                .padding(.top, 14)
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            Button { openPanel(.goal) } label: {
+                TTIcon(icon: .gear1, size: 20)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.white.opacity(0.2))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(10)
+            .accessibilityLabel("Change calorie goal")
+        }
+        .background(NutStyle.orange)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .padding(.top, 10)
+    }
+
+    private func summaryLine(eaten: Int, planned: Int, goal: Int) -> Text {
+        var t = Text("\(eaten) eaten")
+        if planned > 0 { t = t + Text(verbatim: " · ") + Text("+\(planned) planned") }
+        if goal > 0 { t = t + Text(verbatim: " · ") + Text("goal \(goal)") }
+        return t
+    }
+
+    private func macroBar(_ title: LocalizedStringKey, value: Double, share: Double) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(title)
+                Spacer(minLength: 2)
+                Text(verbatim: "\(Int(value.rounded())) g")
+            }
+            .font(TTFont.workSans(12, weight: .regular))
+            .monospacedDigit()
+            .opacity(0.95)
+            Capsule()
+                .fill(Color.white.opacity(0.28))
+                .frame(height: 6)
+                .overlay(alignment: .leading) {
+                    GeometryReader { geo in
+                        Capsule().fill(Color.white)
+                            .frame(width: geo.size.width * min(1, max(0, share)))
+                            .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.5), value: share)
+                    }
+                }
+        }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func listsSection(planned: [Meal], eaten: [Meal]) -> some View {
+        let pl = planned.reduce(0) { $0 + $1.macros.calories }
+        let e = eaten.reduce(0) { $0 + $1.macros.calories }
+        return VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("Planned", trailing: pl > 0 ? Text("+\(pl) kcal") : nil)
+            if planned.isEmpty {
+                Text("Nothing planned. Use search, then choose Plan it.")
+                    .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                    .padding(.horizontal, 2).padding(.bottom, 10)
+            } else {
+                ForEach(Array(planned.enumerated()), id: \.element.id) { i, meal in
+                    entryRow(meal, first: i == 0)
+                }
+            }
+            sectionTitle("Eaten today", trailing: Text("\(e) kcal"))
+            if eaten.isEmpty {
+                Text("Nothing logged yet.")
+                    .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                    .padding(.horizontal, 2).padding(.bottom, 10)
+            } else {
+                ForEach(Array(eaten.enumerated()), id: \.element.id) { i, meal in
+                    entryRow(meal, first: i == 0)
+                }
+            }
+        }
+    }
+
+    private func sectionTitle(_ title: LocalizedStringKey, trailing: Text?) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(TTFont.workSans(20, weight: .semibold))
+                .foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Spacer()
+            if let trailing {
+                trailing
+                    .font(TTFont.workSans(14, weight: .medium))
+                    .foregroundStyle(NutStyle.mute)
+            }
+        }
+        .padding(.top, 18)
+        .padding(.horizontal, 2)
+        .padding(.bottom, 8)
+    }
+
+    private func entryRow(_ meal: Meal, first: Bool) -> some View {
+        let isPlanned = meal.isPlanned
+        let time = meal.eatenAt.formatted(date: .omitted, time: .shortened)
+        let detail = meal.detail ?? (meal.portionGrams > 0 ? "\(Int(meal.portionGrams)) g" : "")
+        return HStack(spacing: 0) {
+            Button {
+                if meal.id != "placeholder" { openPanel(.edit(meal)) }
+            } label: {
+                HStack(spacing: 10) {
+                    NutTile(name: meal.name, kind: meal.kind, planned: isPlanned, hasPhoto: meal.photoUrl != nil)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(verbatim: meal.name)
+                            .font(TTFont.workSans(16, weight: .semibold))
+                            .foregroundStyle(TTColor.ink)
+                            .lineLimit(1)
+                        Text(verbatim: [detail, (isPlanned ? "\(String(localized: "Planned")) " : "") + time]
+                            .filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(TTFont.workSans(13, weight: .regular))
+                            .foregroundStyle(NutStyle.mute)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                    Group {
+                        if meal.macros.calories == 0, meal.source == "custom" {
+                            Text(verbatim: "— kcal")
+                        } else {
+                            Text("\(meal.macros.calories) kcal")
+                        }
+                    }
+                    .font(TTFont.workSans(14, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(TTColor.ink)
+                }
+                .padding(.vertical, 6)
+                .frame(minHeight: 64)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Edit \(meal.name)"))
+            .accessibilityValue(Text(verbatim: "\(meal.macros.calories) kcal, \(time)"))
+
+            if isPlanned {
+                Button { Task { await markEaten(meal) } } label: {
+                    Circle()
+                        .stroke(NutStyle.orange, lineWidth: 2)
+                        .background(Circle().fill(Color.white))
+                        .frame(width: 44, height: 44)
+                        .overlay { TTIcon(icon: .check, size: 20).foregroundStyle(NutStyle.orange) }
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, 4)
+                .accessibilityLabel(Text("Mark \(meal.name) as eaten"))
+            }
+        }
+        .overlay(alignment: .top) {
+            if !first { Rectangle().fill(NutStyle.line).frame(height: 1) }
+        }
+    }
+
+    private struct NutHistoryBucket: Identifiable {
+        let id: String
+        let shortLabel: String
+        let title: String
+        let daysLogged: Int
+        let avgCalories: Int
+        let totalCalories: Int
+        let daysOverGoal: Int
+        let avgProtein: Double
+        let avgCarbs: Double
+        let avgFat: Double
+        let meals: [Meal]
+    }
+
+    private var historyBuckets: [NutHistoryBucket] {
+        guard let id = traineeId else { return [] }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let allEaten = store.meals.filter { $0.traineeId == id && !$0.isPlanned }
+
+        switch historyRange {
+        case .days:
+            return (0..<7).reversed().compactMap { offset -> NutHistoryBucket? in
+                guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else { return nil }
+                let dayMeals = allEaten.filter { calendar.isDate($0.eatenAt, inSameDayAs: date) }
+                    .sorted { $0.eatenAt > $1.eatenAt }
+                let kcal = dayMeals.reduce(0) { $0 + $1.macros.calories }
+                let p = dayMeals.reduce(0.0) { $0 + $1.macros.protein }
+                let c = dayMeals.reduce(0.0) { $0 + $1.macros.carbs }
+                let f = dayMeals.reduce(0.0) { $0 + $1.macros.fat }
+                let short = offset == 0 ? String(localized: "Today") : date.formatted(.dateTime.weekday(.abbreviated))
+                let title: String
+                if offset == 0 {
+                    title = String(localized: "Today so far")
+                } else if offset == 1 {
+                    title = String(localized: "Yesterday, ") + date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                } else {
+                    title = date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                }
+                return NutHistoryBucket(
+                    id: "day-\(offset)",
+                    shortLabel: short,
+                    title: title,
+                    daysLogged: dayMeals.isEmpty ? 0 : 1,
+                    avgCalories: kcal,
+                    totalCalories: kcal,
+                    daysOverGoal: (goal > 0 && kcal > goal) ? 1 : 0,
+                    avgProtein: p,
+                    avgCarbs: c,
+                    avgFat: f,
+                    meals: dayMeals
+                )
+            }
+
+        case .weeks:
+            let startOfThisWeek = calendar.dateInterval(of: .weekOfYear, for: today)?.start ?? today
+            return (0..<6).reversed().compactMap { weekOffset -> NutHistoryBucket? in
+                guard let weekStart = calendar.date(byAdding: .weekOfYear, value: -weekOffset, to: startOfThisWeek),
+                      let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else { return nil }
+                let weekMeals = allEaten.filter { $0.eatenAt >= weekStart && $0.eatenAt <= min(Date(), calendar.date(bySettingHour: 23, minute: 59, second: 59, of: weekEnd) ?? weekEnd) }
+                let byDay = Dictionary(grouping: weekMeals) { calendar.startOfDay(for: $0.eatenAt) }
+                let dayTotals = byDay.values.map { meals in
+                    (
+                        kcal: meals.reduce(0) { $0 + $1.macros.calories },
+                        p: meals.reduce(0.0) { $0 + $1.macros.protein },
+                        c: meals.reduce(0.0) { $0 + $1.macros.carbs },
+                        f: meals.reduce(0.0) { $0 + $1.macros.fat }
+                    )
+                }
+                let logged = dayTotals.count
+                let totalKcal = dayTotals.reduce(0) { $0 + $1.kcal }
+                let avgKcal = logged > 0 ? totalKcal / logged : 0
+                let over = goal > 0 ? dayTotals.filter { $0.kcal > goal }.count : 0
+                let short = weekOffset == 0 ? String(localized: "This wk") : weekStart.formatted(.dateTime.day().month(.abbreviated))
+                let title = weekOffset == 0
+                    ? "\(weekStart.formatted(.dateTime.weekday(.abbreviated).day())) – \(String(localized: "today"))"
+                    : "\(weekStart.formatted(.dateTime.day().month(.abbreviated))) – \(weekEnd.formatted(.dateTime.day().month(.abbreviated)))"
+                return NutHistoryBucket(
+                    id: "wk-\(weekOffset)",
+                    shortLabel: short,
+                    title: title,
+                    daysLogged: logged,
+                    avgCalories: avgKcal,
+                    totalCalories: totalKcal,
+                    daysOverGoal: over,
+                    avgProtein: logged > 0 ? dayTotals.reduce(0) { $0 + $1.p } / Double(logged) : 0,
+                    avgCarbs: logged > 0 ? dayTotals.reduce(0) { $0 + $1.c } / Double(logged) : 0,
+                    avgFat: logged > 0 ? dayTotals.reduce(0) { $0 + $1.f } / Double(logged) : 0,
+                    meals: weekMeals
+                )
+            }
+
+        case .months:
+            let startOfThisMonth = calendar.dateInterval(of: .month, for: today)?.start ?? today
+            return (0..<6).reversed().compactMap { monthOffset -> NutHistoryBucket? in
+                guard let monthStart = calendar.date(byAdding: .month, value: -monthOffset, to: startOfThisMonth),
+                      let monthInterval = calendar.dateInterval(of: .month, for: monthStart) else { return nil }
+                let monthMeals = allEaten.filter { $0.eatenAt >= monthInterval.start && $0.eatenAt < monthInterval.end }
+                let byDay = Dictionary(grouping: monthMeals) { calendar.startOfDay(for: $0.eatenAt) }
+                let dayTotals = byDay.values.map { meals in
+                    (
+                        kcal: meals.reduce(0) { $0 + $1.macros.calories },
+                        p: meals.reduce(0.0) { $0 + $1.macros.protein },
+                        c: meals.reduce(0.0) { $0 + $1.macros.carbs },
+                        f: meals.reduce(0.0) { $0 + $1.macros.fat }
+                    )
+                }
+                let logged = dayTotals.count
+                let totalKcal = dayTotals.reduce(0) { $0 + $1.kcal }
+                let avgKcal = logged > 0 ? totalKcal / logged : 0
+                let over = goal > 0 ? dayTotals.filter { $0.kcal > goal }.count : 0
+                let short = monthStart.formatted(.dateTime.month(.abbreviated))
+                let title = monthOffset == 0
+                    ? "\(monthStart.formatted(.dateTime.month(.wide))) \(String(localized: "so far"))"
+                    : monthStart.formatted(.dateTime.month(.wide).year())
+                return NutHistoryBucket(
+                    id: "mo-\(monthOffset)",
+                    shortLabel: short,
+                    title: title,
+                    daysLogged: logged,
+                    avgCalories: avgKcal,
+                    totalCalories: totalKcal,
+                    daysOverGoal: over,
+                    avgProtein: logged > 0 ? dayTotals.reduce(0) { $0 + $1.p } / Double(logged) : 0,
+                    avgCarbs: logged > 0 ? dayTotals.reduce(0) { $0 + $1.c } / Double(logged) : 0,
+                    avgFat: logged > 0 ? dayTotals.reduce(0) { $0 + $1.f } / Double(logged) : 0,
+                    meals: monthMeals
+                )
+            }
+        }
+    }
+
+    private var historyBody: some View {
+        let buckets = historyBuckets
+        let activeIndex = min(selectedBucketIndex ?? max(0, buckets.count - 1), max(0, buckets.count - 1))
+        let selected = buckets.isEmpty ? nil : buckets[activeIndex]
+        let nonZero = buckets.filter { $0.avgCalories > 0 }
+        let avgAll = nonZero.isEmpty ? 0 : nonZero.reduce(0) { $0 + $1.avgCalories } / nonZero.count
+        let onTarget = goal > 0 ? buckets.filter { $0.avgCalories > 0 && $0.avgCalories <= goal }.count : 0
+        let highest = buckets.max(by: { $0.avgCalories < $1.avgCalories })
+
+        return VStack(alignment: .leading, spacing: 10) {
+            if isLoadingHistory && buckets.allSatisfy({ $0.meals.isEmpty }) {
+                VStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .fill(NutStyle.orange.opacity(0.25))
+                        .frame(height: 310)
+                    HStack(spacing: 8) {
+                        ForEach(0..<3, id: \.self) { _ in
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .fill(NutStyle.field)
+                                .frame(height: 68)
+                        }
+                    }
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(NutStyle.field)
+                        .frame(height: 150)
+                }
+                .redacted(reason: .placeholder)
+                .padding(.top, 10)
+            } else if let selected {
+                historyHeroCard(buckets: buckets, selectedIndex: activeIndex, selected: selected)
+                historyStatsRow(
+                    avgKcal: avgAll,
+                    onTargetText: "\(onTarget) of \(max(1, nonZero.count))",
+                    highestLabel: highest?.avgCalories ?? 0 > 0 ? (highest?.shortLabel ?? "—") : "—"
+                )
+                historyDetailCard(selected: selected)
+            }
+        }
+        .task(id: historyRange) {
+            barsGrown = false
+            await loadHistory()
+            withAnimation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.7)) {
+                barsGrown = true
+            }
+        }
+    }
+
+    private func historyHeroCard(buckets: [NutHistoryBucket], selectedIndex: Int, selected: NutHistoryBucket) -> some View {
+        let maxBar = max(Double(max(goal, 1)) * 1.25, Double(buckets.map(\.avgCalories).max() ?? 0) * 1.12)
+        let goalRatio = goal > 0 ? min(1.0, Double(goal) / maxBar) : 0
+        let diff = selected.avgCalories - goal
+        let isOver = goal > 0 && diff > 0
+
+        return VStack(alignment: .leading, spacing: 0) {
+            // Sliding Days | Weeks | Months pill switch
+            HStack(spacing: 0) {
+                ForEach(NutHistoryRange.allCases) { range in
+                    Button {
+                        guard historyRange != range else { return }
+                        selectedBucketIndex = nil
+                        barsGrown = false
+                        withAnimation(reduceMotion ? nil : NutStyle.ease) {
+                            historyRange = range
+                        }
+                    } label: {
+                        Text(range.title)
+                            .font(TTFont.workSans(14, weight: .semibold))
+                            .foregroundStyle(historyRange == range ? NutStyle.accentText : .white)
+                            .frame(maxWidth: .infinity, minHeight: 40)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(3)
+            .background(alignment: .leading) {
+                GeometryReader { geo in
+                    Capsule()
+                        .fill(Color.white)
+                        .frame(width: (geo.size.width - 6) / 3, height: geo.size.height - 6)
+                        .offset(x: 3 + CGFloat(historyRange.rawValue) * ((geo.size.width - 6) / 3), y: 3)
+                        .animation(reduceMotion ? nil : NutStyle.ease, value: historyRange)
+                }
+            }
+            .background(Color.white.opacity(0.22))
+            .clipShape(Capsule())
+
+            Text(verbatim: selected.title)
+                .font(TTFont.workSans(13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.95))
+                .padding(.top, 12)
+
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(verbatim: "\(selected.avgCalories.formatted()) kcal" + (historyRange == .days ? "" : " / day"))
+                    .font(TTFont.workSans(34, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: selected.avgCalories)
+            }
+            .padding(.top, 2)
+
+            if goal > 0 {
+                Text(isOver
+                     ? "\(diff.formatted()) kcal over goal"
+                     : "\(abs(diff).formatted()) kcal under goal")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(isOver ? NutStyle.charcoal : Color.white.opacity(0.22))
+                    .clipShape(Capsule())
+                    .padding(.top, 4)
+            }
+
+            // Interactive animated bars + dashed goal line
+            ZStack(alignment: .bottom) {
+                if goal > 0 {
+                    GeometryReader { geo in
+                        let barAreaHeight = geo.size.height - 24
+                        let yOffset = barAreaHeight * (1 - goalRatio)
+                        ZStack(alignment: .topTrailing) {
+                            Path { path in
+                                path.move(to: CGPoint(x: 0, y: 0))
+                                path.addLine(to: CGPoint(x: geo.size.width, y: 0))
+                            }
+                            .stroke(Color.white.opacity(0.75), style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+                            .frame(height: 2)
+
+                            Text("Goal \(goal.formatted())")
+                                .font(TTFont.workSans(11, weight: .medium))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(NutStyle.orange)
+                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                                .offset(y: -16)
+                        }
+                        .offset(y: yOffset)
+                    }
+                    .allowsHitTesting(false)
+                }
+
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(Array(buckets.enumerated()), id: \.element.id) { index, bucket in
+                        let isSelected = index == selectedIndex
+                        let over = goal > 0 && bucket.avgCalories > goal
+                        let ratio = maxBar > 0 ? min(1.0, Double(bucket.avgCalories) / maxBar) : 0
+                        Button {
+                            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                                selectedBucketIndex = index
+                            }
+                        } label: {
+                            VStack(spacing: 4) {
+                                GeometryReader { barGeo in
+                                    let targetH = max(bucket.avgCalories > 0 ? 6 : 0, barGeo.size.height * ratio)
+                                    VStack {
+                                        Spacer(minLength: 0)
+                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                            .fill(over ? NutStyle.charcoal : Color.white)
+                                            .opacity(isSelected ? 1.0 : (over ? 0.6 : 0.5))
+                                            .frame(maxWidth: 36)
+                                            .frame(height: barsGrown ? targetH : 0)
+                                            .animation(
+                                                reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.65).delay(Double(index) * 0.045),
+                                                value: barsGrown
+                                            )
+                                    }
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                }
+                                .frame(height: 140)
+
+                                Text(verbatim: bucket.shortLabel)
+                                    .font(TTFont.workSans(11, weight: isSelected ? .semibold : .regular))
+                                    .foregroundStyle(isSelected ? .white : .white.opacity(0.85))
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.75)
+                                    .frame(height: 20)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(height: 164)
+            .padding(.top, 12)
+        }
+        .padding(14)
+        .background(NutStyle.orange)
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .padding(.top, 10)
+    }
+
+    private func historyStatsRow(avgKcal: Int, onTargetText: String, highestLabel: String) -> some View {
+        HStack(spacing: 8) {
+            historyStatTile(value: avgKcal.formatted(), label: "average kcal")
+            historyStatTile(value: onTargetText, label: "on target")
+            historyStatTile(value: highestLabel, label: "highest")
+        }
+    }
+
+    private func historyStatTile(value: String, label: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: value)
+                .font(TTFont.workSans(18, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(TTColor.ink)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+            Text(label)
+                .font(TTFont.workSans(12, weight: .regular))
+                .foregroundStyle(NutStyle.mute)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    private func historyDetailCard(selected: NutHistoryBucket) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if historyRange == .days {
+                Text("What you ate")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(NutStyle.mute)
+                if selected.meals.isEmpty {
+                    Text("Nothing logged yet.")
+                        .font(TTFont.body(14))
+                        .foregroundStyle(NutStyle.mute)
+                        .padding(.vertical, 4)
+                } else {
+                    ForEach(Array(selected.meals.enumerated()), id: \.element.id) { idx, meal in
+                        entryRow(meal, first: idx == 0)
+                    }
+                }
+            } else {
+                Text("Total \(selected.totalCalories.formatted()) kcal · \(selected.daysLogged) days logged · over goal on \(selected.daysOverGoal) of \(selected.daysLogged) days")
+                    .font(TTFont.workSans(13, weight: .regular))
+                    .foregroundStyle(NutStyle.mute)
+                Text("Average per day")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(NutStyle.mute)
+                    .padding(.top, 4)
+                HStack(spacing: 10) {
+                    historyMacroBar("Protein", value: selected.avgProtein, share: selected.avgProtein / 120)
+                    historyMacroBar("Carbs", value: selected.avgCarbs, share: selected.avgCarbs / 170)
+                    historyMacroBar("Fat", value: selected.avgFat, share: selected.avgFat / 55)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: selected.id)
+    }
+
+    private func historyMacroBar(_ title: LocalizedStringKey, value: Double, share: Double) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(title)
+                Spacer(minLength: 2)
+                Text(verbatim: "\(Int(value.rounded())) g").monospacedDigit()
+            }
+            .font(TTFont.workSans(12, weight: .medium))
+            .foregroundStyle(TTColor.ink)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255))
+                    Capsule().fill(NutStyle.orange)
+                        .frame(width: geo.size.width * min(1, max(0, share)))
+                        .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.5), value: value)
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+
+    private func loadHistory() async {
+        guard let id = traineeId else { return }
+        let targetDays = historyRange.fetchDays
+        if loadedHistoryDays >= targetDays { return }
+        isLoadingHistory = true
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let start = loadedHistoryDays
+        await withTaskGroup(of: Void.self) { group in
+            for offset in start..<targetDays {
+                guard let dayStart = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+                let queryDate = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart) ?? dayStart
+                group.addTask {
+                    _ = await store.refreshDay(for: id, on: queryDate)
+                }
+            }
+        }
+        if !Task.isCancelled {
+            loadedHistoryDays = max(loadedHistoryDays, targetDays)
+            isLoadingHistory = false
+        }
+    }
+
+    // MARK: Data
+
+    private func loadToday() async {
+        guard let id = traineeId else { isLoadingDay = false; return }
+        isLoadingDay = true
+        dayLoadFailed = false
+        let ok = await store.refreshDay(for: id, on: Date())
+        if Task.isCancelled { return }
+        dayLoadFailed = !ok
+        if ok { didLoadToday = true }
+        isLoadingDay = false
+    }
+
+    private func markEaten(_ meal: Meal) async {
+        let previous = meal
+        do {
+            // The server sets the eaten time to now.
+            let updated = try await store.updateMeal(meal, changes: UpdateMealBody(status: "eaten"))
+            let time = updated.eatenAt.formatted(date: .omitted, time: .shortened)
+            toast = TTToastMessage(
+                text: String(format: String(localized: "%@ eaten · %@"), updated.name, time),
+                style: .success,
+                action: TTToastAction(title: String(localized: "Undo")) {
+                    Task { await self.revert(previous) }
+                }
+            )
+            UIAccessibility.post(notification: .announcement, argument: toast?.text)
+        } catch {
+            toast = errorToast(error, fallback: "Couldn’t save entry")
+        }
+    }
+
+    private func revert(_ meal: Meal) async {
+        do {
+            try await store.updateMeal(meal, changes: UpdateMealBody(eatenAt: meal.eatenAt, status: meal.status ?? "eaten"))
+        } catch {
+            toast = errorToast(error, fallback: "Couldn’t save entry")
+        }
+    }
+
+    private func delete(_ meal: Meal) async {
+        do {
+            try await store.deleteMeal(meal)
+            toast = TTToastMessage(
+                text: String(format: String(localized: "Deleted %@"), meal.name),
+                style: .success,
+                action: TTToastAction(title: String(localized: "Undo")) {
+                    Task { await self.restore(meal) }
+                }
+            )
+            UIAccessibility.post(notification: .announcement, argument: toast?.text)
+        } catch {
+            toast = errorToast(error, fallback: "Couldn’t delete entry")
+        }
+    }
+
+    private func restore(_ meal: Meal) async {
+        do {
+            try await store.saveMeal(meal)
+        } catch {
+            toast = errorToast(error, fallback: "Couldn’t save entry")
+        }
+    }
+
+    private func errorToast(_ error: Error, fallback: String) -> TTToastMessage {
+        let detail = error.localizedDescription
+        return TTToastMessage(text: detail.isEmpty ? String(localized: String.LocalizationValue(fallback)) : detail, style: .error)
+    }
+
+    // MARK: Search
+
+    private var searchCatalog: TTSearchCatalog {
+        let drinksCount = store.foodCatalog.filter { NutKind.infer(name: $0.name, keywords: $0.keywords) == .drink }.count
+        let piecesCount = store.foodCatalog.filter { NutKind.infer(name: $0.name, keywords: $0.keywords) == .piece }.count
+        let platesCount = store.foodCatalog.filter { NutKind.infer(name: $0.name, keywords: $0.keywords) == .plate }.count
+        let categories: [(id: String, name: String, count: Int, icon: SandowIcon)] = [
+            (id: "plate", name: String(localized: "Meals"), count: platesCount, icon: .forkKnife),
+            (id: "piece", name: String(localized: "Snacks"), count: piecesCount, icon: .apple),
+            (id: "drink", name: String(localized: "Drinks"), count: drinksCount, icon: .coffee)
+        ]
         return TTSearchCatalog.foods(
             catalog: store.foodCatalog,
             categories: categories,
-            scopeId: store.currentTrainee?.id ?? store.session?.userId ?? "local",
-            offerTitle: "Log a meal",
-            offerSubtitle: "Add food from the database to today’s plan."
+            scopeId: "nutrition",
+            offerTitle: String(localized: "Add custom food"),
+            offerSubtitle: String(localized: "Log calories, protein, carbs and fat")
         )
     }
 
-    private func handleFoodSearchOutcome(_ outcome: TTSearchOutcome) {
+    private func handleSearchOutcome(_ outcome: TTSearchOutcome) {
         switch outcome {
         case .item(let id):
-            searchText = id
-            selectedCategory = .all
-            pendingFood = FoodSheetItem(name: id)
-        case .category(let id):
-            searchText = ""
-            selectedCategory = FoodCategory(rawValue: id) ?? .all
+            if let food = store.foodCatalog.first(where: { $0.name == id }) {
+                openPanel(.addFood(food))
+            } else {
+                openPanel(.addQuery(id))
+            }
+        case .category:
+            openPanel(.add)
         case .offer:
-            showManual = true
+            openPanel(.add)
         case .applyQuery(let q):
-            searchText = q
-            selectedCategory = .all
+            openPanel(.addQuery(q))
         case .dismissed:
             break
         }
     }
 
-    // MARK: - Header
+    // MARK: Panels
 
-    private var nutritionHeader: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .top, spacing: 14) {
-                Button { showProfile = true } label: {
-                    avatarView
-                }
-                .buttonStyle(.plain)
+    private func openPanel(_ kind: NutPanelKind) {
+        var t = Transaction(animation: nil)
+        t.disablesAnimations = true
+        withTransaction(t) { panel = kind }
+    }
 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(formattedDate)
-                        .font(TTFont.textSM(.semibold))
-                        .tracking(0.6)
-                        .foregroundStyle(Color.white.opacity(0.55))
-
-                    Text("Hello, \(firstName)!")
-                        .font(TTFont.headingLG(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.85)
-
-                    TTLoadGate(
-                        isLoading: isLoadingDay,
-                        hasData: dayHasData,
-                        loadingLabel: "Loading your meals"
-                    ) {
-                        dayChips(calories: 0, hunger: "Hungry", skeleton: true).ttSkeleton()
-                    } content: {
-                        dayChips(calories: caloriesToday, hunger: hungerLabel)
-                    }
-                }
-
-                Spacer(minLength: 8)
-
-                Button { showProfile = true } label: {
-                    ZStack(alignment: .topTrailing) {
-                        TTIcon(icon: .bell1, size: 18)
-                            .foregroundStyle(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                        if mealCountToday > 0 {
-                            Text("\(min(mealCountToday, 9))")
-                                .font(TTFont.text2XS(.bold))
-                                .foregroundStyle(.white)
-                                .frame(width: 18, height: 18)
-                                .background(Color(red: 0.9, green: 0.2, blue: 0.25))
-                                .clipShape(Circle())
-                                .offset(x: 4, y: -4)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-
-            HStack(spacing: 10) {
-                TTSearchEntryPill(
-                    placeholder: TTSearchCopy.foods.pillPlaceholder,
-                    query: searchText,
-                    style: .onDark,
-                    namespace: searchNS
-                ) {
-                    showSearch = true
-                }
-
-                NavigationLink {
-                    FoodScannerView()
-                } label: {
-                    TTIcon(icon: .scan1, size: 18)
-                        .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
-                        .background(Color.white.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                }
-                .buttonStyle(.plain)
-            }
+    @ViewBuilder
+    private func panelContent(_ kind: NutPanelKind, close: @escaping (_ after: (() -> Void)?) -> Void) -> some View {
+        switch kind {
+        case .add:
+            NutritionEntryContent(editing: nil, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+        case .addFood(let food):
+            NutritionEntryContent(editing: nil, initialFood: food, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+        case .addQuery(let initialQuery):
+            NutritionEntryContent(editing: nil, initialQuery: initialQuery, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+        case .photo(let photoDraft):
+            NutritionEntryContent(editing: nil, initialPhoto: photoDraft.image, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+        case .edit(let meal):
+            NutritionEntryContent(editing: meal, close: close, onSaved: { toast = $0 }, onDelete: { m in Task { await delete(m) } })
+        case .goal:
+            NutritionGoalContent(close: close, onSaved: { toast = $0 })
+        case .soon:
+            NutritionSoonContent(close: close)
         }
-        .padding(.horizontal, TTSpace.screen)
-        .padding(.top, 10)
-        .padding(.bottom, 20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background {
-            charcoal
-                .ignoresSafeArea(edges: .top)
+    }
+}
+
+// MARK: - Pieces
+
+private struct NutRing: View {
+    let eaten: Double
+    let planned: Double
+    let reduceMotion: Bool
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color.white.opacity(0.25), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+            Circle().trim(from: 0, to: planned)
+                .stroke(Color.white.opacity(0.55), style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Circle().trim(from: 0, to: eaten)
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 1) {
+                Text("\(Int((eaten * 100).rounded()))%")
+                    .font(TTFont.workSans(22, weight: .bold))
+                    .monospacedDigit()
+                Text("of goal")
+                    .font(TTFont.workSans(11, weight: .regular))
+                    .opacity(0.9)
+            }
+            .foregroundStyle(.white)
+        }
+        .padding(5)
+        .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.5), value: eaten)
+        .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.5), value: planned)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(Int((eaten * 100).rounded()))% of goal"))
+    }
+}
+
+/// Letter tile (42 pt). Colour follows the stored kind; neutral when the kind is unknown.
+private struct NutTile: View {
+    let name: String
+    let kind: String?
+    let planned: Bool
+    let hasPhoto: Bool
+
+    private var colors: (Color, Color) {
+        switch kind {
+        case "drink": (Color(red: 227 / 255, green: 240 / 255, blue: 1), Color(red: 30 / 255, green: 64 / 255, blue: 175 / 255))
+        case "piece": (Color(red: 1, green: 244 / 255, blue: 204 / 255), Color(red: 138 / 255, green: 109 / 255, blue: 0))
+        case "plate": (Color(red: 228 / 255, green: 245 / 255, blue: 233 / 255), Color(red: 22 / 255, green: 101 / 255, blue: 52 / 255))
+        default: (Color(red: 237 / 255, green: 237 / 255, blue: 240 / 255), Color(white: 0.27))
         }
     }
 
-    private var avatarView: some View {
-        TTUserAvatarView(
-            avatarUrl: store.remoteAvatarURL,
-            avatarAsset: store.displayAvatarAsset,
-            userId: store.session?.userId,
-            name: firstName,
-            size: 58,
-            shape: .roundedRect,
-            cornerRadius: 16,
-            strokeColor: Color.white.opacity(0.22),
-            strokeWidth: 1.5,
-            initialsForeground: .white,
-            initialsBackground: Color.white.opacity(0.14)
+    var body: some View {
+        Text(verbatim: String(name.prefix(1)).uppercased())
+            .font(TTFont.workSans(16, weight: .semibold))
+            .foregroundStyle(colors.1)
+            .frame(width: 42, height: 42)
+            .background(colors.0)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .overlay {
+                if planned {
+                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                        .strokeBorder(TTColor.actionOrange, style: StrokeStyle(lineWidth: 2, dash: [4, 3]))
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if hasPhoto {
+                    Circle().fill(Color.black).frame(width: 16, height: 16)
+                        .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                        .offset(x: 3, y: 3)
+                }
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Panel host (0.36 s in, 0.22 s out, covers the tab bar)
+
+private struct NutritionPanelHost<Content: View>: View {
+    @ViewBuilder var content: (_ close: @escaping (_ after: (() -> Void)?) -> Void) -> Content
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    @State private var contentHeight: CGFloat = 400
+
+    var body: some View {
+        GeometryReader { geo in
+            let maxHeight = geo.size.height * 0.92
+            ZStack(alignment: .bottom) {
+                Color.black.opacity(shown ? 0.45 : 0)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { close(nil) }
+                    .accessibilityHidden(true)
+
+                VStack(spacing: 0) {
+                    Capsule().fill(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255))
+                        .frame(width: 40, height: 5)
+                        .padding(.top, 8).padding(.bottom, 10)
+                        .accessibilityHidden(true)
+                    ScrollView(showsIndicators: false) {
+                        content { after in close(after) }
+                            .padding(.horizontal, 18)
+                            .padding(.bottom, 24)
+                            .background(GeometryReader { g in
+                                Color.clear
+                                    .onAppear { contentHeight = g.size.height }
+                                    .onChange(of: g.size.height) { _, h in contentHeight = h }
+                            })
+                    }
+                    .scrollBounceBehavior(.basedOnSize)
+                    .scrollDismissesKeyboard(.interactively)
+                    .frame(height: min(contentHeight, maxHeight - 23))
+                }
+                .frame(maxWidth: .infinity)
+                .background(
+                    UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28)
+                        .fill(Color.white)
+                        .ignoresSafeArea(edges: .bottom)
+                )
+                .offset(y: shown ? 0 : geo.size.height)
+                .accessibilityAddTraits(.isModal)
+            }
+        }
+        .onAppear {
+            withAnimation(reduceMotion ? nil : NutStyle.sheetOpen) { shown = true }
+        }
+    }
+
+    private func close(_ after: (() -> Void)?) {
+        guard shown else { return }
+        withAnimation(reduceMotion ? nil : NutStyle.sheetClose) { shown = false }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0 : 0.23)) {
+            var t = Transaction(animation: nil)
+            t.disablesAnimations = true
+            withTransaction(t) { dismiss() }
+            after?()
+        }
+    }
+}
+
+private func nutPanelButton(_ title: LocalizedStringKey, style: NutPanelButtonStyle, loading: Bool = false, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        HStack(spacing: 10) {
+            if loading { ProgressView().tint(.white) }
+            Text(title).font(TTFont.workSans(17, weight: style == .primary ? .semibold : .medium))
+        }
+        .frame(maxWidth: .infinity, minHeight: style == .primary ? 54 : 48)
+        .foregroundStyle(style == .primary ? Color.white : (style == .danger ? NutStyle.danger : Color(white: 0.27)))
+        .background(style == .primary ? Color.black : Color.clear)
+        .clipShape(Capsule())
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+}
+
+private enum NutPanelButtonStyle { case primary, ghost, danger }
+
+// MARK: - Soon sheet
+
+private struct NutritionSoonContent: View {
+    let close: (_ after: (() -> Void)?) -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            TTIcon(icon: .scan1, size: 30)
+                .foregroundStyle(NutStyle.orange)
+                .frame(width: 64, height: 64)
+                .background(Color(red: 1, green: 241 / 255, blue: 230 / 255))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, 6).padding(.bottom, 10)
+                .accessibilityHidden(true)
+            Text("Food scan")
+                .font(TTFont.workSans(20, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("Upcoming feature. Soon you will scan your food with the camera and AI will tell you everything about it.")
+                .font(TTFont.body(14))
+                .foregroundStyle(NutStyle.mute)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2).padding(.bottom, 10)
+            nutPanelButton("Got it", style: .primary) { close(nil) }
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Goal sheet
+
+private struct NutritionGoalContent: View {
+    @Environment(AppStore.self) private var store
+    let close: (_ after: (() -> Void)?) -> Void
+    let onSaved: (TTToastMessage) -> Void
+
+    @State private var value = 2100
+    @State private var saving = false
+    @State private var errorText: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Daily calorie goal")
+                .font(TTFont.workSans(20, weight: .bold)).foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("Changing it updates your ring and what is left.")
+                .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                .padding(.top, 2).padding(.bottom, 10)
+            HStack(spacing: 18) {
+                roundButton("−", label: "Lower by 50") { value = max(1200, value - 50) }
+                Text("\(value) kcal")
+                    .font(TTFont.workSans(34, weight: .semibold))
+                    .monospacedDigit()
+                    .frame(minWidth: 130)
+                    .minimumScaleFactor(0.7)
+                roundButton("+", label: "Raise by 50") { value = min(4000, value + 50) }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            if let errorText {
+                Text(verbatim: errorText).font(TTFont.body(13)).foregroundStyle(NutStyle.danger).padding(.bottom, 4)
+            }
+            nutPanelButton("Save goal", style: .primary, loading: saving) { save() }
+                .disabled(saving)
+            nutPanelButton("Cancel", style: .ghost) { close(nil) }
+                .disabled(saving)
+        }
+        .onAppear { value = (store.currentTrainee?.dailyCalorieTarget ?? 0) > 0 ? (store.currentTrainee?.dailyCalorieTarget ?? 2100) : 2100 }
+    }
+
+    private func roundButton(_ glyph: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(verbatim: glyph).font(TTFont.workSans(26, weight: .regular))
+                .foregroundStyle(TTColor.ink)
+                .frame(width: 52, height: 52)
+                .overlay(Circle().stroke(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func save() {
+        guard !saving else { return }
+        saving = true
+        errorText = nil
+        let target = value
+        Task {
+            do {
+                try await store.saveDailyCalorieTarget(target)
+                saving = false
+                close {
+                    onSaved(TTToastMessage(text: String(format: String(localized: "Goal saved: %lld kcal"), target), style: .success))
+                }
+            } catch {
+                saving = false
+                errorText = error.localizedDescription.isEmpty ? String(localized: "Couldn’t save goal") : error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: - Add / edit sheet
+
+// MARK: Kinds, sizes and the draft
+
+private enum NutKind: String {
+    case drink, piece, plate
+
+    /// From the food's name and keywords (the catalog has no category). Default: plate.
+    static func infer(name: String, keywords: [String] = []) -> NutKind {
+        let blob = ([name] + keywords).joined(separator: " ").lowercased()
+        let drinks = ["shake", "smoothie", "juice", "milk", "coffee", "latte", "tea", "water", "soda", "cola", "drink", "lemonade"]
+        let pieces = ["banana", "apple", "egg", "orange", "avocado", "pear", "peach", "mango", "cookie", "date"]
+        if drinks.contains(where: { blob.contains($0) }) { return .drink }
+        if pieces.contains(where: { blob.contains($0) }) { return .piece }
+        return .plate
+    }
+}
+
+/// Size steps. The stored `detail` always uses these English tokens so an edit can rebuild the options.
+private struct NutSize {
+    let token: String
+    let title: LocalizedStringKey
+    let factor: Double
+    static let piece = [
+        NutSize(token: "Small", title: "Small", factor: 0.85),
+        NutSize(token: "Medium", title: "Medium", factor: 1),
+        NutSize(token: "Large", title: "Large", factor: 1.15)
+    ]
+    static let plate = [
+        NutSize(token: "Small", title: "Small", factor: 0.75),
+        NutSize(token: "Regular", title: "Regular", factor: 1),
+        NutSize(token: "Large", title: "Large", factor: 1.3)
+    ]
+}
+
+private enum NutPhotoCategory: String, CaseIterable, Identifiable {
+    case meal, snack, drink
+    var id: String { rawValue }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .meal: "Meal"
+        case .snack: "Snack"
+        case .drink: "Drink"
+        }
+    }
+
+    var kind: NutKind {
+        switch self {
+        case .meal: .plate
+        case .snack: .piece
+        case .drink: .drink
+        }
+    }
+
+    func defaultMealType(at date: Date) -> TTMealType {
+        switch self {
+        case .snack:
+            return .snack
+        case .meal, .drink:
+            let suggested = TTMealType.suggested(at: date)
+            return suggested == .snack ? .lunch : suggested
+        }
+    }
+}
+
+private struct NutDraft {
+    var name: String
+    var kind: NutKind
+    var mealType: TTMealType
+    var notes = ""
+    /// Per gram (or ml) values the portion is multiplied with.
+    var perUnit: (kcal: Double, p: Double, c: Double, f: Double)
+    var status: String        // "eaten" | "planned"
+    var time: Date
+    var timeTouched = false
+    var isCustom = false
+    var customKcal = ""
+    var customProtein = ""
+    var customCarbs = ""
+    var customFat = ""
+    // drink
+    var ml: Double = 250
+    // piece
+    var count = 1
+    // piece / plate size index; nil = keep `storedPortion` (an old entry whose detail can't be read)
+    var size: Int? = nil
+    var storedPortion: Double?
+
+    // TODO: the backend has no grams-per-piece or grams-per-plate. A medium piece is treated as 100 g and a regular
+    // plate as 250 g (the sizes then scale that). A drink is treated as 1 ml = 1 g.
+    static let pieceBase = 100.0
+    static let plateBase = 250.0
+
+    var portion: Double {
+        switch kind {
+        case .drink: return ml
+        case .piece:
+            guard let size else { return storedPortion ?? Self.pieceBase }
+            return Double(count) * NutSize.piece[size].factor * Self.pieceBase
+        case .plate:
+            guard let size else { return storedPortion ?? Self.plateBase }
+            return NutSize.plate[size].factor * Self.plateBase
+        }
+    }
+
+    var detail: String {
+        switch kind {
+        case .drink: return "\(Int(ml)) ml"
+        case .piece:
+            guard let size else { return "\(Int(portion.rounded())) g" }
+            return "\(count) × \(NutSize.piece[size].token)"
+        case .plate:
+            guard let size else { return "\(Int(portion.rounded())) g" }
+            return "\(NutSize.plate[size].token) portion"
+        }
+    }
+
+    /// A custom food uses the calories and macros the person typed; empty stays 0 ("— kcal", not counted).
+    var macros: MacroEstimate {
+        if isCustom {
+            return MacroEstimate(
+                calories: Int(customKcal.trimmingCharacters(in: .whitespaces)) ?? 0,
+                protein: Double(customProtein.trimmingCharacters(in: .whitespaces)) ?? 0,
+                carbs: Double(customCarbs.trimmingCharacters(in: .whitespaces)) ?? 0,
+                fat: Double(customFat.trimmingCharacters(in: .whitespaces)) ?? 0
+            )
+        }
+        let g = portion
+        return MacroEstimate(
+            calories: Int((perUnit.kcal * g).rounded()),
+            protein: (perUnit.p * g * 10).rounded() / 10,
+            carbs: (perUnit.c * g * 10).rounded() / 10,
+            fat: (perUnit.f * g * 10).rounded() / 10
         )
     }
 
-    private func dayChips(calories: Int, hunger: String, skeleton: Bool = false) -> some View {
-        HStack(spacing: 8) {
-            statusChip(icon: .fire1, text: "\(calories)kcal", tint: skeleton ? Color.ttSkeletonFill : orange)
-            statusChip(icon: .forkKnife, text: hunger, tint: skeleton ? Color.ttSkeletonFill : blue)
-        }
+    static func new(
+        name: String,
+        kind: NutKind,
+        mealType: TTMealType? = nil,
+        perUnit: (kcal: Double, p: Double, c: Double, f: Double),
+        custom: Bool,
+        time: Date
+    ) -> NutDraft {
+        var d = NutDraft(
+            name: name,
+            kind: kind,
+            mealType: mealType ?? TTMealType.suggested(at: time),
+            perUnit: perUnit,
+            status: "eaten",
+            time: time,
+            isCustom: custom
+        )
+        d.size = kind == .piece ? 1 : (kind == .plate ? 1 : nil)
+        return d
     }
 
-    private func statusChip(icon: SandowIcon, text: String, tint: Color) -> some View {
-        HStack(spacing: 5) {
-            TTIcon(icon: icon, filled: true, size: 12)
-                .foregroundStyle(tint)
-            Text(text)
-                .font(TTFont.textSM(.semibold))
-                .foregroundStyle(.white)
+    /// Rebuilds the options of a saved entry from its kind and detail.
+    static func from(meal: Meal) -> NutDraft {
+        let g = max(meal.portionGrams, 1)
+        let kind = NutKind(rawValue: meal.kind ?? "") ?? NutKind.infer(name: meal.name)
+        let mealType = TTMealType(rawValue: meal.mealType ?? "") ?? TTMealType.suggested(at: meal.eatenAt)
+        var d = NutDraft(
+            name: meal.name, kind: kind, mealType: mealType, notes: meal.notes ?? "",
+            perUnit: (Double(meal.macros.calories) / g, meal.macros.protein / g, meal.macros.carbs / g, meal.macros.fat / g),
+            status: meal.isPlanned ? "planned" : "eaten", time: meal.eatenAt,
+            isCustom: meal.source == "custom"
+        )
+        if d.isCustom {
+            if meal.macros.calories > 0 { d.customKcal = String(meal.macros.calories) }
+            if meal.macros.protein > 0 { d.customProtein = Self.formatMacroInput(meal.macros.protein) }
+            if meal.macros.carbs > 0 { d.customCarbs = Self.formatMacroInput(meal.macros.carbs) }
+            if meal.macros.fat > 0 { d.customFat = Self.formatMacroInput(meal.macros.fat) }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(Color.white.opacity(0.12))
-        .clipShape(Capsule())
+        let detail = meal.detail ?? ""
+        switch kind {
+        case .drink:
+            d.ml = meal.portionGrams > 0 ? meal.portionGrams : 250
+            if let n = Int(detail.split(separator: " ").first ?? ""), detail.hasSuffix("ml") || detail.hasSuffix("g") { d.ml = Double(n) }
+        case .piece:
+            let parts = detail.components(separatedBy: " × ")
+            if parts.count == 2, let n = Int(parts[0]), (1...6).contains(n),
+               let i = NutSize.piece.firstIndex(where: { $0.token == parts[1] }) {
+                d.count = n; d.size = i
+            } else { d.storedPortion = meal.portionGrams > 0 ? meal.portionGrams : nil }
+        case .plate:
+            if detail.hasSuffix(" portion"),
+               let i = NutSize.plate.firstIndex(where: { $0.token == String(detail.dropLast(" portion".count)) }) {
+                d.size = i
+            } else { d.storedPortion = meal.portionGrams > 0 ? meal.portionGrams : nil }
+        }
+        return d
     }
 
-    // MARK: - Browse Category
+    private static func formatMacroInput(_ value: Double) -> String {
+        value.rounded() == value ? String(Int(value)) : String(format: "%.1f", value)
+    }
+}
 
-    private var browseCategory: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Browse Category", trailing: "See All") {
-                searchText = ""
-                selectedCategory = .all
+private struct NutritionEntryContent: View {
+    @Environment(AppStore.self) private var store
+    let editing: Meal?
+    var initialPhoto: UIImage? = nil
+    var initialFood: FoodKnowledge? = nil
+    var initialQuery: String? = nil
+    let close: (_ after: (() -> Void)?) -> Void
+    let onSaved: (TTToastMessage) -> Void
+    let onDelete: (Meal) -> Void
+
+    @State private var query = ""
+    @State private var remote: FoodKnowledge?
+    @State private var draft: NutDraft?
+    @State private var activePhoto: UIImage?
+    @State private var photoCategory: NutPhotoCategory = .meal
+    @State private var showRetakeCamera = false
+    @State private var showRetakeLibrary = false
+    @State private var retakeLibraryItem: PhotosPickerItem?
+    @State private var saving = false
+    @State private var errorText: String?
+    @FocusState private var searchFocused: Bool
+
+    /// Time the sheet opened ("Now"). Eaten entries can't be later; planned entries start after it.
+    @State private var now = Date()
+
+    var body: some View {
+        Group {
+            if draft == nil { chooser } else { details }
+        }
+        .onAppear {
+            now = Date()
+            if activePhoto == nil { activePhoto = initialPhoto }
+            if let editing {
+                draft = NutDraft.from(meal: editing)
+            } else if let initialFood, draft == nil {
+                pick(Self.option(from: initialFood))
+            } else if let initialQuery, query.isEmpty {
+                query = initialQuery
             }
+        }
+        .sheet(isPresented: $showRetakeCamera) {
+            CameraImagePicker(image: $activePhoto)
+                .ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $showRetakeLibrary, selection: $retakeLibraryItem, matching: .images)
+        .onChange(of: retakeLibraryItem) { _, item in
+            guard let item else { return }
+            Task {
+                defer { retakeLibraryItem = nil }
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    activePhoto = image
+                }
+            }
+        }
+    }
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(FoodCategory.allCases) { category in
-                        let on = selectedCategory == category
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                selectedCategory = category
-                            }
-                        } label: {
-                            HStack(spacing: 8) {
-                                TTIcon(icon: category.icon, filled: on, size: 16)
-                                Text(category.title)
-                                    .font(TTFont.textMD(.semibold))
-                            }
-                            .foregroundStyle(on ? .white : Color(white: 0.25))
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
-                            .background(on ? blue : Color(white: 0.93))
-                            .clipShape(Capsule())
+    // MARK: Step 1 — choose
+
+    private struct Option: Identifiable {
+        let id: String
+        let name: String
+        let perUnit: (kcal: Double, p: Double, c: Double, f: Double)
+        let kind: NutKind
+        let subtitle: String
+        var custom = false
+    }
+
+    private var options: [Option] {
+        let t = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var foods = store.foodCatalog
+        if let remote, !foods.contains(where: { $0.name == remote.name }) { foods.insert(remote, at: 0) }
+        if t.isEmpty {
+            // Recent: the trainee's own latest entries (real per-gram values), then nothing invented.
+            var seen = Set<String>()
+            var out: [Option] = []
+            for m in store.meals.sorted(by: { $0.eatenAt > $1.eatenAt }) where m.traineeId == store.currentTrainee?.id && m.portionGrams > 0 && m.source != "custom" {
+                guard seen.insert(m.name.lowercased()).inserted else { continue }
+                out.append(Option(
+                    id: "recent-\(m.id)", name: m.name,
+                    perUnit: (Double(m.macros.calories) / m.portionGrams, m.macros.protein / m.portionGrams, m.macros.carbs / m.portionGrams, m.macros.fat / m.portionGrams),
+                    kind: NutKind(rawValue: m.kind ?? "") ?? NutKind.infer(name: m.name),
+                    subtitle: String(format: String(localized: "%lld kcal per 100 g"), Int((Double(m.macros.calories) / m.portionGrams * 100).rounded()))
+                ))
+                if out.count >= 8 { break }
+            }
+            if !out.isEmpty { return out }
+            return foods.prefix(12).map(Self.option(from:))
+        }
+        return foods.filter { f in
+            f.name.lowercased().contains(t) || f.keywords.contains { $0.lowercased().contains(t) }
+        }.map(Self.option(from:))
+    }
+
+    private static func option(from f: FoodKnowledge) -> Option {
+        Option(
+            id: "food-\(f.name)", name: f.name,
+            perUnit: (Double(f.per100g.calories) / 100, f.per100g.protein / 100, f.per100g.carbs / 100, f.per100g.fat / 100),
+            kind: NutKind.infer(name: f.name, keywords: f.keywords),
+            subtitle: String(format: String(localized: "%lld kcal per 100 g"), f.per100g.calories)
+        )
+    }
+
+    private var chooser: some View {
+        let list = options
+        let typed = !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        return VStack(alignment: .leading, spacing: 0) {
+            Text("Add food or drink")
+                .font(TTFont.workSans(20, weight: .bold)).foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("Saved with today's date and time.")
+                .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                .padding(.top, 2).padding(.bottom, 10)
+            if let activePhoto {
+                photoBanner(activePhoto)
+                    .padding(.bottom, 12)
+            }
+            TextField("Search foods and drinks", text: $query)
+                .font(TTFont.body(16))
+                .padding(.horizontal, 14)
+                .frame(height: 48)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(searchFocused ? NutStyle.orange : Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255), lineWidth: 1.5))
+                .focused($searchFocused)
+                .submitLabel(.search)
+                .padding(.vertical, 4)
+                .onChange(of: query) { _, value in
+                    remote = nil
+                    let q = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard q.count >= 2 else { return }
+                    Task {
+                        let found = await store.searchFood(query: q)
+                        if query.trimmingCharacters(in: .whitespacesAndNewlines) == q { remote = found }
+                    }
+                }
+                .accessibilityLabel("Search foods and drinks")
+            Text(typed ? "RESULTS" : (list.first?.id.hasPrefix("recent-") == true ? "RECENT" : "SUGGESTED"))
+                .font(TTFont.workSans(12, weight: .semibold))
+                .tracking(1.4)
+                .foregroundStyle(NutStyle.mute)
+                .padding(.top, 12).padding(.bottom, 6).padding(.horizontal, 2)
+            if list.isEmpty {
+                Text("No match. Add it as a custom food in the app.")
+                    .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                    .padding(.horizontal, 2).padding(.bottom, 10)
+                // TODO: the prototype only shows the text above; without this row a food that isn't in the list
+                // could not be logged at all (the old sheet allowed any name).
+                let typedName = query.trimmingCharacters(in: .whitespacesAndNewlines)
+                chooserRow(name: typedName, subtitle: String(localized: "Custom food"), kind: nil, first: true) {
+                    pick(Option(id: "custom", name: typedName, perUnit: (0, 0, 0, 0), kind: NutKind.infer(name: typedName), subtitle: "", custom: true))
+                }
+            } else {
+                ForEach(Array(list.enumerated()), id: \.element.id) { i, option in
+                    chooserRow(name: option.name, subtitle: option.subtitle, kind: option.kind.rawValue, first: i == 0) { pick(option) }
+                }
+            }
+        }
+        .onAppear { searchFocused = false }
+    }
+
+    private func photoBanner(_ image: UIImage) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 12) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Food photo attached")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(TTColor.ink)
+                    HStack(spacing: 8) {
+                        if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                            Button("Retake") { showRetakeCamera = true }
+                                .font(TTFont.workSans(12, weight: .semibold))
+                                .foregroundStyle(NutStyle.orange)
+                                .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
+                        Button("Library") { showRetakeLibrary = true }
+                            .font(TTFont.workSans(12, weight: .semibold))
+                            .foregroundStyle(NutStyle.mute)
+                            .buttonStyle(.plain)
                     }
                 }
-            }
-        }
-    }
-
-    // MARK: - Morning Routine
-
-    private var morningRoutine: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Morning Routine", trailing: "See All") {
-                showManual = true
+                Spacer(minLength: 0)
             }
 
-            if dayLoadFailed, dayHasData {
-                // Stale meals stay visible; the failure is a quiet notice.
-                TTStaleNotice { Task { await loadSelectedDay() } }
-            }
-
-            TTLoadGate(
-                isLoading: isLoadingDay,
-                hasData: dayHasData,
-                loadingLabel: "Loading your meals"
-            ) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 14) {
-                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false, skeleton: true)
-                        morningCard(title: "Meal name", calories: 0, protein: 0, empty: false, skeleton: true)
-                    }
-                }
-                .scrollDisabled(true)
-                .ttSkeleton()
-            } content: {
-                if dayLoadFailed, !dayHasData {
-                    TTLoadError(title: "Couldn’t load your meals") { Task { await loadSelectedDay() } }
-                        .frame(height: 140)
-                } else {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 14) {
-                            if morningItems.isEmpty {
-                                morningCard(
-                                    title: "Log breakfast",
-                                    calories: 0,
-                                    protein: 0,
-                                    empty: true
-                                )
-                            } else {
-                                ForEach(morningItems.prefix(6)) { meal in
-                                    morningCard(
-                                        title: meal.name,
-                                        calories: meal.macros.calories,
-                                        protein: Int(meal.macros.protein.rounded()),
-                                        empty: false
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private var dayKey: Date { Calendar.current.startOfDay(for: selectedDay) }
-
-    /// The store already has something for this day (meals, or a finished earlier load): no skeleton, refresh quietly.
-    private var dayHasData: Bool { !todayMeals.isEmpty || loadedDays.contains(dayKey) }
-
-    private func loadSelectedDay() async {
-        guard let trainee = store.currentTrainee else {
-            isLoadingDay = false
-            return
-        }
-        isLoadingDay = true
-        dayLoadFailed = false
-        let ok = await store.refreshDay(for: trainee.id, on: selectedDay)
-        if Task.isCancelled { return }
-        dayLoadFailed = !ok
-        if ok { loadedDays.insert(dayKey) }
-        isLoadingDay = false
-    }
-
-    private func morningCard(title: String, calories: Int, protein: Int, empty: Bool, skeleton: Bool = false) -> some View {
-        Button { showManual = true } label: {
-            HStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(skeleton ? Color.ttSkeletonFill : orange)
-                            .frame(width: 36, height: 36)
-                        TTIcon(icon: .forkKnife, filled: true, size: 16)
-                            .foregroundStyle(.white)
-                            .opacity(skeleton ? 0 : 1)
-                    }
-
-                    Text(title)
-                        .font(TTFont.textLG(.bold))
-                        .foregroundStyle(.black)
-                        .lineLimit(2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        if empty {
-                            Text("Add your first meal")
-                                .font(TTFont.textSM(.medium))
-                                .foregroundStyle(Color(white: 0.45))
-                        } else {
-                            Label("\(calories)kcal", systemImage: "flame.fill")
-                                .font(TTFont.textSM(.medium))
-                                .foregroundStyle(Color(white: 0.45))
-                            Label("\(protein)g protein", systemImage: "bolt.fill")
-                                .font(TTFont.textSM(.medium))
-                                .foregroundStyle(Color(white: 0.45))
-                        }
-                    }
-                }
-                .padding(16)
-                .frame(width: 150, alignment: .leading)
-
-                if skeleton {
-                    Rectangle().fill(Color.ttSkeletonFill).frame(width: 120, height: 140)
-                } else {
-                    Image("OnboardingNutrition")
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 120, height: 140)
-                        .clipped()
-                }
-            }
-            .frame(height: 140)
-            .background(Color(white: 0.93))
-            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Calorie Goal
-
-    private var calorieGoal: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Calorie Goal")
-                    .font(TTFont.headingSM(.bold))
-                    .foregroundStyle(.black)
-                Spacer()
-                Image(systemName: "ellipsis")
-                    .font(TTFont.workSans(16, weight: .bold))
-                    .foregroundStyle(Color(white: 0.35))
-            }
-
-            VStack(alignment: .leading, spacing: 18) {
-                HStack(alignment: .top) {
-                    Text("\(Int(calorieDraft)) kcal")
-                        .font(TTFont.headingXL(.bold))
-                        .foregroundStyle(.white)
-                        .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.18), value: Int(calorieDraft))
-
-                    Spacer()
-
+            HStack(spacing: 6) {
+                ForEach(NutPhotoCategory.allCases) { cat in
+                    let on = photoCategory == cat
                     Button {
-                        store.updateDailyCalorieTarget(Int(calorieDraft))
-                        flash("Goal saved")
+                        photoCategory = cat
                     } label: {
-                        TTIcon(icon: .gear1, size: 16)
-                            .foregroundStyle(.white)
-                            .frame(width: 36, height: 36)
-                            .background(Color.white.opacity(0.22))
+                        Text(cat.title)
+                            .font(TTFont.workSans(13, weight: .semibold))
+                            .foregroundStyle(on ? .white : TTColor.ink)
+                            .frame(maxWidth: .infinity, minHeight: 36)
+                            .background(on ? NutStyle.orange : Color.white)
                             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
-
-                VStack(spacing: 8) {
-                    Slider(value: $calorieDraft, in: 1200...4000, step: 50) {
-                        Text("Goal")
-                    } onEditingChanged: { editing in
-                        if !editing {
-                            store.updateDailyCalorieTarget(Int(calorieDraft))
-                        }
-                    }
-                    .tint(.white)
-
-                    HStack {
-                        Text("1200")
-                        Spacer()
-                        Text("4000")
-                    }
-                    .font(TTFont.textXS(.medium))
-                    .foregroundStyle(.white.opacity(0.7))
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(orange)
-            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-            .shadow(color: orange.opacity(0.35), radius: 16, y: 8)
-            .sensoryFeedback(.selection, trigger: Int(calorieDraft))
-        }
-    }
-
-    // MARK: - Suggested meal (catalog-based, not fake AI)
-
-    private var suggestedMeal: some View {
-        let food = featuredSuggestion
-
-        return VStack(alignment: .leading, spacing: 14) {
-            sectionHeader("Suggested Meal", trailing: "See All") {
-                selectedCategory = .all
-                searchText = ""
             }
 
-            ZStack(alignment: .trailing) {
-                HStack(spacing: 0) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text(suggestionTag(for: food))
-                            .font(TTFont.textXS(.bold))
-                            .foregroundStyle(Color.white.opacity(0.7))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.white.opacity(0.12))
-                            .clipShape(Capsule())
-
-                        Text(food.name)
-                            .font(TTFont.headingMD(.bold))
-                            .foregroundStyle(.white)
-                            .lineLimit(2)
-
-                        LazyVGrid(
-                            columns: [GridItem(.flexible()), GridItem(.flexible())],
-                            alignment: .leading,
-                            spacing: 10
-                        ) {
-                            suggestionStat(icon: "flame.fill", text: "\(food.per100g.calories)kcal")
-                            suggestionStat(icon: "clock", text: "30min")
-                            suggestionStat(icon: "fork.knife", text: "\(Int(food.per100g.protein))g protein")
-                            suggestionStat(icon: "plus", text: suggestionTag(for: food))
-                        }
-
-                        Button {
-                            addCatalogMeal(food)
-                        } label: {
-                            Text("Add Meal +")
-                                .font(TTFont.textMD(.bold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 44)
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(Color.white.opacity(0.55), lineWidth: 1.5)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.top, 4)
-                    }
-                    .padding(18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                    Color.clear.frame(width: 110)
-                }
-                .background(charcoal)
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-
-                Image("OnboardingNutrition")
-                    .resizable()
-                    .scaledToFill()
-                    .frame(width: 150, height: 150)
-                    .clipShape(Circle())
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.15), lineWidth: 2))
-                    .offset(x: 18)
-                    .padding(.trailing, 8)
-            }
-            .padding(.trailing, 12)
-        }
-    }
-
-    private func suggestionStat(icon: String, text: String) -> some View {
-        HStack(spacing: 5) {
-            Image(systemName: icon)
-                .font(TTFont.workSans(11, weight: .bold))
-            Text(text)
-                .font(TTFont.textSM(.semibold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(.white.opacity(0.9))
-    }
-
-    // MARK: - Browse Meals
-
-    private var browseMeals: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Browse Meals")
-                    .font(TTFont.headingSM(.bold))
-                    .foregroundStyle(.black)
-                Spacer()
-                HStack(spacing: 6) {
-                    Text(selectedCategory == .all && searchText.isEmpty ? "Most Popular" : "Filtered")
-                        .font(TTFont.textMD(.medium))
-                        .foregroundStyle(Color(white: 0.45))
-                    TTIcon(icon: .wifiFull, size: 14)
-                        .foregroundStyle(orange)
-                }
-            }
-
-            if filteredFoods.isEmpty {
-                Text("No foods match this filter. Try another category or search.")
-                    .font(TTFont.textMD(.medium))
-                    .foregroundStyle(Color(white: 0.45))
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.white)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            } else {
-                VStack(spacing: TTCardTokens.itemSpacing) {
-                    ForEach(filteredFoods.prefix(8), id: \.name) { food in
-                        Button {
-                            addCatalogMeal(food)
-                        } label: {
-                            TTListTile(
-                                title: food.name,
-                                subtitle: "\(food.per100g.calories) kcal · \(Int(food.per100g.protein))g protein · \(String(format: "%.1f", popularityScore(food)))★"
-                            ) {
-                                TTListTileThumb(assetName: "OnboardingNutrition")
-                            } trailing: {
-                                TTCardActionButton(systemImage: "plus")
-                                    .scaleEffect(0.85)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
+            nutPanelButton("Continue with photo", style: .primary) {
+                continueWithPhoto()
             }
         }
+        .padding(12)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    // MARK: - Shared chrome
-
-    private func sectionHeader(
-        _ title: String,
-        trailing: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack {
-            Text(title)
-                .font(TTFont.headingSM(.bold))
-                .foregroundStyle(.black)
-            Spacer()
-            Button(trailing, action: action)
-                .font(TTFont.textMD(.semibold))
-                .foregroundStyle(orange)
-                .buttonStyle(.plain)
+    private func continueWithPhoto() {
+        searchFocused = false
+        let typed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let defaultName: String
+        switch photoCategory {
+        case .meal: defaultName = String(localized: "Meal")
+        case .snack: defaultName = String(localized: "Snack")
+        case .drink: defaultName = String(localized: "Drink")
         }
-    }
-
-    // MARK: - Data
-
-    private var firstName: String {
-        store.currentUser?.name.components(separatedBy: " ").first ?? "Athlete"
-    }
-
-    private var formattedDate: String {
-        selectedDay.formatted(.dateTime.month(.abbreviated).day().year()).uppercased()
-    }
-
-    private var todayMeals: [Meal] {
-        guard let trainee = store.currentTrainee else { return [] }
-        return store.meals(for: trainee.id, on: selectedDay)
-    }
-
-    private var mealCountToday: Int { todayMeals.count }
-
-    private var caloriesToday: Int {
-        guard let trainee = store.currentTrainee else { return 0 }
-        return store.dailyMacros(for: trainee.id, on: selectedDay).calories
-    }
-
-    private var hungerLabel: String {
-        let target = store.currentTrainee?.dailyCalorieTarget ?? 2100
-        let remaining = target - caloriesToday
-        if remaining <= 0 { return "Full" }
-        if remaining < 400 { return "Almost" }
-        return "Hungry"
-    }
-
-    private var morningItems: [Meal] {
-        let cal = Calendar.current
-        return todayMeals.filter { meal in
-            let hour = cal.component(.hour, from: meal.eatenAt)
-            return hour < 12
-        }
-    }
-
-    private var filteredFoods: [FoodKnowledge] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return store.foodCatalog.filter { food in
-            let matchesCategory = selectedCategory.matches(food)
-            let matchesQuery = query.isEmpty
-                || food.name.lowercased().contains(query)
-                || food.keywords.contains { $0.lowercased().contains(query) }
-            return matchesCategory && matchesQuery
-        }
-        .sorted { popularityScore($0) > popularityScore($1) }
-    }
-
-    private var featuredSuggestion: FoodKnowledge {
-        filteredFoods.max(by: { $0.per100g.protein < $1.per100g.protein })
-            ?? store.foodCatalog.first
-            ?? FoodKnowledge(
-                name: "Protein Bowl",
-                keywords: ["protein"],
-                per100g: .init(calories: 165, protein: 25, carbs: 10, fat: 5)
-            )
-    }
-
-    private func popularityScore(_ food: FoodKnowledge) -> Double {
-        // Lightweight ranking from macros — not a fake rating API.
-        min(5.0, 3.2 + food.per100g.protein / 20)
-    }
-
-    private func suggestionTag(for food: FoodKnowledge) -> String {
-        if food.per100g.protein >= 20 { return "Protein-Rich" }
-        if food.per100g.carbs >= 20 { return "Energy" }
-        if food.per100g.fat >= 12 { return "Healthy Fats" }
-        return "Balanced"
-    }
-
-    private func addCatalogMeal(_ food: FoodKnowledge) {
-        guard let trainee = store.currentTrainee else { return }
-        let portion: Double = 220
-        let factor = portion / 100
-        let macros = MacroEstimate(
-            calories: Int(Double(food.per100g.calories) * factor),
-            protein: food.per100g.protein * factor,
-            carbs: food.per100g.carbs * factor,
-            fat: food.per100g.fat * factor
+        let name = typed.isEmpty ? defaultName : typed
+        draft = NutDraft.new(
+            name: name,
+            kind: photoCategory.kind,
+            mealType: photoCategory.defaultMealType(at: now),
+            perUnit: (0, 0, 0, 0),
+            custom: true,
+            time: now
         )
-        Task {
-            try? await store.saveMeal(
-                Meal(
-                    id: UUID().uuidString,
-                    traineeId: trainee.id,
-                    name: food.name,
-                    eatenAt: selectedDay,
-                    portionGrams: portion,
-                    macros: macros,
-                    source: "catalog",
-                    isEstimate: true
-                )
-            )
-            flash("Added \(food.name)")
+    }
+
+    private func chooserRow(name: String, subtitle: String, kind: String?, first: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                NutTile(name: name, kind: kind, planned: false, hasPhoto: false)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: name).font(TTFont.workSans(15, weight: .semibold)).foregroundStyle(TTColor.ink).lineLimit(1)
+                    Text(verbatim: subtitle).font(TTFont.workSans(12, weight: .regular)).foregroundStyle(NutStyle.mute).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: 56)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { if !first { Rectangle().fill(NutStyle.line).frame(height: 1) } }
+    }
+
+    private func pick(_ option: Option) {
+        searchFocused = false
+        let mealType: TTMealType = activePhoto != nil
+            ? photoCategory.defaultMealType(at: now)
+            : TTMealType.suggested(at: now)
+        draft = NutDraft.new(
+            name: option.name,
+            kind: option.kind,
+            mealType: mealType,
+            perUnit: option.perUnit,
+            custom: option.custom,
+            time: now
+        )
+    }
+
+    // MARK: Step 2 — details (options follow the kind)
+
+    private var details: some View {
+        let d = draft!
+        let m = d.macros
+        let ate = d.status == "eaten"
+        let endOfDay = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? now
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 12) {
+                if let activePhoto {
+                    Image(uiImage: activePhoto)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else if let photoUrl = editing?.photoUrl {
+                    TTMealPhoto(urlString: photoUrl)
+                        .frame(width: 56, height: 56)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else {
+                    NutTile(name: d.name, kind: d.kind.rawValue, planned: false, hasPhoto: false)
+                        .scaleEffect(56.0 / 42.0).frame(width: 56, height: 56)
+                }
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(verbatim: d.name.isEmpty ? String(localized: "Meal") : d.name)
+                        .font(TTFont.workSans(20, weight: .bold))
+                        .foregroundStyle(TTColor.ink)
+                        .lineLimit(2)
+                    Text(editing == nil ? "Chosen by you" : "Editing entry")
+                        .font(TTFont.workSans(13, weight: .medium)).foregroundStyle(NutStyle.mute)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.top, 2).padding(.bottom, 4)
+
+            if d.isCustom && editing == nil {
+                customNameField
+                kindOptions(d)
+            }
+
+            switch d.kind {
+            case .drink: drinkOptions(d)
+            case .piece: pieceOptions(d)
+            case .plate: plateOptions(d)
+            }
+
+            mealTypeOptions(d)
+
+            if d.isCustom { customNutrition(d) }
+
+            notesField
+
+            estimate(m)
+
+            HStack(spacing: 0) {
+                seg("Ate it", on: ate) { setStatus("eaten") }
+                seg("Plan it", on: !ate) { setStatus("planned") }
+            }
+            .padding(3)
+            .background(NutStyle.track)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .padding(.vertical, 6)
+
+            HStack {
+                Text(verbatim: (sameMinute(d.time, now) ? "\(String(localized: "Now")) · " : "") + d.time.formatted(date: .omitted, time: .shortened))
+                    .font(TTFont.workSans(16, weight: .semibold)).monospacedDigit()
+                Spacer(minLength: 8)
+                HStack(spacing: 12) {
+                    roundStep("−", label: "15 minutes earlier") { shiftTime(-15, ate: ate, endOfDay: endOfDay) }
+                    roundStep("+", label: "15 minutes later") { shiftTime(15, ate: ate, endOfDay: endOfDay) }
+                }
+            }
+            .padding(.vertical, 6)
+
+            if let errorText {
+                Text(verbatim: errorText).font(TTFont.body(13)).foregroundStyle(NutStyle.danger).padding(.top, 4)
+            }
+            nutPanelButton(saving ? "Saving…" : (editing != nil ? "Save changes" : (ate ? "Save" : "Save plan")), style: .primary, loading: saving) { save() }
+                .disabled(saving)
+                .padding(.top, 10)
+            if let editing {
+                nutPanelButton("Delete entry", style: .danger) { close { onDelete(editing) } }
+                    .disabled(saving)
+            } else {
+                nutPanelButton("Cancel", style: .ghost) { close(nil) }
+                    .disabled(saving)
+            }
         }
     }
 
-    private func flash(_ message: String) {
-        withAnimation(.easeOut(duration: 0.2)) {
-            suggestionMessage = message
+    private var customNameField: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("NAME")
+            TextField("e.g. Milk, Chicken Bowl, Apple", text: Binding(
+                get: { draft?.name ?? "" },
+                set: { draft?.name = $0 }
+            ))
+            .font(TTFont.body(15))
+            .padding(.horizontal, 14)
+            .frame(height: 44)
+            .background(NutStyle.field)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            withAnimation(.easeIn(duration: 0.2)) {
-                suggestionMessage = nil
+    }
+
+    private func kindOptions(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("TYPE")
+            chipRow {
+                chip(Text("Meal"), on: d.kind == .plate) {
+                    draft?.kind = .plate
+                    draft?.size = 1
+                }
+                chip(Text("Snack"), on: d.kind == .piece) {
+                    draft?.kind = .piece
+                    draft?.size = 1
+                    draft?.mealType = .snack
+                }
+                chip(Text("Drink"), on: d.kind == .drink) {
+                    draft?.kind = .drink
+                    draft?.size = nil
+                }
+            }
+        }
+    }
+
+    private func mealTypeOptions(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("MEAL")
+            chipRow {
+                ForEach(TTMealType.allCases) { type in
+                    chip(Text(type.title), on: d.mealType == type) {
+                        draft?.mealType = type
+                    }
+                }
+            }
+        }
+    }
+
+    private var notesField: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("NOTES")
+            TextField("Optional details (e.g. low-fat milk, homemade)", text: Binding(
+                get: { draft?.notes ?? "" },
+                set: { draft?.notes = $0 }
+            ))
+            .font(TTFont.body(14))
+            .padding(.horizontal, 14)
+            .frame(height: 42)
+            .background(NutStyle.field)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private func drinkOptions(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("AMOUNT")
+            chipRow {
+                ForEach([("Glass", 250.0), ("Cup", 200.0), ("Bottle", 500.0)], id: \.0) { name, v in
+                    chip(Text(LocalizedStringKey(name)) + Text(verbatim: " · \(Int(v)) ml"), on: d.ml == v) { draft?.ml = v }
+                }
+            }
+            HStack(spacing: 12) {
+                roundStep("−", label: "Less") { draft?.ml = max(50, d.ml - 50) }
+                Text(verbatim: "\(Int(d.ml)) ml")
+                    .font(TTFont.workSans(20, weight: .semibold)).monospacedDigit()
+                    .frame(minWidth: 96)
+                roundStep("+", label: "More") { draft?.ml = min(1000, d.ml + 50) }
+            }
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func pieceOptions(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("HOW MANY")
+            HStack(spacing: 12) {
+                roundStep("−", label: "Fewer") { draft?.count = max(1, d.count - 1) }
+                Text(verbatim: "\(d.count)")
+                    .font(TTFont.workSans(20, weight: .semibold)).monospacedDigit()
+                    .frame(minWidth: 96)
+                roundStep("+", label: "More") { draft?.count = min(6, d.count + 1) }
+            }
+            .padding(.vertical, 6)
+            label("SIZE")
+            chipRow {
+                ForEach(Array(NutSize.piece.enumerated()), id: \.offset) { i, s in
+                    chip(Text(s.title), on: d.size == i) { draft?.size = i }
+                }
+            }
+        }
+    }
+
+    private func plateOptions(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            label("PORTION")
+            chipRow {
+                ForEach(Array(NutSize.plate.enumerated()), id: \.offset) { i, s in
+                    chip(Text(s.title), on: d.size == i) { draft?.size = i }
+                }
+            }
+        }
+    }
+
+    private func customNutrition(_ d: NutDraft) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            label("CALORIES & MACROS (OPTIONAL)")
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                macroInputField(
+                    title: "Calories",
+                    unit: "kcal",
+                    text: Binding(
+                        get: { draft?.customKcal ?? "" },
+                        set: { draft?.customKcal = $0.filter(\.isNumber) }
+                    ),
+                    decimal: false
+                )
+                macroInputField(
+                    title: "Protein",
+                    unit: "g",
+                    text: Binding(
+                        get: { draft?.customProtein ?? "" },
+                        set: { draft?.customProtein = sanitizeDecimal($0) }
+                    ),
+                    decimal: true
+                )
+                macroInputField(
+                    title: "Carbs",
+                    unit: "g",
+                    text: Binding(
+                        get: { draft?.customCarbs ?? "" },
+                        set: { draft?.customCarbs = sanitizeDecimal($0) }
+                    ),
+                    decimal: true
+                )
+                macroInputField(
+                    title: "Fat",
+                    unit: "g",
+                    text: Binding(
+                        get: { draft?.customFat ?? "" },
+                        set: { draft?.customFat = sanitizeDecimal($0) }
+                    ),
+                    decimal: true
+                )
+            }
+        }
+    }
+
+    private func macroInputField(title: LocalizedStringKey, unit: String, text: Binding<String>, decimal: Bool) -> some View {
+        HStack(spacing: 6) {
+            TextField(title, text: text)
+                .keyboardType(decimal ? .decimalPad : .numberPad)
+                .font(TTFont.workSans(15, weight: .semibold))
+            Text(verbatim: unit)
+                .font(TTFont.workSans(12, weight: .regular))
+                .foregroundStyle(NutStyle.mute)
+        }
+        .padding(.horizontal, 12)
+        .frame(minHeight: 44)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255), lineWidth: 1.5)
+        )
+    }
+
+    private func sanitizeDecimal(_ input: String) -> String {
+        var seenDot = false
+        return String(input.filter { ch in
+            if ch.isNumber { return true }
+            if ch == "." && !seenDot { seenDot = true; return true }
+            return false
+        })
+    }
+
+    private func chipRow<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        // Wraps to a second line at large text sizes.
+        NutFlow(spacing: 8) { content() }
+    }
+
+    private func chip(_ title: Text, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            title
+                .font(TTFont.workSans(14, weight: .medium))
+                .foregroundStyle(on ? Color.white : TTColor.ink)
+                .padding(.horizontal, 14).frame(minHeight: 44)
+                .background(on ? Color.black : Color.white)
+                .clipShape(Capsule())
+                .overlay(Capsule().stroke(on ? Color.black : Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255), lineWidth: 1.5))
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func label(_ text: LocalizedStringKey) -> some View {
+        Text(text).font(TTFont.workSans(12, weight: .semibold)).tracking(1.4).foregroundStyle(NutStyle.mute)
+            .padding(.top, 12).padding(.bottom, 6).padding(.horizontal, 2)
+    }
+
+    private func roundStep(_ glyph: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(verbatim: glyph).font(TTFont.workSans(22, weight: .regular)).foregroundStyle(TTColor.ink)
+                .frame(width: 44, height: 44)
+                .overlay(Circle().stroke(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255), lineWidth: 1))
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func seg(_ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(TTFont.workSans(15, weight: on ? .semibold : .medium))
+                .foregroundStyle(on ? Color(white: 0.07) : Color(red: 85 / 255, green: 85 / 255, blue: 91 / 255))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(on ? Color.white : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: on ? .black.opacity(0.16) : .clear, radius: 1.5, y: 1)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func estimate(_ m: MacroEstimate) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
+                if m.calories > 0 {
+                    Text("\(m.calories) kcal").font(TTFont.workSans(18, weight: .bold)).monospacedDigit()
+                } else {
+                    Text(verbatim: "— kcal").font(TTFont.workSans(18, weight: .bold))
+                }
+                Text("Estimate").font(TTFont.workSans(13, weight: .regular).italic()).foregroundStyle(NutStyle.mute)
+            }
+            Spacer(minLength: 4)
+            macroCell("Protein", m.protein)
+            macroCell("Carbs", m.carbs)
+            macroCell("Fat", m.fat)
+        }
+        .foregroundStyle(TTColor.ink)
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(.top, 10).padding(.bottom, 2)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func macroCell(_ title: LocalizedStringKey, _ value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(TTFont.workSans(12, weight: .regular)).foregroundStyle(Color(white: 0.27))
+            Text(verbatim: "\(value.formatted(.number.precision(.fractionLength(0...1)))) g")
+                .font(TTFont.workSans(15, weight: .bold)).monospacedDigit()
+        }
+    }
+
+    private func sameMinute(_ a: Date, _ b: Date) -> Bool {
+        Calendar.current.isDate(a, equalTo: b, toGranularity: .minute)
+    }
+
+    private func setStatus(_ status: String) {
+        guard var d = draft else { return }
+        d.status = status
+        if status == "planned", d.time <= now { d.time = now.addingTimeInterval(78 * 60) }
+        if status == "eaten", d.time > now { d.time = now }
+        // Never past the end of today (planned entries are for later today only).
+        if let end = Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: now), d.time > end { d.time = end }
+        d.timeTouched = true
+        draft = d
+    }
+
+    private func shiftTime(_ minutes: Int, ate: Bool, endOfDay: Date) {
+        guard var d = draft else { return }
+        var t = d.time.addingTimeInterval(Double(minutes) * 60)
+        if ate { t = min(now, t) } else { t = min(endOfDay, max(now.addingTimeInterval(15 * 60), t)) }
+        d.time = t
+        d.timeTouched = true
+        draft = d
+    }
+
+    // MARK: Save
+
+    private func save() {
+        guard let d = draft, !saving else { return }
+        saving = true
+        errorText = nil
+        let macros = d.macros
+        Task {
+            do {
+                var savedName = d.name
+                var savedTime = d.time
+                if let editing {
+                    var body = UpdateMealBody(portionGrams: d.portion, macros: macros, status: d.status, kind: d.kind.rawValue, detail: d.detail)
+                    if d.timeTouched || d.status == "planned" { body.eatenAt = d.time }
+                    let updated = try await store.updateMeal(editing, changes: body)
+                    savedName = updated.name; savedTime = updated.eatenAt
+                } else {
+                    let trimmedName = d.name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let finalName = trimmedName.isEmpty ? String(localized: "Meal") : trimmedName
+                    let trimmedNotes = d.notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let meal = Meal(
+                        id: UUID().uuidString, traineeId: store.currentTrainee?.id ?? "", name: finalName,
+                        eatenAt: d.time, portionGrams: d.portion, macros: macros,
+                        source: d.isCustom ? "custom" : "log", isEstimate: true,
+                        mealType: d.mealType.rawValue,
+                        notes: trimmedNotes.isEmpty ? nil : trimmedNotes,
+                        status: d.status, kind: d.kind.rawValue, detail: d.detail
+                    )
+                    // "Eaten now" leaves the time to the server; a chosen or planned time is sent.
+                    try await store.saveMeal(meal, photo: activePhoto, sendsEatenAt: d.status == "planned" || d.timeTouched)
+                    savedName = finalName
+                }
+                saving = false
+                let time = savedTime.formatted(date: .omitted, time: .shortened)
+                let text = d.status == "planned"
+                    ? String(format: String(localized: "%@ planned · %@"), savedName, time)
+                    : String(format: String(localized: "%@ saved · %@"), savedName, time)
+                close {
+                    onSaved(TTToastMessage(text: text, style: .success))
+                    UIAccessibility.post(notification: .announcement, argument: text)
+                }
+            } catch {
+                // Inputs stay as they are so the person can try again.
+                saving = false
+                errorText = error.localizedDescription.isEmpty ? String(localized: "Couldn’t save entry") : error.localizedDescription
             }
         }
     }
 }
 
-// MARK: - Categories
+/// Wrapping row for chips (a second line at large text sizes).
+private struct NutFlow: Layout {
+    var spacing: CGFloat = 8
 
-private struct FoodSheetItem: Identifiable, Hashable {
-    var id: String { name }
-    let name: String
-}
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? .infinity, subviews: subviews).size
+    }
 
-private enum FoodCategory: String, CaseIterable, Identifiable {
-    case vegetable, fruit, dining, meat, all
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .vegetable: "Vegetable"
-        case .fruit: "Fruit"
-        case .dining: "Dining"
-        case .meat: "Meat"
-        case .all: "All"
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let result = arrange(width: bounds.width, subviews: subviews)
+        for (i, origin) in result.origins.enumerated() {
+            subviews[i].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y), proposal: .unspecified)
         }
     }
 
-    var icon: SandowIcon {
-        switch self {
-        case .vegetable: .leaf
-        case .fruit: .apple
-        case .dining: .forkKnife
-        case .meat: .heart
-        case .all: .magnifyingGlass
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var origins: [CGPoint] = []
+        var x: CGFloat = 0, y: CGFloat = 0, rowHeight: CGFloat = 0, maxX: CGFloat = 0
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > width { x = 0; y += rowHeight + spacing; rowHeight = 0 }
+            origins.append(CGPoint(x: x, y: y))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+            maxX = max(maxX, x - spacing)
         }
-    }
-
-    func matches(_ food: FoodKnowledge) -> Bool {
-        let blob = ([food.name] + food.keywords).joined(separator: " ").lowercased()
-        switch self {
-        case .all:
-            return true
-        case .vegetable:
-            return blob.contains("broccoli") || blob.contains("veg") || blob.contains("salad") || blob.contains("lettuce")
-        case .fruit:
-            return blob.contains("fruit") || blob.contains("banana") || blob.contains("apple") || blob.contains("avocado")
-        case .dining:
-            return blob.contains("pasta") || blob.contains("pizza") || blob.contains("rice") || blob.contains("bowl") || blob.contains("shake") || blob.contains("yogurt") || blob.contains("oatmeal") || blob.contains("egg")
-        case .meat:
-            return blob.contains("chicken") || blob.contains("salmon") || blob.contains("fish") || blob.contains("burger") || blob.contains("poultry") || blob.contains("meat")
-        }
+        return (CGSize(width: maxX, height: y + rowHeight), origins)
     }
 }
 
-// MARK: - Manual meal (unchanged flow)
+// MARK: - Compatibility: other screens open the add sheet as a normal sheet (centre "+" menu)
 
 struct ManualMealView: View {
-    @Environment(AppStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     let day: Date
     var prefillName: String? = nil
-    @State private var name = ""
-    @State private var grams = 200.0
-    @State private var selectedFood: FoodKnowledge?
+    var initialPhoto: UIImage? = nil
+    var onSaved: ((TTToastMessage) -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 0) {
-            TTModalSheetHeader(title: "Log meal", background: .white) {
-                Button {
-                    saveMeal()
-                } label: {
-                    TTIcon(icon: .check, filled: true, size: 16)
-                        .foregroundStyle(.white)
-                        .frame(width: TTModalSheetChrome.controlSize, height: TTModalSheetChrome.controlSize)
-                        .background(
-                            name.trimmingCharacters(in: .whitespaces).isEmpty
-                                ? Color(white: 0.75)
-                                : TTColor.actionOrange
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: TTModalSheetChrome.controlCornerRadius, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                .accessibilityLabel("Save meal")
-            }
-
-            Form {
-                Section("Meal") {
-                    TextField("Food name", text: $name)
-                        .onChange(of: name) { _, value in
-                            selectedFood = store.lookupFood(query: value)
-                            Task {
-                                if let remote = await store.searchFood(query: value) {
-                                    selectedFood = remote
-                                }
-                            }
-                        }
-                    Slider(value: $grams, in: 50...600, step: 10) {
-                        Text("Portion")
-                    } minimumValueLabel: {
-                        Text("50")
-                    } maximumValueLabel: {
-                        Text("600")
-                    }
-                    Text("\(Int(grams)) g")
-                        .contentTransition(.numericText())
-                        .animation(.snappy(duration: 0.18), value: Int(grams))
-                }
-                if let food = selectedFood {
-                    Section("Estimate per portion") {
-                        Text(food.name)
-                        Text("\(scaled(food).calories) kcal")
-                            .contentTransition(.numericText())
-                            .animation(.snappy(duration: 0.18), value: scaled(food).calories)
-                        Text("P \(Int(scaled(food).protein)) · C \(Int(scaled(food).carbs)) · F \(Int(scaled(food).fat))")
-                            .contentTransition(.numericText())
-                            .animation(.snappy(duration: 0.18), value: Int(grams))
-                    }
-                }
-            }
-            .scrollContentBackground(.hidden)
-            .sensoryFeedback(.selection, trigger: Int(grams))
-        }
-        .background(Color(white: 0.97).ignoresSafeArea())
-        .ttHideSystemNavigationBar()
-        .onAppear {
-            guard let prefillName, name.isEmpty else { return }
-            name = prefillName
-            selectedFood = store.lookupFood(query: prefillName)
-        }
-    }
-
-    private func saveMeal() {
-        guard let trainee = store.currentTrainee else { return }
-        let food = selectedFood ?? FoodKnowledge(
-            name: name,
-            keywords: [],
-            per100g: .init(calories: 120, protein: 8, carbs: 10, fat: 5)
-        )
-        Task {
-            try? await store.saveMeal(
-                Meal(
-                    id: UUID().uuidString,
-                    traineeId: trainee.id,
-                    name: food.name,
-                    eatenAt: day,
-                    portionGrams: grams,
-                    macros: scaled(food),
-                    source: "log",
-                    isEstimate: true
+            Capsule().fill(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255))
+                .frame(width: 40, height: 5).padding(.top, 8).padding(.bottom, 10)
+            ScrollView {
+                NutritionEntryContent(
+                    editing: nil,
+                    initialPhoto: initialPhoto,
+                    initialQuery: prefillName,
+                    close: { after in dismiss(); after?() },
+                    onSaved: { toast in onSaved?(toast) },
+                    onDelete: { _ in }
                 )
-            )
-            dismiss()
+                    .padding(.horizontal, 18)
+                    .padding(.bottom, 24)
+            }
         }
-    }
-
-    private func scaled(_ food: FoodKnowledge) -> MacroEstimate {
-        let factor = grams / 100
-        return MacroEstimate(
-            calories: Int(Double(food.per100g.calories) * factor),
-            protein: food.per100g.protein * factor,
-            carbs: food.per100g.carbs * factor,
-            fat: food.per100g.fat * factor
-        )
+        .background(Color.white.ignoresSafeArea())
     }
 }
 
 #Preview("Nutrition Home") {
     NutritionView()
         .ttPreviewTrainee()
-}
-
-#Preview("Manual Meal") {
-    NavigationStack {
-        ManualMealView(day: .now)
-            .ttPreviewTrainee()
-    }
 }

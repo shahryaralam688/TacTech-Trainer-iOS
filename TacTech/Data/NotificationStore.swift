@@ -24,6 +24,7 @@ final class NotificationStore {
     private var seenSessionIds = Set<String>()
     /// `workout.session.changed` arrives on both socket namespaces; dedupe by sessionId + action + occurredAt.
     private var seenWorkoutEventKeys: [String] = []
+    private var seenMealEventKeys: [String] = []
     private let tokenDefaultsKey = "tt.pushDeviceToken"
 
     private(set) var deviceTokenHex: String? {
@@ -130,6 +131,17 @@ final class NotificationStore {
                     name: .ttWorkoutSessionChanged,
                     object: nil,
                     userInfo: ["traineeId": traineeId, "sessionId": sessionId, "status": status, "action": action]
+                )
+            case let .mealLogged(traineeId, mealId, _, occurredAt):
+                // The inbox notification for the same meal arrives separately; this only refreshes an open profile.
+                let key = "\(mealId)|\(occurredAt)"
+                guard !self.seenMealEventKeys.contains(key) else { break }
+                self.seenMealEventKeys.append(key)
+                if self.seenMealEventKeys.count > 64 { self.seenMealEventKeys.removeFirst(self.seenMealEventKeys.count - 64) }
+                NotificationCenter.default.post(
+                    name: .ttMealLogged,
+                    object: nil,
+                    userInfo: ["traineeId": traineeId, "mealId": mealId]
                 )
             case let .planAssignmentChanged(action, planId, planTitle, _, _, traineeProfileId):
                 Self.postPlanAssignmentChanged(
@@ -399,7 +411,7 @@ final class NotificationStore {
             return preferences.chatCalls
         case "ai_coach":
             return preferences.aiCoach
-        case "metrics", "workout", "plan_assigned", "plan_unassigned", "plan_updated":
+        case "metrics", "workout", "meal_logged", "plan_assigned", "plan_unassigned", "plan_updated":
             return preferences.metrics
         case "app_update":
             return preferences.appUpdate
@@ -543,6 +555,13 @@ final class NotificationStore {
             return true
         }
 
+        if type == "meal_logged" {
+            if fromUserTap {
+                Self.openTraineeMeals(traineeId: flat["traineeId"] ?? flat["trainee_id"], mealId: flat["mealId"] ?? flat["meal_id"])
+            }
+            return true
+        }
+
         if type == "relationship_ended" {
             if fromUserTap {
                 NotificationCenter.default.post(name: .ttOpenRelationshipEnded, object: nil)
@@ -571,6 +590,13 @@ final class NotificationStore {
         }
 
         return false
+    }
+
+    /// Remembers the target first (the Home tab may not be mounted yet), then asks the trainer UI to open it.
+    static func openTraineeMeals(traineeId: String?, mealId: String?) {
+        guard let traineeId, !traineeId.isEmpty else { return }
+        TTMealDeepLink.pending = TTMealDeepLink.Target(traineeId: traineeId, mealId: mealId)
+        NotificationCenter.default.post(name: .ttOpenTraineeMeals, object: nil)
     }
 
     func openNotification(_ note: AppNotificationDTO) {
@@ -603,6 +629,8 @@ final class NotificationStore {
                     ?? note.data["trainee_profile_id"]
                     ?? note.data["traineeId"]
             )
+        case "meal_logged":
+            Self.openTraineeMeals(traineeId: note.data["traineeId"] ?? note.data["trainee_id"], mealId: note.data["mealId"] ?? note.data["meal_id"])
         case "plan_assigned", "plan_unassigned", "plan_updated":
             NotificationCenter.default.post(name: .ttOpenWorkoutHub, object: nil)
             Self.postPlanAssignmentChanged(
@@ -740,6 +768,10 @@ extension Notification.Name {
     static let ttRealtimeConnected = Notification.Name("ttRealtimeConnected")
     /// Trainee: open Workout tab / hub.
     static let ttOpenWorkoutHub = Notification.Name("ttOpenWorkoutHub")
+    /// Trainer: a trainee logged a meal (realtime). userInfo: traineeId, mealId.
+    static let ttMealLogged = Notification.Name("ttMealLogged")
+    /// Trainer: open that trainee's Progress > Meals (see `TTMealDeepLink`).
+    static let ttOpenTraineeMeals = Notification.Name("ttOpenTraineeMeals")
     /// Boost checkout finished successfully (confirm + refresh done).
     static let ttBoostCheckoutSucceeded = Notification.Name("ttBoostCheckoutSucceeded")
     /// Boost checkout canceled by user / cancel deep link.

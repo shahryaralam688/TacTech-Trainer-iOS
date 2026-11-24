@@ -131,7 +131,20 @@ struct TrainerDashboardView: View {
             .onReceive(NotificationCenter.default.publisher(for: .ttOpenJoinRequests)) { _ in
                 showJoinRequests = true
             }
+            .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeMeals)) { _ in
+                routeMealDeepLink()
+            }
+            .onAppear { routeMealDeepLink() }
         }
+    }
+
+    /// "Meal logged" notification: push that trainee's profile. The profile itself reads and clears the target.
+    private func routeMealDeepLink() {
+        guard let target = TTMealDeepLink.pending,
+              let trainee = store.trainees.first(where: { $0.id == target.traineeId }) else { return }
+        if detailTrainee?.id == trainee.id { return } // already open: it handles the event itself
+        showRoster = false
+        detailTrainee = trainee
     }
 
     // MARK: - Header

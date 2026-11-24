@@ -1505,25 +1505,70 @@ struct TraineeDetailView: View {
     private var nutritionCard: some View {
         let macros = store.dailyMacros(for: trainee.id, on: selectedDay)
         // The trainer sees what was eaten only (planned entries stay private for now).
-        let meals = store.meals(for: trainee.id, on: selectedDay).filter { !$0.isPlanned }
+        let meals = store.meals(for: trainee.id, on: selectedDay)
+            .filter { !$0.isPlanned }
+            .sorted { $0.eatenAt < $1.eatenAt }
+        let target = trainee.dailyCalorieTarget
+        let diff = macros.calories - target
+        let isOver = target > 0 && diff > 0
+        let progress = target > 0 ? min(1.0, Double(macros.calories) / Double(target)) : 0
+
         return VStack(alignment: .leading, spacing: 12) {
             TTWeekStrip(selected: $selectedDay)
-            HStack {
-                macro("Cal", "\(macros.calories)", TTColor.calorie)
-                macro("P", String(format: "%.0f", macros.protein), TTColor.protein)
-                macro("C", String(format: "%.0f", macros.carbs), TTColor.carbs)
-                macro("F", String(format: "%.0f", macros.fat), TTColor.fat)
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .center, spacing: 8) {
+                    if target > 0 {
+                        Text(verbatim: "\(macros.calories.formatted()) / \(target.formatted()) kcal")
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(TTColor.ink)
+                        Spacer(minLength: 4)
+                        Text(isOver
+                             ? "\(diff.formatted()) over"
+                             : "\(abs(diff).formatted()) under")
+                            .font(TTFont.workSans(11, weight: .semibold))
+                            .foregroundStyle(isOver ? Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255) : Color(red: 22 / 255, green: 101 / 255, blue: 52 / 255))
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 4)
+                            .background(isOver ? Color(red: 253 / 255, green: 236 / 255, blue: 236 / 255) : Color(red: 228 / 255, green: 245 / 255, blue: 233 / 255))
+                            .clipShape(Capsule())
+                    } else {
+                        Text("\(macros.calories) kcal eaten")
+                            .font(TTFont.workSans(16, weight: .bold))
+                            .monospacedDigit()
+                            .foregroundStyle(TTColor.ink)
+                    }
+                }
+
+                if target > 0 {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255))
+                            Capsule()
+                                .fill(isOver ? Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255) : TTColor.actionOrange)
+                                .frame(width: geo.size.width * progress)
+                        }
+                    }
+                    .frame(height: 6)
+                }
+
+                HStack(spacing: 12) {
+                    compactMacro("Protein", macros.protein, TTColor.protein)
+                    compactMacro("Carbs", macros.carbs, TTColor.carbs)
+                    compactMacro("Fat", macros.fat, TTColor.fat)
+                }
             }
-            // Only when the trainee has a target.
-            if trainee.dailyCalorieTarget > 0 {
-                Text("Daily target \(trainee.dailyCalorieTarget) kcal")
-                    .font(TTFont.caption(12))
-                    .foregroundStyle(TTColor.inkMuted)
-            }
+            .padding(12)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
             if meals.isEmpty {
-                Text("No meals logged")
+                Text("No meals logged on this day")
                     .font(TTFont.body(14))
                     .foregroundStyle(TTColor.inkMuted)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 4)
             }
             ForEach(meals) { meal in
                 // Same row as the trainee's own list (read-only here); tap opens the detail.
@@ -1535,16 +1580,17 @@ struct TraineeDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    private func macro(_ title: String, _ value: String, _ tint: Color) -> some View {
-        VStack(spacing: 4) {
-            Text(value)
-                .font(TTFont.workSans(16, weight: .bold))
-                .foregroundStyle(tint)
+    private func compactMacro(_ title: LocalizedStringKey, _ value: Double, _ tint: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(tint).frame(width: 6, height: 6)
             Text(title)
-                .font(TTFont.caption(11))
+                .font(TTFont.caption(12))
                 .foregroundStyle(TTColor.inkMuted)
+            Text(verbatim: "\(Int(value.rounded())) g")
+                .font(TTFont.workSans(12, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(TTColor.ink)
         }
-        .frame(maxWidth: .infinity)
     }
 
     private var formCard: some View {

@@ -1,3 +1,4 @@
+import AVFoundation
 import Charts
 import PhotosUI
 import SwiftUI
@@ -18,6 +19,13 @@ private enum NutHistoryRange: Int, CaseIterable, Identifiable {
         case .days: "Days"
         case .weeks: "Weeks"
         case .months: "Months"
+        }
+    }
+    var apiPeriod: String {
+        switch self {
+        case .days: "day"
+        case .weeks: "week"
+        case .months: "month"
         }
     }
     var fetchDays: Int {
@@ -131,6 +139,8 @@ struct NutritionView: View {
     @State private var selectedBucketIndex: Int? = nil
     @State private var barsGrown = false
     @State private var isLoadingHistory = false
+    @State private var showHistorySkeleton = false
+    @State private var summaryByPeriod: [NutHistoryRange: MealSummaryResponse] = [:]
     @State private var loadedHistoryDays = 0
 
     @State private var showCamera = false
@@ -327,11 +337,7 @@ struct NutritionView: View {
             }
 
             Button {
-                if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    showCamera = true
-                } else {
-                    showPhotoLibrary = true
-                }
+                openMealCameraOrFallback()
             } label: {
                 TTIcon(icon: .camera1, size: 20)
                     .foregroundStyle(.white)
@@ -348,6 +354,33 @@ struct NutritionView: View {
         .allowsHitTesting(!searchMinimized)
         .accessibilityHidden(searchMinimized)
         .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28), value: searchMinimized)
+    }
+
+    private func openMealCameraOrFallback() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showPhotoLibrary = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        toast = TTToastMessage(text: "Camera access is off — choose a photo from your library.", style: .error)
+                        showPhotoLibrary = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            toast = TTToastMessage(text: "Camera access is off — choose a photo from your library.", style: .error)
+            showPhotoLibrary = true
+        @unknown default:
+            showPhotoLibrary = true
+        }
     }
 
     private var scrollProbe: some View {
@@ -645,6 +678,26 @@ struct NutritionView: View {
     }
 
     private var historyBuckets: [NutHistoryBucket] {
+        if let remoteBuckets = summaryByPeriod[historyRange]?.buckets, !remoteBuckets.isEmpty {
+            return remoteBuckets.enumerated().map { idx, b in
+                let meals = (b.meals ?? []).filter { !$0.isPlanned }.sorted { $0.eatenAt > $1.eatenAt }
+                let avg = b.avgCalories ?? b.totalCalories ?? 0
+                let total = b.totalCalories ?? (avg * max(1, b.daysLogged ?? 1))
+                return NutHistoryBucket(
+                    id: "remote-\(historyRange.rawValue)-\(idx)",
+                    shortLabel: b.label,
+                    title: b.title ?? b.label,
+                    daysLogged: b.daysLogged ?? (meals.isEmpty ? 0 : 1),
+                    avgCalories: avg,
+                    totalCalories: total,
+                    daysOverGoal: b.daysOverGoal ?? 0,
+                    avgProtein: b.avgProtein ?? meals.reduce(0.0) { $0 + $1.macros.protein },
+                    avgCarbs: b.avgCarbs ?? meals.reduce(0.0) { $0 + $1.macros.carbs },
+                    avgFat: b.avgFat ?? meals.reduce(0.0) { $0 + $1.macros.fat },
+                    meals: meals
+                )
+            }
+        }
         guard let id = traineeId else { return [] }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -772,7 +825,7 @@ struct NutritionView: View {
         let highest = buckets.max(by: { $0.avgCalories < $1.avgCalories })
 
         return VStack(alignment: .leading, spacing: 10) {
-            if isLoadingHistory && buckets.allSatisfy({ $0.meals.isEmpty }) {
+            if showHistorySkeleton && buckets.allSatisfy({ $0.meals.isEmpty && $0.avgCalories == 0 }) {
                 VStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 26, style: .continuous)
                         .fill(NutStyle.orange.opacity(0.25))
@@ -855,12 +908,14 @@ struct NutritionView: View {
                 .padding(.top, 12)
 
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(verbatim: "\(selected.avgCalories.formatted()) kcal" + (historyRange == .days ? "" : " / day"))
-                    .font(TTFont.workSans(34, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(.white)
-                    .contentTransition(.numericText())
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.35), value: selected.avgCalories)
+                NutCountUpText(
+                    target: selected.avgCalories,
+                    suffix: historyRange == .days ? " kcal" : " kcal / day",
+                    reduceMotion: reduceMotion
+                )
+                .font(TTFont.workSans(34, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(.white)
             }
             .padding(.top, 2)
 
@@ -926,7 +981,7 @@ struct NutritionView: View {
                                             .frame(maxWidth: 36)
                                             .frame(height: barsGrown ? targetH : 0)
                                             .animation(
-                                                reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.65).delay(Double(index) * 0.045),
+                                                reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.7).delay(Double(index) * 0.045),
                                                 value: barsGrown
                                             )
                                     }
@@ -1046,24 +1101,55 @@ struct NutritionView: View {
 
     private func loadHistory() async {
         guard let id = traineeId else { return }
-        let targetDays = historyRange.fetchDays
-        if loadedHistoryDays >= targetDays { return }
+        let range = historyRange
+        if summaryByPeriod[range] != nil { return }
+
         isLoadingHistory = true
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let start = loadedHistoryDays
-        await withTaskGroup(of: Void.self) { group in
-            for offset in start..<targetDays {
-                guard let dayStart = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
-                let queryDate = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart) ?? dayStart
-                group.addTask {
-                    _ = await store.refreshDay(for: id, on: queryDate)
+        var skeletonShownAt: Date?
+        let skeletonTask = Task {
+            try? await Task.sleep(nanoseconds: 200_000_000)
+            if !Task.isCancelled && isLoadingHistory {
+                skeletonShownAt = Date()
+                showHistorySkeleton = true
+            }
+        }
+
+        if let summary = await store.fetchMealSummary(period: range.apiPeriod),
+           !(summary.buckets ?? []).isEmpty {
+            if !Task.isCancelled {
+                summaryByPeriod[range] = summary
+            }
+        } else {
+            let targetDays = range.fetchDays
+            if loadedHistoryDays < targetDays {
+                let calendar = Calendar.current
+                let today = calendar.startOfDay(for: Date())
+                let start = loadedHistoryDays
+                await withTaskGroup(of: Void.self) { group in
+                    for offset in start..<targetDays {
+                        guard let dayStart = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
+                        let queryDate = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart) ?? dayStart
+                        group.addTask {
+                            _ = await store.refreshDay(for: id, on: queryDate)
+                        }
+                    }
+                }
+                if !Task.isCancelled {
+                    loadedHistoryDays = max(loadedHistoryDays, targetDays)
                 }
             }
         }
+
+        skeletonTask.cancel()
+        if let shownAt = skeletonShownAt {
+            let elapsed = Date().timeIntervalSince(shownAt)
+            if elapsed < 0.4 {
+                try? await Task.sleep(nanoseconds: UInt64((0.4 - elapsed) * 1_000_000_000))
+            }
+        }
         if !Task.isCancelled {
-            loadedHistoryDays = max(loadedHistoryDays, targetDays)
             isLoadingHistory = false
+            showHistorySkeleton = false
         }
     }
 
@@ -1235,6 +1321,44 @@ private struct NutRing: View {
         .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.5), value: planned)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(Int((eaten * 100).rounded()))% of goal"))
+    }
+}
+
+private struct NutCountUpText: View {
+    let target: Int
+    let suffix: String
+    let reduceMotion: Bool
+
+    @State private var displayed: Int = 0
+    @State private var animTask: Task<Void, Never>?
+
+    var body: some View {
+        Text(verbatim: "\(displayed.formatted())\(suffix)")
+            .onAppear { animate(to: target) }
+            .onChange(of: target) { _, newValue in animate(to: newValue) }
+            .onDisappear { animTask?.cancel() }
+    }
+
+    private func animate(to end: Int) {
+        animTask?.cancel()
+        if reduceMotion {
+            displayed = end
+            return
+        }
+        let start = 0
+        let duration: TimeInterval = 0.55
+        let startTime = Date()
+        animTask = Task {
+            while !Task.isCancelled {
+                let elapsed = Date().timeIntervalSince(startTime)
+                let t = min(1.0, elapsed / duration)
+                let eased = 1.0 - pow(1.0 - t, 3.0)
+                let val = Int((Double(start) + Double(end - start) * eased).rounded())
+                await MainActor.run { displayed = val }
+                if t >= 1.0 { break }
+                try? await Task.sleep(nanoseconds: 16_000_000)
+            }
+        }
     }
 }
 
@@ -1690,7 +1814,11 @@ private struct NutritionEntryContent: View {
 
     var body: some View {
         Group {
-            if draft == nil { chooser } else { details }
+            if draft == nil {
+                chooser
+            } else {
+                details
+            }
         }
         .onAppear {
             now = Date()
@@ -1958,7 +2086,8 @@ private struct NutritionEntryContent: View {
                         .foregroundStyle(TTColor.ink)
                         .lineLimit(2)
                     Text(editing == nil ? "Chosen by you" : "Editing entry")
-                        .font(TTFont.workSans(13, weight: .medium)).foregroundStyle(NutStyle.mute)
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(NutStyle.mute)
                 }
                 Spacer(minLength: 0)
             }

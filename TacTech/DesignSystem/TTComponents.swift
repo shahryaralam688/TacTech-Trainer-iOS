@@ -2519,9 +2519,16 @@ struct TTMealRow: View {
                                     .background(TTColor.actionOrange.opacity(0.12))
                                     .clipShape(Capsule())
                             }
-                            Text(meal.eatenAt.formatted(date: .omitted, time: .shortened))
-                                .font(TTFont.caption(12))
-                                .foregroundStyle(TTColor.inkMuted)
+                            if let detail = meal.detail, !detail.isEmpty {
+                                Text(verbatim: "\(detail) · \(meal.eatenAt.formatted(date: .omitted, time: .shortened))")
+                                    .font(TTFont.caption(12))
+                                    .foregroundStyle(TTColor.inkMuted)
+                                    .lineLimit(1)
+                            } else {
+                                Text(meal.eatenAt.formatted(date: .omitted, time: .shortened))
+                                    .font(TTFont.caption(12))
+                                    .foregroundStyle(TTColor.inkMuted)
+                            }
                         }
                     }
                     Spacer(minLength: 4)

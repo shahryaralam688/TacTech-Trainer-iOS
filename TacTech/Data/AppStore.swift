@@ -1500,6 +1500,27 @@ final class AppStore {
         }
     }
 
+    /// Fetches read-only meal summary (`GET /trainee/meals/summary?period=day|week|month&tz=...`).
+    func fetchMealSummary(period: String) async -> MealSummaryResponse? {
+        try? await api.traineeMealSummary(period: period)
+    }
+
+    /// Uploads a meal photo (`POST /trainee/meals/photo`) and runs AI analysis (`POST /trainee/meals/analyze`).
+    /// If upload or analysis fails (or returns unclear/null), returns whatever succeeded without throwing.
+    func uploadAndAnalyzeMealPhoto(_ photo: UIImage) async -> (photoUrl: String?, analysis: MealAnalyzeResponse?) {
+        guard let jpeg = CoachImageEncoder.jpegData(from: photo), jpeg.count <= 5 * 1024 * 1024 else {
+            return (nil, nil)
+        }
+        guard let upload = try? await api.uploadMealPhoto(fileData: jpeg) else {
+            return (nil, nil)
+        }
+        if let key = TTMealPhoto.resolvedURL(upload.photoUrl) {
+            Task { await TTRemoteImageCache.shared.store(photo, for: key) }
+        }
+        let analysis = try? await api.analyzeMealPhoto(photoUrl: upload.photoUrl)
+        return (upload.photoUrl, analysis)
+    }
+
     /// Deletes one of the trainee's own meals (`DELETE /trainee/meals/{id}`). Throws on failure; the list is untouched then.
     func deleteMeal(_ meal: Meal) async throws {
         try await api.deleteMeal(id: meal.id)

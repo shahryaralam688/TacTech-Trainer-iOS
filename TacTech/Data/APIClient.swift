@@ -441,6 +441,7 @@ struct MealBody: Encodable {
     var status: String? = nil
     var kind: String? = nil
     var detail: String? = nil
+    var tz: String? = TimeZone.current.identifier
 }
 
 /// PATCH /trainee/meals/{id}: only the fields that are set are sent.
@@ -451,6 +452,7 @@ struct UpdateMealBody: Encodable {
     var status: String? = nil
     var kind: String? = nil
     var detail: String? = nil
+    var tz: String? = TimeZone.current.identifier
 }
 
 struct UpdateTraineeGoalBody: Encodable {
@@ -459,6 +461,47 @@ struct UpdateTraineeGoalBody: Encodable {
 
 struct MealPhotoUploadResponse: Decodable {
     var photoUrl: String
+}
+
+struct MealAnalyzeBody: Encodable {
+    var photoUrl: String
+    var tz: String? = TimeZone.current.identifier
+}
+
+struct MealAnalyzeAlternative: Decodable, Hashable {
+    var name: String
+    var kind: String?
+    var portionGrams: Double?
+    var macros: MacroEstimate?
+}
+
+struct MealAnalyzeResponse: Decodable {
+    var name: String?
+    var kind: String?
+    var portionGrams: Double?
+    var macros: MacroEstimate?
+    var confidence: Double?
+    var alternatives: [MealAnalyzeAlternative]?
+}
+
+struct MealSummaryBucket: Decodable, Identifiable, Hashable {
+    var id: String { label + "-" + (title ?? "") }
+    var label: String
+    var title: String?
+    var daysLogged: Int?
+    var avgCalories: Int?
+    var totalCalories: Int?
+    var daysOverGoal: Int?
+    var avgProtein: Double?
+    var avgCarbs: Double?
+    var avgFat: Double?
+    var meals: [Meal]?
+}
+
+struct MealSummaryResponse: Decodable {
+    var period: String?
+    var goal: Int?
+    var buckets: [MealSummaryBucket]?
 }
 
 struct WorkoutSetBody: Encodable {
@@ -759,12 +802,16 @@ actor APIClient {
         try await send(path: "/trainer/trainees/\(id)", method: .get)
     }
 
+    private var encodedTZ: String {
+        TimeZone.current.identifier.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "UTC"
+    }
+
     func trainerMeals(traineeId: String, on date: Date) async throws -> [Meal] {
-        try await sendArray("/trainer/trainees/\(traineeId)/meals?on=\(APIConfig.dateQuery(date))")
+        try await sendArray("/trainer/trainees/\(traineeId)/meals?on=\(APIConfig.dateQuery(date))&tz=\(encodedTZ)")
     }
 
     func trainerMacros(traineeId: String, on date: Date) async throws -> MacroEstimate {
-        try await send(path: "/trainer/trainees/\(traineeId)/macros?on=\(APIConfig.dateQuery(date))", method: .get)
+        try await send(path: "/trainer/trainees/\(traineeId)/macros?on=\(APIConfig.dateQuery(date))&tz=\(encodedTZ)", method: .get)
     }
 
     func trainerLogs(traineeId: String) async throws -> [WorkoutLog] {
@@ -1358,12 +1405,16 @@ actor APIClient {
     }
 
     func traineeMeals(on date: Date) async throws -> [Meal] {
-        try await sendArray("/trainee/meals?on=\(APIConfig.dateQuery(date))")
+        try await sendArray("/trainee/meals?on=\(APIConfig.dateQuery(date))&tz=\(encodedTZ)")
     }
 
-    /// Meals between two UTC dates (the server cuts days at UTC midnight, so a local day can touch two of them).
+    /// Meals between two dates.
     func traineeMeals(from: Date, to: Date) async throws -> [Meal] {
-        try await sendArray("/trainee/meals?from=\(APIConfig.dateQuery(from))&to=\(APIConfig.dateQuery(to))")
+        try await sendArray("/trainee/meals?from=\(APIConfig.dateQuery(from))&to=\(APIConfig.dateQuery(to))&tz=\(encodedTZ)")
+    }
+
+    func traineeMealSummary(period: String) async throws -> MealSummaryResponse {
+        try await send(path: "/trainee/meals/summary?period=\(period)&tz=\(encodedTZ)", method: .get)
     }
 
     func createMeal(_ body: MealBody) async throws -> Meal? {
@@ -1376,6 +1427,10 @@ actor APIClient {
             path: "/trainee/meals/photo",
             fields: [.file(name: "file", filename: filename, mimeType: mimeType, data: fileData)]
         )
+    }
+
+    func analyzeMealPhoto(photoUrl: String) async throws -> MealAnalyzeResponse? {
+        try await sendOptional(path: "/trainee/meals/analyze", method: .post, body: MealAnalyzeBody(photoUrl: photoUrl))
     }
 
     func updateMeal(id: String, body: UpdateMealBody) async throws -> Meal? {
@@ -1392,7 +1447,7 @@ actor APIClient {
     }
 
     func traineeMacros(on date: Date) async throws -> MacroEstimate {
-        try await send(path: "/trainee/macros?on=\(APIConfig.dateQuery(date))", method: .get)
+        try await send(path: "/trainee/macros?on=\(APIConfig.dateQuery(date))&tz=\(encodedTZ)", method: .get)
     }
 
     func traineeFeedback() async throws -> [TrainerFeedback] {

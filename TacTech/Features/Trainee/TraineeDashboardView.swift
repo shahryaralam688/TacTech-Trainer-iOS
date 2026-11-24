@@ -1,3 +1,4 @@
+import AVFoundation
 import PhotosUI
 import SwiftUI
 
@@ -376,7 +377,7 @@ struct TraineeDashboardView: View {
     // MARK: - This week
 
     private var weekStats: [WeekStatsGrid.Stat] {
-        [scoreStat, waterStat, caloriesStat]
+        [scoreStat, caloriesStat]
     }
 
     private var scoreStat: WeekStatsGrid.Stat {
@@ -401,14 +402,6 @@ struct TraineeDashboardView: View {
         let scoreIsLoading = store.sandowScore == nil && (store.isLoadingSandowScore || !didLoadScore)
         return .init(id: "score", title: "Score", value: value, subtext: subtext, isLoading: scoreIsLoading) {
             TTHomeHaptics.light(); showProgress = true
-        }
-    }
-
-    private var waterStat: WeekStatsGrid.Stat {
-        // TODO: no daily water-logging data source exists (only an assessment preference
-        // string). Showing a clear placeholder until hydration logging is added.
-        .init(id: "water", title: "Water", value: "—", subtext: "Not tracked yet") {
-            TTHomeHaptics.light(); showNutrition = true
         }
     }
 
@@ -489,13 +482,36 @@ struct TraineeDashboardView: View {
         TTHomeHaptics.medium()
         switch step.target {
         case .nutrition:
-            if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                showMealCamera = true
-            } else {
-                showMealPhotoLibrary = true
-            }
+            openMealCameraOrFallback()
         case .profile:
             showProfile = true
+        }
+    }
+
+    private func openMealCameraOrFallback() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showMealPhotoLibrary = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showMealCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showMealCamera = true
+                    } else {
+                        flashGenerateNotice("Camera access is off — choose a photo from your library.")
+                        showMealPhotoLibrary = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            flashGenerateNotice("Camera access is off — choose a photo from your library.")
+            showMealPhotoLibrary = true
+        @unknown default:
+            showMealPhotoLibrary = true
         }
     }
 

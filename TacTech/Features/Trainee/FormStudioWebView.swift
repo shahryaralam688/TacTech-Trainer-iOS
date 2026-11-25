@@ -102,6 +102,14 @@ struct FormStudioWebView: UIViewRepresentable {
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
+        let changed = context.coordinator.formStudioExerciseId != formStudioExerciseId
+            || context.coordinator.animationURL != animationURL
+            || context.coordinator.guideJSON != guideJSON
+            || context.coordinator.cuesJSON != cuesJSON
+            || context.coordinator.title != title
+            || context.coordinator.presentation != presentation
+            || context.coordinator.previewBackgroundHex != resolvedPreviewHex
+
         context.coordinator.formStudioExerciseId = formStudioExerciseId
         context.coordinator.animationURL = animationURL
         context.coordinator.guideJSON = guideJSON
@@ -111,6 +119,10 @@ struct FormStudioWebView: UIViewRepresentable {
         context.coordinator.previewBackgroundHex = resolvedPreviewHex
         context.coordinator.onClose = onClose
         context.coordinator.onLoadError = onLoadError
+
+        if changed {
+            context.coordinator.rebridgeIfReady(on: uiView)
+        }
     }
 
     static func dismantleUIView(_ uiView: WKWebView, coordinator: Coordinator) {
@@ -165,10 +177,27 @@ struct FormStudioWebView: UIViewRepresentable {
             self.onLoadError = onLoadError
         }
 
+        func rebridgeIfReady(on webView: WKWebView) {
+            guard didBridgeOpen else { return }
+            bridgeOpen(on: webView)
+        }
+
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             guard !didBridgeOpen else { return }
             didBridgeOpen = true
             bridgeOpen(on: webView)
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            onLoadError?(error.localizedDescription)
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            onLoadError?(error.localizedDescription)
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            onLoadError?("3D view process terminated.")
         }
 
         private func bridgeOpen(on webView: WKWebView) {
@@ -254,16 +283,44 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
     private let rootDirectory: URL
     private let cacheDirectory: URL?
     private let queue = DispatchQueue(label: "FormStudioLocalSchemeHandler")
+    private let taskLock = NSLock()
+    private var activeTaskIds = Set<ObjectIdentifier>()
 
     init(rootDirectory: URL, cacheDirectory: URL? = nil) {
         self.rootDirectory = rootDirectory.standardizedFileURL
         self.cacheDirectory = cacheDirectory?.standardizedFileURL
     }
 
+    private func registerTask(_ task: WKURLSchemeTask) -> ObjectIdentifier {
+        let id = ObjectIdentifier(task as AnyObject)
+        taskLock.lock()
+        activeTaskIds.insert(id)
+        taskLock.unlock()
+        return id
+    }
+
+    private func consumeTaskIfActive(_ id: ObjectIdentifier) -> Bool {
+        taskLock.lock()
+        let active = activeTaskIds.remove(id) != nil
+        taskLock.unlock()
+        return active
+    }
+
+    private func isTaskActive(_ id: ObjectIdentifier) -> Bool {
+        taskLock.lock()
+        let active = activeTaskIds.contains(id)
+        taskLock.unlock()
+        return active
+    }
+
     func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
-        queue.async { [rootDirectory, cacheDirectory] in
+        let taskId = registerTask(urlSchemeTask)
+        queue.async { [weak self, rootDirectory, cacheDirectory] in
+            guard let self, self.isTaskActive(taskId) else { return }
             guard let requestURL = urlSchemeTask.request.url else {
-                urlSchemeTask.didFailWithError(URLError(.badURL))
+                if self.consumeTaskIfActive(taskId) {
+                    urlSchemeTask.didFailWithError(URLError(.badURL))
+                }
                 return
             }
 
@@ -278,7 +335,9 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
             let base: URL
             if requestURL.host == Self.cacheHost {
                 guard let cacheDirectory else {
-                    urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+                    if self.consumeTaskIfActive(taskId) {
+                        urlSchemeTask.didFailWithError(URLError(.fileDoesNotExist))
+                    }
                     return
                 }
                 base = cacheDirectory
@@ -288,12 +347,15 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
 
             let fileURL = base.appendingPathComponent(relativePath).standardizedFileURL
             guard fileURL.path.hasPrefix(base.path) else {
-                urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile))
+                if self.consumeTaskIfActive(taskId) {
+                    urlSchemeTask.didFailWithError(URLError(.noPermissionsToReadFile))
+                }
                 return
             }
 
             do {
                 let data = try Data(contentsOf: fileURL)
+                guard self.isTaskActive(taskId) else { return }
                 let mime = Self.mimeType(for: fileURL.pathExtension)
                 let response = URLResponse(
                     url: requestURL,
@@ -301,16 +363,22 @@ final class FormStudioLocalSchemeHandler: NSObject, WKURLSchemeHandler {
                     expectedContentLength: data.count,
                     textEncodingName: mime.hasPrefix("text/") || mime.contains("javascript") || mime == "application/json" ? "utf-8" : nil
                 )
+                guard self.consumeTaskIfActive(taskId) else { return }
                 urlSchemeTask.didReceive(response)
                 urlSchemeTask.didReceive(data)
                 urlSchemeTask.didFinish()
             } catch {
-                urlSchemeTask.didFailWithError(error)
+                if self.consumeTaskIfActive(taskId) {
+                    urlSchemeTask.didFailWithError(error)
+                }
             }
         }
     }
 
-    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {}
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        let id = ObjectIdentifier(urlSchemeTask as AnyObject)
+        _ = consumeTaskIfActive(id)
+    }
 
     private static func mimeType(for ext: String) -> String {
         switch ext.lowercased() {

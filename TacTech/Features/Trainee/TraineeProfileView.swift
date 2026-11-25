@@ -240,7 +240,12 @@ struct TraineeProfileView: View {
             Text("My Trainer")
                 .font(TTFont.heading(16))
             HStack(spacing: 12) {
-                TTAvatar(name: request.trainer?.name ?? "Trainer", size: 54)
+                TTAvatar(
+                    name: request.trainer?.name ?? "Trainer",
+                    size: 54,
+                    avatarUrl: request.trainer?.avatarUrl,
+                    userId: request.trainer?.id
+                )
                 VStack(alignment: .leading, spacing: 4) {
                     Text(request.trainer?.name ?? "Trainer")
                         .font(TTFont.heading(16))
@@ -342,7 +347,13 @@ struct MyTrainerCard: View {
                 .font(TTFont.heading(16))
             if let linked {
                 HStack(spacing: 12) {
-                    TTAvatar(name: linked.user.name, size: 54)
+                    TTAvatar(
+                        name: linked.user.name,
+                        size: 54,
+                        avatarUrl: linked.user.avatarUrl,
+                        avatarAsset: linked.user.avatarAsset,
+                        userId: linked.user.id
+                    )
                     VStack(alignment: .leading, spacing: 4) {
                         Text(linked.user.name)
                             .font(TTFont.heading(16))

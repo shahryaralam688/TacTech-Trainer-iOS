@@ -20,6 +20,7 @@ final class NotificationStore {
     private let realtime = ChatRealtimeClient()
     private var nextCursor: String?
     private var monitoring = false
+    private var startupTask: Task<Void, Never>?
     private var seenMessageIds = Set<String>()
     private var seenSessionIds = Set<String>()
     /// `workout.session.changed` arrives on both socket namespaces; dedupe by sessionId + action + occurredAt.
@@ -45,31 +46,40 @@ final class NotificationStore {
     // MARK: Lifecycle
 
     func start() {
-        startRealtimeKeepalive()
         guard !monitoring else {
             Task { await refreshUnread() }
             return
         }
         monitoring = true
-        Task {
+        startRealtimeKeepalive()
+        startupTask?.cancel()
+        startupTask = Task {
             await refreshInbox()
             await refreshUnread()
             await loadPreferences()
             await requestAuthorizationAndRegister()
-            if let token = deviceTokenHex {
+            if !Task.isCancelled, let token = deviceTokenHex {
                 await registerTokenWithBackend(token)
             }
         }
     }
 
     func stop() {
+        startupTask?.cancel()
+        startupTask = nil
         monitoring = false
         realtime.disconnect()
         items = []
         unreadCount = 0
         nextCursor = nil
+        lastError = nil
+        isLoading = false
         seenMessageIds.removeAll()
         seenSessionIds.removeAll()
+        seenWorkoutEventKeys.removeAll()
+        seenMealEventKeys.removeAll()
+        preferences = .init()
+        syncAppBadge()
     }
 
     private func startRealtimeKeepalive() {

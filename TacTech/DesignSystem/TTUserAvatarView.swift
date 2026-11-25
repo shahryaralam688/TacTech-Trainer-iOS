@@ -1,3 +1,4 @@
+import CryptoKit
 import ImageIO
 import SwiftUI
 import UIKit
@@ -8,9 +9,20 @@ import UIKit
 actor TTRemoteImageCache {
     static let shared = TTRemoteImageCache()
 
-    private let memory = NSCache<NSString, UIImage>()
+    private let memory: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 100
+        cache.totalCostLimit = 30 * 1024 * 1024
+        return cache
+    }()
     /// Display-sized versions (decoded once, off the main thread), keyed by URL + pixel bucket.
-    private let thumbMemory = NSCache<NSString, UIImage>()
+    private let thumbMemory: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 250
+        cache.totalCostLimit = 20 * 1024 * 1024
+        return cache
+    }()
+    private var inFlightDownloads: [String: Task<UIImage?, Never>] = [:]
     private static let thumbBuckets = [64, 96, 128, 192, 256, 384]
     private let session: URLSession = {
         let config = URLSessionConfiguration.default
@@ -31,13 +43,13 @@ actor TTRemoteImageCache {
     }
 
     private func diskURL(for urlString: String) -> URL {
-        let name = urlString.data(using: .utf8).map {
-            $0.base64EncodedString()
-                .replacingOccurrences(of: "/", with: "_")
-                .replacingOccurrences(of: "+", with: "-")
-        } ?? "avatar"
-        let truncated = String(name.prefix(180))
-        return diskDirectory.appendingPathComponent("\(truncated).jpg")
+        let digest = SHA256.hash(data: Data(urlString.utf8))
+        let name = digest.map { String(format: "%02x", $0) }.joined()
+        return diskDirectory.appendingPathComponent("\(name).jpg")
+    }
+
+    private func imageCost(_ image: UIImage) -> Int {
+        Int(image.size.width * image.size.height * image.scale * image.scale * 4)
     }
 
     func cachedImage(for urlString: String) -> UIImage? {
@@ -47,14 +59,14 @@ actor TTRemoteImageCache {
         guard let data = try? Data(contentsOf: file), let image = UIImage(data: data) else {
             return nil
         }
-        memory.setObject(image, forKey: key)
+        memory.setObject(image, forKey: key, cost: imageCost(image))
         return image
     }
 
     func store(_ image: UIImage, for urlString: String) {
         guard !urlString.isEmpty else { return }
         removeThumbnails(for: urlString) // a new original invalidates the small versions
-        memory.setObject(image, forKey: urlString as NSString)
+        memory.setObject(image, forKey: urlString as NSString, cost: imageCost(image))
         if let data = image.jpegData(compressionQuality: 0.9) {
             try? data.write(to: diskURL(for: urlString), options: .atomic)
         }
@@ -110,7 +122,7 @@ actor TTRemoteImageCache {
 
         let smallFile = thumbDiskURL(for: urlString, maxPixel: maxPixel)
         if let data = try? Data(contentsOf: smallFile), let image = Self.makeThumbnail(from: data, maxPixel: maxPixel) {
-            thumbMemory.setObject(image, forKey: key)
+            thumbMemory.setObject(image, forKey: key, cost: imageCost(image))
             return image
         }
 
@@ -119,30 +131,42 @@ actor TTRemoteImageCache {
             originalData = try? Data(contentsOf: diskURL(for: urlString))
         }
         guard let originalData, let small = Self.makeThumbnail(from: originalData, maxPixel: maxPixel) else { return nil }
-        thumbMemory.setObject(small, forKey: key)
+        thumbMemory.setObject(small, forKey: key, cost: imageCost(small))
         if let jpeg = small.jpegData(compressionQuality: 0.85) {
             try? jpeg.write(to: smallFile, options: .atomic)
         }
         return small
     }
 
-    /// Returns memory/disk hit immediately path; otherwise downloads once.
+    /// Returns memory/disk hit immediately path; otherwise downloads once (coalescing concurrent callers).
     func image(for urlString: String) async -> UIImage? {
         if let hit = cachedImage(for: urlString) { return hit }
+        if let existing = inFlightDownloads[urlString] {
+            return await existing.value
+        }
         guard let url = URL(string: urlString), url.scheme == "http" || url.scheme == "https" else {
             return nil
         }
-        do {
-            let (data, response) = try await session.data(from: url)
-            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+        let session = self.session
+        let task = Task<UIImage?, Never> {
+            do {
+                let (data, response) = try await session.data(from: url)
+                if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                    return nil
+                }
+                return UIImage(data: data)
+            } catch {
                 return nil
             }
-            guard let image = UIImage(data: data) else { return nil }
-            store(image, for: urlString)
-            return image
-        } catch {
-            return cachedImage(for: urlString)
         }
+        inFlightDownloads[urlString] = task
+        let downloaded = await task.value
+        inFlightDownloads.removeValue(forKey: urlString)
+        if let downloaded {
+            store(downloaded, for: urlString)
+            return downloaded
+        }
+        return cachedImage(for: urlString)
     }
 }
 

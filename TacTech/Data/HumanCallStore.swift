@@ -145,6 +145,8 @@ final class HumanCallStore {
     private var signalingTask: URLSessionWebSocketTask?
     private var tickTask: Task<Void, Never>?
     private var pollTask: Task<Void, Never>?
+    private var acceptTask: Task<Void, Never>?
+    private var legacyInvitePollRequired = false
     private var connectedAt: Date?
     private var monitoring = false
     private var myUserId: String?
@@ -157,7 +159,9 @@ final class HumanCallStore {
             return
         }
         if monitoring {
-            realtime.connect()
+            if !realtime.isConnected {
+                realtime.connect()
+            }
             Task { await pollForIncomingInvites() }
             return
         }
@@ -192,8 +196,7 @@ final class HumanCallStore {
         threadId: String,
         fromName: String? = nil
     ) async {
-        guard HumanCallFeatures.isEnabled else { return }
-        hangupLocal(outcome: nil, notifyPeer: false)
+        guard HumanCallFeatures.isEnabled, monitoring, phase == .idle else { return }
         do {
             let session = try await api.createRtcSession(threadId: threadId)
             let invite = HumanCallInvite(
@@ -243,8 +246,10 @@ final class HumanCallStore {
         activeInvite = invite
         connectSignaling(path: path, sessionId: invite.sessionId)
         // Callee joined — treat as in-call once signaling is up.
-        Task {
+        acceptTask?.cancel()
+        acceptTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled else { return }
             enterInCall()
         }
     }
@@ -391,11 +396,14 @@ final class HumanCallStore {
                 // Remote cancelled before accept.
                 hangupLocal(outcome: nil, notifyPeer: false)
             }
+            legacyInvitePollRequired = false
+        } catch let error as AppError where error.isNotFound {
+            legacyInvitePollRequired = true
         } catch {
-            // Soft fail — keep socket + legacy poll.
+            // Soft fail — keep socket + incoming poll.
         }
 
-        guard phase == .idle else { return }
+        guard phase == .idle, legacyInvitePollRequired else { return }
         // Legacy message-marker fallback (older builds / partial backends).
         do {
             let threads = try await api.listThreads()
@@ -489,6 +497,14 @@ final class HumanCallStore {
                         self.handleSignaling(type: type, sessionId: sessionId)
                     }
                 } catch {
+                    if !Task.isCancelled {
+                        await MainActor.run {
+                            if self.activeInvite?.sessionId == sessionId, self.phase != .idle {
+                                self.lastError = "Call connection lost."
+                                self.hangupLocal(outcome: nil, notifyPeer: false)
+                            }
+                        }
+                    }
                     break
                 }
             }
@@ -536,6 +552,8 @@ final class HumanCallStore {
 
     private func hangupLocal(outcome _: String?, notifyPeer: Bool) {
         if notifyPeer { sendHangup(reason: "ended") }
+        acceptTask?.cancel()
+        acceptTask = nil
         ringtone.stop()
         tickTask?.cancel()
         tickTask = nil

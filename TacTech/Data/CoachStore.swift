@@ -36,13 +36,15 @@ final class CoachStore {
     var hapticTick = 0
 
     private var sendTask: Task<Void, Never>?
+    private var sendGeneration = 0
+    private var messageLoadTask: Task<Void, Never>?
     private var recordLimitTask: Task<Void, Never>?
     private var rateLimitTask: Task<Void, Never>?
     private var streamAssistantId: String?
     private var audioRecorder: AVAudioRecorder?
     private var audioPlayer: AVPlayer?
     private var recordingURL: URL?
-    private var playerObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var playerObserver: NSObjectProtocol?
     private var pendingRetry: CoachPendingRetry?
     private let speechSynthesizer = AVSpeechSynthesizer()
     private let speechDelegate = CoachSpeechDelegate()
@@ -60,6 +62,12 @@ final class CoachStore {
             }
         }
         speechSynthesizer.delegate = speechDelegate
+    }
+
+    deinit {
+        if let observer = playerObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     // MARK: Bootstrap
@@ -128,13 +136,19 @@ final class CoachStore {
         guard let id = activeConversationId else { return }
         do {
             let server = try await api.listMessages(conversationId: id)
+            guard !Task.isCancelled, activeConversationId == id else { return }
             // Preserve optimistic failures / analyzing if still in-flight
             if !isBusy {
                 messages = server.map(CoachDisplayMessage.fromServer)
                 CoachChatDiskCache.saveMessages(server, conversationId: id)
             }
             lastError = nil
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
+            guard activeConversationId == id else { return }
             if messages.isEmpty,
                let cached = CoachChatDiskCache.loadMessages(conversationId: id) {
                 messages = cached.map(CoachDisplayMessage.fromServer)
@@ -162,6 +176,8 @@ final class CoachStore {
 
     func selectConversation(_ id: String) async {
         guard id != activeConversationId || messages.isEmpty else { return }
+        messageLoadTask?.cancel()
+        messageLoadTask = nil
         cancelInFlight()
         partialAssistantText = ""
         pendingRetry = nil
@@ -173,7 +189,11 @@ final class CoachStore {
         } else {
             messages = []
         }
-        await refreshMessages()
+        let task = Task<Void, Never> { [weak self] in
+            await self?.refreshMessages()
+        }
+        messageLoadTask = task
+        await task.value
     }
 
     func startNewConversation() async {
@@ -273,16 +293,17 @@ final class CoachStore {
 
     // MARK: Memory
 
-    private static var lastMemorySync: Date?
+    private static var lastMemorySyncByUser: [String: Date] = [:]
     private static let memoryDebounce: TimeInterval = 45
 
     func syncMemoryDebounced(force: Bool = false) async {
-        if !force, let last = Self.lastMemorySync, Date().timeIntervalSince(last) < Self.memoryDebounce {
+        let scope = CoachChatDiskCache.currentUserScope()
+        if !force, let last = Self.lastMemorySyncByUser[scope], Date().timeIntervalSince(last) < Self.memoryDebounce {
             return
         }
         do {
             _ = try await api.syncMemory()
-            Self.lastMemorySync = Date()
+            Self.lastMemorySyncByUser[scope] = Date()
         } catch {
             // Soft-fail — coach still works without fresh memory
         }
@@ -337,12 +358,15 @@ final class CoachStore {
         messages.append(assistantMsg)
         partialAssistantText = ""
 
+        let generation = sendGeneration
         sendTask = Task { [weak self] in
             guard let self else { return }
             defer {
-                self.isSending = false
-                self.isStreaming = false
-                self.streamAssistantId = nil
+                if self.sendGeneration == generation {
+                    self.isSending = false
+                    self.isStreaming = false
+                    self.streamAssistantId = nil
+                }
             }
             do {
                 let stream = await self.api.chatStream(message: text, conversationId: self.activeConversationId)
@@ -452,11 +476,19 @@ final class CoachStore {
 
     func sendImage(_ image: UIImage, caption: String?) {
         guard canSend else { return }
-        guard let jpeg = CoachImageEncoder.jpegData(from: image) else {
-            lastError = "Could not prepare that photo. Try another image."
-            return
+        Task { @MainActor in
+            let encoded = await Task.detached(priority: .userInitiated) {
+                (
+                    jpeg: CoachImageEncoder.jpegData(from: image),
+                    thumb: CoachImageEncoder.jpegData(from: image, maxSide: 480, quality: 0.7)
+                )
+            }.value
+            guard let jpeg = encoded.jpeg else {
+                self.lastError = "Could not prepare that photo. Try another image."
+                return
+            }
+            self.sendImageJPEG(jpeg, precomputedThumb: encoded.thumb, preview: image, caption: caption, replaceId: nil)
         }
-        sendImageJPEG(jpeg, preview: image, caption: caption, replaceId: nil)
     }
 
     func retryImage(messageId: String) {
@@ -484,7 +516,7 @@ final class CoachStore {
         sendText(text)
     }
 
-    private func sendImageJPEG(_ jpeg: Data, preview: UIImage?, caption: String?, replaceId: String?) {
+    private func sendImageJPEG(_ jpeg: Data, precomputedThumb: Data? = nil, preview: UIImage?, caption: String?, replaceId: String?) {
         cancelInFlight()
         haptic()
         isSending = true
@@ -492,7 +524,7 @@ final class CoachStore {
         lastError = nil
 
         let localUserId = replaceId ?? "local-img-\(UUID().uuidString)"
-        let thumb = preview.flatMap { CoachImageEncoder.jpegData(from: $0, maxSide: 480, quality: 0.7) } ?? jpeg
+        let thumb = precomputedThumb ?? jpeg
         let trimmed = caption?.trimmingCharacters(in: .whitespacesAndNewlines)
         let displayCaption = (trimmed?.isEmpty == false) ? trimmed! : "Analyzing photo…"
 
@@ -513,11 +545,14 @@ final class CoachStore {
         )
         messages.append(userMsg)
 
+        let generation = sendGeneration
         sendTask = Task { [weak self] in
             guard let self else { return }
             defer {
-                self.isSending = false
-                self.isAnalyzingImage = false
+                if self.sendGeneration == generation {
+                    self.isSending = false
+                    self.isAnalyzingImage = false
+                }
             }
             do {
                 let response = try await self.api.chatImage(
@@ -541,6 +576,7 @@ final class CoachStore {
 
                 let assistant = CoachDisplayMessage.fromServer(response.assistantMessage)
                 self.messages.append(assistant)
+                self.persistMessagesToDisk()
                 self.haptic()
                 _ = displayCaption
             } catch is CancellationError {
@@ -636,15 +672,23 @@ final class CoachStore {
         audioRecorder = nil
         isRecording = false
         recordingElapsed = 0
-        guard let url = recordingURL,
-              let data = try? Data(contentsOf: url),
-              !data.isEmpty else {
+        guard let url = recordingURL else {
             lastError = "No audio captured."
             return
         }
         recordingURL = nil
-        try? FileManager.default.removeItem(at: url)
-        sendVoiceData(data)
+        Task { @MainActor in
+            let data = await Task.detached(priority: .userInitiated) {
+                let bytes = try? Data(contentsOf: url)
+                try? FileManager.default.removeItem(at: url)
+                return bytes
+            }.value
+            guard let data, !data.isEmpty else {
+                self.lastError = "No audio captured."
+                return
+            }
+            self.sendVoiceData(data)
+        }
     }
 
     private func sendVoiceData(_ data: Data) {
@@ -672,9 +716,14 @@ final class CoachStore {
         )
         messages.append(placeholder)
 
+        let generation = sendGeneration
         sendTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.isSending = false }
+            defer {
+                if self.sendGeneration == generation {
+                    self.isSending = false
+                }
+            }
             do {
                 let response = try await self.api.voiceTurn(
                     audioData: data,
@@ -688,6 +737,7 @@ final class CoachStore {
                     self.messages[idx] = CoachDisplayMessage.fromServer(response.userMessage)
                 }
                 self.messages.append(CoachDisplayMessage.fromServer(response.assistantMessage))
+                self.persistMessagesToDisk()
                 self.haptic()
                 let remoteAudio = (response.audioUrl ?? response.assistantMessage.audioUrl)?
                     .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -767,6 +817,7 @@ final class CoachStore {
             NotificationCenter.default.removeObserver(observer)
             playerObserver = nil
         }
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     // MARK: Rate limit / retry
@@ -884,6 +935,7 @@ final class CoachStore {
     // MARK: Lifecycle
 
     func cancelInFlight() {
+        sendGeneration &+= 1
         sendTask?.cancel()
         sendTask = nil
         recordLimitTask?.cancel()
@@ -979,6 +1031,8 @@ enum CoachChatDiskCache {
     private static var scope: String {
         jwtUserId(from: TokenStore.accessToken()) ?? "signed-out"
     }
+
+    static func currentUserScope() -> String { scope }
 
     private static func jwtUserId(from token: String?) -> String? {
         guard let token, !token.isEmpty else { return nil }

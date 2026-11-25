@@ -354,7 +354,8 @@ struct TrainerDashboardView: View {
 
     /// Compact card: tag, name, "Messaged yesterday · no log yet" and a quiet "Message again".
     private func waitingCard(_ entry: BoardEntry) -> some View {
-        let name = store.user(forTrainee: entry.item.trainee)?.name ?? "Trainee"
+        let waitingUser = store.user(forTrainee: entry.item.trainee)
+        let name = waitingUser?.name ?? "Trainee"
         let line: String = {
             if case .waiting(let contacted) = entry.state { return TTFollowUpText.waiting(contacted) }
             return entry.item.detail
@@ -363,7 +364,13 @@ struct TrainerDashboardView: View {
             detailTrainee = entry.item.trainee
         } label: {
             HStack(spacing: 12) {
-                TTAvatar(name: name, size: 38)
+                TTAvatar(
+                    name: name,
+                    size: 38,
+                    avatarUrl: waitingUser?.avatarUrl,
+                    avatarAsset: waitingUser?.avatarAsset,
+                    userId: waitingUser?.id
+                )
                 VStack(alignment: .leading, spacing: 2) {
                     Text("WAITING")
                         .font(TTFont.workSans(10, weight: .bold))
@@ -420,9 +427,13 @@ struct TrainerDashboardView: View {
                     .padding(.leading, 4)
 
                 HStack(spacing: 12) {
+                    let cardUser = store.user(forTrainee: item.trainee)
                     TTAvatar(
-                        name: store.user(forTrainee: item.trainee)?.name ?? "T",
-                        size: 46
+                        name: cardUser?.name ?? "T",
+                        size: 46,
+                        avatarUrl: cardUser?.avatarUrl,
+                        avatarAsset: cardUser?.avatarAsset,
+                        userId: cardUser?.id
                     )
 
                     VStack(alignment: .leading, spacing: 4) {
@@ -657,7 +668,8 @@ struct TrainerDashboardView: View {
 
     /// One trainee training today: name, session title (only what the status helper gives), done indicator.
     private func todayTraineeRow(_ row: (trainee: TraineeProfile, title: String, done: Bool), status: TraineeTodayStatus) -> some View {
-        let name = store.user(forTrainee: row.trainee)?.name ?? String(localized: "Trainee")
+        let rowUser = store.user(forTrainee: row.trainee)
+        let name = rowUser?.name ?? String(localized: "Trainee")
         // TODO: done rows have no session title from the status helper, so they show none.
         var session = ""
         if case .sessionToday(let title) = status { session = title }
@@ -666,7 +678,13 @@ struct TrainerDashboardView: View {
             detailTrainee = row.trainee
         } label: {
             HStack(spacing: 12) {
-                TTAvatar(name: name, size: 40)
+                TTAvatar(
+                    name: name,
+                    size: 40,
+                    avatarUrl: rowUser?.avatarUrl,
+                    avatarAsset: rowUser?.avatarAsset,
+                    userId: rowUser?.id
+                )
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(name)
@@ -1032,12 +1050,19 @@ enum TTFollowUpText {
         LocalizationController.shared.localized(value)
     }
 
-    /// "yesterday", "3 days ago", in the app language.
-    static func when(_ date: Date) -> String {
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
         let formatter = RelativeDateTimeFormatter()
-        formatter.locale = LocalizationController.shared.locale
         formatter.dateTimeStyle = .named
         formatter.unitsStyle = .full
+        return formatter
+    }()
+
+    /// "yesterday", "3 days ago", in the app language.
+    @MainActor
+    static func when(_ date: Date) -> String {
+        let formatter = relativeFormatter
+        let locale = LocalizationController.shared.locale
+        if formatter.locale != locale { formatter.locale = locale }
         return formatter.localizedString(for: date, relativeTo: Date())
     }
 

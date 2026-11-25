@@ -2,9 +2,100 @@ import AVFoundation
 import PhotosUI
 import SwiftUI
 
-private struct HomePhotoMealDraft: Identifiable {
+struct TTPhotoMealDraft: Identifiable {
     let id = UUID()
     let image: UIImage
+}
+
+/// Shared camera / photo-library → ManualMealView(initialPhoto:) flow used by both Home and the center + menu.
+struct TTPhotoMealCaptureModifier: ViewModifier {
+    @Environment(AppStore.self) private var store
+    @Binding var trigger: Int
+    var onNotice: (String) -> Void
+    var onSaved: (TTToastMessage) -> Void
+
+    @State private var showCamera = false
+    @State private var showPhotoLibrary = false
+    @State private var capturedPhoto: UIImage?
+    @State private var libraryItem: PhotosPickerItem?
+    @State private var pendingDraft: TTPhotoMealDraft?
+    @State private var activeDraft: TTPhotoMealDraft?
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: trigger) { _, newValue in
+                guard newValue > 0 else { return }
+                openCameraOrFallback()
+            }
+            .sheet(isPresented: $showCamera, onDismiss: {
+                if let pending = pendingDraft {
+                    pendingDraft = nil
+                    activeDraft = pending
+                }
+            }) {
+                CameraImagePicker(image: $capturedPhoto)
+                    .ignoresSafeArea()
+            }
+            .photosPicker(isPresented: $showPhotoLibrary, selection: $libraryItem, matching: .images)
+            .onChange(of: capturedPhoto) { _, newValue in
+                guard let image = newValue else { return }
+                capturedPhoto = nil
+                pendingDraft = TTPhotoMealDraft(image: image)
+                if !showCamera {
+                    pendingDraft = nil
+                    activeDraft = TTPhotoMealDraft(image: image)
+                }
+            }
+            .onChange(of: libraryItem) { _, item in
+                guard let item else { return }
+                Task {
+                    defer { libraryItem = nil }
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        activeDraft = TTPhotoMealDraft(image: image)
+                    }
+                }
+            }
+            .sheet(item: $activeDraft) { draft in
+                ManualMealView(day: Date(), initialPhoto: draft.image) { toast in
+                    TTHomeHaptics.light()
+                    onSaved(toast)
+                    Task {
+                        if let trainee = store.currentTrainee {
+                            await store.refreshDay(for: trainee.id, on: Date())
+                        }
+                    }
+                }
+                .ttModalSheetPresentation(dragIndicator: .hidden)
+            }
+    }
+
+    private func openCameraOrFallback() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            showPhotoLibrary = true
+            return
+        }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        onNotice("Camera access is off — choose a photo from your library.")
+                        showPhotoLibrary = true
+                    }
+                }
+            }
+        case .denied, .restricted:
+            onNotice("Camera access is off — choose a photo from your library.")
+            showPhotoLibrary = true
+        @unknown default:
+            showPhotoLibrary = true
+        }
+    }
 }
 
 /// Trainee Home — answers one question: "What should I do right now?"
@@ -16,16 +107,15 @@ struct TraineeDashboardView: View {
     @State private var showProfile = false
     @State private var showProgress = false
     @State private var showNutrition = false
-    @State private var showMealCamera = false
-    @State private var showMealPhotoLibrary = false
-    @State private var capturedMealPhoto: UIImage?
-    @State private var mealLibraryItem: PhotosPickerItem?
-    @State private var photoMealDraft: HomePhotoMealDraft?
+    @State private var mealCaptureTrigger = 0
     @State private var showWorkouts = false
     @State private var showNotifications = false
     @State private var showFindCoaches = false
     @State private var showAssessmentReview = false
     @State private var generateNotice: String?
+    @State private var noticeTask: Task<Void, Never>?
+    @State private var isOffline = false
+    @State private var pendingOpenWorkouts = false
     @State private var resumeTarget: ResumeTarget?
     @State private var overviewTarget: OverviewTarget?
     @Bindable private var notificationStore = NotificationStore.shared
@@ -86,9 +176,10 @@ struct TraineeDashboardView: View {
                 WorkoutOverviewView(plan: target.plan)
             }
             .ttSyncRootTabBarWithNavigationDepth()
-            .task {
+            .task(id: store.currentTrainee?.id) {
                 if let trainee = store.currentTrainee {
-                    await store.refreshDay(for: trainee.id, on: Date())
+                    let ok = await store.refreshDay(for: trainee.id, on: Date())
+                    isOffline = !ok
                 }
             }
             .task { await HumanChatStore.shared.refreshInbox(quiet: true) }
@@ -106,38 +197,11 @@ struct TraineeDashboardView: View {
             .sheet(isPresented: $showNutrition) {
                 NutritionView().ttModalSheetPresentation(dragIndicator: .hidden)
             }
-            .sheet(isPresented: $showMealCamera) {
-                CameraImagePicker(image: $capturedMealPhoto)
-                    .ignoresSafeArea()
-            }
-            .photosPicker(isPresented: $showMealPhotoLibrary, selection: $mealLibraryItem, matching: .images)
-            .onChange(of: capturedMealPhoto) { _, newValue in
-                guard let image = newValue else { return }
-                capturedMealPhoto = nil
-                photoMealDraft = HomePhotoMealDraft(image: image)
-            }
-            .onChange(of: mealLibraryItem) { _, item in
-                guard let item else { return }
-                Task {
-                    defer { mealLibraryItem = nil }
-                    if let data = try? await item.loadTransferable(type: Data.self),
-                       let image = UIImage(data: data) {
-                        photoMealDraft = HomePhotoMealDraft(image: image)
-                    }
-                }
-            }
-            .sheet(item: $photoMealDraft) { draft in
-                ManualMealView(day: Date(), initialPhoto: draft.image) { toast in
-                    TTHomeHaptics.light()
-                    flashGenerateNotice(toast.text)
-                    Task {
-                        if let trainee = store.currentTrainee {
-                            await store.refreshDay(for: trainee.id, on: Date())
-                        }
-                    }
-                }
-                .ttModalSheetPresentation(dragIndicator: .hidden)
-            }
+            .modifier(TTPhotoMealCaptureModifier(
+                trigger: $mealCaptureTrigger,
+                onNotice: { flashGenerateNotice($0) },
+                onSaved: { flashGenerateNotice($0.text) }
+            ))
             .sheet(isPresented: $showWorkouts) {
                 WorkoutHubView(showsCloseChrome: true).ttModalSheetPresentation(dragIndicator: .hidden)
             }
@@ -147,10 +211,15 @@ struct TraineeDashboardView: View {
             .sheet(isPresented: $showFindCoaches) {
                 FindCoachesView().ttModalSheetPresentation(dragIndicator: .hidden)
             }
-            .sheet(isPresented: $showAssessmentReview) {
+            .sheet(isPresented: $showAssessmentReview, onDismiss: {
+                if pendingOpenWorkouts {
+                    pendingOpenWorkouts = false
+                    showWorkouts = true
+                }
+            }) {
                 AssessmentReviewSheet(assessment: store.loadSavedFitnessAssessment()) {
                     flashGenerateNotice("AI week ready — open Workouts")
-                    showWorkouts = true
+                    pendingOpenWorkouts = true
                 }
                 .ttModalSheetPresentation()
             }
@@ -212,10 +281,6 @@ struct TraineeDashboardView: View {
         guard let trainee = store.currentTrainee else { return true }
         return store.logs(for: trainee.id).isEmpty
     }
-
-    // TODO: AppStore exposes no offline / refresh-error flag. Wire this to a real
-    // connectivity or last-sync-failed signal when one exists; stays false for now.
-    private var isOffline: Bool { false }
 
     private var sessionTitle: String {
         todaySession?.title ?? plan?.title ?? "Today’s training"
@@ -482,36 +547,9 @@ struct TraineeDashboardView: View {
         TTHomeHaptics.medium()
         switch step.target {
         case .nutrition:
-            openMealCameraOrFallback()
+            mealCaptureTrigger += 1
         case .profile:
             showProfile = true
-        }
-    }
-
-    private func openMealCameraOrFallback() {
-        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
-            showMealPhotoLibrary = true
-            return
-        }
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
-        case .authorized:
-            showMealCamera = true
-        case .notDetermined:
-            AVCaptureDevice.requestAccess(for: .video) { granted in
-                DispatchQueue.main.async {
-                    if granted {
-                        showMealCamera = true
-                    } else {
-                        flashGenerateNotice("Camera access is off — choose a photo from your library.")
-                        showMealPhotoLibrary = true
-                    }
-                }
-            }
-        case .denied, .restricted:
-            flashGenerateNotice("Camera access is off — choose a photo from your library.")
-            showMealPhotoLibrary = true
-        @unknown default:
-            showMealPhotoLibrary = true
         }
     }
 
@@ -616,16 +654,19 @@ struct TraineeDashboardView: View {
     /// Pull-to-refresh and offline-banner "Retry" both refresh the same background data.
     private func refreshAll() async {
         if let trainee = store.currentTrainee {
-            await store.refreshDay(for: trainee.id, on: Date())
+            let ok = await store.refreshDay(for: trainee.id, on: Date())
+            isOffline = !ok
         }
         await store.refreshActiveSession()
         await store.loadSandowScore()
     }
 
     private func flashGenerateNotice(_ text: String) {
+        noticeTask?.cancel()
         withAnimation(.snappy(duration: 0.25)) { generateNotice = text }
-        Task {
+        noticeTask = Task {
             try? await Task.sleep(nanoseconds: 2_800_000_000)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 withAnimation(.easeOut(duration: 0.2)) { generateNotice = nil }
             }

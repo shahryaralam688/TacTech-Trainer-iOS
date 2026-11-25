@@ -140,13 +140,16 @@ struct NutritionView: View {
     @State private var barsGrown = false
     @State private var isLoadingHistory = false
     @State private var showHistorySkeleton = false
+    @State private var historyLoadFailed = false
     @State private var summaryByPeriod: [NutHistoryRange: MealSummaryResponse] = [:]
+    @State private var cachedHistoryBuckets: [NutHistoryBucket] = []
     @State private var loadedHistoryDays = 0
 
     @State private var showCamera = false
     @State private var showPhotoLibrary = false
     @State private var capturedPhoto: UIImage?
     @State private var libraryItem: PhotosPickerItem?
+    @State private var pendingPhotoPanel: NutPanelKind?
 
     @Namespace private var searchNS
     @State private var showSearch = false
@@ -162,7 +165,11 @@ struct NutritionView: View {
                 topRadius: { _ in TTSheetChrome.pageTopRadius },
                 pinsBelowCollapsedHeader: true,
                 topAnchorID: "nutTop",
-                onRefresh: { await loadToday() },
+                onRefresh: {
+                    invalidateHistoryCache()
+                    await loadToday()
+                    if tab == .history { await loadHistory() }
+                },
                 header: { progress in header(progress: progress) }
             ) {
                 LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
@@ -195,7 +202,20 @@ struct NutritionView: View {
             .ttSyncRootTabBarWithNavigationDepth()
             .ttToast($toast)
             .task(id: traineeId) { await loadToday() }
-            .sheet(isPresented: $showCamera) {
+            .onChange(of: traineeId) { _, _ in
+                invalidateHistoryCache()
+            }
+            .onChange(of: store.meals.count) { _, _ in
+                if tab == .history {
+                    recomputeHistoryBuckets()
+                }
+            }
+            .sheet(isPresented: $showCamera, onDismiss: {
+                if let pending = pendingPhotoPanel {
+                    pendingPhotoPanel = nil
+                    openPanel(pending)
+                }
+            }) {
                 CameraImagePicker(image: $capturedPhoto)
                     .ignoresSafeArea()
             }
@@ -203,7 +223,12 @@ struct NutritionView: View {
             .onChange(of: capturedPhoto) { _, newValue in
                 guard let image = newValue else { return }
                 capturedPhoto = nil
-                openPanel(.photo(NutPhotoDraft(image: image)))
+                let next = NutPanelKind.photo(NutPhotoDraft(image: image))
+                if showCamera {
+                    pendingPhotoPanel = next
+                } else {
+                    openPanel(next)
+                }
             }
             .onChange(of: libraryItem) { _, item in
                 guard let item else { return }
@@ -211,8 +236,19 @@ struct NutritionView: View {
                     defer { libraryItem = nil }
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        openPanel(.photo(NutPhotoDraft(image: image)))
+                        let next = NutPanelKind.photo(NutPhotoDraft(image: image))
+                        if showPhotoLibrary {
+                            pendingPhotoPanel = next
+                        } else {
+                            openPanel(next)
+                        }
                     }
+                }
+            }
+            .onChange(of: showPhotoLibrary) { _, presented in
+                if !presented, let pending = pendingPhotoPanel {
+                    pendingPhotoPanel = nil
+                    openPanel(pending)
                 }
             }
             .ttSearchOverlay(
@@ -677,7 +713,21 @@ struct NutritionView: View {
         let meals: [Meal]
     }
 
-    private var historyBuckets: [NutHistoryBucket] {
+    private func recomputeHistoryBuckets() {
+        cachedHistoryBuckets = computeHistoryBuckets()
+    }
+
+    private func invalidateHistoryCache() {
+        summaryByPeriod.removeAll()
+        loadedHistoryDays = 0
+        cachedHistoryBuckets = []
+        historyLoadFailed = false
+        if tab == .history {
+            recomputeHistoryBuckets()
+        }
+    }
+
+    private func computeHistoryBuckets() -> [NutHistoryBucket] {
         if let remoteBuckets = summaryByPeriod[historyRange]?.buckets, !remoteBuckets.isEmpty {
             return remoteBuckets.enumerated().map { idx, b in
                 let meals = (b.meals ?? []).filter { !$0.isPlanned }.sorted { $0.eatenAt > $1.eatenAt }
@@ -816,7 +866,7 @@ struct NutritionView: View {
     }
 
     private var historyBody: some View {
-        let buckets = historyBuckets
+        let buckets = cachedHistoryBuckets
         let activeIndex = min(selectedBucketIndex ?? max(0, buckets.count - 1), max(0, buckets.count - 1))
         let selected = buckets.isEmpty ? nil : buckets[activeIndex]
         let nonZero = buckets.filter { $0.avgCalories > 0 }
@@ -843,6 +893,14 @@ struct NutritionView: View {
                 }
                 .redacted(reason: .placeholder)
                 .padding(.top, 10)
+            } else if historyLoadFailed && buckets.allSatisfy({ $0.meals.isEmpty && $0.avgCalories == 0 }) {
+                TTLoadError(
+                    title: "Couldn’t load history",
+                    message: "Check your connection and try again."
+                ) {
+                    Task { await loadHistory() }
+                }
+                .padding(.top, 24)
             } else if let selected {
                 historyHeroCard(buckets: buckets, selectedIndex: activeIndex, selected: selected)
                 historyStatsRow(
@@ -1100,11 +1158,18 @@ struct NutritionView: View {
     }
 
     private func loadHistory() async {
-        guard let id = traineeId else { return }
+        guard let id = traineeId else {
+            recomputeHistoryBuckets()
+            return
+        }
         let range = historyRange
-        if summaryByPeriod[range] != nil { return }
+        if summaryByPeriod[range] != nil {
+            recomputeHistoryBuckets()
+            return
+        }
 
         isLoadingHistory = true
+        historyLoadFailed = false
         var skeletonShownAt: Date?
         let skeletonTask = Task {
             try? await Task.sleep(nanoseconds: 200_000_000)
@@ -1113,11 +1178,18 @@ struct NutritionView: View {
                 showHistorySkeleton = true
             }
         }
+        defer {
+            skeletonTask.cancel()
+            isLoadingHistory = false
+            showHistorySkeleton = false
+        }
 
+        var hadSuccess = false
         if let summary = await store.fetchMealSummary(period: range.apiPeriod),
            !(summary.buckets ?? []).isEmpty {
             if !Task.isCancelled {
                 summaryByPeriod[range] = summary
+                hadSuccess = true
             }
         } else {
             let targetDays = range.fetchDays
@@ -1125,22 +1197,29 @@ struct NutritionView: View {
                 let calendar = Calendar.current
                 let today = calendar.startOfDay(for: Date())
                 let start = loadedHistoryDays
-                await withTaskGroup(of: Void.self) { group in
+                let anyOk = await withTaskGroup(of: Bool.self) { group in
                     for offset in start..<targetDays {
                         guard let dayStart = calendar.date(byAdding: .day, value: -offset, to: today) else { continue }
                         let queryDate = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: dayStart) ?? dayStart
                         group.addTask {
-                            _ = await store.refreshDay(for: id, on: queryDate)
+                            await store.refreshDay(for: id, on: queryDate)
                         }
                     }
+                    var ok = false
+                    for await result in group where result { ok = true }
+                    return ok
                 }
                 if !Task.isCancelled {
-                    loadedHistoryDays = max(loadedHistoryDays, targetDays)
+                    if anyOk {
+                        loadedHistoryDays = max(loadedHistoryDays, targetDays)
+                        hadSuccess = true
+                    }
                 }
+            } else {
+                hadSuccess = true
             }
         }
 
-        skeletonTask.cancel()
         if let shownAt = skeletonShownAt {
             let elapsed = Date().timeIntervalSince(shownAt)
             if elapsed < 0.4 {
@@ -1148,8 +1227,10 @@ struct NutritionView: View {
             }
         }
         if !Task.isCancelled {
-            isLoadingHistory = false
-            showHistorySkeleton = false
+            recomputeHistoryBuckets()
+            if !hadSuccess && cachedHistoryBuckets.allSatisfy({ $0.meals.isEmpty && $0.avgCalories == 0 }) {
+                historyLoadFailed = true
+            }
         }
     }
 
@@ -1171,6 +1252,7 @@ struct NutritionView: View {
         do {
             // The server sets the eaten time to now.
             let updated = try await store.updateMeal(meal, changes: UpdateMealBody(status: "eaten"))
+            invalidateHistoryCache()
             let time = updated.eatenAt.formatted(date: .omitted, time: .shortened)
             toast = TTToastMessage(
                 text: String(format: String(localized: "%@ eaten · %@"), updated.name, time),
@@ -1188,6 +1270,7 @@ struct NutritionView: View {
     private func revert(_ meal: Meal) async {
         do {
             try await store.updateMeal(meal, changes: UpdateMealBody(eatenAt: meal.eatenAt, status: meal.status ?? "eaten"))
+            invalidateHistoryCache()
         } catch {
             toast = errorToast(error, fallback: "Couldn’t save entry")
         }
@@ -1196,6 +1279,7 @@ struct NutritionView: View {
     private func delete(_ meal: Meal) async {
         do {
             try await store.deleteMeal(meal)
+            invalidateHistoryCache()
             toast = TTToastMessage(
                 text: String(format: String(localized: "Deleted %@"), meal.name),
                 style: .success,
@@ -1212,6 +1296,7 @@ struct NutritionView: View {
     private func restore(_ meal: Meal) async {
         do {
             try await store.saveMeal(meal)
+            invalidateHistoryCache()
         } catch {
             toast = errorToast(error, fallback: "Couldn’t save entry")
         }
@@ -1273,17 +1358,17 @@ struct NutritionView: View {
     private func panelContent(_ kind: NutPanelKind, close: @escaping (_ after: (() -> Void)?) -> Void) -> some View {
         switch kind {
         case .add:
-            NutritionEntryContent(editing: nil, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+            NutritionEntryContent(editing: nil, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
         case .addFood(let food):
-            NutritionEntryContent(editing: nil, initialFood: food, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+            NutritionEntryContent(editing: nil, initialFood: food, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
         case .addQuery(let initialQuery):
-            NutritionEntryContent(editing: nil, initialQuery: initialQuery, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+            NutritionEntryContent(editing: nil, initialQuery: initialQuery, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
         case .photo(let photoDraft):
-            NutritionEntryContent(editing: nil, initialPhoto: photoDraft.image, close: close, onSaved: { toast = $0 }, onDelete: { _ in })
+            NutritionEntryContent(editing: nil, initialPhoto: photoDraft.image, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
         case .edit(let meal):
-            NutritionEntryContent(editing: meal, close: close, onSaved: { toast = $0 }, onDelete: { m in Task { await delete(m) } })
+            NutritionEntryContent(editing: meal, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { m in Task { await delete(m) } })
         case .goal:
-            NutritionGoalContent(close: close, onSaved: { toast = $0 })
+            NutritionGoalContent(close: close, onSaved: { toast = $0; invalidateHistoryCache() })
         case .soon:
             NutritionSoonContent(close: close)
         }
@@ -1411,12 +1496,31 @@ private struct NutritionPanelHost<Content: View>: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
     @State private var contentHeight: CGFloat = 400
+    @State private var dragOffset: CGFloat = 0
 
     var body: some View {
         GeometryReader { geo in
             let maxHeight = geo.size.height * 0.92
+            let sheetHeight = min(contentHeight, maxHeight - 23)
+            let isScrollable = contentHeight > maxHeight - 23
+            let dismissDrag = DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                .onChanged { value in
+                    guard value.translation.height > 0,
+                          abs(value.translation.height) > abs(value.translation.width) else { return }
+                    dragOffset = value.translation.height
+                }
+                .onEnded { value in
+                    if value.translation.height > 90 || value.predictedEndTranslation.height > 160 {
+                        close(nil)
+                    } else {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.85)) {
+                            dragOffset = 0
+                        }
+                    }
+                }
+            let dimOpacity = shown ? max(0, 0.45 * (1 - Double(dragOffset / max(200, sheetHeight)))) : 0
             ZStack(alignment: .bottom) {
-                Color.black.opacity(shown ? 0.45 : 0)
+                Color.black.opacity(dimOpacity)
                     .ignoresSafeArea()
                     .contentShape(Rectangle())
                     .onTapGesture { close(nil) }
@@ -1425,7 +1529,10 @@ private struct NutritionPanelHost<Content: View>: View {
                 VStack(spacing: 0) {
                     Capsule().fill(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255))
                         .frame(width: 40, height: 5)
-                        .padding(.top, 8).padding(.bottom, 10)
+                        .padding(.top, 10).padding(.bottom, 12)
+                        .frame(maxWidth: .infinity)
+                        .contentShape(Rectangle())
+                        .gesture(dismissDrag)
                         .accessibilityHidden(true)
                     ScrollView(showsIndicators: false) {
                         content { after in close(after) }
@@ -1439,7 +1546,8 @@ private struct NutritionPanelHost<Content: View>: View {
                     }
                     .scrollBounceBehavior(.basedOnSize)
                     .scrollDismissesKeyboard(.interactively)
-                    .frame(height: min(contentHeight, maxHeight - 23))
+                    .frame(height: sheetHeight)
+                    .simultaneousGesture(dismissDrag, including: isScrollable ? .subviews : .all)
                 }
                 .frame(maxWidth: .infinity)
                 .background(
@@ -1447,7 +1555,7 @@ private struct NutritionPanelHost<Content: View>: View {
                         .fill(Color.white)
                         .ignoresSafeArea(edges: .bottom)
                 )
-                .offset(y: shown ? 0 : geo.size.height)
+                .offset(y: shown ? dragOffset : geo.size.height)
                 .accessibilityAddTraits(.isModal)
             }
         }
@@ -1799,6 +1907,7 @@ private struct NutritionEntryContent: View {
 
     @State private var query = ""
     @State private var remote: FoodKnowledge?
+    @State private var searchTask: Task<Void, Never>?
     @State private var draft: NutDraft?
     @State private var activePhoto: UIImage?
     @State private var photoCategory: NutPhotoCategory = .meal
@@ -1823,7 +1932,7 @@ private struct NutritionEntryContent: View {
         .onAppear {
             now = Date()
             if activePhoto == nil { activePhoto = initialPhoto }
-            if let editing {
+            if let editing, draft == nil {
                 draft = NutDraft.from(meal: editing)
             } else if let initialFood, draft == nil {
                 pick(Self.option(from: initialFood))
@@ -1919,11 +2028,16 @@ private struct NutritionEntryContent: View {
                 .padding(.vertical, 4)
                 .onChange(of: query) { _, value in
                     remote = nil
+                    searchTask?.cancel()
                     let q = value.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard q.count >= 2 else { return }
-                    Task {
+                    searchTask = Task {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                        guard !Task.isCancelled else { return }
                         let found = await store.searchFood(query: q)
-                        if query.trimmingCharacters(in: .whitespacesAndNewlines) == q { remote = found }
+                        if !Task.isCancelled && query.trimmingCharacters(in: .whitespacesAndNewlines) == q {
+                            remote = found
+                        }
                     }
                 }
                 .accessibilityLabel("Search foods and drinks")

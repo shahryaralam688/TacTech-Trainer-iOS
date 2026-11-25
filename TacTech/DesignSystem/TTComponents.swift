@@ -347,11 +347,25 @@ struct TTAvatar: View {
     let name: String
     var size: CGFloat = 48
     var tint: Color = TTColor.brand
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
+    var userId: String? = nil
     @Environment(\.redactionReasons) private var redaction
 
     var body: some View {
         if redaction.contains(.placeholder) {
             Circle().fill(Color.ttSkeletonFill).frame(width: size, height: size)
+        } else if avatarUrl != nil || avatarAsset != nil || userId != nil {
+            TTUserAvatarView(
+                avatarUrl: avatarUrl,
+                avatarAsset: avatarAsset,
+                userId: userId,
+                name: name,
+                size: size,
+                shape: .circle,
+                initialsForeground: tint,
+                initialsBackground: tint.opacity(0.16)
+            )
         } else {
             avatar
         }
@@ -857,13 +871,7 @@ private struct TTTopRoundedSheetModifier: ViewModifier {
                     )
                     .allowsHitTesting(false)
             }
-            // Canvas fill behind clipped content — no bottom safe-area gap.
-            .background {
-                shape
-                    .fill(fill)
-                    .ignoresSafeArea(edges: .bottom)
-            }
-            // Upward contact shadow onto the black/charcoal header.
+            // Canvas fill + upward contact shadow onto the black/charcoal header (single background pass).
             .background {
                 shape
                     .fill(fill)
@@ -1271,6 +1279,7 @@ enum PerfTemp { // PERF-TEMP
 
     /// Signpost interval that starts now and ends after `seconds` (the animation's nominal length).
     nonisolated static func interval(_ name: StaticString, seconds: TimeInterval) {
+        guard raw(.fpsMeter) else { return }
         let label = "\(name)"
         DispatchQueue.main.async { MainActor.assumeIsolated { PerfMeter.shared.beginMoment(label, seconds: seconds) } }
         let state = signposter.beginInterval(name, id: signposter.makeSignpostID())
@@ -1764,7 +1773,7 @@ final class PlusTapProbe { // PERF-TEMP
             window.addGestureRecognizer(r)
             recognizer = r
             installedWindow = window
-        } else if !on {
+        } else {
             remove()
         }
     }

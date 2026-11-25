@@ -126,7 +126,12 @@ struct JoinRequestsView: View {
         let busy = busyId == request.id
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
-                TTAvatar(name: name, size: 48)
+                TTAvatar(
+                    name: name,
+                    size: 48,
+                    avatarUrl: request.trainee?.avatarUrl,
+                    userId: request.trainee?.id
+                )
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
                         .font(TTFont.workSans(16, weight: .bold))

@@ -444,7 +444,13 @@ struct MyTraineesView: View {
         let plan = store.assignedPlan(for: trainee)
 
         return HStack(spacing: TTCardTokens.listSpacing) {
-            TTAvatar(name: user?.name ?? "T", size: TTCardTokens.thumbSize)
+            TTAvatar(
+                name: user?.name ?? "T",
+                size: TTCardTokens.thumbSize,
+                avatarUrl: user?.avatarUrl,
+                avatarAsset: user?.avatarAsset,
+                userId: user?.id
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(user?.name ?? "Trainee")
@@ -514,15 +520,21 @@ struct MyTraineesView: View {
         .foregroundStyle(color)
     }
 
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        formatter.unitsStyle = .full
+        return formatter
+    }()
+
     /// "yesterday" / "3 days ago" from the system formatter, so plurals and word order follow the app language.
     /// Display only; the status itself comes from `TraineeTodayStatus`.
     private func lastWorkoutRelative(_ trainee: TraineeProfile) -> String? {
         guard let last = store.logs(for: trainee.id).map(\.completedAt).max() else { return nil }
         let cal = Calendar.current
-        let formatter = RelativeDateTimeFormatter()
-        formatter.dateTimeStyle = .named
-        formatter.unitsStyle = .full
-        formatter.locale = LocalizationController.shared.locale
+        let formatter = Self.relativeDateFormatter
+        let locale = LocalizationController.shared.locale
+        if formatter.locale != locale { formatter.locale = locale }
         return formatter.localizedString(for: cal.startOfDay(for: last), relativeTo: cal.startOfDay(for: Date()))
     }
 

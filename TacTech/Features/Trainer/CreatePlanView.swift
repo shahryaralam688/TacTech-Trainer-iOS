@@ -65,6 +65,7 @@ struct CreatePlanView: View {
     @State private var showLeaveConfirm = false
     @State private var showSessionTips = false
     @State private var didHydrate = false
+    @State private var isHydrating = false
     @State private var showNotes = false
     @State private var hasChanges = false
     @State private var savedPlan: WorkoutPlan? = nil
@@ -373,11 +374,11 @@ struct CreatePlanView: View {
 
             labeledField("Plan title", "Required", text: $title, prompt: "e.g. 4-day strength block")
                 .onChange(of: title) { _, _ in
-                    if !isEditing { hasChanges = true }
+                    if !isHydrating { hasChanges = true }
                 }
             labeledField("Focus", "Required", text: $focus, prompt: "e.g. Hypertrophy")
                 .onChange(of: focus) { _, _ in
-                    if !isEditing { hasChanges = true }
+                    if !isHydrating { hasChanges = true }
                 }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -402,7 +403,7 @@ struct CreatePlanView: View {
                     }
                 }
                 .onChange(of: level) { _, _ in
-                    if !isEditing { hasChanges = true }
+                    if !isHydrating { hasChanges = true }
                 }
             }
 
@@ -414,7 +415,7 @@ struct CreatePlanView: View {
                     axis: .vertical
                 )
                 .onChange(of: notes) { _, _ in
-                    if !isEditing { hasChanges = true }
+                    if !isHydrating { hasChanges = true }
                 }
             } else {
                 Button {
@@ -654,10 +655,14 @@ struct CreatePlanView: View {
     }
 
     private func sessionTitleForDay(_ day: Weekday) -> String {
-        let sortedDays = selectedDays.sorted { $0.sortIndex < $1.sortIndex }
-        guard let index = sortedDays.firstIndex(of: day) else { return "" }
+        let existingTitles = Set(sessions.values.map(\.title))
         let letters = ["A", "B", "C", "D", "E", "F", "G"]
-        return "Session \(letters[index % letters.count])"
+        if let available = letters.map({ "Session \($0)" }).first(where: { !existingTitles.contains($0) }) {
+            return available
+        }
+        let sortedDays = selectedDays.sorted { $0.sortIndex < $1.sortIndex }
+        let index = sortedDays.firstIndex(of: day) ?? sessions.count
+        return "Session \(index + 1)"
     }
 
     private var daysMissingTitleOrFocus: [Weekday] {
@@ -752,6 +757,7 @@ struct CreatePlanView: View {
     private func hydrateFromEditingPlanIfNeeded() {
         guard !didHydrate, let plan = editingPlan else { return }
         didHydrate = true
+        isHydrating = true
         title = plan.title
         focus = plan.focus
         level = plan.level.isEmpty ? "Intermediate" : plan.level
@@ -762,7 +768,10 @@ struct CreatePlanView: View {
         sessions = uniqueDays.mapValues { SessionDraft(from: $0) }
         hasChanges = false
         // onChange handlers fire after this pass — reset again once they've run.
-        DispatchQueue.main.async { hasChanges = false }
+        DispatchQueue.main.async {
+            isHydrating = false
+            hasChanges = false
+        }
     }
 }
 
@@ -774,6 +783,7 @@ private func pickerOptions(_ base: [Int], including value: Int) -> [Int] {
 // MARK: - Drafts
 
 struct SessionDraft {
+    var sourceId: String? = nil
     var day: Weekday
     var time = Calendar.current.date(bySettingHour: 7, minute: 30, second: 0, of: Date()) ?? Date()
     var title = ""
@@ -791,6 +801,7 @@ struct SessionDraft {
     }
 
     init(from planDay: PlanDay) {
+        sourceId = planDay.id
         day = planDay.weekday
         time = Date.fromHHMM(planDay.startTime) ?? Calendar.current.date(bySettingHour: 7, minute: 30, second: 0, of: Date()) ?? Date()
         title = planDay.title
@@ -805,7 +816,7 @@ struct SessionDraft {
 
     func asPlanDay() -> PlanDay {
         PlanDay(
-            id: UUID().uuidString,
+            id: sourceId ?? UUID().uuidString,
             weekday: day,
             startTime: time.hhmm,
             title: title.isEmpty ? "\(day.title) session" : title,
@@ -822,6 +833,7 @@ struct SessionDraft {
 
 struct ExerciseDraft: Identifiable {
     var id = UUID()
+    var sourceId: String? = nil
     var exerciseId: String
     /// Saved template label shown as subtitle under the exercise name.
     var templateName: String = ""
@@ -855,10 +867,11 @@ struct ExerciseDraft: Identifiable {
             }
         } else {
             builtRows = sourceRows.map {
-                SetDraft(setNumber: $0.setNumber, reps: $0.reps, weight: $0.weightKg ?? workingWeight)
+                SetDraft(sourceId: $0.id, setNumber: $0.setNumber, reps: $0.reps, weight: $0.weightKg ?? workingWeight)
             }
         }
 
+        sourceId = exercise.id
         exerciseId = exercise.exerciseId
         sets = builtRows.count <= 0 ? 4 : builtRows.count
         reps = workingReps <= 0 ? 8 : workingReps
@@ -893,7 +906,7 @@ struct ExerciseDraft: Identifiable {
 
     func asExercise() -> WorkoutExercise {
         WorkoutExercise(
-            id: UUID().uuidString,
+            id: sourceId ?? UUID().uuidString,
             exerciseId: exerciseId,
             sets: sets,
             reps: reps,
@@ -904,7 +917,7 @@ struct ExerciseDraft: Identifiable {
             notes: howTo,
             side: side,
             prescribedSets: setRows.map {
-                PrescribedSet(id: UUID().uuidString, setNumber: $0.setNumber, reps: $0.reps, weightKg: $0.weight, rpe: rpe)
+                PrescribedSet(id: $0.sourceId ?? UUID().uuidString, setNumber: $0.setNumber, reps: $0.reps, weightKg: $0.weight, rpe: rpe)
             }
         )
     }
@@ -912,6 +925,7 @@ struct ExerciseDraft: Identifiable {
 
 struct SetDraft: Identifiable {
     var id = UUID()
+    var sourceId: String? = nil
     var setNumber: Int
     var reps: Int
     var weight: Double
@@ -980,52 +994,61 @@ struct SessionEditor: View {
     // MARK: Header
 
     private var dayHeader: some View {
-        Button {
-            withAnimation(morph) { isExpanded.toggle() }
-        } label: {
-            HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(orange.opacity(0.14))
-                    TTIcon(icon: .calendar1, filled: true, size: 16)
-                        .foregroundStyle(orange)
-                }
-                .frame(width: 42, height: 42)
+        HStack(spacing: 12) {
+            Button {
+                withAnimation(morph) { isExpanded.toggle() }
+            } label: {
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(orange.opacity(0.14))
+                        TTIcon(icon: .calendar1, filled: true, size: 16)
+                            .foregroundStyle(orange)
+                    }
+                    .frame(width: 42, height: 42)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Text(day.title)
-                            .font(TTFont.workSans(17, weight: .bold))
-                            .foregroundStyle(TTColor.ink)
-                        if draft.exercises.isEmpty {
-                            Image(systemName: "exclamationmark.circle.fill")
-                                .foregroundStyle(orange)
-                                .font(.system(size: 16))
-                                .accessibilityLabel("\(day.title), no exercises yet")
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(spacing: 6) {
+                            Text(day.title)
+                                .font(TTFont.workSans(17, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                            if draft.exercises.isEmpty {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .foregroundStyle(orange)
+                                    .font(.system(size: 16))
+                                    .accessibilityLabel("\(day.title), no exercises yet")
+                            }
                         }
+                        Text(sessionSubtitle)
+                            .font(TTFont.caption(12))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .lineLimit(1)
                     }
-                    Text(sessionSubtitle)
-                        .font(TTFont.caption(12))
-                        .foregroundStyle(TTColor.inkMuted)
-                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
                 }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Collapse \(day.title)" : "Expand \(day.title)")
 
-                Spacer(minLength: 8)
-
-                Button(action: addExercise) {
-                    HStack(spacing: 5) {
-                        TTIcon(icon: .plus, filled: true, size: 11)
-                        Text("Add")
-                            .font(TTFont.workSans(12, weight: .bold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 10)
-                    .frame(height: 32)
-                    .background(orange)
-                    .clipShape(Capsule())
+            Button(action: addExercise) {
+                HStack(spacing: 5) {
+                    TTIcon(icon: .plus, filled: true, size: 11)
+                    Text("Add")
+                        .font(TTFont.workSans(12, weight: .bold))
                 }
-                .buttonStyle(TTSearchPressStyle(scale: 0.96))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .frame(height: 32)
+                .background(orange)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(TTSearchPressStyle(scale: 0.96))
 
+            Button {
+                withAnimation(morph) { isExpanded.toggle() }
+            } label: {
                 ZStack {
                     Circle()
                         .fill(Color.white)
@@ -1035,11 +1058,10 @@ struct SessionEditor: View {
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
             }
-            .padding(14)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(isExpanded ? "Collapse \(day.title)" : "Expand \(day.title)")
+        .padding(14)
     }
 
     private var collapsedExercisePreview: some View {

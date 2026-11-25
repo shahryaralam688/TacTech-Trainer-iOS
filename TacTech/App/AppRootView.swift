@@ -187,13 +187,19 @@ struct AppRootView: View {
             launchWaitedTooLong = true
         }
         .task(id: autoRetryKey) { await runAutoRetry() }
-        // Back online or back in the foreground while the failure screen is up: retry right away.
+        // Back online or back in the foreground: retry launch error screen OR quietly sync an offline-entered session.
         .onReceive(NotificationCenter.default.publisher(for: .ttNetworkBecameReachable)) { _ in
+            if store.needsOfflineSync {
+                store.syncAfterReconnectIfNeeded()
+            }
             guard showsConnectionError, store.launchConnectionFailed else { return }
             autoRetryCount = 0
             startRetry()
         }
         .onChange(of: scenePhase) { _, phase in
+            if phase == .active, store.needsOfflineSync {
+                store.syncAfterReconnectIfNeeded()
+            }
             guard phase == .active, showsConnectionError, store.launchConnectionFailed, store.launchFailure == .offline else { return }
             startRetry()
         }

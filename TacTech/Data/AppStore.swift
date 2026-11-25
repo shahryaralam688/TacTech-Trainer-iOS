@@ -29,6 +29,8 @@ final class AppStore {
     var launchConnectionFailed = false
     /// Why the launch restore failed (offline / server unreachable / server error). Set together with `launchConnectionFailed`.
     var launchFailure: LaunchFailure?
+    /// Set when cold launch entered offline / with backend unreachable so the store re-syncs once connectivity returns.
+    var needsOfflineSync = false
     var assessmentCompleted = false
     var profileSetupCompleted = false
     /// Interactive login/signup in flight — keep auth UI until gates + workspace resolve (no splash replay).
@@ -75,6 +77,8 @@ final class AppStore {
     /// The trainee profile currently open, if any (set by that screen).
     var openTraineeProfileId: String?
     @ObservationIgnored private var liveSessionSyncTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionFetchGeneration = 0
+    @ObservationIgnored private var backgroundRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var pendingLiveCompletedFor: Set<String> = []
     /// In-flight Finish call (guards against double finish).
     @ObservationIgnored private var completeWorkoutTask: Task<Void, Error>?
@@ -135,17 +139,44 @@ final class AppStore {
     init() {
         pendingBoostCheckout = Self.loadPendingBoost()
         TTNetworkMonitor.startIfNeeded()   // so `LaunchFailure` can tell "offline" from "server unreachable"
+        hydrateOfflineWorkspaceIfAvailable()
         startRestore()
     }
 
     /// The launch restore currently running (cancelled and replaced by `retryLaunchRestore`), and its watchdog.
     @ObservationIgnored private var restoreTask: Task<Void, Never>?
     @ObservationIgnored private var restoreWatchdog: Task<Void, Never>?
+    @ObservationIgnored private var offlineGraceTask: Task<Void, Never>?
+    @ObservationIgnored private var snapshotSaveTask: Task<Void, Never>?
+    @ObservationIgnored private var reconnectSyncTask: Task<Void, Never>?
 
     /// Starts exactly one restore (any earlier one is cancelled first) with a hard cap on its total time.
     private func startRestore() {
         restoreTask?.cancel()
         restoreWatchdog?.cancel()
+        offlineGraceTask?.cancel()
+
+        // Offline with a cached/JWT session: let the user straight into the app without waiting on doomed requests.
+        if session != nil && !TTNetworkMonitor.isOnline {
+            launchConnectionFailed = false
+            launchFailure = nil
+            isRestoringSession = false
+            needsOfflineSync = true
+            return
+        }
+
+        // Online (e.g. Wi-Fi connected) with a cached/JWT session, but backend may be down or slow:
+        // cap splash wait to 1.5s so the app still opens smoothly while sync continues in the background.
+        if session != nil {
+            offlineGraceTask = Task { [weak self] in
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled, let self, self.isRestoringSession, self.session != nil else { return }
+                self.launchConnectionFailed = false
+                self.launchFailure = nil
+                self.isRestoringSession = false
+            }
+        }
+
         let task = Task {
             await AuthTokenRefresher.shared.cancelInFlightRefresh()
             await restoreIfNeeded()
@@ -153,11 +184,18 @@ final class AppStore {
         restoreTask = task
         restoreWatchdog = Task { [weak self] in
             try? await Task.sleep(for: TTNetworkTiming.restoreOverallLimit)
-            guard !Task.isCancelled, let self, self.isRestoringSession, !self.launchConnectionFailed else { return }
-            // Still running after the cap (many calls in a row, each close to its limit): report it as unreachable.
+            guard !Task.isCancelled, let self else { return }
             task.cancel()
-            self.launchFailure = TTNetworkMonitor.isOnline ? .unreachable : .offline
-            self.launchConnectionFailed = true
+            if self.session != nil {
+                self.needsOfflineSync = true
+                self.launchConnectionFailed = false
+                self.launchFailure = nil
+                self.isRestoringSession = false
+            } else if self.isRestoringSession, !self.launchConnectionFailed {
+                // Still running after the cap with no local session: report it as unreachable/offline.
+                self.launchFailure = TTNetworkMonitor.isOnline ? .unreachable : .offline
+                self.launchConnectionFailed = true
+            }
         }
     }
 
@@ -196,22 +234,55 @@ final class AppStore {
             await AuthTokenRefresher.shared.scheduleProactiveRefresh()
             await LocalizationController.shared.pullFromServer()
             try Task.checkCancellation()
+            needsOfflineSync = false
             launchConnectionFailed = false
             launchFailure = nil
             isRestoringSession = false
+            offlineGraceTask?.cancel()
             restoreWatchdog?.cancel()
+            scheduleSaveOfflineSnapshot()
         } catch {
             // Superseded by a Retry: the new attempt owns the state.
             if Task.isCancelled { return }
+            offlineGraceTask?.cancel()
+            restoreWatchdog?.cancel()
             if TokenStore.accessToken() == nil && TokenStore.refreshToken() == nil {
                 // The server really rejected the sign-in (401 after a refresh already cleared the tokens): sign out.
                 clearLocalSession()
                 isRestoringSession = false
+            } else if session != nil {
+                // Offline, timeout, or backend down while we have a local/JWT session: enter the app and sync later.
+                needsOfflineSync = true
+                launchConnectionFailed = false
+                launchFailure = nil
+                isRestoringSession = false
             } else {
-                // No connection, timeout or a server error: NEVER sign the user out and keep the tokens.
+                // No connection, timeout or a server error with no local session: keep tokens and offer Retry.
                 launchFailure = LaunchFailure.classify(error).flatMap { $0 == .unauthorized ? nil : $0 } ?? .unreachable
                 launchConnectionFailed = true
-                restoreWatchdog?.cancel()
+            }
+        }
+    }
+
+    /// Quietly syncs the session in the background once network/backend comes back after an offline launch.
+    func syncAfterReconnectIfNeeded() {
+        guard needsOfflineSync, session != nil, !isRestoringSession else { return }
+        guard reconnectSyncTask == nil else { return }
+        needsOfflineSync = false
+        reconnectSyncTask = Task { [weak self] in
+            defer { self?.reconnectSyncTask = nil }
+            guard let self else { return }
+            do {
+                try await AuthTokenRefresher.shared.refreshIfExpiring()
+                try await self.refreshSession()
+                self.refreshAssessmentFlag()
+                self.scheduleSaveOfflineSnapshot()
+            } catch {
+                if TokenStore.accessToken() == nil && TokenStore.refreshToken() == nil {
+                    self.clearLocalSession()
+                } else if self.session != nil {
+                    self.needsOfflineSync = true
+                }
             }
         }
     }
@@ -496,6 +567,7 @@ final class AppStore {
         if let trainee = me.trainee {
             upsertTraineePreservingCoachLink(trainee)
         }
+        scheduleSaveOfflineSnapshot()
     }
 
     func submitAssessment(_ draft: FitnessAssessment) async throws {
@@ -1347,7 +1419,16 @@ final class AppStore {
                 upsert(user.asUser())
             } else if let name = trainerPayload.name,
                       let userId = trainerPayload.userId ?? trainerPayload.profile?.userId {
-                upsert(User(id: userId, name: name, email: trainerPayload.email ?? "", password: "", role: .trainer, createdAt: .now))
+                upsert(User(
+                    id: userId,
+                    name: name,
+                    email: trainerPayload.email ?? "",
+                    password: "",
+                    role: .trainer,
+                    createdAt: .now,
+                    avatarUrl: trainerPayload.avatarUrl,
+                    avatarAsset: trainerPayload.avatarAsset
+                ))
             }
             if let profile = trainerPayload.profile, var trainee = currentTrainee {
                 trainee.trainerId = profile.id
@@ -1367,14 +1448,15 @@ final class AppStore {
     /// Fetches the active session and updates `activeWorkoutSession`. Safe to call on every Home appear.
     func refreshActiveSession() async {
         guard !isLoadingSession else { return }
+        let generation = sessionFetchGeneration
         isLoadingSession = true
         defer { isLoadingSession = false }
         // On a thrown error keep the current session; clear only when the server answered "none".
         // (do/catch, not `try?`: `try?` would flatten "none" and "failed" into the same nil.)
         let result: WorkoutSession?
         do { result = try await api.activeSessionThrowing() } catch { return }
-        // A Finish that completed while this request was in flight must not be undone by a stale answer.
-        if completeWorkoutTask != nil { return }
+        // A Finish / start / discard / logout that happened while this request was in flight must not be undone by a stale answer.
+        guard generation == sessionFetchGeneration, completeWorkoutTask == nil else { return }
         activeWorkoutSession = result
     }
 
@@ -1383,6 +1465,7 @@ final class AppStore {
         isLoadingSession = true
         defer { isLoadingSession = false }
         let session = try await api.startSession(WorkoutSessionBody(planId: planId, dayId: dayId))
+        sessionFetchGeneration &+= 1
         activeWorkoutSession = session
         return session
     }
@@ -1425,6 +1508,7 @@ final class AppStore {
     private func performCompleteWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
         let log = try await api.completeSession(sessionId: sessionId, CompleteSessionBody(durationMinutes: durationMinutes))
         // Server confirmed: the workout is finished from here on.
+        sessionFetchGeneration &+= 1
         activeWorkoutSession = nil
         if let log { upsert(log) }
         // A failed refetch is not a failed workout — keep what we have and carry on.
@@ -1438,6 +1522,7 @@ final class AppStore {
         isLoadingSession = true
         defer { isLoadingSession = false }
         try await api.discardSession(sessionId: sessionId)
+        sessionFetchGeneration &+= 1
         activeWorkoutSession = nil
     }
 
@@ -1464,7 +1549,10 @@ final class AppStore {
         var meal = meal
         var uploadedURL: String?
         if let photo {
-            guard let jpeg = CoachImageEncoder.jpegData(from: photo) else {
+            let jpeg = await Task.detached(priority: .userInitiated) {
+                CoachImageEncoder.jpegData(from: photo)
+            }.value
+            guard let jpeg else {
                 throw AppError.validation(String(localized: "Couldn’t prepare this photo."))
             }
             if jpeg.count > 5 * 1024 * 1024 {
@@ -1508,7 +1596,10 @@ final class AppStore {
     /// Uploads a meal photo (`POST /trainee/meals/photo`) and runs AI analysis (`POST /trainee/meals/analyze`).
     /// If upload or analysis fails (or returns unclear/null), returns whatever succeeded without throwing.
     func uploadAndAnalyzeMealPhoto(_ photo: UIImage) async -> (photoUrl: String?, analysis: MealAnalyzeResponse?) {
-        guard let jpeg = CoachImageEncoder.jpegData(from: photo), jpeg.count <= 5 * 1024 * 1024 else {
+        let jpeg = await Task.detached(priority: .userInitiated) {
+            CoachImageEncoder.jpegData(from: photo)
+        }.value
+        guard let jpeg, jpeg.count <= 5 * 1024 * 1024 else {
             return (nil, nil)
         }
         guard let upload = try? await api.uploadMealPhoto(fileData: jpeg) else {
@@ -1525,6 +1616,7 @@ final class AppStore {
     func deleteMeal(_ meal: Meal) async throws {
         try await api.deleteMeal(id: meal.id)
         meals.removeAll { $0.id == meal.id }
+        macrosByKey.removeValue(forKey: macroKey(meal.traineeId, on: meal.eatenAt))
     }
 
     /// PATCH /trainee/meals/{id}. Throws on failure; the local list is updated from the server's answer.
@@ -1542,6 +1634,8 @@ final class AppStore {
             if let v = changes.detail { local.detail = v }
         }
         upsert(local)
+        macrosByKey.removeValue(forKey: macroKey(meal.traineeId, on: meal.eatenAt))
+        macrosByKey.removeValue(forKey: macroKey(local.traineeId, on: local.eatenAt))
         return local
     }
 
@@ -1954,10 +2048,7 @@ final class AppStore {
             }
         }
 
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
+        let formatter = Self.sandowLocalDayFormatter
 
         return dates.map { day in
             let key = formatter.string(from: day)
@@ -1966,13 +2057,25 @@ final class AppStore {
         }
     }
 
-    private static func shortLabel(forDateKey key: String, period: SandowScorePeriod, date: Date? = nil) -> String {
-        let calendar = Calendar.current
+    private static let sandowLocalDayFormatter: DateFormatter = {
         let formatter = DateFormatter()
-        formatter.calendar = calendar
+        formatter.calendar = Calendar.current
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
-        let resolved = date ?? formatter.date(from: key) ?? Date()
+        return formatter
+    }()
+
+    private static let sandowGregorianDayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static func shortLabel(forDateKey key: String, period: SandowScorePeriod, date: Date? = nil) -> String {
+        let calendar = Calendar.current
+        let resolved = date ?? sandowLocalDayFormatter.date(from: key) ?? Date()
         switch period {
         case .week:
             return Weekday.from(date: resolved).short
@@ -1984,11 +2087,7 @@ final class AppStore {
     private static func mapSandowPoints(_ points: [SandowScorePoint]) -> [TTSandowDayScore] {
         points.map { point in
             let weekday: Weekday? = {
-                let formatter = DateFormatter()
-                formatter.calendar = Calendar(identifier: .gregorian)
-                formatter.locale = Locale(identifier: "en_US_POSIX")
-                formatter.dateFormat = "yyyy-MM-dd"
-                if let date = formatter.date(from: point.date) {
+                if let date = sandowGregorianDayFormatter.date(from: point.date) {
                     return Weekday.from(date: date)
                 }
                 let lower = point.label.lowercased()
@@ -2186,22 +2285,16 @@ final class AppStore {
                     macrosByKey[macroKey(traineeId, on: date)] = macros
                 }
             } else if currentTrainee?.id == traineeId {
-                // The server cuts days at UTC midnight, the app at local midnight. Ask for every UTC day the local
-                // day touches and replace exactly that window (a plain `on=` query dropped the meals logged
-                // after local midnight but before the UTC date changed).
                 let cal = Calendar.current
                 let dayStart = cal.startOfDay(for: date)
-                let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart)?.addingTimeInterval(-1) ?? date
-                var utc = Calendar(identifier: .gregorian)
-                utc.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
-                let windowStart = utc.startOfDay(for: dayStart)
-                let windowEnd = (utc.date(byAdding: .day, value: 1, to: utc.startOfDay(for: dayEnd)) ?? dayEnd).addingTimeInterval(-0.001)
+                let dayEnd = (cal.date(byAdding: .day, value: 1, to: dayStart) ?? date).addingTimeInterval(-0.001)
                 let remoteMeals = try await api.traineeMeals(from: dayStart, to: dayEnd)
-                replaceMeals(remoteMeals, traineeId: traineeId, window: windowStart...windowEnd)
+                replaceMeals(remoteMeals, traineeId: traineeId, window: dayStart...dayEnd)
                 if let macros = try? await api.traineeMacros(on: date) {
                     macrosByKey[macroKey(traineeId, on: date)] = macros
                 }
             }
+            scheduleSaveOfflineSnapshot()
             return true
         } catch {
             if let error = error as? AppError, error == .unauthorized {
@@ -2231,7 +2324,7 @@ final class AppStore {
             )
             refreshAssessmentFlag()
         } catch {
-            if session == nil { throw error }
+            throw error
         }
 
         exercises = try await launchAPI.exercises()
@@ -2240,18 +2333,21 @@ final class AppStore {
         } else {
             try await loadTraineeWorkspace()
         }
+        scheduleSaveOfflineSnapshot()
 
         // Everything below is non-critical for the first screen. Running it in the
         // background lets the splash clear as soon as Home has what it needs, instead
         // of blocking the launch on entitlements / AI / avatar / boost round-trips.
         let role = session?.role
-        Task { [weak self] in
-            guard let self else { return }
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = Task { [weak self] in
+            guard let self, !Task.isCancelled else { return }
             if role == .trainer {
                 await self.fetchTrainerJoinRequests()
             } else {
                 await self.refreshTraineeJoinState()
             }
+            guard !Task.isCancelled, self.session != nil else { return }
             await self.refreshEntitlements()
             await self.refreshAIEntitlements()
             await self.refreshAICapabilities()
@@ -2260,6 +2356,7 @@ final class AppStore {
             if role == .trainer {
                 await self.refreshMyBoost()
             }
+            guard !Task.isCancelled, self.session != nil else { return }
             AIStoreKitService.shared.startListeningForUpdates()
         }
     }
@@ -2857,15 +2954,19 @@ final class AppStore {
 
     private func loadTraineeWorkspace() async throws {
         await enrichTraineeTrainerFromServer(allowClearOnNotFound: !isSyncingCoachLink)
-        if var plan = try? await launchAPI.assignedPlan(), let trainee = currentTrainee {
-            if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                plan.source = plan.resolvedSource
+        do {
+            if var plan = try await launchAPI.assignedPlan(), let trainee = currentTrainee {
+                if (plan.source ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    plan.source = plan.resolvedSource
+                }
+                upsert(plan)
+                assignments.removeAll { $0.traineeId == trainee.id }
+                assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
+            } else if let trainee = currentTrainee {
+                clearOrRetainLocalPlanAssignment(for: trainee)
             }
-            upsert(plan)
-            assignments.removeAll { $0.traineeId == trainee.id }
-            assignments.append(PlanAssignment(id: UUID().uuidString, planId: plan.id, traineeId: trainee.id, assignedAt: .now))
-        } else if let trainee = currentTrainee {
-            clearOrRetainLocalPlanAssignment(for: trainee)
+        } catch {
+            // Keep existing local assignment on transient network errors.
         }
         if let logs = try? await launchAPI.traineeLogs(), let trainee = currentTrainee {
             replaceLogs(logs, traineeId: trainee.id)
@@ -2935,6 +3036,7 @@ final class AppStore {
         // Set session only after gate flags are known, then materialize UI flags immediately.
         session = Session(userId: response.user.id, role: response.user.role)
         refreshAssessmentFlag()
+        scheduleSaveOfflineSnapshot()
     }
 
     private func apply(traineeItems items: [TraineeListItem]) {
@@ -2950,7 +3052,9 @@ final class AppStore {
                         email: item.email ?? "",
                         password: "",
                         role: .trainee,
-                        createdAt: .now
+                        createdAt: .now,
+                        avatarUrl: item.avatarUrl,
+                        avatarAsset: item.avatarAsset
                     )
                 )
             }
@@ -2964,13 +3068,19 @@ final class AppStore {
 
     private func upsert(_ user: User) {
         if let index = users.firstIndex(where: { $0.id == user.id }) {
-            users[index] = user
+            var merged = user
+            if merged.avatarUrl == nil { merged.avatarUrl = users[index].avatarUrl }
+            if merged.avatarAsset == nil { merged.avatarAsset = users[index].avatarAsset }
+            users[index] = merged
         } else {
             users.append(user)
         }
     }
 
     private func upsert(_ trainer: TrainerProfile) {
+        if !trainer.id.hasPrefix("offline-") {
+            trainers.removeAll { $0.userId == trainer.userId && $0.id.hasPrefix("offline-") }
+        }
         if let index = trainers.firstIndex(where: { $0.id == trainer.id }) {
             trainers[index] = trainer
         } else {
@@ -2979,6 +3089,9 @@ final class AppStore {
     }
 
     private func upsert(_ trainee: TraineeProfile) {
+        if !trainee.id.hasPrefix("offline-") {
+            trainees.removeAll { $0.userId == trainee.userId && $0.id.hasPrefix("offline-") }
+        }
         if let index = trainees.firstIndex(where: { $0.id == trainee.id }) {
             trainees[index] = trainee
         } else {
@@ -3087,10 +3200,48 @@ final class AppStore {
     }
 
     private func clearLocalSession() {
+        restoreTask?.cancel()
+        restoreTask = nil
+        restoreWatchdog?.cancel()
+        restoreWatchdog = nil
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
+        restoreTask?.cancel()
+        restoreTask = nil
+        restoreWatchdog?.cancel()
+        restoreWatchdog = nil
+        offlineGraceTask?.cancel()
+        offlineGraceTask = nil
+        snapshotSaveTask?.cancel()
+        snapshotSaveTask = nil
+        reconnectSyncTask?.cancel()
+        reconnectSyncTask = nil
+        needsOfflineSync = false
+        Self.removeOfflineWorkspaceSnapshot()
+        coachMemorySyncTask?.cancel()
+        coachMemorySyncTask = nil
+        liveSessionSyncTask?.cancel()
+        liveSessionSyncTask = nil
+        completeWorkoutTask?.cancel()
+        completeWorkoutTask = nil
+        relationshipReconcileTask?.cancel()
+        relationshipReconcileTask = nil
+        traineeCoachLinkSyncTask?.cancel()
+        traineeCoachLinkSyncTask = nil
+        planAssignmentSyncTask?.cancel()
+        planAssignmentSyncTask = nil
+        sessionFetchGeneration &+= 1
+        activeWorkoutSession = nil
+        isLoadingSession = false
+        liveSessionByTrainee = [:]
+        openTraineeProfileId = nil
+        pendingLiveCompletedFor = []
+        isSyncingCoachLink = false
         pendingJoinRequest = nil
         trainerJoinRequests = []
         Task { await AuthTokenRefresher.shared.cancelProactiveRefresh() }
         TokenStore.clear()
+        HumanChatStore.shared.resetSession()
         session = nil
         isBootstrappingSession = false
         users = []
@@ -3125,6 +3276,177 @@ final class AppStore {
         sandowScore = nil
         sandowPeriod = .week
         isLoadingSandowScore = false
+    }
+
+    // MARK: - Offline launch workspace cache
+
+    private struct OfflineWorkspaceSnapshot: Codable {
+        var session: Session
+        var users: [User]
+        var trainers: [TrainerProfile]
+        var trainees: [TraineeProfile]
+        var exercises: [Exercise]
+        var plans: [WorkoutPlan]
+        var assignments: [PlanAssignment]
+        var workoutLogs: [WorkoutLog]
+        var meals: [Meal]
+        var feedback: [TrainerFeedback]
+        var formReports: [FormReport]
+        var assessmentCompleted: Bool
+        var profileSetupCompleted: Bool
+        var remoteAvatarURL: String?
+        var remoteAvatarAsset: String?
+    }
+
+    nonisolated private static var offlineSnapshotURL: URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let dir = base.appendingPathComponent("TacTech", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("offline_workspace_v1.json")
+    }
+
+    nonisolated private static func removeOfflineWorkspaceSnapshot() {
+        try? FileManager.default.removeItem(at: offlineSnapshotURL)
+    }
+
+    private func scheduleSaveOfflineSnapshot() {
+        guard let session else { return }
+        UserDefaults.standard.set(session.role.rawValue, forKey: "last.session.role.\(session.userId)")
+        let snapshot = OfflineWorkspaceSnapshot(
+            session: session,
+            users: users,
+            trainers: trainers,
+            trainees: trainees,
+            exercises: exercises,
+            plans: plans,
+            assignments: assignments,
+            workoutLogs: workoutLogs,
+            meals: meals,
+            feedback: feedback,
+            formReports: formReports,
+            assessmentCompleted: assessmentCompleted,
+            profileSetupCompleted: profileSetupCompleted,
+            remoteAvatarURL: remoteAvatarURL,
+            remoteAvatarAsset: remoteAvatarAsset
+        )
+        snapshotSaveTask?.cancel()
+        snapshotSaveTask = Task {
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled else { return }
+            let url = Self.offlineSnapshotURL
+            await Task.detached(priority: .utility) {
+                if let data = try? JSONEncoder.tactech.encode(snapshot) {
+                    try? data.write(to: url, options: .atomic)
+                }
+            }.value
+        }
+    }
+
+    private func hydrateOfflineWorkspaceIfAvailable() {
+        guard TokenStore.accessToken() != nil || TokenStore.refreshToken() != nil else { return }
+        let claims = Self.decodeJWTClaims(from: TokenStore.accessToken())
+            ?? Self.decodeJWTClaims(from: TokenStore.refreshToken())
+
+        if let data = try? Data(contentsOf: Self.offlineSnapshotURL),
+           let snapshot = try? JSONDecoder.tactech.decode(OfflineWorkspaceSnapshot.self, from: data),
+           claims == nil || snapshot.session.userId == claims?.userId {
+            session = snapshot.session
+            users = snapshot.users
+            trainers = snapshot.trainers
+            trainees = snapshot.trainees
+            exercises = snapshot.exercises
+            plans = snapshot.plans
+            assignments = snapshot.assignments
+            workoutLogs = snapshot.workoutLogs
+            meals = snapshot.meals
+            feedback = snapshot.feedback
+            formReports = snapshot.formReports
+            assessmentCompleted = snapshot.assessmentCompleted
+            profileSetupCompleted = snapshot.profileSetupCompleted
+            remoteAvatarURL = snapshot.remoteAvatarURL
+            remoteAvatarAsset = snapshot.remoteAvatarAsset
+            ensureMinimalOfflineEntities(for: snapshot.session, name: claims?.name, email: claims?.email)
+            return
+        }
+
+        if let claims {
+            let resolvedRole: UserRole = claims.role
+                ?? UserDefaults.standard.string(forKey: "last.session.role.\(claims.userId)").flatMap(UserRole.init(rawValue:))
+                ?? (UserDefaults.standard.data(forKey: "trainer.assessment.payload.\(claims.userId)") != nil ? .trainer : .trainee)
+            let fallbackSession = Session(userId: claims.userId, role: resolvedRole)
+            session = fallbackSession
+            if UserDefaults.standard.object(forKey: "assessment.completed.\(claims.userId)") != nil {
+                refreshAssessmentFlag()
+            } else {
+                assessmentCompleted = true
+                profileSetupCompleted = UserDefaults.standard.bool(forKey: "profile.setup.completed.\(claims.userId)")
+            }
+            ensureMinimalOfflineEntities(for: fallbackSession, name: claims.name, email: claims.email)
+        }
+    }
+
+    private func ensureMinimalOfflineEntities(for session: Session, name: String?, email: String?) {
+        if !users.contains(where: { $0.id == session.userId }) {
+            let fallbackName = (name?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+                ?? (session.role == .trainer ? "Coach" : "Athlete")
+            users.append(
+                User(
+                    id: session.userId,
+                    name: fallbackName,
+                    email: email ?? "",
+                    password: "",
+                    role: session.role,
+                    createdAt: .now
+                )
+            )
+        }
+        if session.role == .trainee, !trainees.contains(where: { $0.userId == session.userId }) {
+            trainees.append(
+                TraineeProfile(
+                    id: "offline-\(session.userId)",
+                    userId: session.userId,
+                    trainerId: nil,
+                    goal: "",
+                    heightCm: 0,
+                    weightKg: 0,
+                    dailyCalorieTarget: 2000
+                )
+            )
+        } else if session.role == .trainer, !trainers.contains(where: { $0.userId == session.userId }) {
+            trainers.append(
+                TrainerProfile(
+                    id: "offline-\(session.userId)",
+                    userId: session.userId,
+                    inviteCode: "",
+                    specialty: "",
+                    yearsExperience: 0,
+                    bio: ""
+                )
+            )
+        }
+    }
+
+    private static func decodeJWTClaims(from token: String?) -> (userId: String, role: UserRole?, name: String?, email: String?)? {
+        guard let token, !token.isEmpty else { return nil }
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var payload = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while payload.count % 4 != 0 { payload.append("=") }
+        guard let data = Data(base64Encoded: payload),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let userId = (json["userId"] as? String)
+            ?? (json["user_id"] as? String)
+            ?? (json["sub"] as? String)
+        guard let userId, !userId.isEmpty else { return nil }
+        let roleRaw = (json["role"] as? String)?.lowercased()
+        let role = roleRaw.flatMap(UserRole.init(rawValue:))
+        let name = json["name"] as? String
+        let email = json["email"] as? String
+        return (userId, role, name, email)
     }
 
     // MARK: - Preview seeding

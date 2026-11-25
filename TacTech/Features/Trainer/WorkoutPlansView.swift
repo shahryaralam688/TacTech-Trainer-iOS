@@ -1033,14 +1033,21 @@ struct WorkoutPlanDetailView: View {
     }
 
     private func assignmentStatusRow(trainee: TraineeProfile, assignedAt: Date) -> some View {
-        let name = store.user(forTrainee: trainee)?.name ?? "Trainee"
+        let traineeUser = store.user(forTrainee: trainee)
+        let name = traineeUser?.name ?? "Trainee"
         let status = store.planFollowStatus(traineeId: trainee.id, plan: plan)
         let adherence = store.planAdherencePercent(traineeId: trainee.id, plan: plan)
         let last = store.lastPlanWorkoutDate(traineeId: trainee.id, planId: plan.id)
         let statusColor = followStatusColor(status)
 
         return HStack(alignment: .top, spacing: 12) {
-            TTAvatar(name: name, size: 44)
+            TTAvatar(
+                name: name,
+                size: 44,
+                avatarUrl: traineeUser?.avatarUrl,
+                avatarAsset: traineeUser?.avatarAsset,
+                userId: traineeUser?.id
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {

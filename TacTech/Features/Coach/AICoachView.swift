@@ -15,6 +15,7 @@ struct AICoachView: View {
     @State private var pendingImage: UIImage?
     @State private var libraryItem: PhotosPickerItem?
     @State private var showPhotoSource = false
+    @State private var showPhotoLibrary = false
     @State private var showCamera = false
     @State private var cameraImage: UIImage?
     @State private var showCall = false
@@ -153,11 +154,10 @@ struct AICoachView: View {
         }
         .confirmationDialog("Share a photo", isPresented: $showPhotoSource, titleVisibility: .visible) {
             Button("Take Photo") { showCamera = true }
-            PhotosPicker(selection: $libraryItem, matching: .images) {
-                Text("Photo Library")
-            }
+            Button("Photo Library") { showPhotoLibrary = true }
             Button("Cancel", role: .cancel) {}
         }
+        .photosPicker(isPresented: $showPhotoLibrary, selection: $libraryItem, matching: .images)
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.7), trigger: store.hapticTick)
         .sensoryFeedback(.selection, trigger: store.isRecording)
         .sensoryFeedback(.warning, trigger: deleteHaptic)
@@ -909,9 +909,13 @@ struct AICoachView: View {
         }
         .onAppear {
             guard !reduceMotion else { return }
+            wavePhase = 0
             withAnimation(.easeInOut(duration: 0.5).repeatForever(autoreverses: true)) {
                 wavePhase = 2
             }
+        }
+        .onDisappear {
+            wavePhase = 0
         }
     }
 
@@ -979,11 +983,11 @@ struct AICoachView: View {
     }
 
     private func importLibrary(_ item: PhotosPickerItem?) async {
+        defer { libraryItem = nil }
         guard let item,
               let data = try? await item.loadTransferable(type: Data.self),
               let image = UIImage(data: data) else { return }
         pendingImage = image
-        libraryItem = nil
     }
 
     private func scheduleJumpToBottom(_ proxy: ScrollViewProxy, animated: Bool) {

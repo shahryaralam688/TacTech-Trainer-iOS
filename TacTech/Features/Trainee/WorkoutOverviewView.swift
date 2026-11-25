@@ -19,7 +19,7 @@ struct WorkoutOverviewView: View {
     }
 
     private var exercises: [WorkoutExercise] {
-        session?.exercises ?? []
+        session?.exercises ?? plan.exercises
     }
 
     var body: some View {
@@ -58,7 +58,7 @@ struct WorkoutOverviewView: View {
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .safeAreaInset(edge: .bottom) {
-            if let session {
+            if !exercises.isEmpty {
                 StickyStartBar(summary: summaryLine, plan: plan, day: session)
             }
         }
@@ -361,7 +361,7 @@ struct ExerciseRow: View {
 struct StickyStartBar: View {
     let summary: String
     let plan: WorkoutPlan
-    let day: PlanDay
+    let day: PlanDay?
 
     var body: some View {
         VStack(spacing: 10) {

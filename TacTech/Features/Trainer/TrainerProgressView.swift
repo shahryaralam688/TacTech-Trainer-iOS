@@ -53,8 +53,15 @@ struct TrainerProgressView: View {
             ForEach(clients) { trainee in
                 let logs = store.logs(for: trainee.id)
                 let score = store.formReports(for: trainee.id).first?.score
+                let traineeUser = store.user(forTrainee: trainee)
                 HStack {
-                    TTAvatar(name: store.user(forTrainee: trainee)?.name ?? "T", size: 40)
+                    TTAvatar(
+                        name: traineeUser?.name ?? "T",
+                        size: 40,
+                        avatarUrl: traineeUser?.avatarUrl,
+                        avatarAsset: traineeUser?.avatarAsset,
+                        userId: traineeUser?.id
+                    )
                     VStack(alignment: .leading, spacing: 3) {
                         Text(store.user(forTrainee: trainee)?.name ?? "Trainee")
                             .font(TTFont.heading(15))

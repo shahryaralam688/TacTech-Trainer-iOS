@@ -7,9 +7,20 @@ struct APIUser: Codable, Hashable {
     var email: String
     var role: UserRole
     var createdAt: Date
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
 
     func asUser() -> User {
-        User(id: id, name: name, email: email, password: "", role: role, createdAt: createdAt)
+        User(
+            id: id,
+            name: name,
+            email: email,
+            password: "",
+            role: role,
+            createdAt: createdAt,
+            avatarUrl: avatarUrl,
+            avatarAsset: avatarAsset
+        )
     }
 }
 
@@ -37,6 +48,8 @@ struct MeResponse: Decodable {
     var email: String?
     var role: UserRole?
     var createdAt: Date?
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
     /// Required from backend — gates assessment / profile setup (nil = legacy fallback).
     var assessmentCompleted: Bool?
     var onboardingCompleted: Bool?
@@ -44,7 +57,7 @@ struct MeResponse: Decodable {
     var resolvedUser: APIUser? {
         if let user { return user }
         guard let id, let name, let email, let role, let createdAt else { return nil }
-        return APIUser(id: id, name: name, email: email, role: role, createdAt: createdAt)
+        return APIUser(id: id, name: name, email: email, role: role, createdAt: createdAt, avatarUrl: avatarUrl, avatarAsset: avatarAsset)
     }
 }
 
@@ -190,6 +203,8 @@ struct TraineeListItem: Decodable {
     var dailyCalorieTarget: Int?
     var name: String?
     var email: String?
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
 
     var profile: TraineeProfile? {
         if let trainee { return trainee }
@@ -217,6 +232,8 @@ struct TrainerWithUser: Decodable {
     var bio: String?
     var name: String?
     var email: String?
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
 
     var profile: TrainerProfile? {
         if let trainer { return trainer }
@@ -1764,7 +1781,7 @@ enum TokenStore {
 }
 
 extension JSONDecoder {
-    static var tactech: JSONDecoder {
+    private static let sharedTactechDecoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -1773,29 +1790,47 @@ extension JSONDecoder {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date \(value)")
         }
         return decoder
-    }
+    }()
+
+    static var tactech: JSONDecoder { sharedTactechDecoder }
 }
 
 extension Date {
+    private static let tactechDateLock = NSLock()
+
+    private static let tactechISOFractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    private static let tactechISOStandard: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    private static let tactechFallbackFormatters: [DateFormatter] = [
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ",
+        "yyyy-MM-dd'T'HH:mm:ssZ",
+        "yyyy-MM-dd"
+    ].map { format in
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = format
+        return f
+    }
+
     static func tactech(from value: String) -> Date? {
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: value) { return date }
-        let standard = ISO8601DateFormatter()
-        standard.formatOptions = [.withInternetDateTime]
-        if let date = standard.date(from: value) { return date }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = Calendar(identifier: .gregorian)
-        for format in [
-            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSXXXXX",
-            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ",
-            "yyyy-MM-dd'T'HH:mm:ssZ",
-            "yyyy-MM-dd"
-        ] {
-            formatter.dateFormat = format
+        tactechDateLock.lock()
+        defer { tactechDateLock.unlock() }
+        if let date = tactechISOFractional.date(from: value) { return date }
+        if let date = tactechISOStandard.date(from: value) { return date }
+        for formatter in tactechFallbackFormatters {
             if let date = formatter.date(from: value) { return date }
         }
         return nil

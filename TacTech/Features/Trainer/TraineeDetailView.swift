@@ -92,6 +92,7 @@ struct TraineeDetailView: View {
     @State private var lastLiveSession: WorkoutSession?
     @State private var lingeringLive: WorkoutSession?
     @State private var showNoteSheet = false
+    @State private var isSendingNote = false
     @State private var noteSheetError: String?
     @FocusState private var noteSheetFocused: Bool
 
@@ -192,7 +193,8 @@ struct TraineeDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeMeals)) { _ in
             Task { await consumeMealDeepLink() }
         }
-        .task { await consumeMealDeepLink() }
+        .task(id: trainee.id) { await consumeMealDeepLink() }
+        .id(trainee.id)
         .ttAssignSuccessChrome(toast: $feedbackToast, celebrate: $celebrateAssign)
         .navigationDestination(item: $viewedPlan) { plan in
             WorkoutPlanDetailView(plan: plan)
@@ -256,10 +258,17 @@ struct TraineeDetailView: View {
         let p = min(1, max(0, progress))
         let expand = 1 - p
         let subtitle = headerSubtitle
+        let traineeUser = store.user(forTrainee: trainee)
         return HStack(alignment: .center, spacing: 12) {
             TTBackButton(style: .onDark) { dismiss() }
                 .scaleEffect(1 - 0.06 * p, anchor: .center)
-            TTAvatar(name: displayName, size: 52 - 16 * p)
+            TTAvatar(
+                name: displayName,
+                size: 52 - 16 * p,
+                avatarUrl: traineeUser?.avatarUrl,
+                avatarAsset: traineeUser?.avatarAsset,
+                userId: traineeUser?.id
+            )
             VStack(alignment: .leading, spacing: 3 * expand) {
                 Text(displayName)
                     .font(TTFont.workSans(24 - 6 * p, weight: .bold))
@@ -1634,7 +1643,9 @@ struct TraineeDetailView: View {
     @discardableResult
     private func sendFeedback() async -> Bool {
         let text = note.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trainer = store.currentTrainer, !text.isEmpty else { return false }
+        guard !isSendingNote, let trainer = store.currentTrainer, !text.isEmpty else { return false }
+        isSendingNote = true
+        defer { isSendingNote = false }
         do {
             try await store.saveFeedback(
                 TrainerFeedback(

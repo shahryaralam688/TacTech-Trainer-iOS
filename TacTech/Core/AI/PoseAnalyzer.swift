@@ -17,43 +17,100 @@ final class PoseAnalyzer: NSObject, ObservableObject {
 
     let session = AVCaptureSession()
     private let queue = DispatchQueue(label: "tactech.pose")
+    private let stateLock = NSLock()
     private var lastHipY: CGFloat = 0.5
     private var goingDown = false
     private var reps = 0
     private var scores: [Int] = []
-    var exerciseId: String = "ex-squat"
+    private var _isActive = false
+    private var _exerciseId: String = "ex-squat"
+
+    var exerciseId: String {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _exerciseId
+        }
+        set {
+            stateLock.lock()
+            _exerciseId = newValue
+            stateLock.unlock()
+        }
+    }
+
+    private var isActive: Bool {
+        get {
+            stateLock.lock()
+            defer { stateLock.unlock() }
+            return _isActive
+        }
+        set {
+            stateLock.lock()
+            _isActive = newValue
+            stateLock.unlock()
+        }
+    }
+
+    deinit {
+        let s = session
+        if s.isRunning {
+            queue.async { s.stopRunning() }
+        }
+    }
 
     func start() {
+        isActive = true
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
             cameraAuthorized = true
-            configureIfNeeded()
             queue.async { [weak self] in
-                self?.session.startRunning()
-                DispatchQueue.main.async { self?.sessionRunning = true }
+                guard let self, self.isActive else { return }
+                self.configureIfNeeded()
+                guard self.isActive else { return }
+                if !self.session.isRunning {
+                    self.session.startRunning()
+                }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, self.isActive else { return }
+                    self.sessionRunning = true
+                }
             }
         case .notDetermined:
             AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
-                DispatchQueue.main.async {
-                    self?.cameraAuthorized = granted
-                    if granted { self?.start() }
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.cameraAuthorized = granted
+                    if granted && self.isActive {
+                        self.start()
+                    }
                 }
             }
         default:
+            isActive = false
             cameraAuthorized = false
         }
     }
 
     func stop() {
+        isActive = false
         queue.async { [weak self] in
-            self?.session.stopRunning()
-            DispatchQueue.main.async { self?.sessionRunning = false }
+            guard let self else { return }
+            if self.session.isRunning {
+                self.session.stopRunning()
+            }
+            DispatchQueue.main.async { [weak self] in
+                self?.sessionRunning = false
+            }
         }
     }
 
     func snapshotReport() -> (score: Int, cues: [String], reps: Int) {
-        let score = scores.isEmpty ? feedback.score : scores.reduce(0, +) / scores.count
-        return (score, [feedback.cue], reps)
+        stateLock.lock()
+        let currentScores = scores
+        let currentReps = reps
+        stateLock.unlock()
+        let score = currentScores.isEmpty ? feedback.score : currentScores.reduce(0, +) / currentScores.count
+        return (score, [feedback.cue], currentReps)
     }
 
     private var configured = false
@@ -84,12 +141,16 @@ final class PoseAnalyzer: NSObject, ObservableObject {
 
 extension PoseAnalyzer: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        guard isActive, let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let request = VNDetectHumanBodyPoseRequest()
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .leftMirrored, options: [:])
         try? handler.perform([request])
+        guard isActive else { return }
         guard let observation = request.results?.first else {
-            publish(PoseFeedback(cue: "I can’t see you yet", score: 0, repCount: reps, joints: []))
+            stateLock.lock()
+            let currentReps = reps
+            stateLock.unlock()
+            publish(PoseFeedback(cue: "I can’t see you yet", score: 0, repCount: currentReps, joints: []))
             return
         }
         analyze(observation)
@@ -115,7 +176,10 @@ extension PoseAnalyzer: AVCaptureVideoDataOutputSampleBufferDelegate {
             let leftShoulder = try? observation.recognizedPoint(.leftShoulder),
             leftHip.confidence > 0.3, leftKnee.confidence > 0.3
         else {
-            publish(PoseFeedback(cue: "Show your full body", score: 40, repCount: reps, joints: joints))
+            stateLock.lock()
+            let currentReps = reps
+            stateLock.unlock()
+            publish(PoseFeedback(cue: "Show your full body", score: 40, repCount: currentReps, joints: joints))
             return
         }
 
@@ -163,12 +227,16 @@ extension PoseAnalyzer: AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
 
+        stateLock.lock()
         scores.append(score)
         if scores.count > 40 { scores.removeFirst() }
-        publish(PoseFeedback(cue: cue, score: score, repCount: reps, joints: joints))
+        let currentReps = reps
+        stateLock.unlock()
+        publish(PoseFeedback(cue: cue, score: score, repCount: currentReps, joints: joints))
     }
 
     private func countRep(currentY: CGFloat, downThreshold: CGFloat) {
+        stateLock.lock()
         if !goingDown && lastHipY - currentY > downThreshold {
             goingDown = true
         } else if goingDown && currentY - lastHipY > downThreshold {
@@ -176,6 +244,7 @@ extension PoseAnalyzer: AVCaptureVideoDataOutputSampleBufferDelegate {
             reps += 1
         }
         lastHipY = currentY
+        stateLock.unlock()
     }
 
     private func angle(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint) -> CGFloat {
@@ -188,7 +257,10 @@ extension PoseAnalyzer: AVCaptureVideoDataOutputSampleBufferDelegate {
     }
 
     private func publish(_ value: PoseFeedback) {
-        DispatchQueue.main.async { self.feedback = value }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.isActive else { return }
+            self.feedback = value
+        }
     }
 }
 

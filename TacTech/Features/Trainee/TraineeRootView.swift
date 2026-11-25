@@ -11,14 +11,18 @@ struct TraineeRootView: View {
     @State private var showAIChat = false
     /// State of the liquid-bubble menu. This view only HOLDS it and never reads its values in `body` (same as the Trainer root).
     @State private var bubbleMenu = TTBubbleEngine()
-    /// "Log a meal" from the + menu: the existing meal-logging sheet for today, over whatever the trainee is on.
-    @State private var showLogMeal = false
+    /// "Add meal" from the + menu: triggers the same camera/photo-library → ManualMealView flow as Home.
+    @State private var mealCaptureTrigger = 0
     /// "Chat with your coach" from the + menu: the direct conversation (linked coach), or coach discovery when none.
     @State private var coachChatTarget: TTChatTarget?
+    private struct HumanChatRoute: Identifiable {
+        let id = UUID()
+        let threadId: String?
+    }
+
     @State private var showFindCoaches = false
-    @State private var showCoachChat = false
+    @State private var humanChatRoute: HumanChatRoute?
     @State private var showProfileSheet = false   // Profile moved off the tab bar → opened as a sheet
-    @State private var pendingChatThreadId: String?
     @State private var rootTabBarVisible = true
     @State private var relationshipToast: TTToastMessage?
     @Namespace private var aiChatNamespace
@@ -117,7 +121,8 @@ struct TraineeRootView: View {
                 actions: TTLiquidFABAction.traineeCenterMenu,
                 onSelect: handleLiquidAction,
                 bottomReserve: TTFloatingTabBar<TraineeTab>.liquidMenuFABBottomReserve,
-                shownIds: TTLiquidFABAction.traineeBubbleIds
+                shownIds: TTLiquidFABAction.traineeBubbleIds,
+                showLabelsInside: true
             )
             .zIndex(50)
         }
@@ -133,14 +138,15 @@ struct TraineeRootView: View {
                 Task { await store.refreshAfterAIChat() }
             }
         }
-        .fullScreenCover(isPresented: $showCoachChat) {
-            HumanPeerChatView(audience: .trainee, preferredThreadId: pendingChatThreadId)
+        .fullScreenCover(item: $humanChatRoute) { route in
+            HumanPeerChatView(audience: .trainee, preferredThreadId: route.threadId)
         }
-        // + menu → Log a meal: the same sheet the Nutrition screen opens for "Log breakfast", for today.
-        .sheet(isPresented: $showLogMeal) {
-            ManualMealView(day: Date())
-                .ttModalSheetPresentation()
-        }
+        // + menu → Add meal: same camera/photo-library → ManualMealView flow as Home.
+        .modifier(TTPhotoMealCaptureModifier(
+            trigger: $mealCaptureTrigger,
+            onNotice: { relationshipToast = TTToastMessage(text: $0, style: .info) },
+            onSaved: { relationshipToast = $0 }
+        ))
         // + menu → Chat with your coach: the direct conversation; Back closes it and returns to where the trainee was.
         .fullScreenCover(item: $coachChatTarget) { target in
             HumanPeerChatView(audience: .trainee, preferredPeerUserId: target.id, preferredPeerName: target.name)
@@ -158,64 +164,23 @@ struct TraineeRootView: View {
         }
         // Keep the chat inbox live (socket + poll) while the trainee shell is up, so Home's unread number follows new
         // messages and reads from other devices. Opening and closing the chat does not tear it down.
-        .task { await HumanChatStore.shared.startInboxMonitoring() }
-        .onDisappear { HumanChatStore.shared.stopInboxMonitoring() }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
-            openAIChat()
+        .task {
+            await HumanChatStore.shared.startInboxMonitoring()
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(3600))
+            }
+            HumanChatStore.shared.stopInboxMonitoring()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenHumanChat)) { note in
-            pendingChatThreadId = note.userInfo?["threadId"] as? String
-            TTKeyboard.dismiss()
-            showCoachChat = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfile)) { _ in
-            showProfileSheet = true
-            // Inbox tap may arrive without a live socket event — same coalesced accept sync.
-            store.scheduleTraineeCoachLinkSync()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
-            showProfileSheet = true
-            Task { await store.handleJoinRequestRealtime(type: "join_request_rejected") }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
-            let type = (note.userInfo?["type"] as? String) ?? ""
-            Task { await store.handleJoinRequestRealtime(type: type) }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttRelationshipChanged)) { note in
-            // Root always reconciles — no need to be on Profile tab.
-            store.handleRelationshipChanged(
-                action: (note.userInfo?["action"] as? String) ?? "",
-                reason: note.userInfo?["reason"] as? String,
-                trainerUserId: note.userInfo?["trainerUserId"] as? String,
-                traineeUserId: note.userInfo?["traineeUserId"] as? String,
-                traineeProfileId: note.userInfo?["traineeProfileId"] as? String
-            )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
-            showProfileSheet = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
-            // Root always refreshes — Home + Workout update even if Workout tab isn’t selected.
-            store.handlePlanAssignmentChanged(
-                action: (note.userInfo?["action"] as? String) ?? "",
-                planId: note.userInfo?["planId"] as? String,
-                planTitle: note.userInfo?["planTitle"] as? String,
-                traineeProfileId: note.userInfo?["traineeProfileId"] as? String
-            )
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .ttOpenWorkoutHub)) { _ in
-            mounted.insert(.workout)
-            tab = .workout
-        }
-        .onChange(of: store.softToast) { _, toast in
-            guard let toast else { return }
-            relationshipToast = toast
-            store.softToast = nil
-        }
-        .ttToast($relationshipToast)
-        .onChange(of: showCoachChat) { _, open in
-            if !open { pendingChatThreadId = nil }
-        }
+        .modifier(NotificationModifier(
+            store: store,
+            tab: $tab,
+            mounted: $mounted,
+            showProfileSheet: $showProfileSheet,
+            showFindCoaches: $showFindCoaches,
+            humanChatRoute: $humanChatRoute,
+            relationshipToast: $relationshipToast,
+            openAIChat: openAIChat
+        ))
         .sheet(isPresented: $showProfileSheet) {
             TraineeProfileView(showsBack: true)
                 .ttModalSheetPresentation(dragIndicator: .hidden)
@@ -246,7 +211,7 @@ struct TraineeRootView: View {
             openAIChat()
         case "logMeal":
             TTKeyboard.dismiss()
-            showLogMeal = true
+            mealCaptureTrigger += 1
         case "coachChat":
             openCoachChat()
         default:
@@ -270,6 +235,73 @@ struct TraineeRootView: View {
     private func openAIChat() {
         TTKeyboard.dismiss()
         showAIChat = true
+    }
+
+    private struct NotificationModifier: ViewModifier {
+        let store: AppStore
+        @Binding var tab: TraineeTab
+        @Binding var mounted: Set<TraineeTab>
+        @Binding var showProfileSheet: Bool
+        @Binding var showFindCoaches: Bool
+        @Binding var humanChatRoute: HumanChatRoute?
+        @Binding var relationshipToast: TTToastMessage?
+        let openAIChat: () -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenAICoachChat)) { _ in
+                    openAIChat()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenHumanChat)) { note in
+                    let threadId = note.userInfo?["threadId"] as? String
+                    TTKeyboard.dismiss()
+                    showProfileSheet = false
+                    showFindCoaches = false
+                    humanChatRoute = HumanChatRoute(threadId: threadId)
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfile)) { _ in
+                    showProfileSheet = true
+                    store.scheduleTraineeCoachLinkSync()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenTraineeProfileJoin)) { _ in
+                    showProfileSheet = true
+                    Task { await store.handleJoinRequestRealtime(type: "join_request_rejected") }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
+                    let type = (note.userInfo?["type"] as? String) ?? ""
+                    Task { await store.handleJoinRequestRealtime(type: type) }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttRelationshipChanged)) { note in
+                    store.handleRelationshipChanged(
+                        action: (note.userInfo?["action"] as? String) ?? "",
+                        reason: note.userInfo?["reason"] as? String,
+                        trainerUserId: note.userInfo?["trainerUserId"] as? String,
+                        traineeUserId: note.userInfo?["traineeUserId"] as? String,
+                        traineeProfileId: note.userInfo?["traineeProfileId"] as? String
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenRelationshipEnded)) { _ in
+                    showProfileSheet = true
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttPlanAssignmentChanged)) { note in
+                    store.handlePlanAssignmentChanged(
+                        action: (note.userInfo?["action"] as? String) ?? "",
+                        planId: note.userInfo?["planId"] as? String,
+                        planTitle: note.userInfo?["planTitle"] as? String,
+                        traineeProfileId: note.userInfo?["traineeProfileId"] as? String
+                    )
+                }
+                .onReceive(NotificationCenter.default.publisher(for: .ttOpenWorkoutHub)) { _ in
+                    mounted.insert(.workout)
+                    tab = .workout
+                }
+                .onChange(of: store.softToast) { _, toast in
+                    guard let toast else { return }
+                    relationshipToast = toast
+                    store.softToast = nil
+                }
+                .ttToast($relationshipToast)
+        }
     }
 }
 

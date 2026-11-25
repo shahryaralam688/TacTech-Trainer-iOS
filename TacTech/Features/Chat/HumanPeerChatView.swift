@@ -64,6 +64,8 @@ struct HumanPeerChatView: View {
     @State private var composerFocused = false
     @State private var fullscreenImage: UIImage?
     @State private var videoPlayerURL: URL?
+    @State private var videoPlayer: AVPlayer?
+    @State private var openThreadTask: Task<Void, Never>?
     @State private var enableListMotion = false
     @State private var stickyDateLabel = "Today"
     @State private var distanceFromBottom: CGFloat = 0
@@ -215,7 +217,17 @@ struct HumanPeerChatView: View {
         .onChange(of: preferredPeerUserId) { _, newId in
             if let newId {
                 selectedPeerId = newId
+                if let peer = peers.first(where: { $0.id == newId }) {
+                    selectPeer(peer)
+                }
             }
+        }
+        .onChange(of: preferredThreadId) { _, newThreadId in
+            guard let newThreadId,
+                  let peerId = chatStore.peerUserId(forThreadId: newThreadId)
+                    ?? peers.first(where: { $0.threadId == newThreadId })?.id,
+                  let peer = peers.first(where: { $0.id == peerId }) else { return }
+            selectPeer(peer)
         }
         .task(id: isActive) {
             guard isActive else { return }
@@ -244,10 +256,15 @@ struct HumanPeerChatView: View {
             enableListMotion = true
         }
         .onDisappear {
-            // Close the active thread; keep socket teardown soft so in-flight sync
-            // cannot surface as a user-facing “cancelled” error.
+            openThreadTask?.cancel()
+            openThreadTask = nil
+            videoPlayer?.pause()
+            videoPlayer = nil
+            // Close the active thread; only the embedded root owner tears down socket/poll.
             chatStore.closeThread()
-            chatStore.teardown()
+            if isEmbedded {
+                chatStore.teardown()
+            }
         }
         .onChange(of: libraryItem) { _, item in
             Task { await importLibrary(item) }
@@ -338,12 +355,16 @@ struct HumanPeerChatView: View {
     private func chatVideoLightbox(_ url: URL) -> some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            VideoPlayer(player: AVPlayer(url: url))
-                .ignoresSafeArea()
+            if let videoPlayer {
+                VideoPlayer(player: videoPlayer)
+                    .ignoresSafeArea()
+            }
             VStack {
                 HStack {
                     Spacer()
                     Button {
+                        videoPlayer?.pause()
+                        videoPlayer = nil
                         videoPlayerURL = nil
                     } label: {
                         Image(systemName: "xmark.circle.fill")
@@ -357,6 +378,21 @@ struct HumanPeerChatView: View {
                 Spacer()
             }
         }
+        .onAppear {
+            if videoPlayer == nil {
+                videoPlayer = AVPlayer(url: url)
+            }
+        }
+        .onDisappear {
+            videoPlayer?.pause()
+            videoPlayer = nil
+        }
+    }
+
+    private func selectPeer(_ peer: HumanChatPeer) {
+        selectedPeerId = peer.id
+        openThreadTask?.cancel()
+        openThreadTask = Task { await chatStore.openThread(peer) }
     }
 
     /// One back action for the header button and the edge swipe.
@@ -476,8 +512,7 @@ struct HumanPeerChatView: View {
             LazyVStack(spacing: 10) {
                 ForEach(peers) { peer in
                     Button {
-                        selectedPeerId = peer.id
-                        Task { await chatStore.openThread(peer) }
+                        selectPeer(peer)
                     } label: {
                         inboxRow(peer)
                     }
@@ -645,7 +680,14 @@ struct HumanPeerChatView: View {
         let preview = last?.previewText ?? peer.lastPreview ?? "Say hello"
         let time = last?.sentAt ?? peer.lastAt
         return HStack(spacing: 12) {
-            TTAvatar(name: peer.name, size: 50)
+            let resolvedAvatar = peer.avatarUrl ?? appStore.user(forUserId: peer.id)?.avatarUrl
+            TTAvatar(
+                name: peer.name,
+                size: 50,
+                avatarUrl: resolvedAvatar,
+                avatarAsset: appStore.user(forUserId: peer.id)?.avatarAsset,
+                userId: peer.id
+            )
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(peer.name)
@@ -697,9 +739,13 @@ struct HumanPeerChatView: View {
         let messages = chatStore.messages(for: peer.id)
         let items = HumanChatThreadBuilder.items(messages: messages, peerTyping: chatStore.peerTyping)
         return VStack(spacing: 0) {
+            let peerUser = appStore.user(forUserId: peer.id)
             HumanChatContactHeader(
                 name: peer.name,
                 subtitle: threadSubtitle,
+                avatarUrl: peer.avatarUrl ?? peerUser?.avatarUrl,
+                avatarAsset: peerUser?.avatarAsset,
+                userId: peer.id,
                 onBack: { goBack() },
                 onVideo: {
                     composerFocused = false
@@ -725,6 +771,7 @@ struct HumanPeerChatView: View {
                                 .frame(height: 1)
                                 .id("thread-top")
                                 .onAppear {
+                                    guard !chatStore.isLoadingThread else { return }
                                     Task { await chatStore.loadOlderMessages(for: peer.id) }
                                 }
 
@@ -929,8 +976,15 @@ struct HumanPeerChatView: View {
     }
 
     private func welcomeCard(_ peer: HumanChatPeer) -> some View {
-        VStack(spacing: 10) {
-            TTAvatar(name: peer.name, size: 56)
+        let resolvedAvatar = peer.avatarUrl ?? appStore.user(forUserId: peer.id)?.avatarUrl
+        return VStack(spacing: 10) {
+            TTAvatar(
+                name: peer.name,
+                size: 56,
+                avatarUrl: resolvedAvatar,
+                avatarAsset: appStore.user(forUserId: peer.id)?.avatarAsset,
+                userId: peer.id
+            )
             Text(peer.name)
                 .font(TTFont.workSans(20, weight: .bold))
                 .foregroundStyle(ink)
@@ -1082,6 +1136,9 @@ struct HumanPeerChatView: View {
 private struct HumanChatContactHeader: View {
     let name: String
     var subtitle: String
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
+    var userId: String? = nil
     var onBack: () -> Void
     var onVideo: () -> Void
     var onVoice: () -> Void
@@ -1101,7 +1158,14 @@ private struct HumanChatContactHeader: View {
             .accessibilityLabel("Back")
 
             HStack(alignment: .center, spacing: 8) {
-                TTAvatar(name: name, size: 36, tint: accent)
+                TTAvatar(
+                    name: name,
+                    size: 36,
+                    tint: accent,
+                    avatarUrl: avatarUrl,
+                    avatarAsset: avatarAsset,
+                    userId: userId
+                )
                 VStack(alignment: .leading, spacing: 1) {
                     Text(name)
                         .font(TTFont.workSans(17, weight: .semibold))

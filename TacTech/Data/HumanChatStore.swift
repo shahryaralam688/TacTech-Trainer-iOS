@@ -51,7 +51,10 @@ final class HumanChatStore {
     private var voiceProgressTask: Task<Void, Never>?
     private var voiceDelegate = HumanChatVoicePlayerDelegate()
     private var listenedVoiceIds: Set<String> = []
-    private let listenedKey = "humanChat.listenedVoiceIds"
+    private var listenedKey: String {
+        let uid = currentUserId ?? Self.jwtUserId() ?? "anon"
+        return "humanChat.listenedVoiceIds.\(uid)"
+    }
 
     var playingVoiceId: String?
     var voiceIsPlaying = false
@@ -105,11 +108,46 @@ final class HumanChatStore {
         teardown()
     }
 
+    func resetSession() {
+        holdsInboxLive = false
+        teardown()
+        stopVoicePlayback()
+        typingStopTask?.cancel()
+        typingStopTask = nil
+        typingClearTask?.cancel()
+        typingClearTask = nil
+        recordLimitTask?.cancel()
+        recordLimitTask = nil
+        voiceProgressTask?.cancel()
+        voiceProgressTask = nil
+        inbox = []
+        messagesByPeer = [:]
+        drafts = [:]
+        threadIdByPeer = [:]
+        peerByThread = [:]
+        lastReadSent = [:]
+        nextCursorByPeer = [:]
+        currentUserId = nil
+        listenedVoiceIds = []
+        inboxLoadFailed = false
+        isLoadingInbox = false
+        isLoadingThread = false
+        isLoadingOlder = false
+        lastError = nil
+        outgoingTypingActive = false
+        lastTypingEmitAt = nil
+    }
+
     // MARK: - Lifecycle
 
     func bootstrap() async {
         lastError = nil
         currentUserId = Self.jwtUserId()
+        if let stored = UserDefaults.standard.array(forKey: listenedKey) as? [String] {
+            listenedVoiceIds = Set(stored)
+        } else {
+            listenedVoiceIds = []
+        }
         realtime.onEvent = { [weak self] event in
             self?.handleRealtime(event)
         }
@@ -164,6 +202,10 @@ final class HumanChatStore {
             let nextInbox = threads.map(HumanChatPeer.init(from:))
             if nextInbox != inbox { inbox = nextInbox }
             if inboxLoadFailed { inboxLoadFailed = false }
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             // Sync failures stay silent in the UI unless the inbox is empty — pull-to-refresh / reopen will retry.
             if !inboxLoadFailed { inboxLoadFailed = true }
@@ -231,17 +273,17 @@ final class HumanChatStore {
         if threadIdByPeer[peer.id] == nil, peer.threadId == nil {
             await refreshInbox(quiet: true)
         }
-        if Task.isCancelled { return }
+        guard !Task.isCancelled, activePeerUserId == peer.id else { return }
 
         do {
             let threadId = try await resolveThreadId(for: peer)
-            if Task.isCancelled { return }
+            guard !Task.isCancelled, activePeerUserId == peer.id else { return }
             threadIdByPeer[peer.id] = threadId
             peerByThread[threadId] = peer.id
             realtime.join(threadId: threadId)
 
             let page = try await api.listMessages(threadId: threadId)
-            if Task.isCancelled { return }
+            guard !Task.isCancelled, activePeerUserId == peer.id else { return }
             let uid = currentUserId ?? Self.jwtUserId() ?? ""
             let mapped = page.items
                 .map { HumanChatMessage.from(api: $0, currentUserId: uid, peerUserId: peer.id) }
@@ -370,13 +412,17 @@ final class HumanChatStore {
         guard let msg = messagesByPeer[peerUserId]?.first(where: { $0.id == messageId }),
               msg.resolvedDelivery == .failed,
               let clientId = msg.clientId else { return }
-        messagesByPeer[peerUserId]?
-            .indices
-            .filter { messagesByPeer[peerUserId]?[$0].id == messageId }
-            .forEach { messagesByPeer[peerUserId]?[$0].deliveryStatus = .pending }
+
+        let markPending = {
+            self.messagesByPeer[peerUserId]?
+                .indices
+                .filter { self.messagesByPeer[peerUserId]?[$0].id == messageId }
+                .forEach { self.messagesByPeer[peerUserId]?[$0].deliveryStatus = .pending }
+        }
 
         switch msg.kind {
         case .text:
+            markPending()
             Task {
                 do {
                     let threadId = try await ensureThreadId(peerUserId: peerUserId)
@@ -389,13 +435,18 @@ final class HumanChatStore {
             }
         case .voice:
             guard let path = msg.localMediaPath,
-                  let url = mediaURL(relativePath: path),
-                  let data = try? Data(contentsOf: url),
-                  !data.isEmpty else {
+                  let url = mediaURL(relativePath: path) else {
                 lastError = "Missing voice file for retry."
                 return
             }
+            markPending()
             Task {
+                let data = await Task.detached(priority: .userInitiated) { try? Data(contentsOf: url) }.value
+                guard let data, !data.isEmpty else {
+                    lastError = "Missing voice file for retry."
+                    markFailed(clientId: clientId, peerUserId: peerUserId)
+                    return
+                }
                 do {
                     let threadId = try await ensureThreadId(peerUserId: peerUserId)
                     let dto = try await api.sendMedia(
@@ -546,17 +597,20 @@ final class HumanChatStore {
     }
 
     func sendVideo(to peerUserId: String, fileURL: URL, caption: String?) {
-        guard let data = try? Data(contentsOf: fileURL), !data.isEmpty else {
-            lastError = "Couldn’t read video."
-            return
-        }
         let ext = fileURL.pathExtension.isEmpty ? "mp4" : fileURL.pathExtension
-        let path = storeMedia(data: data, peerId: peerUserId, ext: ext)
         let trimmed = caption?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let clientId = UUID().uuidString
-        let resolved = mediaURL(relativePath: path) ?? fileURL
 
         Task { @MainActor in
+            let data = await Task.detached(priority: .userInitiated) { try? Data(contentsOf: fileURL) }.value
+            guard let data, !data.isEmpty else {
+                self.lastError = "Couldn’t read video."
+                return
+            }
+            let path = await Task.detached(priority: .userInitiated) {
+                self.storeMediaOffMain(data: data, peerId: peerUserId, ext: ext)
+            }.value
+            let resolved = self.mediaURL(relativePath: path) ?? fileURL
             let duration = await Self.videoDuration(url: resolved)
             let optimistic = HumanChatMessage(
                 id: "local-\(clientId)",
@@ -724,6 +778,7 @@ final class HumanChatStore {
         isRecording = false
         isRecordingPaused = false
         recordingElapsed = 0
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     func pauseRecording() {
@@ -755,6 +810,7 @@ final class HumanChatStore {
         isRecordingPaused = false
         recordingElapsed = 0
         activeRecordingPeerId = nil
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         defer { recordingURL = nil }
         guard let url = recordingURL,
               let data = try? Data(contentsOf: url),
@@ -824,6 +880,7 @@ final class HumanChatStore {
         voiceProgress = 0
         voiceElapsed = 0
         voiceDuration = 0
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
     private func startVoice(_ message: HumanChatMessage, autoplay: Bool = true) async {
@@ -942,11 +999,12 @@ final class HumanChatStore {
 
     /// Loads local or remote chat image (Bearer + ngrok headers when needed).
     func fetchImage(_ message: HumanChatMessage) async -> UIImage? {
-        if let local = loadImage(message) { return local }
         guard let url = resolveMediaURL(message) else { return nil }
         if url.isFileURL {
-            guard let data = try? Data(contentsOf: url) else { return nil }
-            return UIImage(data: data)
+            return await Task.detached(priority: .userInitiated) {
+                guard let data = try? Data(contentsOf: url) else { return nil }
+                return UIImage(data: data)
+            }.value
         }
         var request = URLRequest(url: url)
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -959,7 +1017,7 @@ final class HumanChatStore {
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 return nil
             }
-            return UIImage(data: data)
+            return await Task.detached(priority: .userInitiated) { UIImage(data: data) }.value
         } catch {
             return nil
         }
@@ -1232,7 +1290,7 @@ final class HumanChatStore {
 
     private func haptic() { hapticTick &+= 1 }
 
-    private func mediaRoot() -> URL {
+    nonisolated private func mediaRoot() -> URL {
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("HumanChatMedia", isDirectory: true)
         try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -1240,6 +1298,10 @@ final class HumanChatStore {
     }
 
     private func storeMedia(data: Data, peerId: String, ext: String) -> String {
+        storeMediaOffMain(data: data, peerId: peerId, ext: ext)
+    }
+
+    nonisolated private func storeMediaOffMain(data: Data, peerId: String, ext: String) -> String {
         let name = "\(peerId)-\(UUID().uuidString).\(ext)"
         let url = mediaRoot().appendingPathComponent(name)
         try? data.write(to: url, options: .atomic)

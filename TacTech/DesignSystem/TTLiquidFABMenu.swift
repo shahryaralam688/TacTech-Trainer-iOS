@@ -68,27 +68,29 @@ extension TTLiquidFABAction {
         )
     ]
 
-    /// Trainee center-tab quick actions (bubble menu, left to right): AI, Log a meal, Coach chat.
-    /// `title` is the VoiceOver label (the bubbles are icon-only).
+    /// Trainee center-tab quick actions (bubble menu, left to right): AI chats, Add meal, Coach chat.
     static let traineeCenterMenu: [TTLiquidFABAction] = [
         TTLiquidFABAction(
             id: "ai",
-            title: "AI Assistant",
+            title: "AI chats",
             subtitle: "Form · nutrition · cues",
             icon: .sparkle2,
+            bubbleLabel: "AI chats",
             highlighted: true
         ),
         TTLiquidFABAction(
             id: "logMeal",
-            title: "Log a meal",
+            title: "Add meal",
             subtitle: "Scan or add food",
-            icon: .forkKnife
+            icon: .forkKnife,
+            bubbleLabel: "Add meal"
         ),
         TTLiquidFABAction(
             id: "coachChat",
-            title: "Chat with your coach",
+            title: "Coach chat",
             subtitle: "Message your trainer",
-            icon: .chat
+            icon: .chat,
+            bubbleLabel: "Coach chat"
         )
     ]
     /// The ids of the Trainee's three bubbles, in arc order.
@@ -732,8 +734,13 @@ final class TTBubbleEngine {
     @ObservationIgnored private var scrimTween = Tween()
     @ObservationIgnored private var fadeTween = Tween(from: 1, to: 1)
     @ObservationIgnored private var reduceClosing = false
-    @ObservationIgnored private var link: CADisplayLink?
+    @ObservationIgnored nonisolated(unsafe) private var link: CADisplayLink?
     @ObservationIgnored private var linkTarget: LinkTarget?
+
+    deinit {
+        link?.invalidate()
+        link = nil
+    }
     /// System uptime when the last open started (for the early-tap grace).
     @ObservationIgnored private(set) var openStartedAt = ProcessInfo.processInfo.systemUptime
     @ObservationIgnored var pendingSelect: TTLiquidFABAction?
@@ -1167,6 +1174,10 @@ struct TTBubbleMenuOverlay: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 16) { engine.open() } // PERF-TEMP: and a re-open
             }
             #endif
+        }
+        .onDisappear {
+            engine.onClosed = nil
+            engine.onOpened = nil
         }
     }
 

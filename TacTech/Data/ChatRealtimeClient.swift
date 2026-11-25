@@ -90,14 +90,22 @@ final class ChatRealtimeClient {
     /// Fixed per client, so the three realtime clients don't all retry at the same instant.
     private let retryStagger = Double.random(in: 0...1.5)
     private var lastImmediateRetry: Date?
+    nonisolated(unsafe) private var notificationTokens: [NSObjectProtocol] = []
 
     init() {
         TTNetworkMonitor.startIfNeeded()
         // Back in the foreground, or the network is back: skip the waiting and try right now.
         for name in [UIApplication.didBecomeActiveNotification, Notification.Name.ttNetworkBecameReachable] {
-            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+            let token = NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.retryNowIfNeeded() }
             }
+            notificationTokens.append(token)
+        }
+    }
+
+    deinit {
+        for token in notificationTokens {
+            NotificationCenter.default.removeObserver(token)
         }
     }
 

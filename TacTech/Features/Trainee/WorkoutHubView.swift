@@ -31,11 +31,11 @@ struct WorkoutHubView: View {
     @State private var isWeekExpanded = false
     /// Height of the fully collapsed header — the stacked cards pin directly below it.
     @State private var collapsedHeaderHeight: CGFloat = 0
-    @State private var showEditAIPlan = false
     @State private var showDeleteAIConfirm = false
     @State private var isMutatingAIPlan = false
     @State private var hubToast: TTToastMessage?
     @State private var editingPlan: WorkoutPlan?
+    @State private var deletingPlan: WorkoutPlan?
     @State private var showAssessmentReview = false
 
     private let canvas = Color(white: 0.97)
@@ -103,14 +103,12 @@ struct WorkoutHubView: View {
             .perfTempScreen("Workout Hub") // PERF-TEMP
             .ttSyncRootTabBarWithNavigationDepth()
             .ttToast($hubToast, bottomInset: 28)
-            .task {
+            .task(id: store.currentTrainee?.id) {
                 await store.refreshAssignedPlanForCurrentTrainee()
             }
-            .sheet(isPresented: $showEditAIPlan) {
-                if let editingPlan {
-                    CreatePlanView(editingPlan: editingPlan)
-                        .ttModalSheetPresentation()
-                }
+            .sheet(item: $editingPlan) { plan in
+                CreatePlanView(editingPlan: plan)
+                    .ttModalSheetPresentation()
             }
             .confirmationDialog(
                 "Delete this AI plan?",
@@ -216,57 +214,69 @@ struct WorkoutHubView: View {
         let dateText = selectedDay.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
 
         return VStack(alignment: .leading, spacing: 10) {
-            Button {
-                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-                    isWeekExpanded.toggle()
-                }
-            } label: {
+            HStack(spacing: 8) {
                 HStack(spacing: 10) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(orange)
-                        .frame(width: 30, height: 30)
-                        .background(orange.opacity(0.12))
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                        Image(systemName: "calendar")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(orange)
+                            .frame(width: 30, height: 30)
+                            .background(orange.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(isToday ? "Today" : relativeDayLabel(for: Weekday.from(date: selectedDay)))
-                            .font(TTFont.workSans(14, weight: .bold))
-                            .foregroundStyle(TTColor.ink)
-                        Text(dateText)
-                            .font(TTFont.workSans(12, weight: .medium))
-                            .foregroundStyle(TTColor.inkMuted)
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if !isToday {
-                        Button("Today") {
-                            withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
-                                selectedDay = Date()
-                            }
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(isToday ? "Today" : relativeDayLabel(for: Weekday.from(date: selectedDay)))
+                                .font(TTFont.workSans(14, weight: .bold))
+                                .foregroundStyle(TTColor.ink)
+                            Text(dateText)
+                                .font(TTFont.workSans(12, weight: .medium))
+                                .foregroundStyle(TTColor.inkMuted)
                         }
-                        .font(TTFont.workSans(12, weight: .bold))
-                        .foregroundStyle(orange)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(orange.opacity(0.12))
-                        .clipShape(Capsule())
+
+                        Spacer(minLength: 8)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                            isWeekExpanded.toggle()
+                        }
                     }
 
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(TTColor.inkSubtle)
-                        .rotationEffect(.degrees(isWeekExpanded ? 180 : 0))
-                        .frame(width: 28, height: 28)
+                    HStack(spacing: 8) {
+                        if !isToday {
+                            Button("Today") {
+                                withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                                    selectedDay = Date()
+                                }
+                            }
+                            .font(TTFont.workSans(12, weight: .bold))
+                            .foregroundStyle(orange)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(orange.opacity(0.12))
+                            .clipShape(Capsule())
+                            .buttonStyle(.plain)
+                        }
+
+                        Button {
+                            withAnimation(.spring(response: 0.36, dampingFraction: 0.86)) {
+                                isWeekExpanded.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(TTColor.inkSubtle)
+                                .rotationEffect(.degrees(isWeekExpanded ? 180 : 0))
+                                .frame(width: 28, height: 28)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(isWeekExpanded ? "Hide week calendar" : "Show week calendar")
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .background(cardFill)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(isWeekExpanded ? "Hide week calendar" : "Show week calendar")
 
             if isWeekExpanded {
                 TTHomeWeekDatePicker(
@@ -778,7 +788,6 @@ struct WorkoutHubView: View {
             HStack(spacing: 8) {
                 Button {
                     editingPlan = plan
-                    showEditAIPlan = true
                 } label: {
                     Text("Edit")
                         .font(TTFont.workSans(13, weight: .semibold))
@@ -808,7 +817,7 @@ struct WorkoutHubView: View {
 
             // Delete demoted to text link — extra distance from other CTAs prevents fat-finger deletion
             Button {
-                editingPlan = plan
+                deletingPlan = plan
                 showDeleteAIConfirm = true
             } label: {
                 Text("Delete this plan")
@@ -825,12 +834,12 @@ struct WorkoutHubView: View {
 
     @MainActor
     private func deleteAIPlan() async {
-        guard let plan = editingPlan ?? store.currentTrainee.flatMap({ store.assignedPlan(for: $0) }) else { return }
+        guard let plan = deletingPlan ?? store.currentTrainee.flatMap({ store.assignedPlan(for: $0) }) else { return }
         isMutatingAIPlan = true
         defer { isMutatingAIPlan = false }
         do {
             try await store.deleteAIPlan(id: plan.id)
-            editingPlan = nil
+            deletingPlan = nil
             hubToast = TTToastMessage(text: "AI plan removed", style: .success)
         } catch let error as AppError where error.isForbidden {
             hubToast = TTToastMessage(text: error.localizedDescription, style: .error)
@@ -1386,6 +1395,7 @@ struct ActiveWorkoutView: View {
     @State private var guidedStartIndex = 0
     @State private var guidedElapsed = 0
     @State private var showComplete = false
+    @State private var pendingComplete = false
     /// Server-side session id — set once session is started or resumed.
     @State private var sessionId: String?
     @State private var sessionError: String?
@@ -1417,7 +1427,7 @@ struct ActiveWorkoutView: View {
             }
             if !allDone { return i }
         }
-        return exercises.count - 1
+        return max(0, exercises.count - 1)
     }
 
     var body: some View {
@@ -1426,6 +1436,21 @@ struct ActiveWorkoutView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 14) {
+                    if let sessionError {
+                        HStack(spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(Color(red: 185 / 255, green: 28 / 255, blue: 28 / 255))
+                            Text(sessionError)
+                                .font(TTFont.caption(12))
+                                .foregroundStyle(TTColor.ink)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(red: 254 / 255, green: 226 / 255, blue: 226 / 255))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    }
 
                     // Progress summary card
                     HStack(spacing: 0) {
@@ -1516,7 +1541,12 @@ struct ActiveWorkoutView: View {
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .task { await ensureSession() }
-        .fullScreenCover(isPresented: $showGuided) {
+        .fullScreenCover(isPresented: $showGuided, onDismiss: {
+            if pendingComplete {
+                pendingComplete = false
+                showComplete = true
+            }
+        }) {
             GuidedWorkoutFlow(
                 exercises: exercises,
                 planTitle: plan.title,
@@ -1525,10 +1555,8 @@ struct ActiveWorkoutView: View {
                 logs: $logs
             ) { elapsed in
                 guidedElapsed = elapsed
+                pendingComplete = true
                 showGuided = false
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                    showComplete = true
-                }
             }
         }
         .sheet(isPresented: $showComplete) {
@@ -1545,7 +1573,11 @@ struct ActiveWorkoutView: View {
                     sessionId = nil
                 } else {
                     // Fallback: save a local log when session API was unavailable.
-                    guard let trainee = store.currentTrainee else { dismiss(); return }
+                    guard let trainee = store.currentTrainee else {
+                        showComplete = false
+                        dismiss()
+                        return
+                    }
                     try await store.saveWorkoutLog(
                         WorkoutLog(
                             id: UUID().uuidString,
@@ -1557,6 +1589,7 @@ struct ActiveWorkoutView: View {
                         )
                     )
                 }
+                showComplete = false
                 dismiss()
             }
         }
@@ -1746,17 +1779,17 @@ struct GuidedWorkoutFlow: View {
         }
         if !timerRunning { timerRunning = true }
         let weightKg = set.weightKg ?? item.recommendedWeightKg ?? 0
-        let localLog = WorkoutSetLog(
-            id: UUID().uuidString,
-            exerciseId: item.exerciseId,
-            setNumber: set.setNumber,
-            reps: set.reps,
-            weightKg: weightKg
-        )
-        logs.append(localLog)
 
         guard let sid = sessionId else {
-            // No session active — no backend to confirm; advance immediately.
+            // No session active — no backend to confirm; append locally and advance immediately.
+            let localLog = WorkoutSetLog(
+                id: UUID().uuidString,
+                exerciseId: item.exerciseId,
+                setNumber: set.setNumber,
+                reps: set.reps,
+                weightKg: weightKg
+            )
+            logs.append(localLog)
             doAdvance()
             return
         }
@@ -1776,13 +1809,16 @@ struct GuidedWorkoutFlow: View {
 
     private func commitSet(_ info: PendingSetInfo) async {
         do {
-            _ = try await store.logSet(
+            let confirmed = try await store.logSet(
                 sessionId: info.sessionId,
                 exerciseId: info.exerciseId,
                 setNumber: info.setNumber,
                 reps: info.reps,
                 weightKg: info.weightKg
             )
+            if !logs.contains(where: { $0.exerciseId == confirmed.exerciseId && $0.setNumber == confirmed.setNumber }) {
+                logs.append(confirmed)
+            }
             pendingSet = nil
             isSavingSet = false
             doAdvance()
@@ -1805,7 +1841,7 @@ struct GuidedWorkoutFlow: View {
             dismiss()
         } else {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { phase = .rest }
-            restSeconds = 90
+            restSeconds = max(0, currentItem?.restSeconds ?? 90)
         }
     }
 

@@ -65,6 +65,8 @@ struct User: Identifiable, Codable, Hashable {
     var password: String
     var role: UserRole
     var createdAt: Date
+    var avatarUrl: String? = nil
+    var avatarAsset: String? = nil
 }
 
 struct TrainerProfile: Identifiable, Codable, Hashable {

@@ -109,7 +109,7 @@ struct CoachDetailView: View {
         .background(canvas.ignoresSafeArea())
         .ttHideSystemNavigationBar()
         .ttToast($toast, bottomInset: 28)
-        .task { await reloadAll() }
+        .task(id: coachProfileId) { await reloadAll() }
         .sheet(isPresented: $showMessageSheet) {
             contactMessageSheet
                 .ttModalSheetPresentation(detents: [.medium], dragIndicator: .visible)
@@ -151,12 +151,17 @@ struct CoachDetailView: View {
 
     /// Loads everything on the screen (first load and pull to refresh).
     private func reloadAll() async {
-        await load()
-        await loadReviews(reset: true)
+        async let detail: Void = load()
+        async let revs: Void = loadReviews(reset: true)
+        async let eligibility: Void = loadEligibilityIfNeeded()
+        async let pkgs: Void = loadPackages()
+        _ = await (detail, revs, eligibility, pkgs)
+    }
+
+    private func loadEligibilityIfNeeded() async {
         if isTrainee {
             await loadMyReviewEligibility()
         }
-        await loadPackages()
     }
 
     /// Header and two section cards with placeholder text, same paddings and radii as the content.
@@ -773,6 +778,10 @@ struct CoachDetailView: View {
             let page = try await APIClient().listCoachPackages(coachProfileId: coachProfileId)
             packages = page.items
             packagesFailed = false
+        } catch is CancellationError {
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            return
         } catch {
             // Soft-fail — header teaser may still show count/featured. A refresh failure keeps the stale packages.
             packagesFailed = true
@@ -818,6 +827,12 @@ struct CoachDetailView: View {
                 style: .error,
                 subtitle: error.localizedDescription
             )
+        } catch is CancellationError {
+            isLoading = false
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            isLoading = false
+            return
         } catch {
             // Keep a stale profile on a failed refresh; otherwise show the error state (not "not available").
             if profile == nil { profileLoadFailed = true }
@@ -851,6 +866,14 @@ struct CoachDetailView: View {
             )
             applyReviewPage(page, reset: reset)
             if reset { reviewsFailed = false }
+        } catch is CancellationError {
+            isLoadingReviews = false
+            isLoadingMoreReviews = false
+            return
+        } catch let urlError as URLError where urlError.code == .cancelled {
+            isLoadingReviews = false
+            isLoadingMoreReviews = false
+            return
         } catch {
             // Error state (nothing loaded) or the stale reviews stay; replaces the old toast.
             if reset { reviewsFailed = true }

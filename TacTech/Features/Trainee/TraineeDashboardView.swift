@@ -7,12 +7,14 @@ struct TTPhotoMealDraft: Identifiable {
     let image: UIImage
 }
 
-/// Shared camera / photo-library → ManualMealView(initialPhoto:) flow used by both Home and the center + menu.
+/// Shared camera / photo-library → Add photos → Review your meal flow (`TTMealPhotoFlowSheet`) used by both Home and the center + menu.
 struct TTPhotoMealCaptureModifier: ViewModifier {
     @Environment(AppStore.self) private var store
     @Binding var trigger: Int
     var onNotice: (String) -> Void
     var onSaved: (TTToastMessage) -> Void
+    /// "Search" on the not-found screen (after the sheet closed): open a place to search by name.
+    var onSearch: (() -> Void)? = nil
 
     @State private var showCamera = false
     @State private var showPhotoLibrary = false
@@ -57,15 +59,15 @@ struct TTPhotoMealCaptureModifier: ViewModifier {
                 }
             }
             .sheet(item: $activeDraft) { draft in
-                ManualMealView(day: Date(), initialPhoto: draft.image) { toast in
-                    TTHomeHaptics.light()
+                // The tray fires the light haptic itself; here the Home calories and Today data refresh.
+                TTMealPhotoFlowSheet(image: draft.image, onSaved: { toast in
                     onSaved(toast)
                     Task {
                         if let trainee = store.currentTrainee {
                             await store.refreshDay(for: trainee.id, on: Date())
                         }
                     }
-                }
+                }, onSearch: onSearch)
                 .ttModalSheetPresentation(dragIndicator: .hidden)
             }
     }
@@ -200,7 +202,8 @@ struct TraineeDashboardView: View {
             .modifier(TTPhotoMealCaptureModifier(
                 trigger: $mealCaptureTrigger,
                 onNotice: { flashGenerateNotice($0) },
-                onSaved: { flashGenerateNotice($0.text) }
+                onSaved: { flashGenerateNotice($0.text) },
+                onSearch: { showNutrition = true }
             ))
             .sheet(isPresented: $showWorkouts) {
                 WorkoutHubView(showsCloseChrome: true).ttModalSheetPresentation(dragIndicator: .hidden)

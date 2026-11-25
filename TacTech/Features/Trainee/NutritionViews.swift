@@ -1,7 +1,9 @@
 import AVFoundation
 import Charts
+import ImageIO
 import PhotosUI
 import SwiftUI
+import Vision
 
 // MARK: - Nutrition (Today · History) — rebuilt from Design/nutrition-prototype.html
 // Phase 1: header, Today | History switch, search row, Today (ring, Planned, Eaten), add/edit sheet,
@@ -40,6 +42,8 @@ private enum NutHistoryRange: Int, CaseIterable, Identifiable {
 private struct NutPhotoDraft: Identifiable, Equatable {
     let id = UUID()
     let image: UIImage
+    /// The photo is a nutrition label: go straight to on-device OCR instead of the meal-photo flow.
+    var isLabel = false
 
     static func == (lhs: Self, rhs: Self) -> Bool { lhs.id == rhs.id }
 }
@@ -150,6 +154,8 @@ struct NutritionView: View {
     @State private var capturedPhoto: UIImage?
     @State private var libraryItem: PhotosPickerItem?
     @State private var pendingPhotoPanel: NutPanelKind?
+    /// The next photo from the header scanner is a nutrition label.
+    @State private var labelScanPending = false
 
     @Namespace private var searchNS
     @State private var showSearch = false
@@ -202,6 +208,7 @@ struct NutritionView: View {
             .ttSyncRootTabBarWithNavigationDepth()
             .ttToast($toast)
             .task(id: traineeId) { await loadToday() }
+            .task { await store.refreshFrequentMeals() }
             .onChange(of: traineeId) { _, _ in
                 invalidateHistoryCache()
             }
@@ -209,6 +216,10 @@ struct NutritionView: View {
                 if tab == .history {
                     recomputeHistoryBuckets()
                 }
+            }
+            // A meal saved from Home (or the + menu): the History summaries are out of date.
+            .onReceive(NotificationCenter.default.publisher(for: .ttMealSaved)) { _ in
+                invalidateHistoryCache()
             }
             .sheet(isPresented: $showCamera, onDismiss: {
                 if let pending = pendingPhotoPanel {
@@ -223,7 +234,8 @@ struct NutritionView: View {
             .onChange(of: capturedPhoto) { _, newValue in
                 guard let image = newValue else { return }
                 capturedPhoto = nil
-                let next = NutPanelKind.photo(NutPhotoDraft(image: image))
+                let next = NutPanelKind.photo(NutPhotoDraft(image: image, isLabel: labelScanPending))
+                labelScanPending = false
                 if showCamera {
                     pendingPhotoPanel = next
                 } else {
@@ -236,7 +248,8 @@ struct NutritionView: View {
                     defer { libraryItem = nil }
                     if let data = try? await item.loadTransferable(type: Data.self),
                        let image = UIImage(data: data) {
-                        let next = NutPanelKind.photo(NutPhotoDraft(image: image))
+                        let next = NutPanelKind.photo(NutPhotoDraft(image: image, isLabel: labelScanPending))
+                        labelScanPending = false
                         if showPhotoLibrary {
                             pendingPhotoPanel = next
                         } else {
@@ -267,7 +280,7 @@ struct NutritionView: View {
         }
     }
 
-    // MARK: Header ("Nutrition" + scanner with Soon badge)
+    // MARK: Header ("Nutrition" + label scanner)
 
     private func header(progress: CGFloat) -> some View {
         let p = min(1, max(0, progress))
@@ -279,28 +292,19 @@ struct NutritionView: View {
                 .minimumScaleFactor(0.8)
                 .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
-            Button { openPanel(.soon) } label: {
-                ZStack(alignment: .topTrailing) {
-                    TTIcon(icon: .scan1, size: 22 - 2 * p)
-                        .foregroundStyle(.white)
-                        .frame(width: 44 - 4 * p, height: 44 - 4 * p)
-                        .background(Color(white: 0.17))
-                        .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
-                    Text("Soon")
-                        .font(TTFont.workSans(10, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Color.black)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(NutStyle.charcoal, lineWidth: 2))
-                        .offset(x: 2, y: -2)
-                }
-                .frame(minWidth: 44, minHeight: 44)
-                .contentShape(Rectangle())
+            Menu {
+                Button { labelScanPending = true; openMealCameraOrFallback() } label: { Text("Take photo") }
+                Button { labelScanPending = true; showPhotoLibrary = true } label: { Text("Choose photo") }
+            } label: {
+                TTIcon(icon: .scan1, size: 22 - 2 * p)
+                    .foregroundStyle(.white)
+                    .frame(width: 44 - 4 * p, height: 44 - 4 * p)
+                    .background(Color(white: 0.17))
+                    .clipShape(RoundedRectangle(cornerRadius: 14 - 2 * p, style: .continuous))
+                    .frame(minWidth: 44, minHeight: 44)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Food scan, upcoming feature")
+            .accessibilityLabel("Scan nutrition label")
         }
         .padding(.horizontal, TTSpace.screen)
         .padding(.top, 14 - 4 * p)
@@ -1364,7 +1368,13 @@ struct NutritionView: View {
         case .addQuery(let initialQuery):
             NutritionEntryContent(editing: nil, initialQuery: initialQuery, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
         case .photo(let photoDraft):
-            NutritionEntryContent(editing: nil, initialPhoto: photoDraft.image, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { _ in })
+            NutCaptureContent(
+                firstPhoto: photoDraft.image,
+                startsWithLabelScan: photoDraft.isLabel,
+                close: close,
+                onSaved: { toast = $0; invalidateHistoryCache() },
+                onSearch: { close { openPanel(.add) } }
+            )
         case .edit(let meal):
             NutritionEntryContent(editing: meal, close: close, onSaved: { toast = $0; invalidateHistoryCache() }, onDelete: { m in Task { await delete(m) } })
         case .goal:
@@ -1909,6 +1919,8 @@ private struct NutritionEntryContent: View {
     @State private var remote: FoodKnowledge?
     @State private var searchTask: Task<Void, Never>?
     @State private var draft: NutDraft?
+    /// A frequent meal with its foods opens the Meal Tray directly.
+    @State private var trayItems: [NutTrayItem]?
     @State private var activePhoto: UIImage?
     @State private var photoCategory: NutPhotoCategory = .meal
     @State private var showRetakeCamera = false
@@ -1923,7 +1935,9 @@ private struct NutritionEntryContent: View {
 
     var body: some View {
         Group {
-            if draft == nil {
+            if let trayItems {
+                NutMealTrayContent(items: trayItems, mealTag: nil, source: "log", heroPhoto: nil, close: close, onSaved: onSaved)
+            } else if draft == nil {
                 chooser
             } else {
                 details
@@ -2041,6 +2055,22 @@ private struct NutritionEntryContent: View {
                     }
                 }
                 .accessibilityLabel("Search foods and drinks")
+            if !typed, editing == nil, !store.frequentMeals.isEmpty {
+                Text("FREQUENT")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .tracking(1.4)
+                    .foregroundStyle(NutStyle.mute)
+                    .padding(.top, 12).padding(.bottom, 6).padding(.horizontal, 2)
+                ForEach(Array(store.frequentMeals.prefix(5).enumerated()), id: \.element.id) { i, meal in
+                    chooserRow(
+                        name: meal.name,
+                        subtitle: frequentSubtitle(meal),
+                        kind: meal.kind,
+                        first: i == 0,
+                        trailing: "\(Int((meal.calories ?? 0).rounded())) kcal"
+                    ) { pickFrequent(meal) }
+                }
+            }
             Text(typed ? "RESULTS" : (list.first?.id.hasPrefix("recent-") == true ? "RECENT" : "SUGGESTED"))
                 .font(TTFont.workSans(12, weight: .semibold))
                 .tracking(1.4)
@@ -2139,7 +2169,30 @@ private struct NutritionEntryContent: View {
         )
     }
 
-    private func chooserRow(name: String, subtitle: String, kind: String?, first: Bool, action: @escaping () -> Void) -> some View {
+    private func frequentSubtitle(_ meal: FrequentMeal) -> String {
+        var parts: [String] = []
+        if let detail = meal.detail?.trimmingCharacters(in: .whitespacesAndNewlines), !detail.isEmpty { parts.append(detail) }
+        if let count = meal.count { parts.append(String(format: String(localized: "Logged %lld×"), count)) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 1-tap repeat: the foods open in the Meal Tray; a meal without foods opens the entry sheet filled in.
+    private func pickFrequent(_ m: FrequentMeal) {
+        searchFocused = false
+        if let items = m.mealItems, !items.isEmpty {
+            trayItems = items.map { NutTrayBuilder.item(from: $0) }
+            return
+        }
+        let meal = Meal(
+            id: UUID().uuidString, traineeId: store.currentTrainee?.id ?? "", name: m.name, eatenAt: now,
+            portionGrams: max(m.portionGrams ?? 0, 1),
+            macros: MacroEstimate(calories: Int((m.calories ?? 0).rounded()), protein: m.proteinG ?? 0, carbs: m.carbsG ?? 0, fat: m.fatG ?? 0),
+            source: "log", isEstimate: true, status: "eaten", kind: m.kind, detail: m.detail
+        )
+        draft = NutDraft.from(meal: meal)
+    }
+
+    private func chooserRow(name: String, subtitle: String, kind: String?, first: Bool, trailing: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 NutTile(name: name, kind: kind, planned: false, hasPhoto: false)
@@ -2148,6 +2201,11 @@ private struct NutritionEntryContent: View {
                     Text(verbatim: subtitle).font(TTFont.workSans(12, weight: .regular)).foregroundStyle(NutStyle.mute).lineLimit(1)
                 }
                 Spacer(minLength: 0)
+                if let trailing {
+                    Text(verbatim: trailing)
+                        .font(TTFont.workSans(14, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(TTColor.ink)
+                }
             }
             .frame(minHeight: 56)
             .contentShape(Rectangle())
@@ -2627,6 +2685,1354 @@ private struct NutFlow: Layout {
             maxX = max(maxX, x - spacing)
         }
         return (CGSize(width: maxX, height: y + rowHeight), origins)
+    }
+}
+
+// MARK: - Meal photos: capture, AI disclosure, barcode and the meal tray
+
+private enum NutTrust: String {
+    case verifiedLabel = "verified_label"
+    case databaseMatch = "database_match"
+    case aiEstimate = "ai_estimate"
+
+    init(raw: String?) { self = NutTrust(rawValue: raw ?? "") ?? .aiEstimate }
+
+    var title: LocalizedStringKey {
+        switch self {
+        case .verifiedLabel: "Verified Label"
+        case .databaseMatch: "Database Match"
+        case .aiEstimate: "AI Estimate"
+        }
+    }
+
+    var tint: Color {
+        switch self {
+        case .verifiedLabel: Color(red: 22 / 255, green: 101 / 255, blue: 52 / 255)
+        case .databaseMatch: Color(red: 30 / 255, green: 64 / 255, blue: 175 / 255)
+        case .aiEstimate: Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255)
+        }
+    }
+}
+
+private struct NutNutrition {
+    var kcal = 0.0
+    var p = 0.0
+    var c = 0.0
+    var f = 0.0
+    var fiber = 0.0
+
+    func scaled(_ k: Double) -> NutNutrition {
+        NutNutrition(kcal: kcal * k, p: p * k, c: c * k, f: f * k, fiber: fiber * k)
+    }
+}
+
+private struct NutModifierOption {
+    let token: String
+    let title: LocalizedStringKey
+    /// How the nutrition changes when this option is chosen (relative to the neutral option).
+    let apply: (NutNutrition) -> NutNutrition
+}
+
+private enum NutModifierProfile: String {
+    case curryOil = "curry_oil"
+    case teaSugar = "tea_sugar"
+    case milkType = "milk_type"
+
+    var neutralIndex: Int { self == .curryOil ? 1 : 0 }
+
+    var options: [NutModifierOption] {
+        switch self {
+        case .curryOil:
+            return [
+                NutModifierOption(token: "Kam Oil", title: "Kam Oil") { n in
+                    var r = n; r.f = n.f * 0.85; r.kcal = n.kcal - n.f * 0.15 * 9; return r
+                },
+                NutModifierOption(token: "Normal", title: "Normal") { $0 },
+                NutModifierOption(token: "Oily", title: "Oily") { n in
+                    var r = n; r.f = n.f * 1.25; r.kcal = n.kcal + n.f * 0.25 * 9; return r
+                }
+            ]
+        case .teaSugar:
+            return [
+                NutModifierOption(token: "No Sugar", title: "No Sugar") { $0 },
+                NutModifierOption(token: "With Sugar", title: "With Sugar") { n in
+                    var r = n; r.kcal = n.kcal + 32; r.c = n.c + 8; return r
+                }
+            ]
+        case .milkType:
+            // TODO: the backend gives no numbers for milk types. These ratios follow the prototype's example
+            // values (whole 61 / semi-skimmed 46 / skimmed 34 kcal per 100 ml; fat 3.3 / 1.6 / 0.1 g).
+            return [
+                NutModifierOption(token: "Whole", title: "Whole") { $0 },
+                NutModifierOption(token: "Semi-skimmed", title: "Semi-skimmed") { n in
+                    var r = n; r.kcal = n.kcal * 0.75; r.f = n.f * 0.48; return r
+                },
+                NutModifierOption(token: "Skimmed", title: "Skimmed") { n in
+                    var r = n; r.kcal = n.kcal * 0.56; r.f = n.f * 0.03; return r
+                }
+            ]
+        }
+    }
+
+    /// `base` was delivered with option `initial` already included; moving to `selected` changes it by the difference.
+    func adjust(_ n: NutNutrition, selected: Int, initial: Int) -> NutNutrition {
+        let opts = options
+        guard opts.indices.contains(selected), opts.indices.contains(initial) else { return n }
+        let a = opts[selected].apply(n)
+        let b = opts[initial].apply(n)
+        return NutNutrition(
+            kcal: max(0, n.kcal + a.kcal - b.kcal),
+            p: max(0, n.p + a.p - b.p),
+            c: max(0, n.c + a.c - b.c),
+            f: max(0, n.f + a.f - b.f),
+            fiber: n.fiber
+        )
+    }
+}
+
+/// One food in the meal tray. All portion scaling runs locally (no extra backend calls).
+private struct NutTrayItem: Identifiable {
+    let id = UUID()
+    var name: String
+    var searchKey: String?
+    var category: NutKind
+    var baseGrams: Double
+    /// Nutrition for `baseGrams`, as delivered.
+    var base: NutNutrition
+    var aiPortionLabel: String?
+    var trust: NutTrust
+    var confidence: Double?
+    var alternatives: [String] = []
+    var profile: NutModifierProfile?
+    var initialModifier = 0
+    var modifier = 0
+    var plateSize = 1
+    var pieceSize = 1
+    var count = 1
+    var ml = 250.0
+    var portionTouched = false
+    var expanded = false
+
+    static let plateFactors: [Double] = [0.7, 1.0, 1.4]
+    static let pieceFactors: [Double] = [0.85, 1.0, 1.15]
+    static let plateTokens = ["Small", "Regular", "Large"]
+    static let pieceTokens = ["Small", "Medium", "Large"]
+
+    var grams: Double {
+        switch category {
+        case .drink: return ml
+        case .piece: return baseGrams * Double(count) * Self.pieceFactors[pieceSize]
+        case .plate: return baseGrams * Self.plateFactors[plateSize]
+        }
+    }
+
+    var nutrition: NutNutrition {
+        var n = base.scaled(baseGrams > 0 ? grams / baseGrams : 1)
+        if let profile { n = profile.adjust(n, selected: modifier, initial: initialModifier) }
+        return n
+    }
+
+    var needsReview: Bool { (confidence ?? 1) < 0.85 }
+
+    var modifierLabel: String? { profile.map { $0.options[modifier].token } }
+
+    private var useOwnLabel: Bool { portionTouched || (aiPortionLabel ?? "").isEmpty }
+
+    /// English token stored with the meal (an edit can read it back).
+    var portionLabelForSave: String {
+        switch category {
+        case .drink: return "\(Int(ml.rounded())) ml"
+        case .piece: return useOwnLabel ? "\(count) × \(Self.pieceTokens[pieceSize])" : (aiPortionLabel ?? "")
+        case .plate: return useOwnLabel ? Self.plateTokens[plateSize] : (aiPortionLabel ?? "")
+        }
+    }
+
+    /// "~200 g" (or "250 ml" for a drink): the weight, written once.
+    var weightText: String {
+        let g = Int(grams.rounded())
+        return category == .drink ? "\(g) ml" : "~\(g) g"
+    }
+
+    /// A label from the analysis, with any weight it already contains ("200g", "(~200 g)") removed.
+    private func labelWithoutWeight(_ label: String) -> String {
+        let stripped = label.replacingOccurrences(
+            of: "[\\(\\[]?\\s*~?\\d+([.,]\\d+)?\\s*(g|gr|grams?|ml)\\b\\s*[\\)\\]]?",
+            with: "", options: [.regularExpression, .caseInsensitive]
+        )
+        return stripped.trimmingCharacters(in: CharacterSet(charactersIn: " ·-–—,;:()[]"))
+    }
+
+    /// Localized summary for the collapsed card: "Regular · ~250 g". The weight appears once, never repeated.
+    var portionSummary: String {
+        func loc(_ token: String) -> String { String(localized: String.LocalizationValue(token)) }
+        let label: String
+        switch category {
+        case .drink: return weightText
+        case .piece: label = useOwnLabel ? "\(count) × \(loc(Self.pieceTokens[pieceSize]))" : labelWithoutWeight(aiPortionLabel ?? "")
+        case .plate: label = useOwnLabel ? loc(Self.plateTokens[plateSize]) : labelWithoutWeight(aiPortionLabel ?? "")
+        }
+        return label.isEmpty ? weightText : "\(label) · \(weightText)"
+    }
+
+    var itemBody: MealItemBody {
+        let n = nutrition
+        func r1(_ v: Double) -> Double { (v * 10).rounded() / 10 }
+        return MealItemBody(
+            name: name, searchKey: searchKey, category: category.rawValue, grams: r1(grams),
+            portionLabel: portionLabelForSave.isEmpty ? nil : portionLabelForSave,
+            modifierLabel: modifierLabel,
+            calories: Int(n.kcal.rounded()), proteinG: r1(n.p), carbsG: r1(n.c), fatG: r1(n.f),
+            fiberG: n.fiber > 0 ? r1(n.fiber) : nil,
+            trustSource: trust.rawValue, confidence: confidence
+        )
+    }
+}
+
+private enum NutTrayBuilder {
+    static func item(from a: AnalyzedMealItem) -> NutTrayItem {
+        let category = NutKind(rawValue: a.category ?? "") ?? .plate
+        let grams = max(a.grams ?? 0, 1)
+        let name = (a.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        var item = NutTrayItem(
+            name: name.isEmpty ? String(localized: "Food") : name,
+            searchKey: a.searchKey,
+            category: category,
+            baseGrams: grams,
+            base: NutNutrition(kcal: a.calories ?? 0, p: a.proteinG ?? 0, c: a.carbsG ?? 0, f: a.fatG ?? 0, fiber: a.fiberG ?? 0),
+            aiPortionLabel: a.portionLabel,
+            trust: NutTrust(raw: a.trustSource),
+            confidence: a.confidence,
+            alternatives: Array((a.alternatives ?? []).prefix(3))
+        )
+        if category == .drink { item.ml = grams }
+        if let raw = a.modifierProfile, let profile = NutModifierProfile(rawValue: raw) {
+            item.profile = profile
+            let label = (a.modifierLabel ?? "").lowercased()
+            let index = profile.options.firstIndex { !label.isEmpty && label.contains($0.token.lowercased()) } ?? profile.neutralIndex
+            item.initialModifier = index
+            item.modifier = index
+        }
+        return item
+    }
+
+    /// Barcode: per-100 g values scaled to the serving.
+    static func item(from b: BarcodeMealItem) -> NutTrayItem? {
+        let name = (b.name ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return nil }
+        let serving = max(b.servingGrams ?? 100, 1)
+        let k = serving / 100
+        var item = NutTrayItem(
+            name: name,
+            searchKey: b.barcode,
+            category: NutKind(rawValue: b.category ?? "") ?? .plate,
+            baseGrams: serving,
+            base: NutNutrition(kcal: (b.caloriesPer100g ?? 0) * k, p: (b.proteinPer100g ?? 0) * k, c: (b.carbsPer100g ?? 0) * k, f: (b.fatPer100g ?? 0) * k),
+            aiPortionLabel: String(localized: "Serving"),
+            trust: .verifiedLabel,
+            confidence: nil
+        )
+        if item.category == .drink { item.ml = serving }
+        return item
+    }
+
+    /// A food picked from the list ("+ Add missing item", or an alternative that exists locally).
+    static func item(from f: FoodKnowledge, grams overrideGrams: Double? = nil) -> NutTrayItem {
+        let category = NutKind.infer(name: f.name, keywords: f.keywords)
+        let grams = overrideGrams ?? (category == .piece ? NutDraft.pieceBase : (category == .drink ? 250 : NutDraft.plateBase))
+        let k = grams / 100
+        var item = NutTrayItem(
+            name: f.name,
+            searchKey: f.name.lowercased(),
+            category: category,
+            baseGrams: grams,
+            base: NutNutrition(kcal: Double(f.per100g.calories) * k, p: f.per100g.protein * k, c: f.per100g.carbs * k, f: f.per100g.fat * k),
+            aiPortionLabel: nil,
+            trust: .databaseMatch,
+            confidence: nil
+        )
+        if category == .drink { item.ml = grams }
+        return item
+    }
+}
+
+private func nutTrayChip(_ title: Text, on: Bool, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        title
+            .font(TTFont.workSans(14, weight: .medium))
+            .foregroundStyle(on ? Color.white : TTColor.ink)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(on ? Color.black : Color.white)
+            .clipShape(Capsule())
+            .overlay(Capsule().stroke(on ? Color.black : Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255), lineWidth: 1.5))
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(on ? .isSelected : [])
+}
+
+private func nutTrayRoundButton(_ glyph: String, label: LocalizedStringKey, action: @escaping () -> Void) -> some View {
+    Button(action: action) {
+        Text(verbatim: glyph).font(TTFont.workSans(22, weight: .regular)).foregroundStyle(TTColor.ink)
+            .frame(width: 44, height: 44)
+            .overlay(Circle().stroke(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255), lineWidth: 1))
+            .contentShape(Circle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+}
+
+/// One item card: collapsed by default, tap to adjust the portion.
+private struct NutTrayCard: View {
+    @Binding var item: NutTrayItem
+    let onRemove: () -> Void
+    let onAlternative: (String) -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let n = item.nutrition
+        let kcal = Int(n.kcal.rounded())
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .center, spacing: 8) {
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { item.expanded.toggle() }
+                } label: {
+                    HStack(spacing: 10) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(verbatim: item.name)
+                                .font(TTFont.workSans(16, weight: .semibold))
+                                .foregroundStyle(TTColor.ink)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                            Text(verbatim: item.portionSummary)
+                                .font(TTFont.workSans(13, weight: .regular))
+                                .foregroundStyle(NutStyle.mute)
+                            Text(item.trust.title)
+                                .font(TTFont.workSans(11, weight: .semibold))
+                                .foregroundStyle(item.trust.tint)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(item.trust.tint.opacity(0.12))
+                                .clipShape(Capsule())
+                        }
+                        Spacer(minLength: 4)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text("\(kcal) kcal")
+                                .font(TTFont.workSans(15, weight: .bold))
+                                .monospacedDigit()
+                                .foregroundStyle(TTColor.ink)
+                            if !item.expanded {
+                                Text("Tap to adjust")
+                                    .font(TTFont.workSans(11, weight: .regular))
+                                    .foregroundStyle(NutStyle.mute)
+                            }
+                        }
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(NutStyle.mute)
+                            .rotationEffect(.degrees(item.expanded ? 180 : 0))
+                            .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: item.expanded)
+                            .accessibilityHidden(true)
+                    }
+                    .frame(minHeight: 56)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: "\(item.name), \(item.portionSummary), \(kcal) kcal"))
+                .accessibilityHint(Text("Adjust portion"))
+
+                Button(action: onRemove) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(NutStyle.mute)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("Remove \(item.name)"))
+            }
+
+            if item.needsReview, !item.alternatives.isEmpty {
+                NutFlow(spacing: 8) {
+                    ForEach(item.alternatives, id: \.self) { alt in
+                        nutTrayChip(Text("Not it?") + Text(verbatim: " \(alt)"), on: false) { onAlternative(alt) }
+                    }
+                }
+            }
+
+            if item.expanded { controls }
+        }
+        .padding(12)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(item.needsReview ? NutStyle.orange : Color.clear, lineWidth: 1.5)
+        )
+    }
+
+    @ViewBuilder
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switch item.category {
+            case .plate:
+                NutFlow(spacing: 8) {
+                    ForEach(0..<3, id: \.self) { i in
+                        nutTrayChip(
+                            Text(LocalizedStringKey(NutTrayItem.plateTokens[i])) + Text(verbatim: " · " + String(format: "%.1f×", NutTrayItem.plateFactors[i])),
+                            on: item.plateSize == i
+                        ) { item.plateSize = i; item.portionTouched = true }
+                    }
+                }
+            case .piece:
+                HStack(spacing: 12) {
+                    nutTrayRoundButton("−", label: "Fewer") { item.count = max(1, item.count - 1); item.portionTouched = true }
+                    Text(verbatim: "\(item.count)")
+                        .font(TTFont.workSans(20, weight: .semibold)).monospacedDigit()
+                        .frame(minWidth: 64)
+                    nutTrayRoundButton("+", label: "More") { item.count = min(6, item.count + 1); item.portionTouched = true }
+                }
+                NutFlow(spacing: 8) {
+                    ForEach(0..<3, id: \.self) { i in
+                        nutTrayChip(Text(LocalizedStringKey(NutTrayItem.pieceTokens[i])), on: item.pieceSize == i) {
+                            item.pieceSize = i; item.portionTouched = true
+                        }
+                    }
+                }
+            case .drink:
+                NutFlow(spacing: 8) {
+                    ForEach([("Glass", 250.0), ("Cup", 200.0), ("Bottle", 500.0)], id: \.0) { name, v in
+                        nutTrayChip(Text(LocalizedStringKey(name)) + Text(verbatim: " \(Int(v))"), on: item.ml == v) {
+                            item.ml = v; item.portionTouched = true
+                        }
+                    }
+                }
+                HStack(spacing: 12) {
+                    nutTrayRoundButton("−", label: "Less") { item.ml = max(50, item.ml - 50); item.portionTouched = true }
+                    Text(verbatim: "\(Int(item.ml)) ml")
+                        .font(TTFont.workSans(20, weight: .semibold)).monospacedDigit()
+                        .frame(minWidth: 96)
+                    nutTrayRoundButton("+", label: "More") { item.ml = min(1000, item.ml + 50); item.portionTouched = true }
+                }
+            }
+
+            if let profile = item.profile {
+                NutFlow(spacing: 8) {
+                    ForEach(Array(profile.options.enumerated()), id: \.offset) { i, option in
+                        nutTrayChip(Text(option.title), on: item.modifier == i) { item.modifier = i }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Review screen: live totals, one card per food, status, time and save.
+private struct NutMealTrayContent: View {
+    @Environment(AppStore.self) private var store
+    let source: String
+    let heroPhoto: UIImage?
+    let close: (_ after: (() -> Void)?) -> Void
+    let onSaved: (TTToastMessage) -> Void
+
+    @State private var items: [NutTrayItem]
+    @State private var status = "eaten"
+    @State private var now: Date
+    @State private var time: Date
+    @State private var timeTouched = false
+    @State private var saving = false
+    @State private var errorText: String?
+    @State private var addingItem = false
+    @State private var query = ""
+    @State private var remote: FoodKnowledge?
+    @State private var mealTag: String?
+    @State private var showFix = false
+    @State private var fixText = ""
+    @State private var refining = false
+    @State private var fixMessage: String?
+
+    init(
+        items: [NutTrayItem], mealTag: String?, source: String, heroPhoto: UIImage?,
+        close: @escaping (_ after: (() -> Void)?) -> Void, onSaved: @escaping (TTToastMessage) -> Void
+    ) {
+        _items = State(initialValue: items)
+        let opened = Date()
+        _now = State(initialValue: opened)
+        _time = State(initialValue: opened)
+        _mealTag = State(initialValue: mealTag)
+        self.source = source
+        self.heroPhoto = heroPhoto
+        self.close = close
+        self.onSaved = onSaved
+    }
+
+    private var totals: NutNutrition {
+        items.reduce(NutNutrition()) { acc, item in
+            let n = item.nutrition
+            return NutNutrition(kcal: acc.kcal + n.kcal, p: acc.p + n.p, c: acc.c + n.c, f: acc.f + n.f, fiber: acc.fiber + n.fiber)
+        }
+    }
+
+    private var goal: Int { store.currentTrainee?.dailyCalorieTarget ?? 0 }
+
+    private var eatenKcalToday: Int {
+        guard let id = store.currentTrainee?.id else { return 0 }
+        return store.meals(for: id, on: Date()).filter { !$0.isPlanned }.reduce(0) { $0 + $1.macros.calories }
+    }
+
+    private var endOfDay: Date {
+        Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: now) ?? now
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Review your meal")
+                .font(TTFont.workSans(20, weight: .bold)).foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+                .padding(.bottom, 10)
+
+            summaryCard
+
+            VStack(spacing: 10) {
+                ForEach($items) { $item in
+                    NutTrayCard(
+                        item: $item,
+                        onRemove: { remove(item.id) },
+                        onAlternative: { alt in applyAlternative(item.id, alt) }
+                    )
+                }
+            }
+            .padding(.top, 12)
+
+            if items.isEmpty {
+                Text("Add an item to save this meal.")
+                    .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                    .padding(.top, 8)
+            }
+
+            addMissingItem
+
+            HStack(spacing: 0) {
+                seg("Ate it", on: status == "eaten") { setStatus("eaten") }
+                seg("Plan it", on: status == "planned") { setStatus("planned") }
+            }
+            .padding(3)
+            .background(NutStyle.track)
+            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .padding(.top, 14).padding(.bottom, 6)
+
+            HStack {
+                Text(verbatim: (Calendar.current.isDate(time, equalTo: now, toGranularity: .minute) ? "\(String(localized: "Now")) · " : "")
+                     + time.formatted(date: .omitted, time: .shortened))
+                    .font(TTFont.workSans(16, weight: .semibold)).monospacedDigit()
+                Spacer(minLength: 8)
+                HStack(spacing: 12) {
+                    nutTrayRoundButton("−", label: "15 minutes earlier") { shiftTime(-15) }
+                    nutTrayRoundButton("+", label: "15 minutes later") { shiftTime(15) }
+                }
+            }
+            .padding(.vertical, 6)
+
+            if let errorText {
+                Text(verbatim: errorText).font(TTFont.body(13)).foregroundStyle(NutStyle.danger).padding(.top, 4)
+            }
+
+            nutPanelButton(saving ? "Saving…" : "Save meal", style: .primary, loading: saving) { save() }
+                .disabled(saving || items.isEmpty)
+                .opacity(items.isEmpty ? 0.4 : 1)
+                .padding(.top, 10)
+            nutPanelButton("Cancel", style: .ghost) { close(nil) }
+                .disabled(saving)
+                .padding(.bottom, 12)
+        }
+    }
+
+    // MARK: Summary
+
+    private var summaryCard: some View {
+        let t = totals
+        let kcal = Int(t.kcal.rounded())
+        let left = goal - eatenKcalToday - kcal
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(kcal) kcal")
+                    .font(TTFont.workSans(30, weight: .bold)).monospacedDigit()
+                    .foregroundStyle(TTColor.ink)
+                    .minimumScaleFactor(0.7).lineLimit(1)
+                Spacer(minLength: 4)
+                if let tag = mealTag?.trimmingCharacters(in: .whitespacesAndNewlines), !tag.isEmpty {
+                    Text(verbatim: tag)
+                        .font(TTFont.workSans(12, weight: .semibold))
+                        .foregroundStyle(NutStyle.accentText)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(NutStyle.orange.opacity(0.12))
+                        .clipShape(Capsule())
+                        .lineLimit(1)
+                }
+            }
+            HStack(spacing: 8) {
+                macroCell("Protein", t.p)
+                macroCell("Carbs", t.c)
+                macroCell("Fat", t.f)
+            }
+            if goal > 0 {
+                Text("\(max(0, left)) kcal left after this meal")
+                    .font(TTFont.workSans(13, weight: .medium))
+                    .foregroundStyle(left < 0 ? NutStyle.danger : NutStyle.mute)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NutStyle.field)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func macroCell(_ title: LocalizedStringKey, _ value: Double) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(title).font(TTFont.workSans(12, weight: .regular)).foregroundStyle(Color(white: 0.27))
+            Text(verbatim: "\(value.formatted(.number.precision(.fractionLength(0...1)))) g")
+                .font(TTFont.workSans(15, weight: .bold)).monospacedDigit().foregroundStyle(TTColor.ink)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Add missing item
+
+    private var results: [FoodKnowledge] {
+        let t = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var foods = store.foodCatalog
+        if let remote, !foods.contains(where: { $0.name == remote.name }) { foods.insert(remote, at: 0) }
+        guard !t.isEmpty else { return Array(foods.prefix(6)) }
+        return foods.filter { f in
+            f.name.lowercased().contains(t) || f.keywords.contains { $0.lowercased().contains(t) }
+        }
+    }
+
+    private var addMissingItem: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Button {
+                    addingItem.toggle()
+                    if addingItem { showFix = false }
+                } label: {
+                    Text("+ Add missing item")
+                        .font(TTFont.workSans(15, weight: .semibold))
+                        .foregroundStyle(NutStyle.accentText)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                Spacer(minLength: 4)
+
+                Button {
+                    showFix.toggle()
+                    if showFix { addingItem = false }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles").font(.system(size: 14, weight: .semibold))
+                        Text("Fix with AI").font(TTFont.workSans(15, weight: .semibold))
+                    }
+                    .foregroundStyle(NutStyle.accentText)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(showFix ? .isSelected : [])
+            }
+            if addingItem { searchBlock }
+            if showFix { fixBlock }
+        }
+        .padding(.top, 6)
+    }
+
+    private var searchBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            TextField("Search foods and drinks", text: $query)
+                .font(TTFont.body(16))
+                .padding(.horizontal, 14)
+                .frame(height: 48)
+                .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color(red: 228 / 255, green: 228 / 255, blue: 231 / 255), lineWidth: 1.5))
+                .onChange(of: query) { _, value in
+                    remote = nil
+                    let q = value.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard q.count >= 2 else { return }
+                    Task {
+                        let found = await store.searchFood(query: q)
+                        if query.trimmingCharacters(in: .whitespacesAndNewlines) == q { remote = found }
+                    }
+                }
+            ForEach(results, id: \.name) { food in
+                Button {
+                    items.append(NutTrayBuilder.item(from: food))
+                    addingItem = false; query = ""; remote = nil
+                } label: {
+                    HStack {
+                        Text(verbatim: food.name).font(TTFont.workSans(15, weight: .semibold)).foregroundStyle(TTColor.ink)
+                        Spacer(minLength: 4)
+                        Text(verbatim: String(format: String(localized: "%lld kcal per 100 g"), food.per100g.calories))
+                            .font(TTFont.workSans(12, weight: .regular)).foregroundStyle(NutStyle.mute)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    /// "Fix with AI": a short instruction, sent with the tray's current items.
+    private var fixBlock: some View {
+        let trimmed = fixText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                TextField("e.g. It's mutton not chicken, add 1 roti", text: $fixText, axis: .vertical)
+                    .lineLimit(1...3)
+                    .font(TTFont.body(15))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .background(NutStyle.field)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .disabled(refining)
+                    .accessibilityLabel(Text("Fix with AI"))
+                Button { refine() } label: {
+                    HStack(spacing: 6) {
+                        if refining { ProgressView().tint(.white) }
+                        Text("Update").font(TTFont.workSans(15, weight: .semibold))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(Color.black)
+                    .clipShape(Capsule())
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(refining || trimmed.isEmpty)
+                .opacity(trimmed.isEmpty && !refining ? 0.4 : 1)
+            }
+            if let fixMessage {
+                Text(verbatim: fixMessage)
+                    .font(TTFont.body(13)).foregroundStyle(NutStyle.mute)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func refine() {
+        let instruction = fixText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !refining, !instruction.isEmpty else { return }
+        refining = true
+        fixMessage = nil
+        let bodies = items.map(\.itemBody)
+        let fallback = String(localized: "Couldn’t update right now — you can still edit items below.")
+        Task {
+            do {
+                let response = try await store.refineMeal(items: bodies, instruction: instruction)
+                let refined = (response.items ?? []).map { NutTrayBuilder.item(from: $0) }
+                if (response.isFood ?? true), !refined.isEmpty {
+                    // Only the items change: Ate it | Plan it and the chosen time stay as they are.
+                    items = refined
+                    if let tag = response.mealTag?.trimmingCharacters(in: .whitespacesAndNewlines), !tag.isEmpty { mealTag = tag }
+                    fixText = ""
+                    showFix = false
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                } else {
+                    let message = (response.message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    fixMessage = message.isEmpty ? fallback : message
+                }
+            } catch {
+                fixMessage = fallback
+            }
+            refining = false
+        }
+    }
+
+    // MARK: Actions
+
+    private func remove(_ id: UUID) {
+        items.removeAll { $0.id == id }
+    }
+
+    /// "Not it?" — rename, and use the local food list for numbers when there is a match (no backend call).
+    private func applyAlternative(_ id: UUID, _ alt: String) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        var item = items[index]
+        item.name = alt
+        item.searchKey = alt.lowercased()
+        item.confidence = 1
+        item.alternatives = []
+        if let food = store.lookupFood(query: alt) {
+            let grams = item.grams
+            let k = grams / 100
+            item.base = NutNutrition(kcal: Double(food.per100g.calories) * k, p: food.per100g.protein * k, c: food.per100g.carbs * k, f: food.per100g.fat * k)
+            item.baseGrams = max(grams, 1)
+            item.trust = .databaseMatch
+            item.profile = nil
+        }
+        items[index] = item
+    }
+
+    private func seg(_ title: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(TTFont.workSans(15, weight: on ? .semibold : .medium))
+                .foregroundStyle(on ? Color(white: 0.07) : Color(red: 85 / 255, green: 85 / 255, blue: 91 / 255))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(on ? Color.white : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .shadow(color: on ? .black.opacity(0.16) : .clear, radius: 1.5, y: 1)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+
+    private func setStatus(_ newStatus: String) {
+        status = newStatus
+        if newStatus == "planned", time <= now { time = now.addingTimeInterval(78 * 60) }
+        if newStatus == "eaten", time > now { time = now }
+        if time > endOfDay { time = endOfDay }
+        timeTouched = true
+    }
+
+    private func shiftTime(_ minutes: Int) {
+        var t = time.addingTimeInterval(Double(minutes) * 60)
+        if status == "eaten" { t = min(now, t) } else { t = min(endOfDay, max(now.addingTimeInterval(15 * 60), t)) }
+        time = t
+        timeTouched = true
+    }
+
+    private func save() {
+        guard !saving, !items.isEmpty else { return }
+        saving = true
+        errorText = nil
+        let t = totals
+        func r1(_ v: Double) -> Double { (v * 10).rounded() / 10 }
+        let names = items.map(\.name).joined(separator: ", ")
+        let name = names.count > 60 ? String(names.prefix(57)) + "…" : names
+        // Same kind of text as manual entries ("~200 g", "250 ml"); several items: "3 items". The meal tag stays in the tray.
+        let detail = items.count == 1
+            ? items[0].weightText
+            : String(format: String(localized: "%lld items"), items.count)
+        let meal = Meal(
+            id: UUID().uuidString,
+            traineeId: store.currentTrainee?.id ?? "",
+            name: name,
+            eatenAt: time,
+            portionGrams: max(1, items.reduce(0) { $0 + $1.grams }),
+            macros: MacroEstimate(calories: Int(t.kcal.rounded()), protein: r1(t.p), carbs: r1(t.c), fat: r1(t.f)),
+            source: source,
+            isEstimate: items.contains { $0.trust != .verifiedLabel },
+            status: status,
+            kind: items.count == 1 ? items[0].category.rawValue : NutKind.plate.rawValue,
+            detail: detail.isEmpty ? nil : detail
+        )
+        let bodies = items.map(\.itemBody)
+        let hero = heroPhoto
+        let sendTime = status == "planned" || timeTouched
+        Task {
+            do {
+                // Uploads the first photo (if any), then saves the meal with its items; the Today list refreshes.
+                try await store.saveMeal(meal, photo: hero, sendsEatenAt: sendTime, items: bodies)
+                saving = false
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                let timeText = time.formatted(date: .omitted, time: .shortened)
+                let text = status == "planned"
+                    ? String(format: String(localized: "%@ planned · %@"), name, timeText)
+                    : String(format: String(localized: "%@ saved · %@"), name, timeText)
+                close {
+                    onSaved(TTToastMessage(text: text, style: .success))
+                    UIAccessibility.post(notification: .announcement, argument: text)
+                }
+            } catch {
+                // Everything stays as it is so the person can try again.
+                saving = false
+                errorText = error.localizedDescription.isEmpty ? String(localized: "Couldn’t save entry") : error.localizedDescription
+            }
+        }
+    }
+}
+
+// MARK: Barcode (on device)
+
+private extension CGImagePropertyOrientation {
+    init(_ o: UIImage.Orientation) {
+        switch o {
+        case .up: self = .up
+        case .upMirrored: self = .upMirrored
+        case .down: self = .down
+        case .downMirrored: self = .downMirrored
+        case .left: self = .left
+        case .leftMirrored: self = .leftMirrored
+        case .right: self = .right
+        case .rightMirrored: self = .rightMirrored
+        @unknown default: self = .up
+        }
+    }
+}
+
+private enum NutBarcode {
+    /// The first barcode in the image (Apple Vision, no network).
+    static func detect(in image: UIImage) async -> String? {
+        guard let cg = image.cgImage else { return nil }
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
+        return await Task.detached(priority: .userInitiated) { () -> String? in
+            let request = VNDetectBarcodesRequest()
+            let handler = VNImageRequestHandler(cgImage: cg, orientation: orientation, options: [:])
+            do { try handler.perform([request]) } catch { return nil }
+            return request.results?.compactMap { $0.payloadStringValue }.first { !$0.isEmpty }
+        }.value
+    }
+}
+
+// MARK: Nutrition label OCR (on device)
+
+private enum NutLabelOCR {
+    /// All text Vision can read from a label photo, one line per row. Runs off the main actor.
+    static func recognize(in image: UIImage) async -> String {
+        guard let cg = image.cgImage else { return "" }
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
+        return await Task.detached(priority: .userInitiated) { () -> String in
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            let handler = VNImageRequestHandler(cgImage: cg, orientation: orientation, options: [:])
+            do { try handler.perform([request]) } catch { return "" }
+            let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+            return lines.joined(separator: "\n")
+        }.value
+    }
+}
+
+// MARK: Capture panel: photos → (barcode fast path) → disclosure → analyze → tray
+
+private struct NutCaptureContent: View {
+    @Environment(AppStore.self) private var store
+    let firstPhoto: UIImage
+    /// Optional: the first photo is a nutrition label, so run label OCR right away.
+    var startsWithLabelScan = false
+    let close: (_ after: (() -> Void)?) -> Void
+    let onSaved: (TTToastMessage) -> Void
+    let onSearch: () -> Void
+
+    private enum Phase: Equatable {
+        case checkingBarcode, collecting, disclosure, analyzing, readingLabel, notFound(String), tray
+    }
+
+    private static let disclosureKey = "nutrition.aiPhotoDisclosureAccepted"
+
+    @State private var photos: [UIImage] = []
+    @State private var phase: Phase = .checkingBarcode
+    @State private var trayItems: [NutTrayItem] = []
+    @State private var trayTag: String?
+    @State private var traySource = "photo"
+    @State private var analysisTask: Task<Void, Never>?
+    @State private var showCamera = false
+    @State private var showLibrary = false
+    @State private var cameraImage: UIImage?
+    @State private var libraryItem: PhotosPickerItem?
+    @State private var cameraMessage: String?
+    /// The next picked photo is a nutrition label (OCR), not a meal photo.
+    @State private var pickingLabel = false
+    /// A barcode was read but is not in the database: the not-found screen offers "Scan nutrition label".
+    @State private var barcodeMissed = false
+    /// Optional one-line note for the analysis ("zero sugar", "air fried"). Never required.
+    @State private var hint = ""
+
+    var body: some View {
+        Group {
+            switch phase {
+            case .checkingBarcode: busy("Checking barcode…")
+            case .collecting: collecting
+            case .disclosure: disclosure
+            case .analyzing: analyzing
+            case .readingLabel: readingLabel
+            case .notFound(let message): notFound(message)
+            case .tray:
+                NutMealTrayContent(items: trayItems, mealTag: trayTag, source: traySource, heroPhoto: photos.first, close: close, onSaved: onSaved)
+            }
+        }
+        .task { await start() }
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraImagePicker(image: $cameraImage).ignoresSafeArea()
+        }
+        .photosPicker(isPresented: $showLibrary, selection: $libraryItem, matching: .images)
+        .onChange(of: cameraImage) { _, image in
+            guard let image else { return }
+            cameraImage = nil
+            handlePicked(image)
+        }
+        .onChange(of: libraryItem) { _, item in
+            guard let item else { return }
+            Task {
+                defer { libraryItem = nil }
+                if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                    handlePicked(image)
+                }
+            }
+        }
+        .onDisappear { analysisTask?.cancel() }
+    }
+
+    // MARK: Phases
+
+    private func busy(_ title: LocalizedStringKey) -> some View {
+        VStack(spacing: 14) {
+            ProgressView()
+            Text(title)
+                .font(TTFont.workSans(16, weight: .semibold)).foregroundStyle(TTColor.ink)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var analyzing: some View {
+        VStack(spacing: 10) {
+            busy("Looking at your photo…")
+            nutPanelButton("Cancel", style: .ghost) {
+                analysisTask?.cancel()
+                phase = .collecting
+            }
+        }
+    }
+
+    private var readingLabel: some View {
+        VStack(spacing: 10) {
+            busy("Reading the label…")
+            nutPanelButton("Cancel", style: .ghost) {
+                analysisTask?.cancel()
+                phase = .collecting
+            }
+        }
+    }
+
+    /// "Scan nutrition label": take or pick a photo of the label; the text is read on the device.
+    private func labelScanMenu() -> some View {
+        Menu {
+            Button { pickingLabel = true; openCamera() } label: { Text("Take photo") }
+            Button { pickingLabel = true; showLibrary = true } label: { Text("Choose photo") }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "text.viewfinder").font(.system(size: 15, weight: .semibold))
+                Text("Scan nutrition label").font(TTFont.workSans(15, weight: .semibold))
+            }
+            .foregroundStyle(NutStyle.accentText)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
+        }
+    }
+
+    private var collecting: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Add photos")
+                .font(TTFont.workSans(20, weight: .bold)).foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("Add up to 5 photos of the same meal.")
+                .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                .padding(.top, 2).padding(.bottom, 8)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(Array(photos.enumerated()), id: \.offset) { index, image in
+                        ZStack(alignment: .topTrailing) {
+                            Image(uiImage: image)
+                                .resizable().scaledToFill()
+                                .frame(width: 84, height: 84)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .accessibilityLabel(Text("Meal photo"))
+                            Button { photos.remove(at: index) } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .frame(width: 22, height: 22)
+                                    .background(Color.black.opacity(0.75))
+                                    .clipShape(Circle())
+                                    .frame(width: 44, height: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("Remove photo"))
+                            .offset(x: 14, y: -14)
+                        }
+                        .frame(width: 84, height: 84)
+                    }
+                    if photos.count < 5 { addTile }
+                }
+                .padding(.top, 14).padding(.trailing, 16).padding(.bottom, 6)
+            }
+
+            if let cameraMessage {
+                Text(verbatim: cameraMessage).font(TTFont.body(13)).foregroundStyle(NutStyle.mute).padding(.bottom, 6)
+            }
+
+            TextField("Optional note (e.g. zero sugar, air fried, chicken)", text: $hint)
+                .font(TTFont.body(15))
+                .lineLimit(1)
+                .submitLabel(.done)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(NutStyle.field)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .padding(.top, 8)
+                .onChange(of: hint) { _, value in
+                    if value.count > 200 { hint = String(value.prefix(200)) }
+                }
+                .accessibilityLabel(Text("Optional note"))
+
+            nutPanelButton("Analyze", style: .primary) { analyze() }
+                .disabled(photos.isEmpty)
+                .opacity(photos.isEmpty ? 0.4 : 1)
+                .padding(.top, 8)
+            labelScanMenu()
+            nutPanelButton("Cancel", style: .ghost) { close(nil) }
+        }
+    }
+
+    private var addTile: some View {
+        Menu {
+            Button { openCamera() } label: { Text("Take photo") }
+            Button { showLibrary = true } label: { Text("Choose photo") }
+        } label: {
+            VStack(spacing: 4) {
+                TTIcon(icon: .camera1, size: 20)
+                Text("+ Add photo")
+                    .font(TTFont.workSans(12, weight: .semibold))
+                    .multilineTextAlignment(.center)
+            }
+            .foregroundStyle(NutStyle.accentText)
+            .frame(width: 84, height: 84)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(NutStyle.orange, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
+            )
+        }
+        .accessibilityLabel(Text("Add photo"))
+    }
+
+    private var disclosure: some View {
+        VStack(spacing: 0) {
+            TTIcon(icon: .camera1, size: 28)
+                .foregroundStyle(NutStyle.orange)
+                .frame(width: 64, height: 64)
+                .background(Color(red: 1, green: 241 / 255, blue: 230 / 255))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                .padding(.top, 6).padding(.bottom, 10)
+                .accessibilityHidden(true)
+            Text("AI photo analysis")
+                .font(TTFont.workSans(20, weight: .bold)).foregroundStyle(TTColor.ink)
+                .accessibilityAddTraits(.isHeader)
+            Text("Meal photos are analyzed by AI to estimate calories and macros. Photos are not used to train AI models.")
+                .font(TTFont.body(14)).foregroundStyle(NutStyle.mute)
+                .multilineTextAlignment(.center)
+                .padding(.top, 2).padding(.bottom, 10)
+            nutPanelButton("Continue", style: .primary) {
+                UserDefaults.standard.set(true, forKey: Self.disclosureKey)
+                runAnalysis()
+            }
+            nutPanelButton("Cancel", style: .ghost) { phase = .collecting }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func notFound(_ message: String) -> some View {
+        VStack(spacing: 10) {
+            TTIcon(icon: .infoCircle, size: 28)
+                .foregroundStyle(TTColor.inkMuted)
+                .padding(.top, 6)
+                .accessibilityHidden(true)
+            Text(verbatim: message)
+                .font(TTFont.body(15)).foregroundStyle(TTColor.ink)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 8).padding(.bottom, 6)
+            nutPanelButton("Search", style: .primary) { onSearch() }
+            if barcodeMissed { labelScanMenu() }
+            nutPanelButton("Retake", style: .ghost) {
+                photos = []
+                phase = .collecting
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Actions
+
+    private func start() async {
+        guard photos.isEmpty else { return }
+        if startsWithLabelScan {
+            scanLabel(firstPhoto)
+            return
+        }
+        photos = [firstPhoto]
+        // On-device barcode fast path: a found barcode costs no AI call.
+        guard let code = await NutBarcode.detect(in: firstPhoto) else {
+            phase = .collecting
+            return
+        }
+        phase = .checkingBarcode
+        do {
+            let response = try await store.lookupBarcode(code)
+            if response.found == true, let item = response.item, let tray = NutTrayBuilder.item(from: item) {
+                trayItems = [tray]
+                trayTag = nil
+                traySource = "barcode"
+                phase = .tray
+            } else {
+                barcodeMissed = true
+                phase = .notFound(String(localized: "Barcode not found — take a photo of the food or search."))
+            }
+        } catch {
+            phase = .notFound(String(localized: "Couldn’t analyze right now. Check your connection, or search for the food instead."))
+        }
+    }
+
+    private func handlePicked(_ image: UIImage) {
+        if pickingLabel {
+            pickingLabel = false
+            scanLabel(image)
+        } else {
+            addPhoto(image)
+        }
+    }
+
+    /// Label photo → text on the device (Vision) → `parse-label` → Meal Tray with a Verified Label item.
+    private func scanLabel(_ image: UIImage) {
+        phase = .readingLabel
+        analysisTask?.cancel()
+        analysisTask = Task {
+            let text = await NutLabelOCR.recognize(in: image)
+            if Task.isCancelled { return }
+            guard text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 else {
+                phase = .notFound(String(localized: "Couldn’t read this label — retake the photo or search."))
+                return
+            }
+            do {
+                let response = try await store.parseNutritionLabel(ocrText: text)
+                if Task.isCancelled { return }
+                if response.found == true, let item = response.item, let tray = NutTrayBuilder.item(from: item) {
+                    trayItems = [tray]
+                    trayTag = nil
+                    traySource = "label"
+                    phase = .tray
+                } else {
+                    phase = .notFound(String(localized: "Couldn’t read this label — retake the photo or search."))
+                }
+            } catch {
+                if Task.isCancelled { return }
+                phase = .notFound(String(localized: "Couldn’t analyze right now. Check your connection, or search for the food instead."))
+            }
+        }
+    }
+
+    private func addPhoto(_ image: UIImage) {
+        guard photos.count < 5 else { return }
+        photos.append(image)
+        if phase != .collecting { phase = .collecting }
+    }
+
+    private func openCamera() {
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else { showLibrary = true; return }
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showCamera = true
+                    } else {
+                        cameraMessage = String(localized: "Camera access is off — choose a photo from your library.")
+                        showLibrary = true
+                    }
+                }
+            }
+        default:
+            cameraMessage = String(localized: "Camera access is off — choose a photo from your library.")
+            showLibrary = true
+        }
+    }
+
+    private func analyze() {
+        guard !photos.isEmpty else { return }
+        // First cloud analysis: one-time AI disclosure (App Store guideline 5.1.2).
+        if UserDefaults.standard.bool(forKey: Self.disclosureKey) {
+            runAnalysis()
+        } else {
+            phase = .disclosure
+        }
+    }
+
+    private func runAnalysis() {
+        phase = .analyzing
+        analysisTask?.cancel()
+        let images = photos
+        let note = hint
+        analysisTask = Task {
+            do {
+                let result = try await store.analyzeMealPhotos(images, hint: note)
+                if Task.isCancelled { return }
+                let mapped = (result.items ?? []).map { NutTrayBuilder.item(from: $0) }
+                if result.isFood == false || mapped.isEmpty {
+                    let message = (result.message ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    phase = .notFound(message.isEmpty ? String(localized: "We couldn’t recognise a meal in this photo.") : message)
+                    return
+                }
+                trayItems = mapped
+                trayTag = result.mealTag
+                traySource = "photo"
+                phase = .tray
+            } catch {
+                if Task.isCancelled { return }
+                phase = .notFound(String(localized: "Couldn’t analyze right now. Check your connection, or search for the food instead."))
+            }
+        }
+    }
+}
+
+extension Notification.Name {
+    /// A meal was saved outside the Nutrition screen (Home, + menu).
+    static let ttMealSaved = Notification.Name("ttMealSaved")
+}
+
+/// Home and the + menu: the same Add photos → barcode / AI → Review your meal flow as Nutrition, in a normal sheet.
+struct TTMealPhotoFlowSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let image: UIImage
+    var onSaved: (TTToastMessage) -> Void
+    /// "Search" on the not-found screen: called after this sheet has closed.
+    var onSearch: (() -> Void)? = nil
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Capsule().fill(Color(red: 212 / 255, green: 212 / 255, blue: 216 / 255))
+                .frame(width: 40, height: 5).padding(.top, 8).padding(.bottom, 10)
+                .accessibilityHidden(true)
+            ScrollView {
+                NutCaptureContent(
+                    firstPhoto: image,
+                    close: { after in dismiss(); after?() },
+                    onSaved: { toast in
+                        NotificationCenter.default.post(name: .ttMealSaved, object: nil)
+                        onSaved(toast)
+                    },
+                    onSearch: {
+                        dismiss()
+                        if let onSearch {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { onSearch() }
+                        }
+                    }
+                )
+                .padding(.horizontal, 18)
+                .padding(.bottom, 24)
+            }
+            .scrollDismissesKeyboard(.interactively)
+        }
+        .background(Color.white.ignoresSafeArea())
     }
 }
 

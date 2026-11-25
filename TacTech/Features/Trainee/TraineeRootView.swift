@@ -145,7 +145,8 @@ struct TraineeRootView: View {
         .modifier(TTPhotoMealCaptureModifier(
             trigger: $mealCaptureTrigger,
             onNotice: { relationshipToast = TTToastMessage(text: $0, style: .info) },
-            onSaved: { relationshipToast = $0 }
+            onSaved: { relationshipToast = $0 },
+            onSearch: { tab = .nutrition }
         ))
         // + menu → Chat with your coach: the direct conversation; Back closes it and returns to where the trainee was.
         .fullScreenCover(item: $coachChatTarget) { target in

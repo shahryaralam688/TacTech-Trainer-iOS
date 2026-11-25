@@ -20,6 +20,8 @@ final class AppStore {
     var assignments: [PlanAssignment] = []
     var workoutLogs: [WorkoutLog] = []
     var meals: [Meal] = []
+    /// Meals the trainee repeats (server: eaten twice or more in 30 days). Refreshed when Nutrition opens and after a save.
+    var frequentMeals: [FrequentMeal] = []
     var feedback: [TrainerFeedback] = []
     var formReports: [FormReport] = []
     var foodCatalog: [FoodKnowledge] = SeedData.foodCatalog
@@ -1545,7 +1547,7 @@ final class AppStore {
 
     /// Saves a meal. With a `photo`, it is resized (JPEG, longest side 1600 px, at most 5 MB) and uploaded first;
     /// the meal is then saved with the returned `photoUrl`. Any failure is thrown (nothing is saved on upload failure).
-    func saveMeal(_ meal: Meal, photo: UIImage? = nil, sendsEatenAt: Bool = true) async throws {
+    func saveMeal(_ meal: Meal, photo: UIImage? = nil, sendsEatenAt: Bool = true, items: [MealItemBody]? = nil) async throws {
         var meal = meal
         var uploadedURL: String?
         if let photo {
@@ -1576,16 +1578,71 @@ final class AppStore {
                 photoUrl: meal.photoUrl,
                 status: meal.status,
                 kind: meal.kind,
-                detail: meal.detail
+                detail: meal.detail,
+                items: items
             )
         )
         if let photo, let uploadedURL, let key = TTMealPhoto.resolvedURL(uploadedURL) {
             Task { await TTRemoteImageCache.shared.store(photo, for: key) }
         }
         upsert(created ?? meal)
+        Task { await refreshFrequentMeals() }
         if let trainee = currentTrainee {
             await refreshDay(for: trainee.id, on: meal.eatenAt)
         }
+    }
+
+    /// Sends 1–5 meal photos for AI analysis. Each image is re-drawn at most 1024 px on the long edge (this also drops
+    /// EXIF/GPS) and compressed to roughly 150–250 KB, off the main actor. Throws on network/server errors.
+    func analyzeMealPhotos(_ images: [UIImage], hint: String? = nil) async throws -> MealPhotosAnalysis {
+        let jpegs = await Task.detached(priority: .userInitiated) {
+            images.compactMap { AppStore.analysisJPEG($0) }
+        }.value
+        guard !jpegs.isEmpty else {
+            throw AppError.validation(String(localized: "Couldn’t prepare this photo."))
+        }
+        return try await api.analyzeMealPhotos(jpegs: jpegs, hint: hint)
+    }
+
+    /// "Fix with AI": sends the tray's current items and the person's instruction; returns the updated items.
+    func refineMeal(items: [MealItemBody], instruction: String) async throws -> MealPhotosAnalysis {
+        try await api.refineMeal(RefineMealBody(items: items, instruction: instruction))
+    }
+
+    func parseNutritionLabel(ocrText: String, productName: String? = nil) async throws -> BarcodeLookupResponse {
+        try await api.parseNutritionLabel(ocrText: ocrText, productName: productName)
+    }
+
+    /// Quiet refresh of the frequent-meals list (keeps the old list when the call fails).
+    func refreshFrequentMeals(limit: Int = 8) async {
+        guard session?.role == .trainee else { return }
+        if let list = try? await api.frequentMeals(limit: limit) { frequentMeals = list }
+    }
+
+    func lookupBarcode(_ code: String) async throws -> BarcodeLookupResponse {
+        try await api.lookupBarcode(code)
+    }
+
+    nonisolated static func analysisJPEG(_ image: UIImage) -> Data? {
+        let maxSide: CGFloat = 1024
+        let size = image.size
+        let longest = max(size.width, size.height)
+        guard longest > 0 else { return nil }
+        let factor = min(1, maxSide / longest)
+        let target = CGSize(width: max(1, (size.width * factor).rounded()), height: max(1, (size.height * factor).rounded()))
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = true
+        let redrawn = UIGraphicsImageRenderer(size: target, format: format).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: target))
+        }
+        var quality: CGFloat = 0.7
+        var data = redrawn.jpegData(compressionQuality: quality)
+        while let current = data, current.count > 250 * 1024, quality > 0.35 {
+            quality -= 0.1
+            data = redrawn.jpegData(compressionQuality: quality)
+        }
+        return data
     }
 
     /// Fetches read-only meal summary (`GET /trainee/meals/summary?period=day|week|month&tz=...`).
@@ -3253,6 +3310,7 @@ final class AppStore {
         workoutLogs = []
         traineeAnalyticsById = [:]
         meals = []
+        frequentMeals = []
         feedback = []
         formReports = []
         macrosByKey = [:]

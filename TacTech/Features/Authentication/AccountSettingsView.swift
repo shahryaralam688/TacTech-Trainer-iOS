@@ -492,20 +492,22 @@ struct SettingsPlaceholderView: View {
     let message: String
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(title: title) { dismiss() }
-
-            VStack(spacing: 12) {
-                Text(message)
-                    .font(TTFont.body(15))
-                    .foregroundStyle(TTColor.inkMuted)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 28)
-                Spacer()
+        TTCollapsingHeaderScreen(
+            sheetFill: .white,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: title, collapseProgress: progress) { dismiss() }
             }
-            .padding(.top, 20)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
+        ) {
+            Text(message)
+                .font(TTFont.body(15))
+                .foregroundStyle(TTColor.inkMuted)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 28)
+                .padding(.top, 20)
+                .padding(.bottom, 32)
+                .frame(maxWidth: .infinity)
         }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()

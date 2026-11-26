@@ -102,55 +102,82 @@ struct TTDarkPageHeader: View {
         self.onBack = onBack
     }
 
-    private var p: CGFloat { min(1, max(0, collapseProgress)) }
+    /// Same eased progress as `TTHomeProfileHeader`, so every dark header shrinks with one feel.
+    private var p: CGFloat { TTHomeHeaderCollapse.displayProgress(from: min(1, max(0, collapseProgress))) }
     private var expand: CGFloat { 1 - p }
 
-    private var headerHeight: CGFloat {
-        Self.compactHeight + (Self.cardHeight - Self.compactHeight) * expand
-    }
+    /// Natural height of the large title (1–2 lines), measured once so its slot can shrink smoothly.
+    @State private var largeTitleHeight: CGFloat = 0
 
-    /// Title slides from below the back control into the same row.
-    private var titleOffsetX: CGFloat {
-        guard showsBack else { return 0 }
-        return (TTBackButton.size + 12) * p
-    }
-
-    private var titleOffsetY: CGFloat {
-        guard showsBack else { return 4 * expand }
-        // Expanded: under the back button. Collapsed: vertically centered with it.
-        let expandedY = TTBackButton.size + 14
-        let collapsedY = (TTBackButton.size - (28 - 10 * p)) / 2
-        return expandedY * expand + collapsedY * p
-    }
+    /// Compact title in the back-button row: fades in from p = 0.35 → 1.
+    private var inlineOpacity: Double { Double(min(1, max(0, (p - 0.35) / 0.65))) }
+    /// Large title fades out faster than the slot closes.
+    private var largeOpacity: Double { Double(max(0, 1 - p * 1.6)) }
 
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            if showsBack {
-                TTBackButton(style: .onDark) {
-                    onBack?()
-                }
-                .scaleEffect(1 - 0.06 * p, anchor: .topLeading)
-            }
-
-            Text(title)
-                .font(TTFont.workSans(28 - 10 * p, weight: .bold))
-                .foregroundStyle(.white)
-                .lineLimit(p > 0.55 ? 1 : 2)
-                .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, titleOffsetX + 4)
-                .offset(x: titleOffsetX, y: titleOffsetY)
+        Group {
+            if showsBack { backLayout } else { plainLayout }
         }
-        .frame(maxWidth: .infinity, minHeight: headerHeight, alignment: .topLeading)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
         .padding(.horizontal, TTSpace.screen)
         .padding(.top, 10 - 2 * p)
-        .padding(.bottom, 16 - 6 * p)
+        .padding(.bottom, 16 - 8 * p)
         .background {
             Rectangle()
                 .fill(charcoal)
                 .ignoresSafeArea(edges: .top)
         }
         // Scroll-driven only — spring here lagged expand on the way back down.
+    }
+
+    /// Back button + compact title in one row; the large title sits below and folds away (same pattern as Home's top row).
+    private var backLayout: some View {
+        VStack(alignment: .leading, spacing: 10 * expand) {
+            HStack(alignment: .center, spacing: 12) {
+                TTBackButton(style: .onDark) { onBack?() }
+                Text(title)
+                    .font(TTFont.workSans(18, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .opacity(inlineOpacity)
+                    .accessibilityHidden(true)
+                Spacer(minLength: 0)
+            }
+            .frame(minHeight: TTBackButton.size)
+
+            Text(title)
+                .font(TTFont.workSans(26, weight: .bold))
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(GeometryReader { geo in
+                    Color.clear.onAppear { measure(geo.size.height) }
+                        .onChange(of: geo.size.height) { _, h in measure(h) }
+                })
+                .opacity(largeOpacity)
+                .accessibilityAddTraits(.isHeader)
+                .frame(height: largeTitleHeight > 0 ? largeTitleHeight * expand : (expand < 0.001 ? 0 : nil), alignment: .top)
+                .clipped()
+        }
+    }
+
+    /// No back button: one title that settles in place; ~108pt expanded, ~56pt compact.
+    private var plainLayout: some View {
+        Text(title)
+            .font(TTFont.workSans(26, weight: .bold))
+            .foregroundStyle(.white)
+            .lineLimit(2)
+            .minimumScaleFactor(0.7)
+            .scaleEffect(1 - 0.3 * p, anchor: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(minHeight: 56 + 52 * expand, alignment: .bottomLeading)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    private func measure(_ h: CGFloat) {
+        if abs(h - largeTitleHeight) > 0.5 { largeTitleHeight = h }
     }
 }
 

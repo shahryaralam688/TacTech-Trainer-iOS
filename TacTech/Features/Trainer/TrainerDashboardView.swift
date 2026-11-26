@@ -240,8 +240,12 @@ struct TrainerDashboardView: View {
                             Text("Nothing needs you right now")
                                 .font(TTFont.workSans(20, weight: .bold))
                                 .foregroundStyle(.black)
+                        } else if !waiting.isEmpty {
+                            Text("\(total) need you · \(waiting.count) waiting on a reply")
+                                .font(TTFont.workSans(13, weight: .medium))
+                                .foregroundStyle(Color(white: 0.45))
                         } else {
-                            Text("\(total) thing\(total == 1 ? "" : "s") to do")
+                            Text("Today")
                                 .font(TTFont.workSans(20, weight: .bold))
                                 .foregroundStyle(.black)
                         }
@@ -252,39 +256,13 @@ struct TrainerDashboardView: View {
                     }
                     .padding(.bottom, 4)
 
-                    if !waiting.isEmpty {
-                        Text("\(total) need you · \(waiting.count) waiting on a reply")
-                            .font(TTFont.workSans(13, weight: .medium))
-                            .foregroundStyle(Color(white: 0.45))
-                    }
-
                     if total > 0 {
-                        Text("NEEDS YOU")
-                            .font(TTFont.workSans(11, weight: .bold))
-                            .tracking(0.8)
-                            .foregroundStyle(Color(white: 0.5))
-                            .padding(.top, 4)
-
-                        // At most 3 cards (the join-request card counts as one), then "See all N".
-                        let limit = showAllNeeds ? Int.max : TTFollowUp.needsYouCardLimit
                         if !pendingJoins.isEmpty {
                             joinRequestsCard(pendingJoins)
                         }
-                        ForEach(needs.prefix(max(0, limit - joinCards))) { entry in
-                            actionCard(entry.item, state: entry.state)
+                        if !needs.isEmpty {
+                            needsCheckInCard(needs)
                                 .transition(boardTransition)
-                        }
-                        if total > TTFollowUp.needsYouCardLimit {
-                            Button {
-                                withAnimation(boardAnimation) { showAllNeeds.toggle() }
-                            } label: {
-                                Text(showAllNeeds ? "Show fewer" : "See all \(total)")
-                                    .font(TTFont.workSans(14, weight: .semibold))
-                                    .foregroundStyle(Color(white: 0.35))
-                                    .frame(maxWidth: .infinity, minHeight: 44)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
                         }
                     }
                 }
@@ -409,6 +387,120 @@ struct TrainerDashboardView: View {
             .buttonStyle(.plain)
             .padding(.trailing, 4)
             .accessibilityLabel(Text("Message \(name) again"))
+        }
+    }
+
+    // MARK: - Grouped "Needs a check-in" card
+
+    private func needsCheckInCard(_ entries: [BoardEntry]) -> some View {
+        let limit = showAllNeeds ? Int.max : TTFollowUp.needsYouCardLimit
+        let visible = Array(entries.prefix(limit))
+
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Needs a check-in · \(entries.count)")
+                    .font(TTFont.workSans(11, weight: .bold))
+                    .textCase(.uppercase)
+                    .kerning(0.8)
+                    .foregroundStyle(amber)
+                Spacer(minLength: 8)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 10)
+
+            ForEach(visible) { entry in
+                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
+                needsCheckInRow(entry.item, state: entry.state)
+            }
+
+            if entries.count > TTFollowUp.needsYouCardLimit {
+                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
+                Button {
+                    withAnimation(boardAnimation) { showAllNeeds.toggle() }
+                } label: {
+                    Text(showAllNeeds ? "Show fewer" : "See all \(entries.count)")
+                        .font(TTFont.workSans(14, weight: .semibold))
+                        .foregroundStyle(Color(white: 0.35))
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color(white: 0.97))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(amber.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private func needsCheckInRow(_ item: QueueItem, state: TTFollowUpState) -> some View {
+        let rowUser = store.user(forTrainee: item.trainee)
+        let name = rowUser?.name ?? String(localized: "Trainee")
+        return HStack(spacing: 12) {
+            Button {
+                detailTrainee = item.trainee
+            } label: {
+                HStack(spacing: 12) {
+                    TTAvatar(
+                        name: name,
+                        size: 40,
+                        avatarUrl: rowUser?.avatarUrl,
+                        avatarAsset: rowUser?.avatarAsset,
+                        userId: rowUser?.id
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(name)
+                            .font(TTFont.workSans(15, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .lineLimit(1)
+                        Text(compactReason(item, state: state))
+                            .font(TTFont.workSans(13, weight: .regular))
+                            .foregroundStyle(Color(white: 0.45))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if item.priority == 0 {
+                Button {
+                    openQuickMessage(item, state: state)
+                } label: {
+                    actionPill("Message")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Message \(name)")
+            } else if item.priority == 2 {
+                Button {
+                    previousPlanId = store.assignedPlan(for: item.trainee)?.id
+                    assignTrainee = item.trainee
+                } label: {
+                    actionPill("Assign plan")
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Assign plan to \(name)")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(minHeight: 58)
+    }
+
+    private func compactReason(_ item: QueueItem, state: TTFollowUpState) -> String {
+        if item.priority != 0 { return String(localized: "No plan yet") }
+        switch state {
+        case .stillQuiet(_, let days):
+            return TTFollowUpText.stillQuiet(days: days)
+        case .replied(let at):
+            return TTFollowUpText.replied(at)
+        default:
+            return item.detail.isEmpty ? String(localized: "No logs yet") : item.detail
         }
     }
 
@@ -610,8 +702,12 @@ struct TrainerDashboardView: View {
                             .kerning(0.8)
                             .foregroundStyle(Color(white: 0.5))
                         Spacer(minLength: 8)
-                        TTIcon(icon: .chevronRight, size: 14)
-                            .foregroundStyle(Color(white: 0.55))
+                        HStack(spacing: 4) {
+                            Text("All trainees")
+                                .font(TTFont.workSans(13, weight: .semibold))
+                            TTIcon(icon: .chevronRight, size: 12)
+                        }
+                        .foregroundStyle(TTColor.actionOrange)
                     }
 
                     Text("\(done) of \(total) done")
@@ -639,26 +735,6 @@ struct TrainerDashboardView: View {
             ForEach(visible, id: \.trainee.id) { row in
                 Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
                 todayTraineeRow(row, status: statuses[row.trainee.id] ?? TraineeTodayStatus.none)
-            }
-
-            if rows.count > 4 {
-                Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1).padding(.horizontal, 16)
-                Button {
-                    TTHomeHaptics.light()
-                    showRoster = true
-                } label: {
-                    HStack {
-                        Text("See all trainees")
-                            .font(TTFont.workSans(15, weight: .semibold))
-                        Spacer(minLength: 8)
-                        TTIcon(icon: .chevronRight, size: 14)
-                    }
-                    .foregroundStyle(TTColor.actionOrange)
-                    .padding(.horizontal, 16)
-                    .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
             }
         }
         .background(Color(white: 0.97))
@@ -701,18 +777,31 @@ struct TrainerDashboardView: View {
 
                 Spacer(minLength: 8)
 
-                // Done = green filled circle with a white check; not yet = empty grey ring.
-                ZStack {
+                let isLive = !row.done && store.liveSessionByTrainee[row.trainee.id] != nil
+                // Read-only status pill (no false checkbox affordance).
+                HStack(spacing: 4) {
                     if row.done {
-                        Circle().fill(green)
                         Image(systemName: "checkmark")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 10, weight: .bold))
+                        Text("Done")
+                    } else if isLive {
+                        Circle()
+                            .fill(TTColor.actionOrange)
+                            .frame(width: 6, height: 6)
+                        Text("Live")
                     } else {
-                        Circle().strokeBorder(Color(white: 0.78), lineWidth: 2)
+                        Text("Pending")
                     }
                 }
-                .frame(width: 26, height: 26)
+                .font(TTFont.workSans(12, weight: .semibold))
+                .foregroundStyle(row.done ? green : (isLive ? TTColor.actionOrange : Color(white: 0.42)))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    (row.done ? green : (isLive ? TTColor.actionOrange : Color(white: 0.55)))
+                        .opacity(0.12)
+                )
+                .clipShape(Capsule())
                 .accessibilityHidden(true)
             }
             .padding(.horizontal, 16)
@@ -722,7 +811,11 @@ struct TrainerDashboardView: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(session.isEmpty ? name : "\(name), \(session)")
-        .accessibilityValue(row.done ? Text("Done") : Text("Not done yet"))
+        .accessibilityValue(
+            row.done
+                ? Text("Done")
+                : (store.liveSessionByTrainee[row.trainee.id] != nil ? Text("Live") : Text("Pending"))
+        )
         .accessibilityAddTraits(.isButton)
     }
 

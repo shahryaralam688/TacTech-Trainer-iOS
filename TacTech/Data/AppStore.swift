@@ -1474,13 +1474,18 @@ final class AppStore {
 
     /// Saves one completed set to the active session. Returns the server-confirmed log entry or the
     /// local fallback if the server returns empty. Idempotent: the caller guards against duplicates.
-    func logSet(sessionId: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double) async throws -> WorkoutSetLog {
-        let body = SessionSetBody(exerciseId: exerciseId, setNumber: setNumber, reps: reps, weightKg: weightKg)
+    func logSet(sessionId: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double,
+                durationSeconds: Int? = nil, restSeconds: Int? = nil) async throws -> WorkoutSetLog {
+        let body = SessionSetBody(exerciseId: exerciseId, setNumber: setNumber, reps: reps, weightKg: weightKg,
+                                  durationSeconds: durationSeconds, restSeconds: restSeconds)
         let remote = try await api.logSessionSet(sessionId: sessionId, body)
-        let log = remote ?? WorkoutSetLog(
+        var log = remote ?? WorkoutSetLog(
             id: "\(exerciseId)-\(setNumber)",
             exerciseId: exerciseId, setNumber: setNumber, reps: reps, weightKg: weightKg
         )
+        // Keep what we measured if the server doesn't echo the timing back.
+        log.durationSeconds = log.durationSeconds ?? durationSeconds
+        log.restSeconds = log.restSeconds ?? restSeconds
         // Mirror into the local session so progress ring is up-to-date without a full refresh.
         if activeWorkoutSession?.id == sessionId {
             if !(activeWorkoutSession?.sets.contains(where: { $0.exerciseId == log.exerciseId && $0.setNumber == log.setNumber }) ?? false) {
@@ -1494,21 +1499,37 @@ final class AppStore {
     /// Throws if the server did not confirm; in that case the active session and its sets are untouched.
     /// Uses its own flag (not `isLoadingSession`) so a Home refresh can never block Finish. A second
     /// call while one is running waits for that run and shares its outcome — it never returns silently.
-    func completeWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
+    func completeWorkoutSession(sessionId: String, durationMinutes: Int,
+                                durationSeconds: Int? = nil, totalRestSeconds: Int? = nil) async throws {
         if let running = completeWorkoutTask {
             try await running.value
             return
         }
         let task = Task { @MainActor in
-            try await self.performCompleteWorkoutSession(sessionId: sessionId, durationMinutes: durationMinutes)
+            try await self.performCompleteWorkoutSession(
+                sessionId: sessionId, durationMinutes: durationMinutes,
+                durationSeconds: durationSeconds, totalRestSeconds: totalRestSeconds
+            )
         }
         completeWorkoutTask = task
         defer { completeWorkoutTask = nil }
         try await task.value
     }
 
-    private func performCompleteWorkoutSession(sessionId: String, durationMinutes: Int) async throws {
-        let log = try await api.completeSession(sessionId: sessionId, CompleteSessionBody(durationMinutes: durationMinutes))
+    private func performCompleteWorkoutSession(sessionId: String, durationMinutes: Int,
+                                                durationSeconds: Int?, totalRestSeconds: Int?) async throws {
+        var log = try await api.completeSession(
+            sessionId: sessionId,
+            CompleteSessionBody(durationMinutes: durationMinutes, durationSeconds: durationSeconds, totalRestSeconds: totalRestSeconds)
+        )
+        // Keep what we measured if the server doesn't echo the timing back.
+        let sessionDayId = activeWorkoutSession?.dayId
+        if var completed = log {
+            completed.durationSeconds = completed.durationSeconds ?? durationSeconds
+            completed.totalRestSeconds = completed.totalRestSeconds ?? totalRestSeconds
+            completed.planDayId = completed.planDayId ?? sessionDayId
+            log = completed
+        }
         // Server confirmed: the workout is finished from here on.
         sessionFetchGeneration &+= 1
         activeWorkoutSession = nil

@@ -73,7 +73,7 @@ struct TraineeProfileView: View {
         TTProfileScreen(
             name: store.currentUser?.name ?? "Trainee",
             location: store.currentTrainee?.location?.nilIfBlank ?? "Add location",
-            membership: store.currentTrainee?.goal.nilIfBlank ?? "Basic Member",
+            membership: "",
             avatarAsset: store.displayAvatarAsset,
             avatarUrl: store.remoteAvatarURL,
             avatarUserId: store.session?.userId,
@@ -343,8 +343,28 @@ struct MyTrainerCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("My Trainer")
-                .font(TTFont.heading(16))
+            HStack {
+                Text("My Trainer")
+                    .font(TTFont.heading(16))
+                Spacer(minLength: 0)
+                if let linked {
+                    Menu {
+                        Button("Leave trainer", role: .destructive) {
+                            confirmName = linked.user.name
+                            leaveConfirm = true
+                        }
+                        .disabled(isLeaving)
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .accessibilityLabel("Trainer options")
+                }
+            }
+
             if let linked {
                 HStack(spacing: 12) {
                     TTAvatar(
@@ -365,26 +385,27 @@ struct MyTrainerCard: View {
                 }
 
                 Button {
-                    confirmName = linked.user.name
-                    leaveConfirm = true
+                    NotificationCenter.default.post(name: .ttOpenHumanChat, object: nil)
                 } label: {
                     HStack(spacing: 8) {
                         if isLeaving {
-                            ProgressView()
+                            ProgressView().tint(.white)
                         } else {
-                            Text("Leave trainer")
+                            Image(systemName: "message.fill")
+                                .font(.system(size: 14, weight: .semibold))
+                            Text("Message coach")
                                 .font(TTFont.workSans(14, weight: .bold))
                         }
                     }
-                    .foregroundStyle(TTColor.danger)
+                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 42)
-                    .background(TTColor.danger.opacity(0.08))
+                    .frame(height: 44)
+                    .background(TTColor.actionOrange)
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .disabled(isLeaving)
-                .accessibilityLabel("Leave trainer")
+                .accessibilityLabel("Message coach")
             } else {
                 Text("No trainer linked yet.")
                     .font(TTFont.body(14))

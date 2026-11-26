@@ -83,43 +83,6 @@ private enum NutStyle {
     static let ease = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.3)
     static let sheetOpen = Animation.timingCurve(0.2, 0.8, 0.2, 1, duration: 0.36)
     static let sheetClose = Animation.easeIn(duration: 0.22)
-    /// Prototype: sticky bar block above the list (12 + 50 + 8 + 56 + 8).
-    static let stickyHeight: CGFloat = 134
-}
-
-// MARK: - Scroll probe (search row shrinks on scroll down, returns on scroll up)
-
-private struct NutScrollKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
-}
-
-private final class NutScrollTracker {
-    var rest: CGFloat?
-    var last: CGFloat = 0
-    var lockUntil: Date = .distantPast
-}
-
-/// Reports the scroll distance. iOS 18+ uses the scroll geometry; iOS 17 falls back to a probe on the stack
-/// (a geometry probe stops updating while scrolling from iOS 18 on).
-private struct NutScrollWatcher: ViewModifier {
-    let onChange: (CGFloat) -> Void
-    @State private var rest: CGFloat?
-
-    func body(content: Content) -> some View {
-        if #available(iOS 18.0, *) {
-            content.onScrollGeometryChange(for: CGFloat.self) { geo in
-                geo.contentOffset.y + geo.contentInsets.top
-            } action: { _, y in
-                onChange(y)
-            }
-        } else {
-            content.onPreferenceChange(NutScrollKey.self) { minY in
-                if rest == nil { rest = minY }
-                onChange((rest ?? minY) - minY)
-            }
-        }
-    }
 }
 
 // MARK: - Screen
@@ -130,8 +93,6 @@ struct NutritionView: View {
 
     @State private var tab: NutTab = .today
     @State private var panel: NutPanelKind?
-    @State private var searchMinimized = false
-    @State private var tracker = NutScrollTracker()
     @State private var toast: TTToastMessage?
 
     /// Load state for today's list (view-local, see CLAUDE.md loading rules).
@@ -182,27 +143,30 @@ struct NutritionView: View {
                     Section {
                         Group {
                             switch tab {
-                            case .today: todayBody
+                            case .today:
+                                VStack(alignment: .leading, spacing: 0) {
+                                    // Scrolls with the list and glides under the pinned Today | History bar.
+                                    searchRow
+                                        .padding(.top, 4)
+                                        .padding(.bottom, 12)
+                                    todayBody
+                                }
                             case .history: historyBody
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.bottom, 120)
+                        .padding(.bottom, tab == .history ? 144 : 120)
                     } header: {
                         stickyBar
                     }
                 }
-                // Measured on the stack itself (a probe inside the lazy content is dropped once it scrolls away).
-                .background(scrollProbe)
             }
             // Today and History are different lengths: always start the other tab at the top (a kept scroll
             // position showed only the bottom of the list, which looked like the logs were gone).
             .onChange(of: tab) { _, _ in
-                searchMinimized = false
                 proxy.scrollTo("nutTop", anchor: .top)
             }
           }
-            .modifier(NutScrollWatcher { handleScroll(y: $0) })
             .background(NutStyle.charcoal.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .ttSyncRootTabBarWithNavigationDepth()
@@ -315,20 +279,15 @@ struct NutritionView: View {
         }
     }
 
-    // MARK: Sticky bar (Today | History + search row)
+    // MARK: Sticky bar (Today | History only)
 
     private var stickyBar: some View {
-        VStack(spacing: 8) {
-            tabSwitch
-            searchRow
-        }
+        tabSwitch
         .padding(.horizontal, 16)
         .padding(.top, 12)
         .padding(.bottom, 8)
         .background(Color.white)
         .frame(maxWidth: .infinity)
-        // The slot keeps its full height so the list below never jumps when the search row shrinks.
-        .frame(height: NutStyle.stickyHeight, alignment: .top)
     }
 
     private var tabSwitch: some View {
@@ -388,12 +347,7 @@ struct NutritionView: View {
             .buttonStyle(.plain)
             .accessibilityLabel("Add food photo")
         }
-        .frame(height: searchMinimized ? 0 : 48, alignment: .top)
-        .opacity(searchMinimized ? 0 : 1)
-        .clipped()
-        .allowsHitTesting(!searchMinimized)
-        .accessibilityHidden(searchMinimized)
-        .animation(reduceMotion ? nil : .timingCurve(0.2, 0.8, 0.2, 1, duration: 0.28), value: searchMinimized)
+        .frame(height: 48)
     }
 
     private func openMealCameraOrFallback() {
@@ -420,30 +374,6 @@ struct NutritionView: View {
             showPhotoLibrary = true
         @unknown default:
             showPhotoLibrary = true
-        }
-    }
-
-    private var scrollProbe: some View {
-        Color.clear
-            .frame(height: 0)
-            .background(GeometryReader { geo in
-                Color.clear.preference(key: NutScrollKey.self, value: geo.frame(in: .scrollView).minY)
-            })
-            .accessibilityHidden(true)
-    }
-
-    /// `y` = how far the list has scrolled up (0 at rest, negative while pulling down).
-    private func handleScroll(y: CGFloat) {
-        let t = tracker
-        let dy = y - t.last
-        t.last = y
-        guard Date() >= t.lockUntil else { return }
-        if y > 70, dy > 3, !searchMinimized {
-            searchMinimized = true
-            t.lockUntil = Date().addingTimeInterval(0.4)
-        } else if (dy < -6 || y <= 10), searchMinimized {
-            searchMinimized = false
-            t.lockUntil = Date().addingTimeInterval(0.4)
         }
     }
 

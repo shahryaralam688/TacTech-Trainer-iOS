@@ -120,6 +120,7 @@ struct TraineeDashboardView: View {
     @State private var pendingOpenWorkouts = false
     @State private var resumeTarget: ResumeTarget?
     @State private var overviewTarget: OverviewTarget?
+    @State private var summaryLog: WorkoutLog?
     @Bindable private var notificationStore = NotificationStore.shared
 
     private let canvas = Color(white: 0.98)
@@ -148,9 +149,7 @@ struct TraineeDashboardView: View {
                             }
                             todayCard
 
-                            sectionTitle("This week", linkTitle: "Progress") {
-                                TTHomeHaptics.light(); showProgress = true
-                            }
+                            sectionTitle("Your stats")
                             WeekStatsGrid(stats: weekStats)
 
                             if let next = nextStep {
@@ -172,7 +171,10 @@ struct TraineeDashboardView: View {
             .background(Color.black.ignoresSafeArea(edges: .top))
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(item: $resumeTarget) { target in
-                ActiveWorkoutView(plan: target.plan, day: target.day)
+                ActiveWorkoutView(plan: target.plan, day: target.day, autoStart: target.autoStart)
+            }
+            .navigationDestination(item: $summaryLog) { log in
+                WorkoutSummaryView(log: log)
             }
             .navigationDestination(item: $overviewTarget) { target in
                 WorkoutOverviewView(plan: target.plan)
@@ -346,9 +348,9 @@ struct TraineeDashboardView: View {
                 coachNote: coachNoteToday,
                 nextUpText: nextUpText,
                 onPrimary: {},
-                onViewSummary: { TTHomeHaptics.light(); viewWorkout() },  // TODO: no dedicated summary screen — reuse overview preview
-                onRepeat: { TTHomeHaptics.medium(); viewWorkout() },
-                onShare: { /* TODO: share summary — no share sheet/export wired in current app */ },
+                onViewSummary: { TTHomeHaptics.light(); viewSummary() },
+                onRepeat: { startWorkout() },   // "Train again": fresh session, opens guided flow directly
+                onViewPlan: { TTHomeHaptics.light(); viewWorkout() },
                 onNextUp: { TTHomeHaptics.light(); NotificationCenter.default.post(name: .ttOpenWorkoutHub, object: nil) }
             )
         case .restDay:
@@ -457,9 +459,9 @@ struct TraineeDashboardView: View {
         }
         let score = store.sandowScore?.summaryScore
         let value = score.map(String.init) ?? "—"
-        // Delta derived from the score trend; omitted when there aren't two points.
+        // Delta derived from the score trend; omitted when there aren't two points or baseline is 0 (first week).
         var subtext = "This week"
-        if let points = store.sandowScore?.points, points.count >= 2 {
+        if let points = store.sandowScore?.points, points.count >= 2, points.first!.score > 0 {
             let delta = points.last!.score - points.first!.score
             if delta != 0 {
                 subtext = "\(delta > 0 ? "↑" : "↓") \(abs(delta)) this week"
@@ -498,14 +500,13 @@ struct TraineeDashboardView: View {
         var target: NextStepTarget
     }
 
-    /// First rule that applies wins; always hidden while a workout is in progress.
+    /// First rule that applies wins. Coach-request notices are hidden while a workout is in progress.
     private var nextStep: NextStep? {
-        if todayMode == .inProgress { return nil }
 
         // 1. A coach request was just accepted or declined.
         //    TODO: no dedicated "recently responded" flag — reusing the lingering
         //    join-request status, which clears once the relationship reconciles.
-        if let request = store.pendingJoinRequest {
+        if todayMode != .inProgress, let request = store.pendingJoinRequest {
             let name = pendingCoachName(request)
             switch request.status.lowercased() {
             case "accepted":
@@ -522,21 +523,27 @@ struct TraineeDashboardView: View {
             }
         }
 
-        // 2. Workout done today → recovery nutrition.
-        if todayMode == .done {
+        // 2. Meal card: ready / in progress / done, until today's calorie goal is reached.
+        //    TODO: with no daily calorie target set the goal is unknown, so only the empty-day prompt shows.
+        let goal = store.currentTrainee?.dailyCalorieTarget ?? 0
+        let isFuelState = todayMode == .ready || todayMode == .inProgress || todayMode == .done
+        if isFuelState && (goal > 0 ? caloriesToday < goal : caloriesToday == 0) {
+            let remaining = max(0, goal - caloriesToday)
+            let message: String
+            if caloriesToday == 0 {
+                message = String(localized: "Log a meal in 2 taps.")
+            } else if todayMode == .done {
+                message = String(localized: "Refuel · \(remaining) kcal left today.")
+            } else {
+                message = String(localized: "\(remaining) kcal left today.")
+            }
             return .init(icon: "fork.knife",
-                         title: "Refuel after your session",
-                         message: "Only \(caloriesToday) kcal logged today. A protein-rich meal helps you recover.",
+                         title: todayMode == .done ? "Refuel after your session" : "Fuel today’s session",
+                         message: message,
                          button: "Add a meal", target: .nutrition)
         }
 
-        // 3. Workout scheduled and not started → pre-workout fuel.
-        if todayMode == .ready {
-            return .init(icon: "fork.knife",
-                         title: "Fuel today’s session",
-                         message: "Scan or log a meal so your macros stay on track with your plan.",
-                         button: "Add a meal", target: .nutrition)
-        }
+        // 3. (merged into rule 2)
 
         // 4. Low water in the afternoon.
         //    TODO: no hydration logging data source — this rule can't fire yet.
@@ -631,7 +638,18 @@ struct TraineeDashboardView: View {
             showWorkouts = true
             return
         }
-        resumeTarget = ResumeTarget(plan: plan, day: day)
+        resumeTarget = ResumeTarget(plan: plan, day: day, autoStart: true)
+    }
+
+    /// Done card "View summary": today's latest completed log. Falls back to the plan overview if none is loaded yet.
+    private func viewSummary() {
+        if let trainee = store.currentTrainee,
+           let log = store.logs(for: trainee.id).first(where: { Calendar.current.isDateInToday($0.completedAt) }) {
+            summaryLog = log
+        } else {
+            // TODO: no completed log for today in the store (not synced yet) — show the plan overview instead.
+            viewWorkout()
+        }
     }
 
     /// Card "View workout" / done-state links → open the Workout Overview preview.
@@ -678,18 +696,20 @@ struct TraineeDashboardView: View {
 
     // MARK: - Shared chrome
 
-    private func sectionTitle(_ title: String, linkTitle: String, link: @escaping () -> Void) -> some View {
+    private func sectionTitle(_ title: String, linkTitle: String? = nil, link: (() -> Void)? = nil) -> some View {
         HStack {
             Text(title)
                 .font(TTFont.workSans(20, weight: .medium))
                 .foregroundStyle(HomeTheme.ink)
             Spacer()
-            Button(action: link) {
-                Text(linkTitle)
-                    .font(TTFont.workSans(14, weight: .medium))
-                    .foregroundStyle(HomeTheme.textOrange)
+            if let linkTitle, let link {
+                Button(action: link) {
+                    Text(linkTitle)
+                        .font(TTFont.workSans(14, weight: .medium))
+                        .foregroundStyle(HomeTheme.textOrange)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(.top, 4)
     }
@@ -723,6 +743,8 @@ struct TraineeDashboardView: View {
 private struct ResumeTarget: Identifiable, Hashable {
     let plan: WorkoutPlan
     let day: PlanDay
+    /// Home "Start workout" opens the guided session right away (no second Start tap).
+    var autoStart = false
     var id: String { "\(plan.id)#\(day.id)" }
 }
 
@@ -820,7 +842,7 @@ struct TodayCard: View {
     var onViewWorkout: (() -> Void)? = nil
     var onViewSummary: () -> Void = {}
     var onRepeat: () -> Void = {}
-    var onShare: () -> Void = {}
+    var onViewPlan: () -> Void = {}
     var onNextUp: () -> Void = {}
 
     var body: some View {
@@ -922,8 +944,8 @@ struct TodayCard: View {
                 .buttonStyle(.plain)
 
                 Menu {
-                    Button { onRepeat() } label: { Label("Repeat this workout", systemImage: "arrow.clockwise") }
-                    Button { onShare() } label: { Label("Share summary", systemImage: "square.and.arrow.up") }
+                    Button { onRepeat() } label: { Label("Train again", systemImage: "arrow.clockwise") }
+                    Button { onViewPlan() } label: { Label("View workout plan", systemImage: "list.bullet.rectangle") }
                 } label: {
                     Image(systemName: "ellipsis")
                         .font(.system(size: 18, weight: .semibold))

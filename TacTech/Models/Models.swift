@@ -275,9 +275,10 @@ struct WorkoutExercise: Identifiable, Codable, Hashable {
 
     var prescriptionLine: String {
         var parts = ["\(sets)×\(reps)"]
-        if let kg = recommendedWeightKg { parts.append("\(kg.cleanKg) kg") }
+        let hasWeight = (recommendedWeightKg ?? 0) > 0
+        if let kg = recommendedWeightKg, kg > 0 { parts.append("\(kg.cleanKg) kg") }
         parts.append("\(restSeconds)s rest")
-        if let tempo, !tempo.isEmpty { parts.append("tempo \(tempo)") }
+        if hasWeight, let tempo, !tempo.isEmpty { parts.append("tempo \(tempo)") }
         return parts.joined(separator: " · ")
     }
 }
@@ -463,12 +464,19 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
     var weightKg: Double
     /// Only present on live-session sets (`SessionSetOut.finished_at`); nil for sets of finished logs.
     var finishedAt: Date?
+    /// Seconds the set took (set start → Done). Nil for older logs.
+    var durationSeconds: Int?
+    /// Seconds actually rested after this set (rest start → rest end / Skip). Nil for older logs and the last set.
+    var restSeconds: Int?
 
     enum CodingKeys: String, CodingKey {
-        case id, exerciseId, setNumber, reps, weightKg, finishedAt
+        case id, exerciseId, setNumber, reps, weightKg, finishedAt, durationSeconds, restSeconds
     }
 
-    init(id: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double, finishedAt: Date? = nil) {
+    init(id: String, exerciseId: String, setNumber: Int, reps: Int, weightKg: Double, finishedAt: Date? = nil,
+         durationSeconds: Int? = nil, restSeconds: Int? = nil) {
+        self.durationSeconds = durationSeconds
+        self.restSeconds = restSeconds
         self.id = id
         self.exerciseId = exerciseId
         self.setNumber = setNumber
@@ -484,6 +492,8 @@ struct WorkoutSetLog: Identifiable, Codable, Hashable {
         reps = try c.decode(Int.self, forKey: .reps)
         weightKg = try c.decodeIfPresent(Double.self, forKey: .weightKg) ?? 0
         finishedAt = try c.decodeIfPresent(Date.self, forKey: .finishedAt)
+        durationSeconds = try c.decodeIfPresent(Int.self, forKey: .durationSeconds)
+        restSeconds = try c.decodeIfPresent(Int.self, forKey: .restSeconds)
         id = try c.decodeIfPresent(String.self, forKey: .id)
             ?? "\(exerciseId)-\(setNumber)-\(reps)-\(weightKg)"
     }
@@ -496,8 +506,39 @@ struct WorkoutLog: Identifiable, Codable, Hashable {
     var completedAt: Date
     var durationMinutes: Int
     var sets: [WorkoutSetLog]
+    /// Optional, filled by newer backends / sessions. Older logs leave these nil.
+    var planDayId: String?
+    var sessionTitle: String?
+    var durationSeconds: Int?
+    var totalRestSeconds: Int?
 
     var setCount: Int { sets.count }
+
+    /// Whole-session seconds: exact when known, otherwise the stored minutes.
+    var totalSeconds: Int { durationSeconds ?? durationMinutes * 60 }
+
+    /// Total rest: the session value, else the sum of per-set rests (nil when nothing was recorded).
+    var restTotalSeconds: Int? {
+        if let totalRestSeconds { return totalRestSeconds }
+        let rests = sets.compactMap(\.restSeconds)
+        return rests.isEmpty ? nil : rests.reduce(0, +)
+    }
+
+    /// Time under the bar: total minus rest (nil when rest is unknown).
+    var activeSeconds: Int? {
+        restTotalSeconds.map { max(0, totalSeconds - $0) }
+    }
+
+    /// "42m 15s" / "47s" / "1h 05m".
+    static func formattedDuration(_ seconds: Int) -> String {
+        let s = max(0, seconds)
+        if s < 60 { return "\(s)s" }
+        if s < 3600 {
+            let m = s / 60, r = s % 60
+            return r == 0 ? "\(m)m" : "\(m)m \(r)s"
+        }
+        return String(format: "%dh %02dm", s / 3600, (s % 3600) / 60)
+    }
 
     /// Volume = Σ(weight × reps) across sets.
     var totalVolumeKg: Double {

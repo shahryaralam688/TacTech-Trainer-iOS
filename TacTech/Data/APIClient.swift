@@ -687,6 +687,9 @@ struct SessionSetBody: Encodable {
     var setNumber: Int
     var reps: Int
     var weightKg: Double
+    /// Optional timing (nil fields are omitted from the request).
+    var durationSeconds: Int? = nil
+    var restSeconds: Int? = nil
 }
 
 struct WorkoutSession: Decodable, Identifiable {
@@ -718,6 +721,8 @@ struct WorkoutSession: Decodable, Identifiable {
 
 struct CompleteSessionBody: Encodable {
     var durationMinutes: Int
+    var durationSeconds: Int? = nil
+    var totalRestSeconds: Int? = nil
 }
 
 struct FormReportBody: Encodable {

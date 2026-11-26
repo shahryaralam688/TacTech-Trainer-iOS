@@ -59,7 +59,7 @@ struct TTHomeProfileHeader: View {
     var showsAIPro: Bool = false
     var metrics: [TTHomeProfileMetric] = []
     var date: Date = .now
-    /// 0 = expanded. 1 = compact (avatar + name + chevron).
+    /// 0 = expanded. 1 = compact (avatar + name; bell stays visible).
     var collapseProgress: CGFloat = 0
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
@@ -82,15 +82,19 @@ struct TTHomeProfileHeader: View {
     private var rowSpacing: CGFloat { 14 - 2 * p }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 22 * expand) {
-            topRow
-                .opacity(Double(expand))
-                // Extra height so the notification badge isn’t clipped at rest.
-                .frame(height: 54 * expand, alignment: .top)
-                .clipped()
-                .allowsHitTesting(p < 0.35)
+        ZStack(alignment: .topTrailing) {
+            VStack(alignment: .leading, spacing: 22 * expand) {
+                topRow
+                    .opacity(Double(expand))
+                    .frame(height: 54 * expand, alignment: .top)
+                    .clipped()
+                    .allowsHitTesting(p < 0.35)
 
-            profileRow
+                profileRow
+            }
+
+            // Notifications bell stays visible and tappable in both expanded (p = 0) and collapsed (p = 1) states.
+            notificationBellButton
         }
         .padding(.horizontal, 22)
         .padding(.top, 12 - 2 * p)
@@ -136,41 +140,51 @@ struct TTHomeProfileHeader: View {
 
             Spacer()
 
-            Button {
-                if let onNotificationTap {
-                    onNotificationTap()
-                } else {
-                    onProfileTap?()
-                }
-            } label: {
-                ZStack(alignment: .topTrailing) {
-                    TTIcon(icon: .bell1, size: 18)
-                        .foregroundStyle(.white)
-                        .frame(width: 44, height: 44)
-                        .background(bellBG)
-                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                    if badgeCount > 0 {
-                        Text("\(min(badgeCount, 9))")
-                            .font(TTFont.text2XS(.bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 18, height: 18)
-                            .background(orange)
-                            .clipShape(Circle())
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.black, lineWidth: 1.5)
-                            )
-                            .offset(x: 4, y: -4)
-                            .ttHomeBadgePop(active: badgeCount > 0)
-                    }
-                }
-                // Keep badge inside the hit target so parent `.clipped()` can’t crop it.
-                .padding(.top, 4)
-                .padding(.trailing, 4)
-            }
-            .buttonStyle(TTHomeHeaderPressStyle())
+            // Reserve trailing space for the persistent `notificationBellButton` overlay.
+            Color.clear.frame(width: 48, height: 48)
         }
+    }
+
+    private var notificationBellButton: some View {
+        Button {
+            if let onNotificationTap {
+                onNotificationTap()
+            } else {
+                onProfileTap?()
+            }
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                TTIcon(icon: .bell1, size: 18)
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(bellBG)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+                if badgeCount > 0 {
+                    Text("\(min(badgeCount, 9))")
+                        .font(TTFont.text2XS(.bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 18, height: 18)
+                        .background(orange)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .strokeBorder(Color.black, lineWidth: 1.5)
+                        )
+                        .offset(x: 4, y: -4)
+                        .ttHomeBadgePop(active: badgeCount > 0)
+                }
+            }
+            // Keep badge inside the hit target.
+            .padding(.top, 4)
+            .padding(.trailing, 4)
+        }
+        .buttonStyle(TTHomeHeaderPressStyle())
+        .accessibilityLabel(
+            badgeCount > 0
+                ? String(localized: "Notifications, \(badgeCount) unread", locale: LocalizationController.shared.locale)
+                : String(localized: "Notifications", locale: LocalizationController.shared.locale)
+        )
     }
 
     private var profileRow: some View {
@@ -208,10 +222,8 @@ struct TTHomeProfileHeader: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .layoutPriority(1)
-
-                TTIcon(icon: .chevronRight, size: 22 - 2 * p)
-                    .foregroundStyle(.white)
-                    .layoutPriority(2)
+                // Keep text clear of the persistent trailing bell when collapsed.
+                .padding(.trailing, 54 * p)
             }
             .frame(minHeight: 44)
             .contentShape(Rectangle())
@@ -366,6 +378,9 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     private static let collapseAffordSlack: CGFloat = 18
 
     private var lastProgress: CGFloat = 0
+    /// True when the real content (without our fill) doesn't overflow the expanded viewport:
+    /// nothing to scroll, so the header stays expanded and no artificial scroll range is added.
+    private var contentFits = false
     private var lastRawY: CGFloat = 0
     /// Subtracted from raw offset so a settled 0/1 state stays put with residual offset.
     private var offsetBaseline: CGFloat = 0
@@ -441,6 +456,21 @@ final class TTHomeScrollCollapseModel: ObservableObject {
         }
         // Measured overflow already includes the current fill (contentMargins).
         let natural = measuredOverflow - bottomFillHeight
+        // Compare against the EXPANDED viewport: a collapsed header gives the scroll view more room,
+        // which would otherwise make borderline content look like it "fits" and flap.
+        let naturalExpanded = natural + layoutTravel * lastProgress
+        if naturalExpanded <= 8 {
+            // Short / empty screen: no fill, no collapse, header stays cleanly expanded.
+            // Pull-to-refresh still works (scroll is never disabled).
+            contentFits = true
+            if bottomFillHeight != 0 { bottomFillHeight = 0 }
+            if lastProgress > 0.001 {
+                offsetBaseline = 0
+                apply(0, animated: true)
+            }
+            return
+        }
+        contentFits = false
         // Overlay headers use layoutTravel = 0 but still need ~`distance` of scroll
         // to reach full collapse; frame-shrinking headers need the travel delta.
         let needed = max(layoutTravel, TTHomeHeaderCollapse.distance) + Self.collapseAffordSlack
@@ -450,7 +480,7 @@ final class TTHomeScrollCollapseModel: ObservableObject {
     }
 
     func setOffsetY(_ y: CGFloat) {
-        guard allowsScrolling else {
+        guard allowsScrolling, !contentFits else {
             offsetBaseline = 0
             apply(0)
             return
@@ -781,12 +811,23 @@ final class TTHeaderCollapseState: ObservableObject {
     /// iOS 17 path: first sample is taken as "at rest".
     private var restMinY: CGFloat?
 
+    /// Content must scroll at least this far before the header collapses at all (below it: stays expanded, no jitter).
+    static let minScrollable: CGFloat = 24
+
+    /// Scroll distance over which progress runs 0 → 1. Full travel when the content scrolls that far; a short but
+    /// scrollable page collapses over its whole (shorter) range, so the header is fully compact exactly at the
+    /// bottom — never stuck half-way and no blank tail is needed. `nil` = nothing to collapse.
+    static func collapseSpan(maxOffset: CGFloat, travel: CGFloat) -> CGFloat? {
+        guard travel > 1, maxOffset >= minScrollable else { return nil }
+        return min(travel, maxOffset)
+    }
+
     /// `offset` is 0 at rest. `maxOffset` is the furthest the content can scroll.
     /// Collapse is decided from `maxOffset` vs. the travel `d`; both are independent of the header's
     /// current height (the content inset is constant), so there is no feedback loop.
     func update(offset: CGFloat, maxOffset: CGFloat, travel: CGFloat, enabled: Bool) {
-        let canCollapse = enabled && travel > 1 && maxOffset >= travel
-        let next = canCollapse ? min(1, max(0, offset / travel)) : 0
+        let span = enabled ? Self.collapseSpan(maxOffset: maxOffset, travel: travel) : nil
+        let next = span.map { min(1, max(0, offset / $0)) } ?? 0
         if abs(next - progress) > 0.001 { progress = next }
     }
 
@@ -1124,9 +1165,9 @@ private struct TTCollapseObserver: ViewModifier {
                     // Small Equatable value only: clamped progress (1% steps) + whether collapse is possible.
                     let offset = geo.contentOffset.y + geo.contentInsets.top
                     let maxOffset = geo.contentSize.height + geo.contentInsets.top + geo.contentInsets.bottom - geo.containerSize.height
-                    let canCollapse = travel > 1 && maxOffset >= travel
-                    let progress = canCollapse ? min(1, max(0, offset / travel)) : 0
-                    return TTCollapseSignal(step: Int((progress * 100).rounded()), canCollapse: canCollapse)
+                    let span = TTHeaderCollapseState.collapseSpan(maxOffset: maxOffset, travel: travel)
+                    let progress = span.map { min(1, max(0, offset / $0)) } ?? 0
+                    return TTCollapseSignal(step: Int((progress * 100).rounded()), canCollapse: span != nil)
                 } action: { _, new in
                     if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("new-container " + perfFile, perfLine) } // PERF-TEMP
                     model.apply(step: new.step, enabled: enabled)

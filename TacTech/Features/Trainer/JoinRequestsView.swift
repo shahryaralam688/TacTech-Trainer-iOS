@@ -21,12 +21,17 @@ struct JoinRequestsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(title: "Join requests") {
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            onRefresh: { await load() },
+            header: { progress in
+                TTDarkPageHeader(title: "Join requests", collapseProgress: progress) {
                 dismiss()
             }
-
-            ScrollView(showsIndicators: false) {
+            }
+        ) {
                 VStack(alignment: .leading, spacing: 12) {
                     TTLoadGate(
                         isLoading: !didLoad,
@@ -58,13 +63,10 @@ struct JoinRequestsView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 28)
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-        }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($toast)
         .task { await load() }
-        .refreshable { await load() }
         .onReceive(NotificationCenter.default.publisher(for: .ttJoinRequestRealtime)) { note in
             let type = (note.userInfo?["type"] as? String) ?? ""
             Task { await store.handleJoinRequestRealtime(type: type) }

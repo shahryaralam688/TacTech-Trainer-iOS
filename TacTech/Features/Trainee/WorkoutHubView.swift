@@ -205,7 +205,9 @@ struct WorkoutHubView: View {
             todayDateBar(plan: plan)
             sessionHero(plan)
             sessionDetail(plan)
+            if store.aiCapabilities.visionPose {
             liveFormCard(plan)
+        }
         }
     }
 
@@ -485,6 +487,52 @@ struct WorkoutHubView: View {
         .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
     }
 
+    /// One past completed workout: relative date, title, duration and sets. Opens its summary.
+    private func pastSessionRow(_ log: WorkoutLog) -> some View {
+        let title = log.sessionTitle ?? store.plans.first(where: { $0.id == log.planId })?.title
+        return HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(orange.opacity(0.12))
+                TTIcon(icon: .kettlebell, filled: true, size: 16)
+                    .foregroundStyle(orange)
+            }
+            .frame(width: 40, height: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(WorkoutSummaryView.relativeDate(log.completedAt))
+                    .font(TTFont.workSans(14, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                if let title, !title.isEmpty {
+                    Text(title)
+                        .font(TTFont.workSans(12, weight: .medium))
+                        .foregroundStyle(TTColor.ink)
+                        .lineLimit(1)
+                }
+                Text("\(WorkoutLog.formattedDuration(log.totalSeconds)) · \(log.setCount) \(log.setCount == 1 ? "set" : "sets")")
+                    .font(TTFont.workSans(12, weight: .medium))
+                    .foregroundStyle(TTColor.inkMuted)
+            }
+
+            Spacer(minLength: 8)
+
+            if log.totalVolumeKg > 0 {
+                Text("\(Int(log.totalVolumeKg.rounded())) kg")
+                    .font(TTFont.workSans(13, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+            }
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color(white: 0.7))
+                .accessibilityHidden(true)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+        .contentShape(Rectangle())
+    }
+
     private func progressTab(trainee: TraineeProfile, plan: WorkoutPlan) -> some View {
         let logs = store.logs(for: trainee.id).sorted { $0.completedAt > $1.completedAt }
         let totalMinutes = logs.reduce(0) { $0 + $1.durationMinutes }
@@ -523,34 +571,12 @@ struct WorkoutHubView: View {
                         .foregroundStyle(TTColor.ink)
 
                     ForEach(Array(logs.prefix(15))) { log in
-                        HStack(spacing: 12) {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .fill(orange.opacity(0.12))
-                                TTIcon(icon: .kettlebell, filled: true, size: 16)
-                                    .foregroundStyle(orange)
-                            }
-                            .frame(width: 40, height: 40)
-
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(log.completedAt.formatted(date: .abbreviated, time: .shortened))
-                                    .font(TTFont.workSans(14, weight: .bold))
-                                    .foregroundStyle(TTColor.ink)
-                                Text("\(log.durationMinutes) min · \(log.setCount) \(log.setCount == 1 ? "set" : "sets")")
-                                    .font(TTFont.workSans(12, weight: .medium))
-                                    .foregroundStyle(TTColor.inkMuted)
-                            }
-
-                            Spacer(minLength: 8)
-
-                            Text("\(Int(log.totalVolumeKg.rounded())) kg")
-                                .font(TTFont.workSans(13, weight: .bold))
-                                .foregroundStyle(TTColor.ink)
+                        NavigationLink {
+                            WorkoutSummaryView(log: log)
+                        } label: {
+                            pastSessionRow(log)
                         }
-                        .padding(14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(cardFill)
-                        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -635,7 +661,9 @@ struct WorkoutHubView: View {
 
                 Spacer(minLength: 8)
 
-                if let trainee = store.currentTrainee, let plan = store.assignedPlan(for: trainee) {
+                if store.aiCapabilities.visionPose,
+                   let trainee = store.currentTrainee,
+                   let plan = store.assignedPlan(for: trainee) {
                     NavigationLink {
                         LiveFormCorrectionView(
                             initialExerciseId: currentExercises(in: plan).first?.exerciseId
@@ -883,19 +911,67 @@ struct WorkoutHubView: View {
         }
     }
 
+    private enum HeroState {
+        case notStarted, inProgress
+        case done(WorkoutLog)
+    }
+
+    /// Real state of the selected day: a live session wins, then the latest completed log for that day + plan.
+    private func heroState(plan: WorkoutPlan, day: PlanDay?) -> HeroState {
+        if Calendar.current.isDateInToday(selectedDay),
+           let active = store.activeWorkoutSession, active.planId == plan.id,
+           day == nil || active.dayId == nil || active.dayId == day?.id {
+            return .inProgress
+        }
+        if let traineeId = store.currentTrainee?.id,
+           let log = store.logs(for: traineeId).first(where: { log in
+               log.planId == plan.id
+                   && Calendar.current.isDate(log.completedAt, inSameDayAs: selectedDay)
+                   && (log.planDayId == nil || day == nil || log.planDayId == day?.id)
+           }) {
+            return .done(log)
+        }
+        return .notStarted
+    }
+
+    private func heroPill(_ title: LocalizedStringKey, systemImage: String, fg: Color, bg: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: systemImage).font(.system(size: 14, weight: .bold))
+            Text(title).font(TTFont.workSans(13, weight: .medium))
+        }
+        .foregroundStyle(fg)   // icon + text, not color alone
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(bg)
+        .clipShape(Capsule())
+    }
+
     private func sessionHero(_ plan: WorkoutPlan) -> some View {
         let day = session(in: plan)
         let next = plan.nextSession(from: selectedDay)
         let isPast = selectedDay < Calendar.current.startOfDay(for: Date())
         let isRestDay = day == nil
+        let state = heroState(plan: plan, day: day)
 
         return VStack(alignment: .leading, spacing: 10) {
-            // Label: calm gray for rest days, orange only for active sessions
-            Text(isRestDay ? "REST DAY" : (isPast ? "PAST SESSION" : "TODAY'S SESSION"))
-                .font(TTFont.caption(11))
-                .fontWeight(.bold)
-                .tracking(0.8)
-                .foregroundStyle(isRestDay || isPast ? TTColor.inkSubtle : orange)
+            // Status: Done / In progress pills (same look as Home); otherwise the usual label.
+            switch state {
+            case .done:
+                heroPill("Done", systemImage: "checkmark.circle.fill",
+                         fg: Color(red: 21 / 255, green: 128 / 255, blue: 61 / 255),
+                         bg: Color(red: 220 / 255, green: 252 / 255, blue: 231 / 255))
+            case .inProgress:
+                heroPill("In progress", systemImage: "play.circle.fill",
+                         fg: Color(red: 194 / 255, green: 65 / 255, blue: 12 / 255),
+                         bg: orange.opacity(0.14))
+            case .notStarted:
+                // Label: calm gray for rest days, orange only for active sessions
+                Text(isRestDay ? "REST DAY" : (isPast ? "PAST SESSION" : "TODAY'S SESSION"))
+                    .font(TTFont.caption(11))
+                    .fontWeight(.bold)
+                    .tracking(0.8)
+                    .foregroundStyle(isRestDay || isPast ? TTColor.inkSubtle : orange)
+            }
 
             Text(day?.title ?? plan.title)
                 .font(TTFont.workSans(20, weight: .bold))
@@ -912,7 +988,53 @@ struct WorkoutHubView: View {
                         .foregroundStyle(TTColor.inkMuted)
                 }
 
-                if isPast {
+                if case .done(let log) = state {
+                    HStack(spacing: 10) {
+                        NavigationLink {
+                            WorkoutSummaryView(log: log)
+                        } label: {
+                            Text("View summary")
+                                .font(TTFont.workSans(15, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(charcoal)
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.plain)
+
+                        // Only for today: a new session can't be started on a past date.
+                        if !isPast {
+                            NavigationLink {
+                                ActiveWorkoutView(plan: plan, day: day, autoStart: true)
+                            } label: {
+                                Text("Train again")
+                                    .font(TTFont.workSans(15, weight: .semibold))
+                                    .foregroundStyle(TTColor.ink)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(Color(white: 0.9))
+                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.top, 4)
+                } else if case .inProgress = state {
+                    NavigationLink {
+                        ActiveWorkoutView(plan: plan, day: day, autoStart: true)
+                    } label: {
+                        Text("Continue workout")
+                            .font(TTFont.workSans(15, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 44)
+                            .background(orange)
+                            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.top, 4)
+                } else if isPast {
                     // Past date — session already over, don't offer to start it
                     HStack(spacing: 6) {
                         Image(systemName: "clock.fill")
@@ -927,10 +1049,10 @@ struct WorkoutHubView: View {
                     NavigationLink {
                         ActiveWorkoutView(plan: plan, day: day)
                     } label: {
-                        Text("Start session")
+                        Text("Start workout")
                             .font(TTFont.workSans(15, weight: .bold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
+                            .frame(maxWidth: .infinity)
                             .frame(height: 44)
                             .background(orange)
                             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1009,7 +1131,7 @@ struct WorkoutHubView: View {
                         stackOffset: TTStackedTokens.stackOffset,
                         withDramaEffect: true,
                         paneGap: TTSpace.md,
-                        scrollRunway: TTStackedTokens.defaultRunway,
+                        scrollRunway: 0,
                         coordinateSpaceName: scrollSpace,
                         topInset: collapsedHeaderHeight
                     ) { row in
@@ -1178,12 +1300,16 @@ struct ExerciseDetailView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(title: exercise.name) {
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: exercise.name, collapseProgress: progress) {
                 dismiss()
             }
-
-            ScrollView(showsIndicators: false) {
+            }
+        ) {
                 VStack(alignment: .leading, spacing: 14) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(exercise.muscleGroup.uppercased())
@@ -1259,8 +1385,6 @@ struct ExerciseDetailView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 36)
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-        }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($formStudioToast, bottomInset: 28)
@@ -1390,10 +1514,14 @@ struct ActiveWorkoutView: View {
     @Environment(\.dismiss) private var dismiss
     let plan: WorkoutPlan
     var day: PlanDay?
+    /// Home "Start workout": open the guided session as soon as the session is ready.
+    var autoStart = false
+    @State private var didAutoStart = false
     @State private var logs: [WorkoutSetLog] = []
     @State private var showGuided = false
     @State private var guidedStartIndex = 0
     @State private var guidedElapsed = 0
+    @State private var guidedTotalRest = 0
     @State private var showComplete = false
     @State private var pendingComplete = false
     /// Server-side session id — set once session is started or resumed.
@@ -1408,6 +1536,14 @@ struct ActiveWorkoutView: View {
 
     private var exercises: [WorkoutExercise] { day?.exercises ?? plan.exercises }
     private var completedExerciseCount: Int { Set(logs.map(\.exerciseId)).count }
+    /// Every working set of every exercise is logged (100%).
+    private var allExercisesDone: Bool {
+        !exercises.isEmpty && exercises.allSatisfy { item in
+            item.workingSets.allSatisfy { set in
+                logs.contains { $0.exerciseId == item.exerciseId && $0.setNumber == set.setNumber }
+            }
+        }
+    }
 
     private static func relativeDay(_ weekday: Weekday) -> String {
         let todayIdx = Weekday.from(date: Date()).sortIndex
@@ -1431,10 +1567,14 @@ struct ActiveWorkoutView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            TTDarkPageHeader(title: day?.title ?? plan.title) { dismiss() }
-
-            ScrollView(showsIndicators: false) {
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: day?.title ?? plan.title, collapseProgress: progress) { dismiss() }
+            }
+        ) {
                 VStack(alignment: .leading, spacing: 14) {
                     if let sessionError {
                         HStack(spacing: 8) {
@@ -1494,25 +1634,40 @@ struct ActiveWorkoutView: View {
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
 
-                    // Start / Continue button
-                    Button {
-                        guidedStartIndex = activeExerciseIndex
-                        showGuided = true
-                    } label: {
+                    // Start / Continue button — a calm "Completed" state at 100%.
+                    if allExercisesDone {
                         HStack(spacing: 8) {
-                            Image(systemName: completedExerciseCount == 0 ? "play.fill" : "arrow.right.circle.fill")
-                                .font(.system(size: 15, weight: .bold))
-                            Text(completedExerciseCount == 0 ? "Start Workout" : "Continue Workout")
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16, weight: .bold))
+                            Text("Completed ✓")
                                 .font(TTFont.workSans(16, weight: .bold))
                         }
-                        .foregroundStyle(.white)
+                        .foregroundStyle(TTColor.inkMuted)
                         .frame(maxWidth: .infinity)
                         .frame(height: 54)
-                        .background(orange)
+                        .background(cardFill)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
+                        .accessibilityElement(children: .combine)
+                    } else {
+                        Button {
+                            guidedStartIndex = activeExerciseIndex
+                            showGuided = true
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: completedExerciseCount == 0 ? "play.fill" : "arrow.right.circle.fill")
+                                    .font(.system(size: 15, weight: .bold))
+                                Text(completedExerciseCount == 0 ? "Start Workout" : "Continue Workout")
+                                    .font(TTFont.workSans(16, weight: .bold))
+                            }
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 54)
+                            .background(orange)
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .shadow(color: orange.opacity(0.35), radius: 10, y: 4)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
 
                     // Exercise list header
                     Text("Today's exercises")
@@ -1536,11 +1691,16 @@ struct ActiveWorkoutView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 36)
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-        }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
-        .task { await ensureSession() }
+        .task {
+            await ensureSession()
+            if autoStart, !didAutoStart, !allExercisesDone {
+                didAutoStart = true
+                guidedStartIndex = activeExerciseIndex
+                showGuided = true
+            }
+        }
         .fullScreenCover(isPresented: $showGuided, onDismiss: {
             if pendingComplete {
                 pendingComplete = false
@@ -1553,8 +1713,9 @@ struct ActiveWorkoutView: View {
                 startIndex: guidedStartIndex,
                 sessionId: sessionId,
                 logs: $logs
-            ) { elapsed in
+            ) { elapsed, rest in
                 guidedElapsed = elapsed
+                guidedTotalRest = rest
                 pendingComplete = true
                 showGuided = false
             }
@@ -1569,7 +1730,12 @@ struct ActiveWorkoutView: View {
                 // so the sheet can offer Try again. Only clear/dismiss after the server confirmed.
                 if let sid = sessionId {
                     // Session API path: complete via backend, which saves the log server-side.
-                    try await store.completeWorkoutSession(sessionId: sid, durationMinutes: max(guidedElapsed / 60, 1))
+                    try await store.completeWorkoutSession(
+                        sessionId: sid,
+                        durationMinutes: max(guidedElapsed / 60, 1),
+                        durationSeconds: guidedElapsed,
+                        totalRestSeconds: guidedTotalRest
+                    )
                     sessionId = nil
                 } else {
                     // Fallback: save a local log when session API was unavailable.
@@ -1585,7 +1751,11 @@ struct ActiveWorkoutView: View {
                             planId: plan.id,
                             completedAt: .now,
                             durationMinutes: max(guidedElapsed / 60, 1),
-                            sets: logs
+                            sets: logs,
+                            planDayId: day?.id,
+                            sessionTitle: day?.title,
+                            durationSeconds: guidedElapsed,
+                            totalRestSeconds: guidedTotalRest
                         )
                     )
                 }
@@ -1646,12 +1816,12 @@ struct ActiveWorkoutView: View {
                     Text(exercise.name)
                         .font(TTFont.workSans(15, weight: isActive ? .bold : .semibold))
                         .foregroundStyle(isDone ? TTColor.inkMuted : TTColor.ink)
-                    HStack(spacing: 6) {
-                        Text(item.prescriptionLine).font(TTFont.caption(12))
-                            .foregroundStyle(isActive ? orange : TTColor.inkMuted)
-                        Text("·").font(TTFont.caption(12)).foregroundStyle(TTColor.inkMuted)
-                        Text(exercise.muscleGroup).font(TTFont.caption(12)).foregroundStyle(TTColor.inkMuted)
-                    }
+                    // One Text so the muscle group wraps with the prescription instead of floating beside it.
+                    (Text(item.prescriptionLine).foregroundStyle(isActive ? orange : TTColor.inkMuted)
+                        + Text(verbatim: " · ").foregroundStyle(TTColor.inkMuted)
+                        + Text(exercise.muscleGroup).foregroundStyle(TTColor.inkMuted))
+                        .font(TTFont.caption(12))
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer()
                 Image(systemName: isDone ? "checkmark.circle.fill" : isActive ? "play.circle.fill" : "chevron.right")
@@ -1682,7 +1852,8 @@ struct GuidedWorkoutFlow: View {
     /// Nil when session API was unavailable; sets are still logged locally.
     let sessionId: String?
     @Binding var logs: [WorkoutSetLog]
-    let onFinish: (Int) -> Void
+    /// (elapsed seconds, total rest seconds)
+    let onFinish: (Int, Int) -> Void
 
     enum Phase { case exercise, rest }
 
@@ -1690,6 +1861,11 @@ struct GuidedWorkoutFlow: View {
     @State private var setIndex = 0
     @State private var phase: Phase = .exercise
     @State private var restSeconds = 0
+    /// Real timing: when the current set began, when the current rest began, and rest accumulated so far.
+    @State private var setStartedAt: Date?
+    @State private var restStartedAt: Date?
+    @State private var restingAfter: (exerciseId: String, setNumber: Int)?
+    @State private var totalRestSeconds = 0
     @State private var elapsed = 0
     @State private var timerRunning = false
     @State private var showExitConfirm = false  // C3
@@ -1703,13 +1879,14 @@ struct GuidedWorkoutFlow: View {
         var setNumber: Int
         var reps: Int
         var weightKg: Double
+        var durationSeconds: Int?
     }
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
     private let orange = TTColor.actionOrange
     private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
 
-    init(exercises: [WorkoutExercise], planTitle: String, startIndex: Int, sessionId: String?, logs: Binding<[WorkoutSetLog]>, onFinish: @escaping (Int) -> Void) {
+    init(exercises: [WorkoutExercise], planTitle: String, startIndex: Int, sessionId: String?, logs: Binding<[WorkoutSetLog]>, onFinish: @escaping (Int, Int) -> Void) {
         self.exercises = exercises
         self.planTitle = planTitle
         self.startIndex = startIndex
@@ -1779,6 +1956,7 @@ struct GuidedWorkoutFlow: View {
         }
         if !timerRunning { timerRunning = true }
         let weightKg = set.weightKg ?? item.recommendedWeightKg ?? 0
+        let setSeconds = setStartedAt.map { max(0, Int(Date().timeIntervalSince($0))) }
 
         guard let sid = sessionId else {
             // No session active — no backend to confirm; append locally and advance immediately.
@@ -1787,7 +1965,8 @@ struct GuidedWorkoutFlow: View {
                 exerciseId: item.exerciseId,
                 setNumber: set.setNumber,
                 reps: set.reps,
-                weightKg: weightKg
+                weightKg: weightKg,
+                durationSeconds: setSeconds
             )
             logs.append(localLog)
             doAdvance()
@@ -1799,7 +1978,8 @@ struct GuidedWorkoutFlow: View {
             exerciseId: item.exerciseId,
             setNumber: set.setNumber,
             reps: set.reps,
-            weightKg: weightKg
+            weightKg: weightKg,
+            durationSeconds: setSeconds
         )
         pendingSet = info
         isSavingSet = true
@@ -1814,7 +1994,8 @@ struct GuidedWorkoutFlow: View {
                 exerciseId: info.exerciseId,
                 setNumber: info.setNumber,
                 reps: info.reps,
-                weightKg: info.weightKg
+                weightKg: info.weightKg,
+                durationSeconds: info.durationSeconds
             )
             if !logs.contains(where: { $0.exerciseId == confirmed.exerciseId && $0.setNumber == confirmed.setNumber }) {
                 logs.append(confirmed)
@@ -1837,15 +2018,33 @@ struct GuidedWorkoutFlow: View {
 
     private func doAdvance() {
         if isLastSet && isLastExercise {
-            onFinish(elapsed)
+            onFinish(elapsed, totalRestSeconds)
             dismiss()
         } else {
+            if let item = currentItem, let set = currentSet {
+                restingAfter = (item.exerciseId, set.setNumber)
+            }
+            restStartedAt = Date()
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { phase = .rest }
             restSeconds = max(0, currentItem?.restSeconds ?? 90)
         }
     }
 
+    /// Rest ended (countdown hit 0 or Skip): record the real seconds on the set it followed.
+    private func finishRestTiming() {
+        defer { restStartedAt = nil; restingAfter = nil }
+        guard let started = restStartedAt else { return }
+        let seconds = max(0, Int(Date().timeIntervalSince(started)))
+        totalRestSeconds += seconds
+        if let key = restingAfter,
+           let i = logs.firstIndex(where: { $0.exerciseId == key.exerciseId && $0.setNumber == key.setNumber }) {
+            logs[i].restSeconds = seconds
+        }
+    }
+
     private func advanceAfterRest() {
+        finishRestTiming()
+        setStartedAt = Date()
         withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
             if isLastSet {
                 exerciseIndex += 1
@@ -1871,16 +2070,29 @@ struct GuidedWorkoutFlow: View {
                             .background(Color.white.opacity(0.1))
                             .clipShape(Circle())
                     }
-                    Spacer()
-                    Text(timerRunning ? timeString : "– : –")
-                        .font(TTFont.workSans(16, weight: .bold))
-                        .foregroundStyle(timerRunning ? .white : .white.opacity(0.3))
-                        .contentTransition(.numericText())
-                        .monospacedDigit()
-                    Spacer()
+                    Spacer(minLength: 8)
+                    HStack(spacing: 8) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 16, weight: .semibold))
+                            .accessibilityHidden(true)
+                        Text(timerRunning ? timeString : "– : –")
+                            .font(.system(size: 18, weight: .semibold))
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
+                    }
+                    .foregroundStyle(timerRunning ? .white : .white.opacity(0.4))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Capsule())
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text("Workout time"))
+                    .accessibilityValue(Text(timerRunning ? timeString : "–"))
+                    Spacer(minLength: 8)
                     Text("\(exerciseIndex + 1) / \(exercises.count)")
                         .font(TTFont.workSans(13, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.6))
+                        .frame(minWidth: 34, alignment: .trailing)
                 }
                 .padding(.horizontal, TTSpace.screen)
                 .padding(.top, 14)
@@ -1921,7 +2133,7 @@ struct GuidedWorkoutFlow: View {
         }
         .ttHideSystemNavigationBar()
         .sensoryFeedback(.success, trigger: logs.count)
-        .onAppear { timerRunning = true }
+        .onAppear { timerRunning = true; if setStartedAt == nil { setStartedAt = Date() } }
         .onReceive(timer) { _ in
             if timerRunning { elapsed += 1 }
             if restSeconds > 0 {
@@ -2256,5 +2468,207 @@ private struct WorkoutCompleteSheet: View {
     NavigationStack {
         ActiveWorkoutView(plan: TTPreview.samplePlan, day: TTPreview.samplePlan.session(on: .now))
             .ttPreviewTrainee()
+    }
+}
+
+// MARK: - Workout summary (completed session)
+
+/// Read-only summary of one finished `WorkoutLog`: hero metrics, per-exercise sets with timing, and "Train again".
+struct WorkoutSummaryView: View {
+    @Environment(AppStore.self) private var store
+    @Environment(\.dismiss) private var dismiss
+    let log: WorkoutLog
+
+    @State private var trainAgain = false
+
+    private let canvas = Color(white: 0.97)
+    private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
+    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let orange = TTColor.actionOrange
+    private let green = Color(red: 21 / 255, green: 128 / 255, blue: 61 / 255)
+
+    private struct ExerciseGroup: Identifiable {
+        var id: String
+        var sets: [WorkoutSetLog]
+    }
+
+    private var plan: WorkoutPlan? { store.plans.first { $0.id == log.planId } }
+    private var day: PlanDay? {
+        guard let plan else { return nil }
+        return log.planDayId.flatMap { id in plan.days.first { $0.id == id } }
+    }
+    private var title: String { log.sessionTitle ?? day?.title ?? plan?.title ?? String(localized: "Workout") }
+
+    /// Grouped by exercise, in the order first performed.
+    private var groups: [ExerciseGroup] {
+        var order: [String] = []
+        var bySets: [String: [WorkoutSetLog]] = [:]
+        for set in log.sets {
+            if bySets[set.exerciseId] == nil { order.append(set.exerciseId) }
+            bySets[set.exerciseId, default: []].append(set)
+        }
+        return order.map { ExerciseGroup(id: $0, sets: (bySets[$0] ?? []).sorted { $0.setNumber < $1.setNumber }) }
+    }
+
+    static func relativeDate(_ date: Date) -> String {
+        let time = date.formatted(date: .omitted, time: .shortened)
+        if Calendar.current.isDateInToday(date) { return "\(String(localized: "Today")) · \(time)" }
+        if Calendar.current.isDateInYesterday(date) { return "\(String(localized: "Yesterday")) · \(time)" }
+        return date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+    }
+
+    var body: some View {
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: title, collapseProgress: progress) { dismiss() }
+            }
+        ) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(log.completedAt.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute()))
+                        .font(TTFont.workSans(13, weight: .medium))
+                        .foregroundStyle(TTColor.inkMuted)
+
+                    heroCard
+
+                    if !groups.isEmpty {
+                        Text("Exercises")
+                            .font(TTFont.workSans(11, weight: .bold))
+                            .foregroundStyle(TTColor.inkMuted)
+                            .kerning(0.8)
+                            .textCase(.uppercase)
+                            .padding(.top, 4)
+                        ForEach(groups) { group in exerciseCard(group) }
+                    }
+
+                    trainAgainButton
+                }
+                .padding(.horizontal, TTSpace.screen)
+                .padding(.top, 16)
+                .padding(.bottom, 36)
+            }
+        .background(charcoal.ignoresSafeArea(edges: .top))
+        .ttHideSystemNavigationBar()
+        .navigationDestination(isPresented: $trainAgain) {
+            if let plan {
+                ActiveWorkoutView(plan: plan, day: day ?? plan.session(on: Date()) ?? plan.nextSession(from: Date()), autoStart: true)
+            }
+        }
+    }
+
+    // MARK: Hero
+
+    private var heroCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 14, weight: .bold))
+                Text("Completed")
+                    .font(TTFont.workSans(13, weight: .medium))
+            }
+            .foregroundStyle(green)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .background(Color(red: 220 / 255, green: 252 / 255, blue: 231 / 255))
+            .clipShape(Capsule())
+
+            let volume = log.totalVolumeKg
+            let setsText = volume > 0
+                ? "\(log.setCount) · \(Int(volume.rounded())) kg"
+                : "\(log.setCount)"
+            // TODO: Active time / Total rest show "—" for logs saved before timing existed (backend must echo durationSeconds / totalRestSeconds).
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 14) {
+                metric("Total time", WorkoutLog.formattedDuration(log.totalSeconds))
+                metric("Active time", log.activeSeconds.map(WorkoutLog.formattedDuration) ?? "—")
+                metric("Total rest", log.restTotalSeconds.map(WorkoutLog.formattedDuration) ?? "—")
+                metric(volume > 0 ? "Sets · Volume" : "Sets", setsText)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+    }
+
+    private func metric(_ label: LocalizedStringKey, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(TTFont.workSans(12, weight: .medium))
+                .foregroundStyle(TTColor.inkMuted)
+            Text(verbatim: value)
+                .font(TTFont.workSans(20, weight: .bold))
+                .foregroundStyle(TTColor.ink)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    // MARK: Exercises
+
+    private func exerciseCard(_ group: ExerciseGroup) -> some View {
+        let name = store.exercise(id: group.id)?.name ?? String(localized: "Exercise")
+        let timed = group.sets.compactMap(\.durationSeconds)
+        let total = timed.isEmpty ? nil : timed.reduce(0, +) + group.sets.compactMap(\.restSeconds).reduce(0, +)
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(name)
+                    .font(TTFont.workSans(15, weight: .bold))
+                    .foregroundStyle(TTColor.ink)
+                Spacer(minLength: 8)
+                if let total {
+                    Text(WorkoutLog.formattedDuration(total))
+                        .font(TTFont.workSans(12, weight: .semibold))
+                        .foregroundStyle(TTColor.inkMuted)
+                        .monospacedDigit()
+                }
+            }
+            ForEach(group.sets) { set in
+                Text(setLine(set))
+                    .font(TTFont.workSans(13, weight: .regular))
+                    .foregroundStyle(TTColor.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(cardFill)
+        .clipShape(RoundedRectangle(cornerRadius: TTCardTokens.corner, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+
+    /// "Set 1 · 8 reps × 4.9 kg · 28s · Rest 1m 10s" — weight and timing omitted when unknown or zero.
+    private func setLine(_ set: WorkoutSetLog) -> String {
+        var parts = ["\(String(localized: "Set")) \(set.setNumber)"]
+        var work = "\(set.reps) \(String(localized: "reps"))"
+        if set.weightKg > 0 { work += " × \(set.weightKg.cleanKg) kg" }
+        parts.append(work)
+        if let d = set.durationSeconds { parts.append(WorkoutLog.formattedDuration(d)) }
+        if let r = set.restSeconds, r > 0 { parts.append("\(String(localized: "Rest")) \(WorkoutLog.formattedDuration(r))") }
+        return parts.joined(separator: " · ")
+    }
+
+    // MARK: Train again
+
+    @ViewBuilder
+    private var trainAgainButton: some View {
+        if plan != nil {
+            Button { trainAgain = true } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 15, weight: .bold))
+                    Text("Train again").font(TTFont.workSans(16, weight: .bold))
+                }
+                .foregroundStyle(TTColor.ink)
+                .frame(maxWidth: .infinity)
+                .frame(height: 54)
+                .background(cardFill)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 4)
+        }
+        // TODO: plan no longer in the store (deleted/reassigned) → "Train again" hidden; nothing to start.
     }
 }

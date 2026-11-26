@@ -23,10 +23,14 @@ struct WorkoutOverviewView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Same dark page header as the other pushed Trainee screens (back button + title).
-            TTDarkPageHeader(title: session?.title ?? plan.title, showsBack: true, onBack: { dismiss() })
-            ScrollView(showsIndicators: false) {
+        TTCollapsingHeaderScreen(
+            sheetFill: canvas,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: session?.title ?? plan.title, showsBack: true, collapseProgress: progress, onBack: { dismiss() })
+            }
+        ) {
                 VStack(alignment: .leading, spacing: 16) {
                     if let session {
                         SessionHeader(session: session, level: plan.level)
@@ -53,8 +57,6 @@ struct WorkoutOverviewView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 24)   // sticky bar adds its own inset via safeAreaInset
             }
-            .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: canvas)
-        }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .safeAreaInset(edge: .bottom) {
@@ -126,18 +128,28 @@ struct SessionHeader: View {
     let level: String
 
     var body: some View {
-        FlowLayout(spacing: 10) {
-            metaItem(icon: "clock", text: session.timeLabel)
-            metaItem(icon: "timer", text: "\(session.durationMinutes) min")
-            metaItem(icon: "mappin.and.ellipse", text: session.location ?? "Gym")
-            Text(level.capitalized)
-                .font(TTFont.workSans(12, weight: .medium))
-                .foregroundStyle(OverviewTheme.textOrange)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(OverviewTheme.orangeTint)
-                .clipShape(Capsule())
+        // One centered row when it fits; wraps (large Dynamic Type) instead of clipping.
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 12) { items }
+            FlowLayout(spacing: 10) { items }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // The scroll content already adds 8pt: 10 + 8 = 18pt below the rounded sheet corner.
+        .padding(.top, 10)
+    }
+
+    @ViewBuilder
+    private var items: some View {
+        metaItem(icon: "clock", text: session.timeLabel)
+        metaItem(icon: "timer", text: "\(session.durationMinutes) min")
+        metaItem(icon: "mappin.and.ellipse", text: session.location ?? "Gym")
+        Text(level.capitalized)
+            .font(TTFont.workSans(12, weight: .medium))
+            .foregroundStyle(OverviewTheme.textOrange)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(OverviewTheme.orangeTint)
+            .clipShape(Capsule())
     }
 
     private func metaItem(icon: String, text: String) -> some View {
@@ -373,12 +385,12 @@ struct StickyStartBar: View {
             NavigationLink {
                 ActiveWorkoutView(plan: plan, day: day)
             } label: {
-                Text("Start session")
+                Text("Start workout")
                     .font(TTFont.workSans(16, weight: .medium))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
                     .frame(height: 54)
-                    .background(OverviewTheme.textOrange)   // #C2410C — ≥4.5:1 behind white
+                    .background(TTColor.actionOrange)   // same bright orange as Home's "Start workout"
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .buttonStyle(.plain)

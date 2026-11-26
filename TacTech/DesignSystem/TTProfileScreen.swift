@@ -36,6 +36,13 @@ struct TTSandowDayScore: Identifiable, Equatable {
     }
 }
 
+private struct ProfileScrollOffsetKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
 /// Shared profile chrome — hero, identity, Sandow Score, metric tiles.
 struct TTProfileScreen<Extra: View>: View {
     @Environment(\.dismiss) private var dismiss
@@ -65,6 +72,7 @@ struct TTProfileScreen<Extra: View>: View {
     @State private var avatarDraft = TTAvatarCatalog.default
     @State private var isUpdatingPhoto = false
     @State private var photoToast: TTToastMessage?
+    @State private var scrollOffset: CGFloat = 0
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
@@ -141,6 +149,14 @@ struct TTProfileScreen<Extra: View>: View {
 
                         ScrollView(showsIndicators: false) {
                             VStack(spacing: 10) {
+                                GeometryReader { g in
+                                    Color.clear.preference(
+                                        key: ProfileScrollOffsetKey.self,
+                                        value: max(0, -g.frame(in: .named("profileScroll")).minY)
+                                    )
+                                }
+                                .frame(height: 0)
+
                                 identityBlock
                                 sandowCard
                                 metricsRow
@@ -149,6 +165,10 @@ struct TTProfileScreen<Extra: View>: View {
                             .padding(.horizontal, 16)
                             .padding(.top, avatarSide / 2 + 14)
                             .padding(.bottom, 20)
+                        }
+                        .coordinateSpace(name: "profileScroll")
+                        .onPreferenceChange(ProfileScrollOffsetKey.self) { offset in
+                            scrollOffset = offset
                         }
                         .refreshable {
                             await store.loadSandowScore(period: period, force: true)
@@ -164,9 +184,15 @@ struct TTProfileScreen<Extra: View>: View {
 
                     chromeButtons(topSafe: topSafe)
 
+                    let avatarFade = max(0, 1 - scrollOffset / (avatarSide * 0.7))
                     overlappingAvatar(width: width)
+                        .offset(y: -scrollOffset)
+                        .opacity(avatarFade)
 
                     avatarEditBadge(width: width)
+                        .offset(y: -scrollOffset)
+                        .opacity(avatarFade)
+                        .allowsHitTesting(avatarFade > 0.2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
@@ -316,11 +342,9 @@ struct TTProfileScreen<Extra: View>: View {
         let top = heroHeight - chromeBottomPad - chromeButton
 
         return HStack {
-            profileChromeButton(icon: showsBack ? .chevronLeft : .pencil1) {
-                if showsBack {
+            if showsBack {
+                profileChromeButton(icon: .chevronLeft) {
                     dismiss()
-                } else {
-                    path.append(ProfileRoute.personalInfo)
                 }
             }
             Spacer(minLength: 0)
@@ -386,14 +410,16 @@ struct TTProfileScreen<Extra: View>: View {
                     Text(location)
                         .font(TTFont.textSM(.medium))
                 }
-                Circle()
-                    .fill(TTColor.ink.opacity(0.25))
-                    .frame(width: 3, height: 3)
-                    .padding(.horizontal, 4)
-                HStack(spacing: 4) {
-                    TTIcon(icon: .user, size: 13)
-                    Text(membership)
-                        .font(TTFont.textSM(.medium))
+                if !membership.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Circle()
+                        .fill(TTColor.ink.opacity(0.25))
+                        .frame(width: 3, height: 3)
+                        .padding(.horizontal, 4)
+                    HStack(spacing: 4) {
+                        TTIcon(icon: .user, size: 13)
+                        Text(membership)
+                            .font(TTFont.textSM(.medium))
+                    }
                 }
             }
             .foregroundStyle(TTColor.inkMuted)
@@ -487,14 +513,42 @@ struct TTProfileScreen<Extra: View>: View {
 
     private var chartYMarks: [Int] { [0, 25, 50, 75, 100] }
 
+    private var chartXAxisValues: [String] {
+        guard scores.count > 10 else { return scores.map(\.id) }
+        let step = max(1, scores.count / 5)
+        var ids: [String] = []
+        for idx in stride(from: 0, to: scores.count, by: step) {
+            ids.append(scores[idx].id)
+        }
+        if let last = scores.last, ids.last != last.id {
+            if let prev = ids.last,
+               let prevIdx = scores.firstIndex(where: { $0.id == prev }),
+               scores.count - 1 - prevIdx < max(2, step / 2) {
+                ids.removeLast()
+            }
+            ids.append(last.id)
+        }
+        return ids
+    }
+
+    private func xAxisLabel(for id: String) -> String {
+        guard let item = scores.first(where: { $0.id == id }) else { return "" }
+        if period == .month, let dateKey = item.dateKey, dateKey.count >= 10 {
+            // "yyyy-MM-dd" -> day number (e.g. "26")
+            let dayPart = String(dateKey.suffix(2))
+            if let dayInt = Int(dayPart) { return "\(dayInt)" }
+        }
+        return item.short
+    }
+
     private var chart: some View {
         Chart(scores) { item in
             BarMark(
-                x: .value("Day", item.short),
-                y: .value("Score", item.score)
+                x: .value("Day", item.id),
+                y: .value("Score", min(100, max(0, item.score)))
             )
             .foregroundStyle(item.id == activeDayId ? Color.black : Color(white: 0.82))
-            .cornerRadius(period == .month ? 4 : 8)
+            .cornerRadius(period == .month ? 3 : 8)
             .annotation(position: .top, spacing: 6) {
                 if item.id == activeDayId, period == .week || scores.count <= 10 {
                     Text("\(item.score)")
@@ -516,6 +570,9 @@ struct TTProfileScreen<Extra: View>: View {
             }
         }
         .chartYScale(domain: chartYDomain)
+        .chartPlotStyle { plot in
+            plot.clipped()
+        }
         .chartYAxis {
             AxisMarks(position: .leading, values: chartYMarks) { value in
                 AxisGridLine(stroke: StrokeStyle(lineWidth: 1))
@@ -530,12 +587,11 @@ struct TTProfileScreen<Extra: View>: View {
             }
         }
         .chartXAxis {
-            AxisMarks { value in
+            AxisMarks(values: chartXAxisValues) { value in
                 AxisValueLabel {
-                    if let label = value.as(String.self) {
-                        // Monthly: thin labels — show every few ticks via length check.
-                        Text(label)
-                            .font(TTFont.caption(period == .month ? 9 : 11))
+                    if let id = value.as(String.self) {
+                        Text(xAxisLabel(for: id))
+                            .font(TTFont.caption(period == .month ? 10 : 11))
                             .foregroundStyle(TTColor.inkMuted)
                             .lineLimit(1)
                             .minimumScaleFactor(0.7)
@@ -544,11 +600,7 @@ struct TTProfileScreen<Extra: View>: View {
             }
         }
         .chartLegend(.hidden)
-        .chartXSelection(value: $selectedShort)
-        .onChange(of: selectedShort) { _, day in
-            guard let day, let match = scores.first(where: { $0.short == day }) else { return }
-            selectedDayId = match.id
-        }
+        .chartXSelection(value: $selectedDayId)
         .animation(.easeInOut(duration: 0.25), value: scores.map(\.score))
     }
 

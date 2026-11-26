@@ -37,14 +37,21 @@ struct PersonalInformationSettingsView: View {
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            VStack(spacing: 0) {
-                TTDarkPageHeader(title: "Personal Info") {
+        TTCollapsingHeaderScreen(
+            sheetFill: .white,
+            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            topRadius: { _ in TTSheetChrome.pageTopRadius },
+            header: { progress in
+                TTDarkPageHeader(title: "Personal Info", collapseProgress: progress) {
                     dismiss()
                 }
-
-                ScrollView(showsIndicators: false) {
+            }
+        ) {
                     VStack(alignment: .leading, spacing: 12) {
+                        // Avatar now scrolls with the content (the header collapses, so it can't overlap the sheet edge).
+                        avatarWithEdit
+                            .padding(.bottom, 8)
+
                         if isLoading {
                             ProgressView()
                                 .frame(maxWidth: .infinity)
@@ -64,18 +71,10 @@ struct PersonalInformationSettingsView: View {
                         saveButton
                     }
                     .padding(.horizontal, 18)
-                    // Half avatar overlaps the sheet; keep fields clear of avatar + edit badge.
-                    .padding(.top, avatarSize / 2 + 18)
+                    .padding(.top, 20)
                     .padding(.bottom, tabBarClearance + 24)
                     .disabled(isLoading || isSaving)
                 }
-                .ttTopRoundedSheet(radius: TTSheetChrome.pageTopRadius, fill: .white)
-            }
-
-            // Drawn above the sheet so the lower half truly overlaps the white card.
-            avatarWithEdit
-                .padding(.top, TTDarkPageHeader.cardHeight + 10 + 16 - avatarSize / 2)
-        }
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($toast, bottomInset: 28)

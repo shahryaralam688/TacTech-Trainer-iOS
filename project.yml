@@ -30,6 +30,12 @@ targets:
     platform: iOS
     sources:
       - path: TacTech
+        excludes:
+          - "Resources/FormStudioWeb"
+      # Keep the Form Studio web bundle as a real folder (never flattened into the app bundle root).
+      - path: TacTech/Resources/FormStudioWeb
+        type: folder
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.tactech.trainer.shahryar

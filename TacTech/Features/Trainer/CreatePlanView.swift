@@ -191,7 +191,6 @@ struct CreatePlanView: View {
                 .padding(.top, TTModalSheetChrome.contentTopPadding)
                 .padding(.bottom, 12)
                 .animation(stepMotion, value: step)
-                .onChange(of: step) { _, _ in PerfTemp.interval("wizard.step", seconds: 0.45) } // PERF-TEMP
             }
 
             wizardFooter

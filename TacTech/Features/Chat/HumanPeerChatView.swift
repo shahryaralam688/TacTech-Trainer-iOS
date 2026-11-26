@@ -172,9 +172,6 @@ struct HumanPeerChatView: View {
     }
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = PerfTemp.trace("HumanPeerChatView") { Self._printChanges() } // PERF-TEMP
-        #endif
         ZStack {
             Color(white: 0.98).ignoresSafeArea()
             if let peer = selectedPeer {

@@ -487,7 +487,6 @@ struct TTSearchOverlay: View {
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         .ignoresSafeArea(.container)
-        .perfTempScreen("Plans search") // PERF-TEMP
         .onAppear(perform: present)
         .onDisappear { debounceTask?.cancel() }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
@@ -705,7 +704,6 @@ struct TTSearchOverlay: View {
     /// Open from the row's search icon: everything starts together on the tap, and the field takes focus at the
     /// same moment so the keyboard rises with it. Only position, width and opacity animate.
     private func presentFromRow() {
-        PerfTemp.interval("search.open", seconds: TTSearchMotion.openDuration) // PERF-TEMP
         isFocusedPhase = true
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Search opened"))
         if reduceMotion {
@@ -735,7 +733,6 @@ struct TTSearchOverlay: View {
     private func dismissToRow(_ outcome: TTSearchOutcome) {
         guard !isClosing else { return }
         isClosing = true
-        PerfTemp.interval("search.close", seconds: TTSearchMotion.closeDuration) // PERF-TEMP
         // The keyboard leaves together with the field, not after it.
         fieldFocused = false
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Search closed"))
@@ -771,7 +768,6 @@ struct TTSearchOverlay: View {
             presentFromRow()
             return
         }
-        PerfTemp.interval("search.open", seconds: 0.5) // PERF-TEMP
         isFocusedPhase = true
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Search opened"))
         if reduceMotion {
@@ -803,7 +799,6 @@ struct TTSearchOverlay: View {
         }
         guard !isClosing else { return }
         isClosing = true
-        PerfTemp.interval("search.close", seconds: 0.35) // PERF-TEMP
         // The keyboard leaves together with the panel, not after it.
         fieldFocused = false
         UIAccessibility.post(notification: .announcement, argument: String(localized: "Search closed"))

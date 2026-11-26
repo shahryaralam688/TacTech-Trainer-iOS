@@ -64,7 +64,6 @@ struct TTHomeProfileHeader: View {
     var onProfileTap: (() -> Void)? = nil
     var onNotificationTap: (() -> Void)? = nil
 
-    @State private var showPerfTemp = false // PERF-TEMP
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let dateGrey = Color.white.opacity(0.55)
     private let bellBG = Color(white: 0.22)
@@ -110,13 +109,10 @@ struct TTHomeProfileHeader: View {
         }
         // Soft lift into compact — reads as chrome morph, not a hard cut.
         .shadow(
-            color: .black.opacity(PerfTemp.on(.homeShadow) ? 0.18 * Double(p) : 0), // PERF-TEMP
-            radius: PerfTemp.on(.homeShadow) ? 10 * p : 0, // PERF-TEMP
-            y: PerfTemp.on(.homeShadow) ? 4 * p : 0 // PERF-TEMP
+            color: .black.opacity(0.18 * Double(p)),
+            radius: 10 * p,
+            y: 4 * p
         )
-        #if DEBUG || PERF_TEMP
-        .sheet(isPresented: $showPerfTemp) { PerfTempSheet() } // PERF-TEMP
-        #endif
         .contentShape(Rectangle())
         .allowsHitTesting(true)
         // No spring on scroll-driven `p` — collapse tracks finger 1:1; settle spring is in the model.
@@ -134,9 +130,6 @@ struct TTHomeProfileHeader: View {
                     .textCase(.uppercase)
             }
             .foregroundStyle(dateGrey)
-            #if DEBUG || PERF_TEMP
-            .onLongPressGesture(minimumDuration: 0.8) { showPerfTemp = true } // PERF-TEMP: opens the debug sheet
-            #endif
 
             Spacer()
 
@@ -343,464 +336,6 @@ private struct TTHomeHeaderPressStyle: ButtonStyle {
     }
 }
 
-// MARK: - Scroll → header collapse (reliable on cold launch)
-
-/// Shared collapse progress for home / list / detail chrome.
-///
-/// Collapsing a header **above** a ScrollView shortens the scroll view’s frame;
-/// UIKit then compensates `contentOffset`, which without correction fights the
-/// header. We undo that layout delta with a fixed-point solve.
-///
-/// While dragging, progress tracks scroll. When the gesture ends, progress
-/// **settles to 0 or 1** (never rests half-shrunk). A scroll baseline keeps
-/// that settled state stable until the user scrolls again.
-///
-/// Scroll metrics are **coalesced to the next main-queue turn** so
-/// `onScrollGeometryChange` never mutates layout in the same frame (avoids
-/// “tried to update multiple times per frame”).
-///
-/// Short pages get an invisible bottom fill so overflow always covers a full
-/// header collapse — scroll + animated shrink/expand work the same as tall
-/// pages, and bottom content stays reachable (scroll is never locked off).
-@MainActor
-final class TTHomeScrollCollapseModel: ObservableObject {
-    @Published private(set) var progress: CGFloat = 0
-    /// Kept for ScrollView wiring; always `true` so short pages stay reachable.
-    @Published private(set) var allowsScrolling = true
-    /// Extra scrollable space under short content so collapse can complete without fighting.
-    @Published private(set) var bottomFillHeight: CGFloat = 0
-
-    /// How many points the header chrome shrinks from expanded → compact.
-    /// Matches `TTDarkPageHeader` / `trainerListHeader` travel by default.
-    var layoutTravel: CGFloat = TTDarkPageHeader.cardHeight - TTDarkPageHeader.compactHeight
-
-    /// Extra room past `layoutTravel` so post-shrink overflow stays positive.
-    private static let collapseAffordSlack: CGFloat = 18
-
-    private var lastProgress: CGFloat = 0
-    /// True when the real content (without our fill) doesn't overflow the expanded viewport:
-    /// nothing to scroll, so the header stays expanded and no artificial scroll range is added.
-    private var contentFits = false
-    private var lastRawY: CGFloat = 0
-    /// Subtracted from raw offset so a settled 0/1 state stays put with residual offset.
-    private var offsetBaseline: CGFloat = 0
-    private var isUserScrolling = false
-    /// Cumulative offset delta for the active gesture — used to prefer expand on scroll-down.
-    private var gestureDeltaY: CGFloat = 0
-    private var pendingCanScroll: Bool?
-    /// Last endpoint we haptic’d — avoids double buzz on layout echo.
-    private var lastHapticEndpoint: CGFloat?
-
-    private var pendingOffset: CGFloat?
-    private var pendingOverflow: CGFloat?
-    private var flushScheduled = false
-    /// Drop geometry echoes caused by our own header-height publish (same frame / next layout).
-    private var suppressGeometryIngest = false
-    private var lastIngestedOffset: CGFloat?
-    private var lastIngestedOverflow: CGFloat?
-    private var settleUnlockTask: Task<Void, Never>?
-    private var settleDebounceTask: Task<Void, Never>?
-
-    func setUserScrolling(_ active: Bool) {
-        let wasScrolling = isUserScrolling
-        isUserScrolling = active
-        if active, !wasScrolling {
-            gestureDeltaY = 0
-        }
-        // Commit overflow gating only when idle — flipping `scrollDisabled`
-        // mid-deceleration hard-stops the rubber band and looks like a vibrate.
-        if wasScrolling, !active {
-            commitPendingScrollGate()
-            // Final settle pass with the latest metrics after the fling ends.
-            flushPendingMetricsIfNeeded()
-            settleToEndpointIfNeeded()
-        }
-    }
-
-    /// Safe entry from `onScrollGeometryChange` / preference probes.
-    /// Stores the latest sample and applies it once outside the geometry pass.
-    func ingestScrollMetrics(offset: CGFloat, overflow: CGFloat) {
-        if suppressGeometryIngest {
-            // Keep latest sample but do not schedule — avoids same-frame re-entry warning.
-            pendingOffset = offset
-            pendingOverflow = overflow
-            return
-        }
-        if lastIngestedOffset == offset, lastIngestedOverflow == overflow {
-            return
-        }
-        lastIngestedOffset = offset
-        lastIngestedOverflow = overflow
-        pendingOffset = offset
-        pendingOverflow = overflow
-        scheduleFlush()
-    }
-
-    func setScrollableOverflow(_ overflow: CGFloat) {
-        updateBottomFill(measuredOverflow: overflow)
-        // Never lock scroll off — short content uses bottom fill instead, so the
-        // user can always reach bottom rows and complete animated shrink/expand.
-        pendingCanScroll = true
-        if !isUserScrolling {
-            commitPendingScrollGate()
-        }
-    }
-
-    /// Keep enough scroll range under short content for a full collapse travel.
-    private func updateBottomFill(measuredOverflow: CGFloat) {
-        guard measuredOverflow.isFinite else {
-            // iOS 17 path has no overflow metric — use a fixed collapse affordance.
-            let target = (max(layoutTravel, TTHomeHeaderCollapse.distance) + Self.collapseAffordSlack).rounded()
-            if abs(target - bottomFillHeight) >= 1 { bottomFillHeight = target }
-            return
-        }
-        // Measured overflow already includes the current fill (contentMargins).
-        let natural = measuredOverflow - bottomFillHeight
-        // Compare against the EXPANDED viewport: a collapsed header gives the scroll view more room,
-        // which would otherwise make borderline content look like it "fits" and flap.
-        let naturalExpanded = natural + layoutTravel * lastProgress
-        if naturalExpanded <= 8 {
-            // Short / empty screen: no fill, no collapse, header stays cleanly expanded.
-            // Pull-to-refresh still works (scroll is never disabled).
-            contentFits = true
-            if bottomFillHeight != 0 { bottomFillHeight = 0 }
-            if lastProgress > 0.001 {
-                offsetBaseline = 0
-                apply(0, animated: true)
-            }
-            return
-        }
-        contentFits = false
-        // Overlay headers use layoutTravel = 0 but still need ~`distance` of scroll
-        // to reach full collapse; frame-shrinking headers need the travel delta.
-        let needed = max(layoutTravel, TTHomeHeaderCollapse.distance) + Self.collapseAffordSlack
-        let target = max(0, (needed - max(0, natural)).rounded())
-        guard abs(target - bottomFillHeight) >= 1 else { return }
-        bottomFillHeight = target
-    }
-
-    func setOffsetY(_ y: CGFloat) {
-        guard allowsScrolling, !contentFits else {
-            offsetBaseline = 0
-            apply(0)
-            return
-        }
-
-        let rawY = max(0, y)
-        let deltaRaw = rawY - lastRawY
-        lastRawY = rawY
-        if isUserScrolling {
-            gestureDeltaY += deltaRaw
-        } else if abs(deltaRaw) >= 2.0 {
-            // iOS 17 has no phase API — treat clear offset moves as gesture intent.
-            gestureDeltaY += deltaRaw
-        }
-
-        // Back at (or very near) the top — always fully expand.
-        // Short pages often never accumulate enough raw offset for the
-        // distance-based baseline to unwind on its own.
-        if rawY <= TTHomeHeaderCollapse.leadIn {
-            offsetBaseline = 0
-            if lastProgress > 0.001 {
-                apply(0, animated: !isUserScrolling)
-            }
-            if !isUserScrolling {
-                scheduleDebouncedSettle()
-            }
-            return
-        }
-
-        let effectiveRaw = max(0, rawY - offsetBaseline)
-        // Fixed-point: p == f(y + travel * p). Exact solve keeps UIKit’s offset
-        // compensation and our header height in agreement every frame.
-        var solved = lastProgress
-        for _ in 0..<5 {
-            let compensated = max(0, effectiveRaw + layoutTravel * solved)
-            solved = TTHomeHeaderCollapse.progress(for: compensated)
-        }
-        let target = min(1, max(0, solved))
-
-        // Ignore idle layout echo that only nudges collapse upward.
-        if !isUserScrolling, target > lastProgress, (target - lastProgress) < 0.04, abs(deltaRaw) < 1.5 {
-            return
-        }
-
-        // While settled, ignore tiny geometry drift — but allow a real scroll
-        // delta through so short-page expand (scroll down) is not swallowed.
-        if !isUserScrolling {
-            let settled: CGFloat = lastProgress >= 0.5 ? 1 : 0
-            if abs(lastProgress - settled) < 0.001, abs(deltaRaw) < 2.0 {
-                return
-            }
-        }
-
-        apply(target)
-        // iOS 17 has no scroll-phase API — debounce settle when metrics go quiet.
-        if !isUserScrolling {
-            scheduleDebouncedSettle()
-        }
-    }
-
-    /// After the gesture ends, never rest half-shrunk — ease to expanded or compact.
-    private func settleToEndpointIfNeeded() {
-        settleDebounceTask?.cancel()
-        settleDebounceTask = nil
-        guard allowsScrolling else {
-            offsetBaseline = 0
-            apply(0, animated: true)
-            gestureDeltaY = 0
-            return
-        }
-
-        // Near the top always expands — short pages may still report mid progress
-        // because collapse travel never fit in raw offset.
-        // Scroll toward top (negative delta) also prefers expand so reverse
-        // shrink returns to the full header instead of snapping back compact.
-        // Strong downward flick past mid commits compact even under threshold.
-        let snap: CGFloat
-        if lastRawY <= TTHomeHeaderCollapse.leadIn {
-            snap = 0
-        } else if gestureDeltaY <= -6 {
-            snap = lastProgress >= 0.90 ? 1 : 0
-        } else if gestureDeltaY >= 14, lastProgress >= 0.28 {
-            snap = 1
-        } else {
-            snap = lastProgress >= TTHomeHeaderCollapse.settleThreshold ? 1 : 0
-        }
-        gestureDeltaY = 0
-        guard abs(lastProgress - snap) > 0.02 else {
-            // Already near an endpoint — lock baseline so residual offset doesn’t creep.
-            lockBaseline(for: snap)
-            if abs(lastProgress - snap) > 0.0005 {
-                apply(snap, animated: true)
-            }
-            return
-        }
-
-        lockBaseline(for: snap)
-        apply(snap, animated: true)
-    }
-
-    private func scheduleDebouncedSettle() {
-        settleDebounceTask?.cancel()
-        settleDebounceTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(140))
-            guard let self, !Task.isCancelled, !self.isUserScrolling else { return }
-            self.settleToEndpointIfNeeded()
-        }
-    }
-
-    private func lockBaseline(for snap: CGFloat) {
-        if snap < 0.5 {
-            // Treat current offset as “expanded zero”.
-            offsetBaseline = lastRawY
-        } else {
-            // Keep progress reading as fully compact at the current offset.
-            // Clamp to ≥ 0 — on short pages lastRawY << distance; a negative
-            // baseline makes top-of-scroll still look collapsed and blocks expand.
-            offsetBaseline = max(0, lastRawY - TTHomeHeaderCollapse.distance)
-        }
-    }
-
-    private func scheduleFlush() {
-        guard !flushScheduled else { return }
-        flushScheduled = true
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            self.flushScheduled = false
-            self.flushPendingMetricsIfNeeded()
-        }
-    }
-
-    private func flushPendingMetricsIfNeeded() {
-        let overflow = pendingOverflow
-        let offset = pendingOffset
-        pendingOverflow = nil
-        pendingOffset = nil
-        if let overflow {
-            setScrollableOverflow(overflow)
-        }
-        if let offset {
-            setOffsetY(offset)
-        }
-    }
-
-    private func commitPendingScrollGate() {
-        guard let next = pendingCanScroll else { return }
-        pendingCanScroll = nil
-        guard allowsScrolling != next else { return }
-        allowsScrolling = next
-        if !next {
-            offsetBaseline = 0
-            apply(0)
-        }
-    }
-
-    private func apply(_ stepped: CGFloat, animated: Bool = false) {
-        guard abs(stepped - lastProgress) > 0.0005 || abs(progress - stepped) > 0.0005 else { return }
-        let previous = lastProgress
-        lastProgress = stepped
-        suppressGeometryIngest = true
-        settleUnlockTask?.cancel()
-
-        if animated {
-            withAnimation(TTHomeHeaderCollapse.settleAnimation) {
-                progress = stepped
-            }
-            playSettleHapticIfNeeded(from: previous, to: stepped)
-            settleUnlockTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(480))
-                guard let self, !Task.isCancelled else { return }
-                self.suppressGeometryIngest = false
-                self.pendingOffset = nil
-                self.pendingOverflow = nil
-            }
-        } else {
-            var transaction = Transaction()
-            transaction.disablesAnimations = true
-            transaction.animation = nil
-            withTransaction(transaction) {
-                progress = stepped
-            }
-            // Clear suppress after layout; discard echo samples from our own height change.
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.suppressGeometryIngest = false
-                self.pendingOffset = nil
-                self.pendingOverflow = nil
-            }
-        }
-    }
-
-    private func playSettleHapticIfNeeded(from previous: CGFloat, to next: CGFloat) {
-        let endpoint: CGFloat? =
-            next <= 0.02 ? 0 :
-            next >= 0.98 ? 1 :
-            nil
-        guard let endpoint else { return }
-        // Only when we actually crossed into an endpoint (not echo re-apply).
-        let crossed =
-            (endpoint == 0 && previous > 0.08) ||
-            (endpoint == 1 && previous < 0.92)
-        guard crossed, lastHapticEndpoint != endpoint else { return }
-        lastHapticEndpoint = endpoint
-        TTHomeHaptics.soft()
-    }
-}
-
-extension View {
-    /// Put on the **ScrollView**. Pairs with `TTHomeScrollCollapseProbe` inside the content (iOS 17).
-    /// Short pages receive an invisible bottom fill so collapse can complete without locking scroll.
-    func ttObserveHomeScrollCollapse(
-        _ model: TTHomeScrollCollapseModel,
-        space: String,
-        perfFile: String = #fileID, // PERF-TEMP
-        perfLine: Int = #line // PERF-TEMP
-    ) -> some View {
-        modifier(TTHomeScrollCollapseObserver(model: model, space: space, perfFile: perfFile, perfLine: perfLine))
-    }
-}
-
-/// **Must** be the first child inside the ScrollView content (fallback / cold launch on iOS 17).
-struct TTHomeScrollCollapseProbe: View {
-    let model: TTHomeScrollCollapseModel
-    let space: String
-
-    var body: some View {
-        GeometryReader { geo in
-            Color.clear.preference(
-                key: TTHomeScrollOffsetPreferenceKey.self,
-                value: max(0, -geo.frame(in: .named(space)).minY)
-            )
-        }
-        .frame(width: 1, height: 1)
-        .accessibilityHidden(true)
-    }
-}
-
-private struct TTHomeScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
-    }
-}
-
-private struct TTHomeScrollCollapseMetrics: Equatable {
-    var offset: CGFloat
-    var overflow: CGFloat
-
-    /// Snap to 1pt so float / layout echo doesn’t re-enter geometry observation.
-    static func sampled(offset: CGFloat, overflow: CGFloat) -> Self {
-        Self(
-            offset: offset.rounded(),
-            overflow: overflow.rounded()
-        )
-    }
-}
-
-/// One measurement path only — dual PreferenceKey + geometry observers fought and jittered.
-///
-/// Intentionally **not** `@ObservedObject`: progress publishes every scroll tick;
-/// observing here would rebuild the ScrollView and re-enter geometry / navigation
-/// observers in the same frame.
-private struct TTHomeScrollCollapseObserver: ViewModifier {
-    let model: TTHomeScrollCollapseModel
-    let space: String
-    let perfFile: String // PERF-TEMP
-    let perfLine: Int // PERF-TEMP
-    @State private var perfPrinted = false // PERF-TEMP
-    @State private var allowsScrolling = true
-    @State private var bottomFillHeight: CGFloat = 0
-
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        let gated = content
-            // Always rubber-band so short home pages still feel like a real gesture.
-            .scrollBounceBehavior(.always)
-            .scrollDisabled(!allowsScrolling)
-            // Invisible pad under short content — enough travel for full shrink/expand.
-            // contentMargins accumulate with tab-bar clearance margins on root screens.
-            .contentMargins(.bottom, bottomFillHeight, for: .scrollContent)
-
-        if #available(iOS 18.0, *) {
-            gated
-                .onScrollGeometryChange(for: TTHomeScrollCollapseMetrics.self) { geometry in
-                    TTHomeScrollCollapseMetrics.sampled(
-                        offset: max(0, geometry.contentOffset.y + geometry.contentInsets.top),
-                        overflow: geometry.contentSize.height - geometry.containerSize.height
-                    )
-                } action: { _, newValue in
-                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("old-model " + perfFile, perfLine) } // PERF-TEMP
-                    // Never mutate header layout synchronously here — that re-enters
-                    // OnScrollGeometryChange / NavigationRequestObserver in-frame.
-                    model.ingestScrollMetrics(offset: newValue.offset, overflow: newValue.overflow)
-                }
-                .onScrollPhaseChange { _, phase in
-                    model.setUserScrolling(phase != .idle)
-                }
-                .onAppear {
-                    allowsScrolling = model.allowsScrolling
-                    bottomFillHeight = model.bottomFillHeight
-                }
-                .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
-                .onReceive(model.$bottomFillHeight) { bottomFillHeight = $0 }
-        } else {
-            gated
-                .coordinateSpace(name: space)
-                .onPreferenceChange(TTHomeScrollOffsetPreferenceKey.self) { value in
-                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("old-model(iOS17) " + perfFile, perfLine) } // PERF-TEMP
-                    model.ingestScrollMetrics(offset: value, overflow: .infinity)
-                }
-                .onAppear {
-                    allowsScrolling = model.allowsScrolling
-                    bottomFillHeight = model.bottomFillHeight
-                }
-                .onReceive(model.$allowsScrolling) { allowsScrolling = $0 }
-                .onReceive(model.$bottomFillHeight) { bottomFillHeight = $0 }
-        }
-    }
-}
-
 // MARK: - Collapsing header screen (content never depends on header progress)
 
 /// Scroll progress for `TTCollapsingHeaderScreen`. Only the header, its corner "ears" and the sheet
@@ -913,8 +448,6 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
     var onRefresh: (() async -> Void)? = nil
     @ViewBuilder var header: (_ progress: CGFloat) -> Header
     @ViewBuilder var content: () -> Content
-    private let perfFile: String // PERF-TEMP
-    private let perfLine: Int // PERF-TEMP
 
     init(
         sheetFill: Color = .white,
@@ -923,8 +456,6 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
         pinsBelowCollapsedHeader: Bool = false,
         topAnchorID: String? = nil,
         onRefresh: (() async -> Void)? = nil,
-        perfFile: String = #fileID, // PERF-TEMP: names the screen in the scroll-reader log
-        perfLine: Int = #line, // PERF-TEMP
         @ViewBuilder header: @escaping (_ progress: CGFloat) -> Header,
         @ViewBuilder content: @escaping () -> Content
     ) {
@@ -936,8 +467,6 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
         self.onRefresh = onRefresh
         self.header = header
         self.content = content
-        self.perfFile = perfFile
-        self.perfLine = perfLine
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -970,7 +499,6 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             )
 
             // Hidden copies measure the two end states once per layout change (not per scroll frame).
-            if PerfTemp.on(.homeCopies) { // PERF-TEMP (OFF keeps the last measured heights)
             ZStack(alignment: .top) {
                 header(0)
                     .background(GeometryReader { Color.clear.preference(key: TTHeaderExpandedHeightKey.self, value: $0.size.height) })
@@ -981,7 +509,6 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
             .opacity(0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            } // PERF-TEMP
         }
         .onPreferenceChange(TTHeaderExpandedHeightKey.self) { value in
             if abs(value - expandedHeight) > 0.5 {
@@ -1025,7 +552,7 @@ struct TTCollapsingHeaderScreen<Header: View, Content: View>: View {
         }
         .modifier(TTCollapseObserver(
             model: model, travel: travel, enabled: !reduceMotion,
-            legacyMaxOffset: legacyMaxOffset, perfFile: perfFile, perfLine: perfLine
+            legacyMaxOffset: legacyMaxOffset
         ))
 
         if let onRefresh {
@@ -1085,19 +612,14 @@ private struct TTCollapsingHeaderHost<Header: View>: View {
     let header: (CGFloat) -> Header
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = PerfTemp.trace("HomeHeaderHost") { Self._printChanges() } // PERF-TEMP
-        #endif
         let radius = topRadius(model.progress)
         header(model.progress)
             .frame(maxWidth: .infinity, alignment: .topLeading)
             // Concave corners under the header keep the content sheet's rounded top, at every progress.
             .overlay(alignment: .bottom) {
-                if PerfTemp.on(.homeEars) { // PERF-TEMP
                 TTHeaderEars(radius: radius, color: background)
                     .offset(y: radius)
                     .allowsHitTesting(false)
-                } // PERF-TEMP
             }
     }
 }
@@ -1151,15 +673,10 @@ private struct TTCollapseObserver: ViewModifier {
     let travel: CGFloat
     let enabled: Bool
     let legacyMaxOffset: CGFloat
-    let perfFile: String // PERF-TEMP
-    let perfLine: Int // PERF-TEMP
-    @State private var perfPrinted = false // PERF-TEMP
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if !PerfTemp.on(.homeScrollObserver) { // PERF-TEMP: pinpoints the "update multiple times per frame" warning
-            content
-        } else if #available(iOS 18.0, *) {
+        if #available(iOS 18.0, *) {
             content
                 .onScrollGeometryChange(for: TTCollapseSignal.self) { geo in
                     // Small Equatable value only: clamped progress (1% steps) + whether collapse is possible.
@@ -1169,7 +686,6 @@ private struct TTCollapseObserver: ViewModifier {
                     let progress = span.map { min(1, max(0, offset / $0)) } ?? 0
                     return TTCollapseSignal(step: Int((progress * 100).rounded()), canCollapse: span != nil)
                 } action: { _, new in
-                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("new-container " + perfFile, perfLine) } // PERF-TEMP
                     model.apply(step: new.step, enabled: enabled)
                 }
                 .onChange(of: travel) { _, _ in
@@ -1178,7 +694,6 @@ private struct TTCollapseObserver: ViewModifier {
         } else {
             content
                 .onPreferenceChange(TTCollapseLegacyKey.self) { minY in
-                    if !perfPrinted { perfPrinted = true; PerfTemp.scrollReaderFired("new-container(iOS17) " + perfFile, perfLine) } // PERF-TEMP
                     model.updateLegacy(minY: minY, maxOffset: legacyMaxOffset, travel: travel, enabled: enabled)
                 }
                 .onChange(of: legacyMaxOffset) { _, newValue in

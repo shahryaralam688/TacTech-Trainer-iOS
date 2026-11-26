@@ -273,9 +273,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
 
     private var centerButton: some View {
         Button {
-            #if DEBUG || PERF_TEMP
-            PlusTapProbe.shared.action(menu: isCenterMenuPresented, chat: isAIChatPresented) // PERF-TEMP
-            #endif
             // Already opening/open (or AI chat up): ignore — no second open, no second haptic.
             guard !isCenterMenuPresented, !isAIChatPresented else { return }
             #if canImport(UIKit)
@@ -309,7 +306,6 @@ struct TTFloatingTabBar<Tab: Hashable>: View {
         ))
         .accessibilityLabel("Open quick actions")
         .accessibilityHint("AI assistant, create plan, assign, or view assignments")
-        .perfTempPlusButton(menu: isCenterMenuPresented, chat: isAIChatPresented) // PERF-TEMP
     }
 }
 
@@ -498,9 +494,6 @@ private struct TTBubbleCenterButton: View {
         let menuOpen = engine.presented // observed: this view only
         let hidden = menuOpen || isAIChatPresented
         Button {
-            #if DEBUG || PERF_TEMP
-            PlusTapProbe.shared.action(menu: menuOpen, chat: isAIChatPresented) // PERF-TEMP
-            #endif
             // Already opening/open (or AI chat up): ignore — no second open, no second haptic.
             guard !engine.presented, !isAIChatPresented else { return }
             #if canImport(UIKit)
@@ -536,7 +529,6 @@ private struct TTBubbleCenterButton: View {
             if old, !new, UIAccessibility.isVoiceOverRunning { focused = true }
         }
         #endif
-        .perfTempPlusButton(menu: menuOpen, chat: isAIChatPresented) // PERF-TEMP
     }
 }
 

@@ -48,11 +48,6 @@ struct TrainerRootView: View {
     }
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = PerfTemp.trace("TrainerRootView") { Self._printChanges() } // PERF-TEMP
-        #endif
-        // PERF-TEMP switch "Bubble menu (new)": ON = liquid-bubble menu, OFF = the previous pill menu (Release: always ON).
-        let bubbleMenuOn = PerfTemp.on(.bubbleMenu)
         ZStack {
             GeometryReader { geo in
                 let tabClearance = rootTabBarVisible
@@ -125,8 +120,8 @@ struct TrainerRootView: View {
                             aiChatNamespace: aiChatNamespace,
                             isAIChatPresented: showAIChat,
                             isCenterMenuPresented: showLiquidMenu,
-                            liquidFABNamespace: bubbleMenuOn ? nil : liquidFABNamespace,
-                            bubbleEngine: bubbleMenuOn ? bubbleMenu : nil
+                            liquidFABNamespace: nil,
+                            bubbleEngine: bubbleMenu
                         )
                         .background(Color.clear)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -137,27 +132,15 @@ struct TrainerRootView: View {
             .ignoresSafeArea(edges: .bottom)
             .modifier(TTRootKeyboardIgnore(enabled: true))
 
-            if bubbleMenuOn {
-                // Mounted once (never inserted or removed, no transition); draws nothing while closed.
-                TTBubbleMenuOverlay(
-                    engine: bubbleMenu,
-                    actions: TTLiquidFABAction.trainerCenterMenu,
-                    onSelect: handleLiquidAction,
-                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve,
-                    showLabelsInside: true
-                )
-                .zIndex(50)
-            } else if showLiquidMenu {
-                TTLiquidFABOverlay(
-                    isPresented: $showLiquidMenu,
-                    actions: TTLiquidFABAction.trainerCenterMenu,
-                    onSelect: handleLiquidAction,
-                    bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve,
-                    namespace: liquidFABNamespace
-                )
-                .zIndex(50)
-                .transition(.opacity)
-            }
+            // Mounted once (never inserted or removed, no transition); draws nothing while closed.
+            TTBubbleMenuOverlay(
+                engine: bubbleMenu,
+                actions: TTLiquidFABAction.trainerCenterMenu,
+                onSelect: handleLiquidAction,
+                bottomReserve: TTFloatingTabBar<TrainerTab>.liquidMenuFABBottomReserve,
+                showLabelsInside: true
+            )
+            .zIndex(50)
         }
         .environment(\.selectTrainerTab, selectTab)
         .fullScreenCover(isPresented: $showAIChat) {
@@ -173,14 +156,11 @@ struct TrainerRootView: View {
             }
         }
         .onChange(of: tab) { _, newTab in
-            PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
-            PerfTemp.screenTab("tab: \(newTab)") // PERF-TEMP
             mounted.insert(newTab)
         }
         // Build Plans, Chat and Profile quietly once the app has settled, one at a time, so the first visit
         // doesn't build a whole screen in the middle of the slide. They stay hidden (opacity 0, no touches).
         .task {
-            PerfTemp.screenTab("tab: dashboard") // PERF-TEMP
             try? await Task.sleep(for: .seconds(1.5))
             for next in [TrainerTab.plans, .chat, .profile] {
                 if Task.isCancelled { return }
@@ -305,16 +285,10 @@ struct TrainerRootView: View {
     }
 
     private func openLiquidMenu() {
-        if PerfTemp.raw(.bubbleMenu) {
-            // Bubble menu: only its own isolated state changes (no animation transaction, no root state).
-            var transaction = Transaction(animation: nil)
-            transaction.disablesAnimations = true
-            withTransaction(transaction) { bubbleMenu.open() }
-            return
-        }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.84)) {
-            showLiquidMenu = true
-        }
+        // Bubble menu: only its own isolated state changes (no animation transaction, no root state).
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) { bubbleMenu.open() }
     }
 
     private func handleLiquidAction(_ action: TTLiquidFABAction) {
@@ -363,7 +337,6 @@ enum TrainerLiveSync {
     /// Throttled so foreground/notification bursts don't hammer the API. Errors are swallowed:
     /// stale data stays on screen rather than blanking it.
     static func refresh(store: AppStore, traineeId: String? = nil, force: Bool = false) async {
-        guard PerfTemp.raw(.liveSync) else { return } // PERF-TEMP
         guard store.session?.role == .trainer, !inFlight else { return }
         if !force, Date().timeIntervalSince(lastRun) < 5 { return }
         inFlight = true

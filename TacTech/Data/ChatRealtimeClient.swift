@@ -111,7 +111,7 @@ final class ChatRealtimeClient {
 
     /// Resets the backoff and reconnects immediately — only if this client wants a connection and has none.
     private func retryNowIfNeeded() {
-        guard shouldRun, PerfTemp.raw(.realtime), !isConnected else { return }
+        guard shouldRun, !isConnected else { return }
         if let last = lastImmediateRetry, Date().timeIntervalSince(last) < 1 { return }
         lastImmediateRetry = Date()
         reconnectAttempt = 0
@@ -126,7 +126,6 @@ final class ChatRealtimeClient {
     private var authToken: String?
 
     func connect() {
-        guard PerfTemp.raw(.realtime) else { return } // PERF-TEMP: "Realtime clients" OFF = never connect
         shouldRun = true
         reconnectTask?.cancel()
         reconnectPending = false
@@ -171,11 +170,9 @@ final class ChatRealtimeClient {
             URLQueryItem(name: "EIO", value: "4"),
             URLQueryItem(name: "transport", value: "websocket")
         ]
-        // PERF-TEMP: with "Compact network error logs" ON the token stays out of the URL (it is still sent in the
-        // Authorization header and the Socket.IO auth payload), so system logs of a failed upgrade carry no token.
-        if !PerfTemp.raw(.compactNetLogs) {
-            components.queryItems?.append(URLQueryItem(name: "token", value: token))
-        }
+        // Unchanged behaviour: the token is also sent as a query item (the previous default of the debug switch).
+        // TODO: dropping it (header + Socket.IO auth payload only) keeps tokens out of system logs, but needs the server to accept that.
+        components.queryItems?.append(URLQueryItem(name: "token", value: token))
         guard let url = components.url else { return }
 
         var request = URLRequest(url: url)

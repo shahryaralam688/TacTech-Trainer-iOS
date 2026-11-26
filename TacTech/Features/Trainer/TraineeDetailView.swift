@@ -154,7 +154,6 @@ struct TraineeDetailView: View {
         .scrollDismissesKeyboard(.interactively)
         .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
-        .perfTempScreen("Trainee Detail") // PERF-TEMP
         // Open-profile bookkeeping for the live "Training now" feed. A sheet or cover presented from this
         // screen must not clear it, so onDisappear only clears when nothing is presented from here.
         .onAppear { store.setOpenTraineeProfile(trainee.id) }

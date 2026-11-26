@@ -157,8 +157,6 @@ struct TraineeRootView: View {
             FindCoachesView().ttModalSheetPresentation(dragIndicator: .hidden)
         }
         .onChange(of: tab) { _, newTab in
-            PerfTemp.interval("tab.switch", seconds: 0.4) // PERF-TEMP
-            PerfTemp.screenTab("tab: \(newTab)") // PERF-TEMP
             mounted.insert(newTab)
             // Back on Home: take the server's unread number for the coach row.
             if newTab == .home { Task { await HumanChatStore.shared.refreshInbox(quiet: true) } }

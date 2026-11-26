@@ -35,9 +35,6 @@ struct TrainerDashboardView: View {
     private let canvas = Color.white
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = PerfTemp.trace("TrainerDashboardView") { Self._printChanges() } // PERF-TEMP
-        #endif
         NavigationStack {
             // Header is drawn over the scroll view; content size never depends on its collapse.
             TTCollapsingHeaderScreen(

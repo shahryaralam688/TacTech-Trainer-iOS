@@ -58,7 +58,6 @@ struct AccountSettingsView: View {
         }
         .background(charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
-        .perfTempScreen("Account Settings") // PERF-TEMP
         .ttToast($toast, bottomInset: 28)
         .task {
             await store.refreshAIEntitlements()

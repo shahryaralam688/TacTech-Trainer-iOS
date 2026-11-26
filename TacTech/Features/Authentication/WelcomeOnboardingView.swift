@@ -70,7 +70,6 @@ struct WelcomeOnboardingView: View {
                 }
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $pageIndex)
-                .perfTempFirstChange(of: pageIndex, file: "scrollPosition Welcome onboarding", line: 72) // PERF-TEMP
                 .scrollIndicators(.hidden)
             }
             .ignoresSafeArea()

@@ -149,9 +149,6 @@ struct TTLiquidFABOverlay: View {
     }
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = PerfTemp.trace("LiquidFABOverlay") { Self._printChanges() } // PERF-TEMP
-        #endif
         GeometryReader { geo in
             ZStack(alignment: .bottom) {
                 scrim
@@ -193,9 +190,6 @@ struct TTLiquidFABOverlay: View {
     // MARK: - Present / dismiss
 
     private func present() {
-        #if DEBUG || PERF_TEMP
-        PlusTapProbe.shared.opened() // PERF-TEMP
-        #endif
         openStartedAt = ProcessInfo.processInfo.systemUptime
         if reduceMotion {
             expanded = true
@@ -206,14 +200,13 @@ struct TTLiquidFABOverlay: View {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.55)) {
             fabBoost = true
         }
-        PerfTemp.interval("fab.open", seconds: 0.7) // PERF-TEMP
         withAnimation(openSpring.delay(0.04)) {
             expanded = true
             scrimVisible = true
             liquidWave = true
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-            guard loopsActive, PerfTemp.on(.fabLoops) else { return } // PERF-TEMP
+            guard loopsActive else { return }
             withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
                 // Keep a gentle liquid breathe while open.
                 liquidWave = true
@@ -225,7 +218,6 @@ struct TTLiquidFABOverlay: View {
         guard !dismissing else { return } // a close is already running: no second haptic or animation
         dismissing = true
         loopsActive = false
-        PerfTemp.interval("fab.close", seconds: 0.45) // PERF-TEMP
         #if canImport(UIKit)
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         #endif
@@ -305,7 +297,7 @@ struct TTLiquidFABOverlay: View {
             }
             .frame(width: fabSize, height: fabSize)
             .animation(reduceMotion ? .easeOut(duration: 0.12) : openSpring, value: expanded)
-            .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : (loopsActive ? .easeInOut(duration: 1.5).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave) // PERF-TEMP
+            .animation(reduceMotion ? nil : (loopsActive ? .easeInOut(duration: 1.5).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave)
         }
         .buttonStyle(.plain)
         .modifier(TTLiquidFABMatched(
@@ -328,7 +320,7 @@ struct TTLiquidFABOverlay: View {
             Capsule(style: .continuous)
                 .fill(orange.opacity(0.35))
                 .frame(width: 64 * breathe, height: expanded ? openHeight + 24 : fabSize)
-                .blur(radius: PerfTemp.on(.fabBlur) ? 28 : 0) // PERF-TEMP
+                .blur(radius: 28)
                 .opacity(expanded ? 1 : 0)
 
             // Gooey stack — blur + contrast merges blobs into liquid.
@@ -352,23 +344,23 @@ struct TTLiquidFABOverlay: View {
                     .frame(width: fabSize * 0.85, height: fabSize * 0.85)
             }
             .frame(width: 90, height: expanded ? openHeight + 40 : fabSize)
-            .blur(radius: PerfTemp.on(.fabBlur) ? (expanded ? 16 : 4) : 0) // PERF-TEMP
+            .blur(radius: expanded ? 16 : 4)
             .opacity(expanded ? 1 : 0)
             // High contrast after blur ≈ metaball / liquid merge.
-            .contrast(PerfTemp.on(.fabBlur) && expanded ? 1.35 : 1) // PERF-TEMP
-            .brightness(PerfTemp.on(.fabBlur) && expanded ? 0.02 : 0) // PERF-TEMP
+            .contrast(expanded ? 1.35 : 1)
+            .brightness(expanded ? 0.02 : 0)
 
             // Sharp highlight rim so liquid reads premium, not muddy.
             Capsule(style: .continuous)
                 .stroke(Color.white.opacity(0.22), lineWidth: 1)
                 .frame(width: 22, height: expanded ? openHeight * 0.72 : 12)
-                .blur(radius: PerfTemp.on(.fabBlur) ? 1 : 0) // PERF-TEMP
+                .blur(radius: 1)
                 .opacity(expanded ? 0.7 : 0)
                 .offset(y: -fabSize * 0.15)
         }
         .scaleEffect(x: breathe, y: 1, anchor: .bottom)
         .animation(reduceMotion ? .easeOut(duration: 0.14) : openSpring, value: expanded)
-        .animation(reduceMotion || !PerfTemp.on(.fabLoops) ? nil : (loopsActive ? .easeInOut(duration: 1.55).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave) // PERF-TEMP
+        .animation(reduceMotion ? nil : (loopsActive ? .easeInOut(duration: 1.55).repeatForever(autoreverses: true) : .easeOut(duration: 0.2)), value: liquidWave)
     }
 
     // MARK: - Pills
@@ -435,7 +427,7 @@ struct TTLiquidFABOverlay: View {
             anchor: .bottom,
             perspective: 0.7
         )
-        .blur(radius: PerfTemp.on(.fabBlur) ? (expanded ? 0 : 6) : 0) // PERF-TEMP
+        .blur(radius: expanded ? 0 : 6)
         .animation(
             reduceMotion
                 ? .easeOut(duration: 0.12)
@@ -752,23 +744,6 @@ final class TTBubbleEngine {
         @objc func tick(_ link: CADisplayLink) { handler?(link) }
     }
 
-    var isDriverRunning: Bool { link != nil } // PERF-TEMP
-
-    /// PERF-TEMP: progress values and positions for the log.
-    func debugSnapshot(center c: CGPoint) -> String {
-        let parts = bubbleX.indices.map { i -> String in
-            let p = bubbleX[i]
-            let pos = TTBubbleArt.bubbleCenter(c: c, index: i, p: p)
-            return "b\(i) p=\(String(format: "%.3f", p)) pos=(\(Int(pos.x)),\(Int(pos.y)))" + (p < 0.01 ? " NOT-DRAWN(p<0.01)" : "")
-        }
-        #if DEBUG || PERF_TEMP
-        let counts = "bodyRuns=\(PerfBubbleLog.bodyRuns) "
-        #else
-        let counts = ""
-        #endif
-        return counts + "phase=\(phase) driver=\(isDriverRunning ? "on" : "off") master=\(String(format: "%.3f", masterX)) " + parts.joined(separator: " ")
-    }
-
     // MARK: Commands
 
     func open() {
@@ -780,11 +755,6 @@ final class TTBubbleEngine {
         phase = .opening
         reduceClosing = false
         openStartedAt = ProcessInfo.processInfo.systemUptime
-        #if DEBUG || PERF_TEMP
-        PerfBubbleRecorder.begin("open", master: masterX) // PERF-TEMP
-        PlusTapProbe.shared.opened() // PERF-TEMP
-        #endif
-        PerfTemp.interval("fab.open", seconds: 0.7 * scale) // PERF-TEMP
         scrimTween = Tween(from: scrim, to: 1, start: now, duration: reduceMotion ? 0.15 : 0.26 * scale)
         if reduceMotion {
             // No springs, no stagger, no necks: final state at once, short fade.
@@ -808,11 +778,6 @@ final class TTBubbleEngine {
         frame &+= 1
         startLink()
         onOpened?()
-        #if DEBUG || PERF_TEMP
-        PerfBubbleLog.present(driver: isDriverRunning, phase: "\(phase)", reduceMotion: reduceMotion, isPresented: presented, barButton: buttonCenter) // PERF-TEMP
-        let c = PerfBubbleLog.center
-        PerfBubbleLog.scheduleSnapshots { [weak self] in self?.debugSnapshot(center: c) ?? "" } // PERF-TEMP
-        #endif
     }
 
     func close() {
@@ -822,9 +787,6 @@ final class TTBubbleEngine {
         let fromRest = phase == .open
         let scale = Self.closeMotionScale
         phase = .closing
-        #if DEBUG || PERF_TEMP
-        PerfBubbleRecorder.begin("close", master: masterX) // PERF-TEMP
-        #endif
         scrimTween = Tween(from: scrim, to: 0, start: now, duration: reduceMotion ? 0.15 : 0.24 * scale)
         if reduceMotion {
             fadeTween = Tween(from: fade, to: 0, start: now, duration: 0.15)
@@ -877,9 +839,6 @@ final class TTBubbleEngine {
     }
 
     private func tick(_ link: CADisplayLink) {
-        #if DEBUG || PERF_TEMP
-        let began = CACurrentMediaTime() // PERF-TEMP
-        #endif
         // One clock for everything: the time this frame will be shown.
         let now = link.targetTimestamp
         if reduceClosing, fadeTween.done(at: now) {
@@ -891,9 +850,6 @@ final class TTBubbleEngine {
         frame &+= 1
 
         let moving = phase == .closing ? !closeVisuallySettled(now) : !openSettled(now)
-        #if DEBUG || PERF_TEMP
-        PerfBubbleRecorder.tick(timestamp: link.timestamp, tickMs: (CACurrentMediaTime() - began) * 1000) // PERF-TEMP
-        #endif
         if !moving { settle(now) }
     }
 
@@ -923,9 +879,6 @@ final class TTBubbleEngine {
         stopLink()
         let wasClosing = phase == .closing
         if phase != .closed { phase = wasClosing ? .closed : .open }
-        #if DEBUG || PERF_TEMP
-        PerfBubbleRecorder.end() // PERF-TEMP
-        #endif
         if wasClosing { presented = false } // observed: bar button back, overlay out of hit testing
         frame &+= 1
         if wasClosing { onClosed?() }
@@ -979,9 +932,6 @@ private struct TTBubbleCanvas: View {
     }
 
     var body: some View {
-        #if DEBUG || PERF_TEMP
-        let _ = { PerfBubbleLog.bodyRuns += 1 }() // PERF-TEMP
-        #endif
         Canvas { ctx, size in
             render(&ctx, size: size)
         } symbols: {
@@ -1018,10 +968,6 @@ private struct TTBubbleCanvas: View {
     }
 
     private func render(_ ctx: inout GraphicsContext, size: CGSize) {
-        #if DEBUG || PERF_TEMP
-        let began = PerfBubbleRecorder.renderBegan() // PERF-TEMP
-        defer { PerfBubbleRecorder.renderEnded(began: began, master: engine.masterX) } // PERF-TEMP
-        #endif
         // The animated values live in an @ObservationIgnored class, so the Canvas has no input that changes.
         // Reading `frame` and `presented` HERE (inside the renderer) makes SwiftUI redraw the Canvas on every bump,
         // without re-running any view body. (Without this the Canvas draws once and stays on its first frame.)
@@ -1137,9 +1083,6 @@ struct TTBubbleMenuOverlay: View {
                 let calculated = CGPoint(x: full.size.width / 2,
                                          y: full.size.height - bottomOffset - TTBubbleArt.buttonRadius)
                 let c = engine.buttonCenter ?? calculated
-                #if DEBUG || PERF_TEMP
-                let _ = { PerfBubbleLog.canvasSize = full.size; PerfBubbleLog.center = c }() // PERF-TEMP
-                #endif
                 ZStack {
                     TTBubbleCanvas(engine: engine, center: c, bubbles: bubbles, showLabelsInside: showLabelsInside)
                         .allowsHitTesting(false)
@@ -1165,14 +1108,6 @@ struct TTBubbleMenuOverlay: View {
             #if canImport(UIKit)
             haptic.prepare()
             selectionHaptic.prepare()
-            #endif
-            #if DEBUG || PERF_TEMP
-            // PERF-TEMP: launch with `-perfTempOpenBubbles` to open the menu 6 s after launch (no tap automation here).
-            if PerfBubbleLog.autoOpen {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 6) { engine.open() }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 11) { engine.close() } // PERF-TEMP: one close to record
-                DispatchQueue.main.asyncAfter(deadline: .now() + 16) { engine.open() } // PERF-TEMP: and a re-open
-            }
             #endif
         }
         .onDisappear {
@@ -1225,7 +1160,6 @@ struct TTBubbleMenuOverlay: View {
     private func beginClose(then action: TTLiquidFABAction?) {
         guard engine.phase == .opening || engine.phase == .open else { return } // a close is already running
         engine.pendingSelect = action
-        PerfTemp.interval("fab.close", seconds: 0.45 * TTBubbleEngine.closeMotionScale) // PERF-TEMP
         engine.close() // the motion starts first ...
         #if canImport(UIKit)
         haptic.fire() // ... then the haptics

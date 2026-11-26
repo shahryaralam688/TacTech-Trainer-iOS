@@ -178,7 +178,7 @@ struct AIPaywallView: View {
         isLoading = true
         loadError = nil
         do {
-            let page = try await APIClient().billingProducts(type: "ai")
+            let page = try await APIClient.shared.billingProducts(type: "ai")
             catalog = page.items
             let ids = page.items.compactMap(\.appleProductId)
             storeProducts = try await AIStoreKitService.shared.loadStoreProducts(appleProductIds: ids)

@@ -12,7 +12,7 @@ struct FormStudioDemoView: View {
     @State private var guideJSON: String?
     @State private var cuesJSON: String?
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
 
     private enum Phase {
         case preparing

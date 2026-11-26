@@ -23,7 +23,7 @@ struct JoinRequestsView: View {
     var body: some View {
         TTCollapsingHeaderScreen(
             sheetFill: canvas,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             onRefresh: { await load() },
             header: { progress in
@@ -63,7 +63,7 @@ struct JoinRequestsView: View {
                 .padding(.top, 16)
                 .padding(.bottom, 28)
             }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($toast)
         .task { await load() }

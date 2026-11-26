@@ -50,7 +50,7 @@ enum CoachImpressionTracker {
         guard !batch.isEmpty else { return }
 
         do {
-            _ = try await APIClient().postCoachImpressions(coachProfileIds: batch, source: "discover_list")
+            _ = try await APIClient.shared.postCoachImpressions(coachProfileIds: batch, source: "discover_list")
             markSent(batch)
         } catch {
             // Soft-fail — never block discovery UX.

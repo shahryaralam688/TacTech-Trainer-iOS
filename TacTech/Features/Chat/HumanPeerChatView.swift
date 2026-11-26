@@ -427,7 +427,7 @@ struct HumanPeerChatView: View {
     private var embeddedInbox: some View {
         TTCollapsingHeaderScreen(
             sheetFill: Color(white: 0.97),
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             header: { progress in
                 trainerListHeader(
@@ -468,7 +468,7 @@ struct HumanPeerChatView: View {
             .padding(.top, 16)
             .padding(.bottom, tabBarClearance + 32)
         }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
     }
 
     private func copyTrainerCode() {

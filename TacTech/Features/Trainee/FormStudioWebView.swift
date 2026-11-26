@@ -55,12 +55,19 @@ struct FormStudioWebView: UIViewRepresentable {
         let userContent = config.userContentController
         userContent.add(context.coordinator, name: "formStudio")
 
-        let handler = FormStudioLocalSchemeHandler(
-            rootDirectory: Self.webRoot,
-            cacheDirectory: FormStudioClipCache.directory
-        )
-        config.setURLSchemeHandler(handler, forURLScheme: FormStudioLocalSchemeHandler.scheme)
-        context.coordinator.schemeHandler = handler
+        if let root = Self.webRoot {
+            let handler = FormStudioLocalSchemeHandler(
+                rootDirectory: root,
+                cacheDirectory: FormStudioClipCache.directory
+            )
+            config.setURLSchemeHandler(handler, forURLScheme: FormStudioLocalSchemeHandler.scheme)
+            context.coordinator.schemeHandler = handler
+        } else {
+            // Resource missing from the bundle: never crash a Release build; report it so the caller can show its error state.
+            assertionFailure("FormStudioWeb folder missing from app bundle — add folder reference to Copy Bundle Resources")
+            let report = onLoadError
+            DispatchQueue.main.async { report?("Form Studio files are missing from this build.") }
+        }
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
@@ -129,7 +136,7 @@ struct FormStudioWebView: UIViewRepresentable {
         uiView.configuration.userContentController.removeScriptMessageHandler(forName: "formStudio")
     }
 
-    private static var webRoot: URL {
+    private static var webRoot: URL? {
         if let url = Bundle.main.resourceURL?.appendingPathComponent("FormStudioWeb", isDirectory: true),
            FileManager.default.fileExists(atPath: url.path) {
             return url
@@ -138,7 +145,7 @@ struct FormStudioWebView: UIViewRepresentable {
             .deletingLastPathComponent() {
             return url
         }
-        fatalError("FormStudioWeb folder missing from app bundle — add folder reference to Copy Bundle Resources")
+        return nil
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {

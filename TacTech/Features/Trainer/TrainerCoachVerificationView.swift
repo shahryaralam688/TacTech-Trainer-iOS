@@ -327,7 +327,7 @@ struct TrainerCoachVerificationView: View {
         loadError = nil
         missingProfile = false
         do {
-            status = try await APIClient().getCoachVerification()
+            status = try await APIClient.shared.getCoachVerification()
         } catch let error as AppError where error == .unauthorized {
             toast = TTToastMessage(text: error.localizedDescription, style: .error)
             dismiss()
@@ -350,7 +350,7 @@ struct TrainerCoachVerificationView: View {
         isCanceling = true
         defer { isCanceling = false }
         do {
-            try await APIClient().cancelCoachVerification()
+            try await APIClient.shared.cancelCoachVerification()
             toast = TTToastMessage(text: "Application canceled", style: .success)
             await load()
         } catch {
@@ -642,7 +642,7 @@ private struct VerificationSubmitFormView: View {
         }
         let docType = draft(for: id)?.docType ?? "other"
         do {
-            let api = APIClient()
+            let api = APIClient.shared
             let slot = try await api.createVerifyUpload(
                 docType: docType,
                 contentType: contentType,
@@ -711,7 +711,7 @@ private struct VerificationSubmitFormView: View {
                 : [])
         )
         do {
-            _ = try await APIClient().submitCoachVerification(body)
+            _ = try await APIClient.shared.submitCoachVerification(body)
             onFinished(true)
             dismiss()
         } catch let error as AppError where error.isConflict {

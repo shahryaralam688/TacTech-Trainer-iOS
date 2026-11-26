@@ -39,7 +39,7 @@ struct PersonalInformationSettingsView: View {
     var body: some View {
         TTCollapsingHeaderScreen(
             sheetFill: .white,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             header: { progress in
                 TTDarkPageHeader(title: "Personal Info", collapseProgress: progress) {
@@ -75,7 +75,7 @@ struct PersonalInformationSettingsView: View {
                     .padding(.bottom, tabBarClearance + 24)
                     .disabled(isLoading || isSaving)
                 }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .ttToast($toast, bottomInset: 28)
         .task { await loadProfile() }

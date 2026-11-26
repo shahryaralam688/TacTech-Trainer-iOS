@@ -129,7 +129,7 @@ struct TraineeDetailView: View {
         ScrollViewReader { proxy in
         TTCollapsingHeaderScreen(
             sheetFill: canvas,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             pinsBelowCollapsedHeader: true,
             topAnchorID: "profileTop",
@@ -152,7 +152,7 @@ struct TraineeDetailView: View {
         }
         }
         .scrollDismissesKeyboard(.interactively)
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         // Open-profile bookkeeping for the live "Training now" feed. A sheet or cover presented from this
         // screen must not clear it, so onDisappear only clears when nothing is presented from here.
@@ -294,7 +294,7 @@ struct TraineeDetailView: View {
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
         .background {
             Rectangle()
-                .fill(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255))
+                .fill(TTColor.charcoal)
                 .ignoresSafeArea(edges: .top)
         }
         .accessibilityElement(children: .contain)

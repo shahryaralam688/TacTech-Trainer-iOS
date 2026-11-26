@@ -31,7 +31,7 @@ struct AccountSettingsView: View {
     @State private var showSignOutConfirm = false
     @State private var isSigningOut = false
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let rowBG = Color(white: 0.96)
 
@@ -493,7 +493,7 @@ struct SettingsPlaceholderView: View {
     var body: some View {
         TTCollapsingHeaderScreen(
             sheetFill: .white,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             header: { progress in
                 TTDarkPageHeader(title: title, collapseProgress: progress) { dismiss() }
@@ -508,7 +508,7 @@ struct SettingsPlaceholderView: View {
                 .padding(.bottom, 32)
                 .frame(maxWidth: .infinity)
         }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
     }
 }
@@ -523,7 +523,7 @@ private struct CoachContactView: View {
     @State private var isStartingCall = false
     @State private var toast: TTToastMessage?
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
     private let orange = Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)
     private let rowBG = Color(white: 0.96)
 

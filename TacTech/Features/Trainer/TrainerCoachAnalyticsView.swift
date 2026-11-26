@@ -364,7 +364,7 @@ struct TrainerCoachAnalyticsView: View {
         loadError = nil
         missingProfile = false
         do {
-            analytics = try await APIClient().fetchCoachAnalytics(periodDays: period.rawValue)
+            analytics = try await APIClient.shared.fetchCoachAnalytics(periodDays: period.rawValue)
         } catch let error as AppError where error == .unauthorized {
             toast = TTToastMessage(text: error.localizedDescription, style: .error)
             dismiss()
@@ -498,7 +498,7 @@ struct TrainerDiscoveryInsightsStrip: View {
     @MainActor
     private func loadSummary() async {
         do {
-            summary = try await APIClient().fetchCoachAnalyticsSummary(periodDays: 7)
+            summary = try await APIClient.shared.fetchCoachAnalyticsSummary(periodDays: 7)
             missingProfile = false
         } catch let error as AppError where error.isNotFound {
             summary = nil

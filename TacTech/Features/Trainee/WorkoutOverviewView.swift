@@ -12,7 +12,7 @@ struct WorkoutOverviewView: View {
     @State private var expandedExerciseIds: Set<String> = []
 
     private let canvas = Color(white: 0.97)
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
 
     private var session: PlanDay? {
         plan.session(on: Date()) ?? plan.nextSession(from: Date())
@@ -25,7 +25,7 @@ struct WorkoutOverviewView: View {
     var body: some View {
         TTCollapsingHeaderScreen(
             sheetFill: canvas,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             header: { progress in
                 TTDarkPageHeader(title: session?.title ?? plan.title, showsBack: true, collapseProgress: progress, onBack: { dismiss() })

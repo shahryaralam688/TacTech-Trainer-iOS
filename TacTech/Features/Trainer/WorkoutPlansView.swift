@@ -70,7 +70,7 @@ struct WorkoutPlansView: View {
                 // The pinned controls row sticks directly under the *collapsed* header.
                 TTCollapsingHeaderScreen(
                     sheetFill: canvas,
-                    headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+                    headerBackground: TTColor.charcoal,
                     topRadius: { _ in TTSheetChrome.pageTopRadius },
                     pinsBelowCollapsedHeader: true,
                     topAnchorID: "plansTop",
@@ -120,7 +120,7 @@ struct WorkoutPlansView: View {
             .onChange(of: filtered.map(\.id)) { _, ids in
                 if isSelecting { selection.formIntersection(ids) }
             }
-            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+            .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .ttSyncRootTabBarWithNavigationDepth()
             // Select mode hides the floating tab bar and its centre + button; the preference is
@@ -844,7 +844,7 @@ struct WorkoutPlanDetailView: View {
         // Header is drawn over the scroll view; the content size never depends on its collapse.
         TTCollapsingHeaderScreen(
             sheetFill: canvas,
-            headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+            headerBackground: TTColor.charcoal,
             topRadius: { _ in TTSheetChrome.pageTopRadius },
             header: { progress in
                 TTDarkPageHeader(title: plan.title, collapseProgress: progress) {
@@ -885,7 +885,7 @@ struct WorkoutPlanDetailView: View {
             .padding(.top, 16)
             .padding(.bottom, 24)
         }
-        .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+        .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
         .ttHideSystemNavigationBar()
         .onAppear {
             if let trainer = store.currentTrainer {
@@ -1426,7 +1426,7 @@ func trainerListHeader(
     onClose: (() -> Void)? = nil,
     action: @escaping () -> Void
 ) -> some View {
-    let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    let charcoal = TTColor.charcoal
     let p = min(1, max(0, collapseProgress))
     let expand = 1 - p
     /// Same header metrics as Home (TTHomeProfileHeader: 168 expanded, 66 compact) so Home, Plans, and Chat match exactly.

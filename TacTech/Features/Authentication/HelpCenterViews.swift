@@ -16,7 +16,7 @@ struct HelpCenterView: View {
     @State private var showLiveChat = false
     @State private var showQuickSettings = false
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
 
     var body: some View {
         VStack(spacing: 0) {
@@ -326,7 +326,7 @@ struct LiveChatView: View {
 
     private let orange = TTColor.actionOrange
     private let blueSend = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    private let userBubble = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let userBubble = TTColor.charcoal
     private let supportBubble = Color(red: 243 / 255, green: 244 / 255, blue: 246 / 255)
 
     private static let seed: [LiveChatMessage] = [

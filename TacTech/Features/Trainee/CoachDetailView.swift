@@ -775,7 +775,7 @@ struct CoachDetailView: View {
         isLoadingPackages = true
         defer { isLoadingPackages = false; didLoadPackages = true }
         do {
-            let page = try await APIClient().listCoachPackages(coachProfileId: coachProfileId)
+            let page = try await APIClient.shared.listCoachPackages(coachProfileId: coachProfileId)
             packages = page.items
             packagesFailed = false
         } catch is CancellationError {
@@ -814,7 +814,7 @@ struct CoachDetailView: View {
     private func load() async {
         isLoading = true
         do {
-            let dto = try await APIClient().coachDetail(id: coachProfileId)
+            let dto = try await APIClient.shared.coachDetail(id: coachProfileId)
             profile = dto
             profileLoadFailed = false
             ratingAvg = dto.ratingAvg
@@ -843,7 +843,7 @@ struct CoachDetailView: View {
     @MainActor
     private func loadMyReviewEligibility() async {
         do {
-            let response = try await APIClient().myCoachReview(coachProfileId: coachProfileId)
+            let response = try await APIClient.shared.myCoachReview(coachProfileId: coachProfileId)
             myReview = response.review
             canReview = response.canReview
         } catch {
@@ -859,7 +859,7 @@ struct CoachDetailView: View {
             reviewsCursor = nil
         }
         do {
-            let page = try await APIClient().listCoachReviews(
+            let page = try await APIClient.shared.listCoachReviews(
                 coachProfileId: coachProfileId,
                 cursor: reset ? nil : reviewsCursor,
                 limit: 20
@@ -888,7 +888,7 @@ struct CoachDetailView: View {
         guard let cursor = reviewsCursor, !cursor.isEmpty, !isLoadingMoreReviews, !isLoadingReviews else { return }
         isLoadingMoreReviews = true
         do {
-            let page = try await APIClient().listCoachReviews(
+            let page = try await APIClient.shared.listCoachReviews(
                 coachProfileId: coachProfileId,
                 cursor: cursor,
                 limit: 20
@@ -923,7 +923,7 @@ struct CoachDetailView: View {
     private func saveReview(stars: Int, body: String?) async {
         isSavingReview = true
         defer { isSavingReview = false }
-        let api = APIClient()
+        let api = APIClient.shared
         do {
             let saved: CoachReview
             if myReview != nil {
@@ -981,11 +981,11 @@ struct CoachDetailView: View {
         isDeletingReview = true
         defer { isDeletingReview = false }
         do {
-            try await APIClient().deleteMyCoachReview(coachProfileId: coachProfileId)
+            try await APIClient.shared.deleteMyCoachReview(coachProfileId: coachProfileId)
             myReview = nil
             toast = TTToastMessage(text: "Review deleted", style: .success)
             await loadReviews(reset: true)
-            if let refreshed = try? await APIClient().coachDetail(id: coachProfileId) {
+            if let refreshed = try? await APIClient.shared.coachDetail(id: coachProfileId) {
                 profile = refreshed
                 ratingAvg = refreshed.ratingAvg
                 ratingCount = refreshed.ratingCount
@@ -1024,7 +1024,7 @@ struct CoachDetailView: View {
         isReporting = true
         defer { isReporting = false }
         do {
-            _ = try await APIClient().reportCoachReview(reviewId: reviewId, reason: reason)
+            _ = try await APIClient.shared.reportCoachReview(reviewId: reviewId, reason: reason)
             reportTarget = nil
             toast = TTToastMessage(text: "Report submitted", style: .success)
         } catch {

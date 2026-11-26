@@ -10,7 +10,7 @@ struct LiveFormCorrectionView: View {
     @State private var exerciseId = "ex-squat"
     @State private var didSave = false
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
     private let panelFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
     private let orange = TTColor.actionOrange
 

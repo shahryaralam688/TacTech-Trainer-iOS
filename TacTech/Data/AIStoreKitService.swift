@@ -7,7 +7,7 @@ final class AIStoreKitService {
     static let shared = AIStoreKitService()
 
     private var updatesTask: Task<Void, Never>?
-    private let api = APIClient()
+    private let api = APIClient.shared
 
     enum PurchaseOutcome: Equatable {
         case unlocked(MeAIResponse)

@@ -186,7 +186,7 @@ struct FindCoachesView: View {
             nextCursor = nil
         }
         do {
-            let page = try await APIClient().listCoaches(
+            let page = try await APIClient.shared.listCoaches(
                 q: searchText,
                 city: cityFilter,
                 specialty: specialtyFilter,
@@ -218,7 +218,7 @@ struct FindCoachesView: View {
         guard let cursor = nextCursor, !cursor.isEmpty, !isLoadingMore, !isLoading else { return }
         isLoadingMore = true
         do {
-            let page = try await APIClient().listCoaches(
+            let page = try await APIClient.shared.listCoaches(
                 q: searchText,
                 city: cityFilter,
                 specialty: specialtyFilter,
@@ -417,10 +417,30 @@ struct CoachRatingBadge: View {
 }
 
 private extension CoachListItem {
-    /// Placeholder card data for the skeleton (decoded because the model has only a decoding initialiser).
-    static let placeholder: CoachListItem = {
-        let json = #"{"id":"placeholder","name":"Coach Name","headline":"A short headline about this coach that wraps onto two lines.","city":"City","specialties":["Strength","Mobility"],"ratingAvg":4.8,"ratingCount":12,"packagesCount":2}"#
-        // swiftlint:disable:next force_try
-        return try! JSONDecoder().decode(CoachListItem.self, from: Data(json.utf8))
-    }()
+    /// Placeholder card data for the skeleton. Built field by field (no JSON decode, nothing that can fail).
+    static let placeholder = CoachListItem(skeleton: ())
+
+    init(skeleton: Void) {
+        id = "placeholder"
+        trainerId = ""
+        userId = ""
+        name = "Coach Name"
+        headline = "A short headline about this coach that wraps onto two lines."
+        city = "City"
+        countryCode = ""
+        specialties = ["Strength", "Mobility"]
+        languages = []
+        gymName = nil
+        yearsExperience = nil
+        coverImageUrl = nil
+        avatarSymbol = nil
+        boostActive = false
+        ratingAvg = 4.8
+        ratingCount = 12
+        isVerified = false
+        verifiedBadge = nil
+        packagesCount = 2
+        featuredPackage = nil
+        updatedAt = .distantPast
+    }
 }

@@ -76,7 +76,7 @@ struct TTProfileScreen<Extra: View>: View {
 
     private let canvas = Color(red: 245 / 255, green: 245 / 255, blue: 247 / 255)
     private let cardFill = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private let charcoal = TTColor.charcoal
     private let avatarSide: CGFloat = 112
     private let heroHeight: CGFloat = 236
     private let contentTopRadius: CGFloat = 36

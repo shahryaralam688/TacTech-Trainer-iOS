@@ -436,9 +436,9 @@ struct TrainerBoostStoreView: View {
         loadError = nil
         store.restorePendingBoostFromDisk()
         do {
-            async let productsTask = APIClient().billingProducts(type: "boost")
-            async let boostTask = APIClient().myBoost()
-            async let profileTask = APIClient().getMyCoachProfile()
+            async let productsTask = APIClient.shared.billingProducts(type: "boost")
+            async let boostTask = APIClient.shared.myBoost()
+            async let profileTask = APIClient.shared.getMyCoachProfile()
 
             let page = try await productsTask
             products = page.items
@@ -494,7 +494,7 @@ struct TrainerBoostStoreView: View {
         defer { purchasingKey = nil }
 
         do {
-            let checkout = try await APIClient().createBoostCheckout(
+            let checkout = try await APIClient.shared.createBoostCheckout(
                 productId: product.id,
                 provider: provider.rawValue
             )

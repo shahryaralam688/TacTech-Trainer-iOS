@@ -80,7 +80,7 @@ struct TTDarkPageHeader: View {
     var collapseProgress: CGFloat = 0
     var onBack: (() -> Void)? = nil
 
-    private let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    private var charcoal: Color { TTColor.charcoal }
 
     init(
         title: String,

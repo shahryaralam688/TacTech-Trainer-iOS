@@ -316,7 +316,7 @@ struct TrainerCoachPackagesView: View {
         loadError = nil
         missingProfile = false
         do {
-            let page = try await APIClient().myCoachPackages()
+            let page = try await APIClient.shared.myCoachPackages()
             items = page.items
         } catch let error as AppError where error == .unauthorized {
             toast = TTToastMessage(text: error.localizedDescription, style: .error)
@@ -343,7 +343,7 @@ struct TrainerCoachPackagesView: View {
             archiveTarget = nil
         }
         do {
-            let updated = try await APIClient().archiveCoachPackage(id: pkg.id)
+            let updated = try await APIClient.shared.archiveCoachPackage(id: pkg.id)
             upsert(updated)
             toast = TTToastMessage(text: "Package archived", style: .success)
             await load()
@@ -637,7 +637,7 @@ private struct CoachPackageEditorSheet: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            let api = APIClient()
+            let api = APIClient.shared
             let saved: CoachPackage
             if let existing {
                 saved = try await api.updateCoachPackage(id: existing.id, body)

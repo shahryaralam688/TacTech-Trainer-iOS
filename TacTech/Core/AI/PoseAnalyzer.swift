@@ -281,5 +281,6 @@ struct CameraPreview: UIViewRepresentable {
 
 final class PreviewView: UIView {
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
-    var previewLayer: AVCaptureVideoPreviewLayer { layer as! AVCaptureVideoPreviewLayer }
+    /// `layerClass` guarantees the cast; the fallback only exists so a mismatch can never crash.
+    var previewLayer: AVCaptureVideoPreviewLayer { (layer as? AVCaptureVideoPreviewLayer) ?? AVCaptureVideoPreviewLayer() }
 }

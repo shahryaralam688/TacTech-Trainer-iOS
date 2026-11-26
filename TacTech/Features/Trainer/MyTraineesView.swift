@@ -62,7 +62,7 @@ struct MyTraineesView: View {
                 // The pinned controls row sticks directly under the *collapsed* header.
                 TTCollapsingHeaderScreen(
                     sheetFill: canvas,
-                    headerBackground: Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255),
+                    headerBackground: TTColor.charcoal,
                     topRadius: { _ in TTSheetChrome.pageTopRadius },
                     pinsBelowCollapsedHeader: true,
                     topAnchorID: "traineesTop",
@@ -120,7 +120,7 @@ struct MyTraineesView: View {
                     }
                 }
             }
-            .background(Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255).ignoresSafeArea(edges: .top))
+            .background(TTColor.charcoal.ignoresSafeArea(edges: .top))
             .ttHideSystemNavigationBar()
             .ttSyncRootTabBarWithNavigationDepth()
             .navigationDestination(item: $selectedTrainee) { trainee in

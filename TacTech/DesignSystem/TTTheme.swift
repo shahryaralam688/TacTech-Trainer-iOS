@@ -28,6 +28,12 @@ enum TTColor {
     static let surfaceAlt = Color("SurfaceAlt")
     static let header = TTPurple.p100
     static let headerWell = Color(white: 0.22)
+    /// The one dark-header colour (TTDarkPageHeader, Nutrition header, collapsing header screens).
+    static let charcoal = Color(red: 28 / 255, green: 28 / 255, blue: 30 / 255)
+    /// Light page canvas behind cards.
+    static let pageCanvas = Color(white: 0.98)
+    /// Subtle card fill on a light page.
+    static let subtleCard = Color(red: 243 / 255, green: 243 / 255, blue: 244 / 255)
 
     // Ink
     static let ink = Color("Ink")

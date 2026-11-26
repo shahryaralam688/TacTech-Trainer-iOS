@@ -445,7 +445,7 @@ struct CoachPublicProfileEditorView: View {
     private func load() async {
         isLoading = true
         do {
-            let profile = try await APIClient().getMyCoachProfile()
+            let profile = try await APIClient.shared.getMyCoachProfile()
             apply(profile)
         } catch let error as AppError where error.isNotFound {
             toast = TTToastMessage(
@@ -552,7 +552,7 @@ struct CoachPublicProfileEditorView: View {
         isSaving = true
         defer { isSaving = false }
         do {
-            let updated = try await APIClient().updateMyCoachProfile(body)
+            let updated = try await APIClient.shared.updateMyCoachProfile(body)
             apply(updated)
             toast = TTToastMessage(text: "Profile saved", style: .success)
         } catch {
